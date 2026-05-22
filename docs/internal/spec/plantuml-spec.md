@@ -25,7 +25,7 @@ Across the 27 chapters the audits scored roughly:
 
 | # | Chapter | ✅ | 🟡 | ❌ | Audit |
 |---|---------|----|----|----|-------|
-| 1 | Sequence Diagram | 22 | 16 | 10 | [ch01-sequence.md](audit/ch01-sequence.md) |
+| 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
 | 2 | Use Case Diagram | 10 | 4 | 3 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 3 | 3 | 2 | [ch04-object.md](audit/ch04-object.md) |
@@ -63,7 +63,7 @@ Across the 27 chapters the audits scored roughly:
 6. **JSON** — 7✅/14 (50%). serde_json + block parsing both solid.
 7. **WBS** — 6✅/12 (50%).
 8. **nwdiag** — 8✅/17 (47%). Networks/groups/addresses solid; peer links absent.
-9. **Sequence** — 22✅/48 (46%). Strong on participants/arrows/notes/groups/activations; partial on theming and exotic arrows.
+9. **Sequence** — 28✅/48 (58%). Strong on participants/arrows/notes/groups/activations/mainframe/aligned-notes/short-arrows/lifeline-strategy; partial on theming and exotic arrows.
 10. **Common Commands** — 9✅/21 (43%).
 11. **Salt (Wireframe)** — 10✅/24 (42%). Wide widget coverage, weakest at Creole-in-cells.
 12. **Deployment** — ~19✅/47 (40%). Most node-shape keywords missing.

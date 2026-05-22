@@ -122,11 +122,12 @@ File references are to `src/...` unless otherwise noted.
 **Status:** ✅ Supported
 **Evidence:** parser/sequence.rs:521 (across is valid position), layout.rs:994 (position == "across" handling), parser/tests.rs:987 (parses_note_across_without_target).
 
-### 1.18 Several notes aligned at the same level [/] — ❌ Missing
+### 1.18 Several notes aligned at the same level [/] — ✅ Supported
 **Feature:** Leading `/` aligns adjacent notes on same vertical level.
 **Syntax example:** `/ note over Bob : initial state of Bob`
-**Status:** ❌ Missing
-**Evidence:** parser/sequence.rs has no handling for a leading `/` before `note`. parse_keyword starts matching `note ` only at the beginning of the trimmed line. Not found in repo.
+**Status:** ✅ Supported
+**Evidence:** parser/sequence.rs (parse_keyword strips `/ ` prefix, sets `Note.aligned = true`); layout.rs (aligned notes reuse the y-coordinate of the preceding note box so they render side-by-side); parser/multiline.rs (multiline `/note` blocks also supported).
+**Notes:** Implemented in feat(render): improve sequence diagram ch01 parity. Tests in tests/ch01_sequence_parity.rs.
 
 ### 1.19 Creole and HTML — 🟡 Partial
 **Feature:** Creole `**bold**`, `//italic//`, `__under__`, `--strike--`, `~~wave~~`, `""mono""`; HTML tags like `<color>`, `<size>`, `<u>`, `<img>`.
@@ -200,12 +201,12 @@ File references are to `src/...` unless otherwise noted.
 **Status:** ✅ Supported
 **Evidence:** parser/sequence.rs:205-224 (ast_virtual_endpoint_from_id covers `[`, `]`, `[o`, `o]`, `[x`, `x]`), parser/sequence.rs:912-925 (normalize_virtual_endpoint).
 
-### 1.30 Short arrows for incoming and outgoing messages — 🟡 Partial
+### 1.30 Short arrows for incoming and outgoing messages — ✅ Supported
 **Feature:** `?->` / `->?` short incoming/outgoing arrows.
 **Syntax example:** `?-> Alice : short`
-**Status:** 🟡 Partial — needs deeper review
-**Evidence:** No `?` handling found in ast_virtual_endpoint_from_id or normalize_virtual_endpoint (parser/sequence.rs:205-224, 912-925). is_arrow_char does not include `?`.
-**Notes:** Likely parser rejects with no message-shape match. Mark partial pending parse test.
+**Status:** ✅ Supported
+**Evidence:** parser/sequence.rs (normalize_virtual_endpoint recognizes `?`, ast_virtual_endpoint_from_id maps it to VirtualEndpointKind::Short); model.rs:VirtualEndpointKind::Short; render/sequence.rs (render_virtual_endpoint_marker renders Short as a dashed stub).
+**Notes:** Implemented in feat(render): improve sequence diagram ch01 parity. Tests in tests/ch01_sequence_parity.rs.
 
 ### 1.31 Anchors and Duration — ❌ Missing
 **Feature:** `{name}` anchors and `{a} <-> {b} : label` duration markers (teoz only).
@@ -280,19 +281,20 @@ Same matrix on self; same status — relies on 1.39.1's arrow parsing. Self-mess
 #### 1.39.5 Outgoing messages (with ']') — ✅ Supported / 🟡
 Same as 1.39.4, mirrored. Same evidence.
 
-#### 1.39.6 / 1.39.7 Short incoming (with '?') — ❌ Missing
-**Status:** ❌ Missing (see 1.30).
+#### 1.39.6 / 1.39.7 Short incoming (with '?') — ✅ Supported
+**Status:** ✅ Supported (see 1.30).
 
-#### 1.39.8 Short outgoing (with '?') — ❌ Missing
-**Status:** ❌ Missing (see 1.30).
+#### 1.39.8 Short outgoing (with '?') — ✅ Supported
+**Status:** ✅ Supported (see 1.30).
 
 ### 1.40 Specific SkinParameter
 #### 1.40.1 By default — ✅ (prose only)
-#### 1.40.2 LifelineStrategy — ❌ Missing
+#### 1.40.2 LifelineStrategy — ✅ Supported
 **Feature:** `skinparam lifelineStrategy nosolid|solid`.
 **Syntax example:** `skinparam lifelineStrategy solid`
-**Status:** ❌ Missing
-**Evidence:** No LifelineStrategy variant in theme.rs::SequenceSkinParamValue. Not found in repo.
+**Status:** ✅ Supported
+**Evidence:** theme.rs:SequenceSkinParamValue::LifelineNoSolid; theme.rs:classify_sequence_skinparam handles `lifelinestrategy`; SequenceStyle.lifeline_nosolid; render/sequence.rs skips activation boxes when `lifeline_nosolid` is true.
+**Notes:** Implemented in feat(render): improve sequence diagram ch01 parity. Tests in tests/ch01_sequence_parity.rs.
 
 #### 1.40.3 style strictuml — ❌ Missing
 **Feature:** `skinparam style strictuml` switches to strict UML triangle arrowheads.
@@ -313,11 +315,12 @@ Same as 1.39.4, mirrored. Same evidence.
 **Evidence:** parser/sequence.rs:352-366 captures the full label string after the group kw, including `#Gold` prefix. No evidence in render/sequence.rs of extracting two colors from a `kw#A #B label` pattern.
 **Notes:** Label including `#color` likely rendered verbatim; group header/background coloring missing.
 
-### 1.43 Mainframe — ❌ Missing
+### 1.43 Mainframe — ✅ Supported
 **Feature:** `mainframe Title` draws a UML mainframe-style label box around the whole diagram.
 **Syntax example:** `mainframe This is a **mainframe**`
-**Status:** ❌ Missing
-**Evidence:** No `mainframe` keyword found in parser/sequence.rs or anywhere under src/.
+**Status:** ✅ Supported
+**Evidence:** parser/sequence.rs (parse_keyword handles `mainframe`); ast.rs:StatementKind::Mainframe; normalize/sequence.rs (sets SequenceDocument.mainframe); scene.rs:Scene.mainframe; render/sequence.rs:render_mainframe (outer rect + pentagon notch + title text).
+**Notes:** Implemented in feat(render): improve sequence diagram ch01 parity. Tests in tests/ch01_sequence_parity.rs.
 
 ### 1.44 Slanted or odd arrows — ❌ Missing
 **Feature:** `A ->(10) B` slanted arrows; `(nn)` shift pixels.
@@ -337,8 +340,15 @@ Same as 1.39.4, mirrored. Same evidence.
 
 ## Tallies
 
-- ✅ Supported: 22
-- 🟡 Partial: 16
-- ❌ Missing: 10
+- ✅ Supported: 28
+- 🟡 Partial: 14
+- ❌ Missing: 6
 
 Sub-subsections 1.6.1, 1.33.1, 1.33.2, 1.39.1-1.39.8 counted individually. Prose-only 1.40.1 noted but not counted.
+
+**Changes in this cycle (feat(render): improve sequence diagram ch01 parity):**
+- 1.18 ❌→✅ (aligned notes `/note`)
+- 1.30 🟡→✅ (short arrows `?->` / `->?`)
+- 1.39.6-8 ❌→✅ (short arrow appendix)
+- 1.40.2 ❌→✅ (lifelineStrategy nosolid)
+- 1.43 ❌→✅ (mainframe)
