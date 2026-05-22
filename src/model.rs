@@ -176,6 +176,10 @@ pub struct YamlTreeNode {
 pub struct NwdiagDocument {
     pub networks: Vec<NwdiagNetwork>,
     pub groups: Vec<NwdiagGroup>,
+    /// Peer-link edges declared outside any network block: `A -- B`
+    pub peer_links: Vec<(String, String)>,
+    /// Node declarations outside any network block (e.g. `inet [shape = cloud]`).
+    pub top_level_nodes: Vec<NwdiagNode>,
     pub title: Option<String>,
     pub warnings: Vec<Diagnostic>,
 }
@@ -188,6 +192,8 @@ pub struct NwdiagNetwork {
     pub color: Option<String>,
     pub shape: Option<String>,
     pub style: Option<String>,
+    /// `width = full` extends this network's busbar to the full diagram width.
+    pub width_full: bool,
     pub nodes: Vec<NwdiagNode>,
 }
 

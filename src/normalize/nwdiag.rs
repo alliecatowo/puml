@@ -4,6 +4,8 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
     let (raw, title) = collect_raw_block(&document);
     let mut networks: Vec<NwdiagNetwork> = Vec::new();
     let mut groups: Vec<NwdiagGroup> = Vec::new();
+    let mut peer_links: Vec<(String, String)> = Vec::new();
+    let mut top_level_nodes: Vec<NwdiagNode> = Vec::new();
     let mut current: Option<NwdiagNetwork> = None;
     let mut current_group: Option<NwdiagGroup> = None;
     for line in raw.lines() {
@@ -32,6 +34,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                 color: None,
                 shape: None,
                 style: None,
+                width_full: false,
                 nodes: Vec::new(),
             });
             continue;
@@ -88,6 +91,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                     "description" | "label" => net.label = Some(value),
                     "shape" => net.shape = Some(value),
                     "style" => net.style = Some(value),
+                    "width" if value.eq_ignore_ascii_case("full") => net.width_full = true,
                     _ => {}
                 }
                 continue;
@@ -121,6 +125,45 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                     group.nodes.push(name.to_string());
                 }
             }
+            continue;
+        }
+        // Top-level (outside network/group): parse peer links `A -- B -- C`
+        // and top-level node declarations `name [shape = cloud]`.
+        // Strip trailing semicolons first.
+        let stmt = trimmed.trim_end_matches(';').trim();
+        if stmt.contains(" -- ") {
+            // Chain: A -- B -- C generates pairs (A,B), (B,C).
+            // Also register any new node names from the chain as top-level nodes.
+            let parts: Vec<&str> = stmt.split(" -- ").map(str::trim).collect();
+            for pair in parts.windows(2) {
+                let a = pair[0]
+                    .split_once('[')
+                    .map(|(n, _)| n)
+                    .unwrap_or(pair[0])
+                    .trim()
+                    .trim_matches('"');
+                let b = pair[1]
+                    .split_once('[')
+                    .map(|(n, _)| n)
+                    .unwrap_or(pair[1])
+                    .trim()
+                    .trim_matches('"');
+                if !a.is_empty() && !b.is_empty() {
+                    peer_links.push((a.to_string(), b.to_string()));
+                }
+            }
+        } else if !stmt.is_empty() && !stmt.starts_with('}') {
+            // Top-level node declaration with optional attrs: `name [shape = cloud]`
+            if let Some(node) = parse_nwdiag_node_entry(stmt) {
+                // Only add if not already declared inside a network.
+                let already_in_network = networks
+                    .iter()
+                    .any(|net| net.nodes.iter().any(|n| n.name == node.name));
+                let already_top_level = top_level_nodes.iter().any(|n| n.name == node.name);
+                if !already_in_network && !already_top_level {
+                    top_level_nodes.push(node);
+                }
+            }
         }
     }
     if let Some(net) = current.take() {
@@ -132,6 +175,8 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
     Ok(NwdiagDocument {
         networks,
         groups,
+        peer_links,
+        top_level_nodes,
         title,
         warnings: Vec::new(),
     })

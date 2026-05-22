@@ -9,13 +9,27 @@ struct NodeRect {
 }
 
 pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
-    let width = 760;
     let mut node_columns = Vec::new();
     for net in &document.networks {
         for node in &net.nodes {
             if !node_columns.iter().any(|name| name == &node.name) {
                 node_columns.push(node.name.clone());
             }
+        }
+    }
+    // Also include top-level nodes (e.g. `inet [shape = cloud]` outside any network).
+    for node in &document.top_level_nodes {
+        if !node_columns.iter().any(|name| name == &node.name) {
+            node_columns.push(node.name.clone());
+        }
+    }
+    // Include any peer-link participants not yet in columns.
+    for (a, b) in &document.peer_links {
+        if !node_columns.iter().any(|name| name == a) {
+            node_columns.push(a.clone());
+        }
+        if !node_columns.iter().any(|name| name == b) {
+            node_columns.push(b.clone());
         }
     }
     let mut column_widths = BTreeMap::new();
@@ -32,13 +46,27 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 .or_insert(w);
         }
     }
+    for node in &document.top_level_nodes {
+        let w = node
+            .width
+            .and_then(|w| i32::try_from(w).ok())
+            .unwrap_or(140)
+            .clamp(120, 240);
+        column_widths
+            .entry(node.name.clone())
+            .and_modify(|current: &mut i32| *current = (*current).max(w))
+            .or_insert(w);
+    }
     let gap = 24;
     let topology_width: i32 = node_columns
         .iter()
         .map(|name| column_widths.get(name).copied().unwrap_or(140))
         .sum::<i32>()
         + gap * node_columns.len().saturating_sub(1) as i32;
-    let topology_x = 24 + ((712 - topology_width).max(0) / 2);
+    // Canvas width: at least 760, or wide enough to hold all columns with margin.
+    let width = (topology_width + 48).max(760);
+    let inner_width = width - 48; // usable width for network bars
+    let topology_x = 24 + ((inner_width - topology_width).max(0) / 2);
     let mut column_x = BTreeMap::new();
     let mut next_x = topology_x;
     for name in &node_columns {
@@ -51,8 +79,20 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     } else {
         net_rows * 102
     };
+    // Extra row for top-level nodes (peer endpoints outside any network).
+    let top_level_row_height = if document.top_level_nodes.is_empty()
+        && document.peer_links.iter().all(|(a, b)| {
+            document
+                .networks
+                .iter()
+                .any(|net| net.nodes.iter().any(|n| &n.name == a || &n.name == b))
+        }) {
+        0
+    } else {
+        52
+    };
     // Groups now overlay the topology — no extra rows needed below.
-    let height = 92 + network_height;
+    let height = 92 + network_height + top_level_row_height;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
@@ -75,6 +115,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         // ── Pass 1: collect node rects so we can compute group overlays ──────────
         // Map: node_name → list of NodeRect (one per network row where it appears)
         let mut node_rects: BTreeMap<String, Vec<NodeRect>> = BTreeMap::new();
+        // Track the y-position after all network rows (for top-level node placement).
+        let top_level_node_y;
         {
             let mut scan_y = y;
             for net in &document.networks {
@@ -98,6 +140,43 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                         });
                 }
                 scan_y = node_y + 52;
+            }
+            // Top-level nodes sit one row below the last network.
+            top_level_node_y = scan_y + 8;
+            for node in &document.top_level_nodes {
+                let node_width = node
+                    .width
+                    .and_then(|w| i32::try_from(w).ok())
+                    .unwrap_or(140)
+                    .clamp(120, 240);
+                let x = column_x.get(&node.name).copied().unwrap_or(56);
+                node_rects
+                    .entry(node.name.clone())
+                    .or_default()
+                    .push(NodeRect {
+                        x,
+                        y: top_level_node_y,
+                        w: node_width,
+                        h: 28,
+                    });
+            }
+            // Also register peer-link-only participants that have no declared node.
+            for (a, b) in &document.peer_links {
+                for name in [a, b] {
+                    if !node_rects.contains_key(name.as_str()) {
+                        let x = column_x.get(name.as_str()).copied().unwrap_or(56);
+                        let w = column_widths.get(name.as_str()).copied().unwrap_or(140);
+                        node_rects
+                            .entry(name.clone())
+                            .or_default()
+                            .push(NodeRect {
+                                x,
+                                y: top_level_node_y,
+                                w,
+                                h: 28,
+                            });
+                    }
+                }
             }
         }
 
@@ -195,10 +274,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 ""
             };
             out.push_str(&format!(
-                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"712\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
+                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"{}\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
                 escape_text(net_style),
                 escape_text(net.shape.as_deref().unwrap_or("swimlane")),
                 y,
+                inner_width,
                 escape_text(net_fill),
                 net_dash
             ));
@@ -214,10 +294,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             ));
             let bar_y = y + 24;
             out.push_str(&format!(
-                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"712\" height=\"12\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
+                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"{}\" height=\"12\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
                 escape_text(net_style),
                 escape_text(net.shape.as_deref().unwrap_or("swimlane")),
                 bar_y,
+                inner_width,
                 escape_text(net_fill),
                 net_dash
             ));
@@ -291,6 +372,139 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 ));
             }
             y = node_y + 52;
+        }
+
+        // ── Emit top-level nodes (outside any network) ───────────────────────────
+        for node in &document.top_level_nodes {
+            let node_fill = node.color.as_deref().unwrap_or("#f1f5f9");
+            let shape = node.shape.as_deref().unwrap_or("box");
+            let style = node.style.as_deref().unwrap_or("solid");
+            let dashed = if style.eq_ignore_ascii_case("dashed") {
+                " stroke-dasharray=\"5 3\""
+            } else {
+                ""
+            };
+            let node_width = node
+                .width
+                .and_then(|w| i32::try_from(w).ok())
+                .unwrap_or(140)
+                .clamp(120, 240);
+            let radius = if shape.eq_ignore_ascii_case("roundedbox")
+                || shape.eq_ignore_ascii_case("cloud")
+            {
+                10
+            } else {
+                3
+            };
+            let x = column_x.get(&node.name).copied().unwrap_or(56);
+            out.push_str(&format!(
+                "<rect class=\"nwdiag-node nwdiag-toplevel\" data-nwdiag-name=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#475569\" stroke-width=\"1.5\"{}/>",
+                escape_text(&node.name),
+                escape_text(shape),
+                escape_text(style),
+                x,
+                top_level_node_y,
+                node_width,
+                radius,
+                radius,
+                escape_text(node_fill),
+                dashed
+            ));
+            let display = node.label.as_deref().unwrap_or(&node.name);
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                x + (node_width / 2),
+                top_level_node_y + 18,
+                escape_text(display)
+            ));
+        }
+        // Emit stub boxes for peer-link participants with no explicit declaration.
+        for (a, b) in &document.peer_links {
+            for name in [a, b] {
+                let already_in_network = document
+                    .networks
+                    .iter()
+                    .any(|net| net.nodes.iter().any(|n| &n.name == name));
+                let already_top_level = document
+                    .top_level_nodes
+                    .iter()
+                    .any(|n| &n.name == name);
+                if !already_in_network && !already_top_level {
+                    let x = column_x.get(name.as_str()).copied().unwrap_or(56);
+                    let node_width =
+                        column_widths.get(name.as_str()).copied().unwrap_or(140);
+                    out.push_str(&format!(
+                        "<rect class=\"nwdiag-node nwdiag-toplevel\" data-nwdiag-name=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"3\" ry=\"3\" fill=\"#f1f5f9\" stroke=\"#475569\" stroke-width=\"1.5\"/>",
+                        escape_text(name),
+                        x,
+                        top_level_node_y,
+                        node_width,
+                    ));
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                        x + (node_width / 2),
+                        top_level_node_y + 18,
+                        escape_text(name)
+                    ));
+                }
+            }
+        }
+
+        // ── Pass 3: emit peer links between nodes ────────────────────────────────
+        // A peer link `A -- B` is drawn as a bent path between the center-x of
+        // the two named nodes.  We use the first NodeRect of each participant so
+        // the connector emerges from its node box.
+        for (a, b) in &document.peer_links {
+            let col_w_a = column_widths.get(a.as_str()).copied().unwrap_or(140);
+            let col_w_b = column_widths.get(b.as_str()).copied().unwrap_or(140);
+            let ax = node_rects
+                .get(a.as_str())
+                .and_then(|v| v.first())
+                .map(|r| r.x + col_w_a / 2)
+                .or_else(|| {
+                    column_x
+                        .get(a.as_str())
+                        .map(|&cx| cx + col_w_a / 2)
+                });
+            let bx = node_rects
+                .get(b.as_str())
+                .and_then(|v| v.first())
+                .map(|r| r.x + col_w_b / 2)
+                .or_else(|| {
+                    column_x
+                        .get(b.as_str())
+                        .map(|&cx| cx + col_w_b / 2)
+                });
+            let ay = node_rects
+                .get(a.as_str())
+                .and_then(|v| v.first())
+                .map(|r| r.y + 14); // mid-height of node rect
+            let by_coord = node_rects
+                .get(b.as_str())
+                .and_then(|v| v.first())
+                .map(|r| r.y + 14);
+            if let (Some(ax), Some(bx)) = (ax, bx) {
+                let ay = ay.unwrap_or(y + 14);
+                let by_coord = by_coord.unwrap_or(y + 14);
+                // Draw a bent path: go down to the lower y, then across, then back up.
+                let link_y = ay.max(by_coord) + 18;
+                out.push_str(&format!(
+                    "<path class=\"nwdiag-peer-link\" data-nwdiag-peer-a=\"{}\" data-nwdiag-peer-b=\"{}\" d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"#475569\" stroke-width=\"2\" stroke-dasharray=\"4 2\" />",
+                    escape_text(a),
+                    escape_text(b),
+                    ax, ay,
+                    ax, link_y,
+                    bx, link_y,
+                    bx, by_coord,
+                ));
+                // Midpoint label
+                let mid_x = (ax + bx) / 2;
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">peer</text>",
+                    mid_x,
+                    link_y - 4,
+                ));
+            }
         }
     }
     out.push_str("</svg>");
