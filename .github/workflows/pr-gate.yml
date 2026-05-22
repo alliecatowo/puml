@@ -111,6 +111,14 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+
       - name: clippy gate
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -133,6 +141,14 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
 
       - name: test gate
         run: cargo test
@@ -173,6 +189,14 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
@@ -197,6 +221,14 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
@@ -223,6 +255,14 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
 
       - name: docs examples drift gate
         run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
@@ -255,6 +295,16 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
+
+      - name: Setup sccache
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
 
       - name: Install Zola
         uses: ./.github/actions/install-zola

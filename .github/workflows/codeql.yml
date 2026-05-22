@@ -48,6 +48,14 @@ jobs:
             . -> target/codeql
           cache-on-failure: true
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+
       - name: Prepare Rust workspace
         run: |
           set -euo pipefail
@@ -60,6 +68,10 @@ jobs:
         with:
           languages: rust
           build-mode: none
+          config: |
+            paths:
+              - src
+              - crates
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

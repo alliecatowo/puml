@@ -39,6 +39,14 @@ jobs:
           shared-key: main-gate-ubuntu-stable
           cache-on-failure: true
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Enable sccache for Rust
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
 
