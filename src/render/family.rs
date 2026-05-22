@@ -3,7 +3,7 @@ use super::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
     render_relation_marker_defs, usecase_dependency_label,
 };
-use super::svg::{escape_text, render_actor_stick_figure};
+use super::svg::{creole_text, escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
@@ -2609,15 +2609,31 @@ fn render_class_node(
                 m = escape_text(required_text.trim_start())
             ));
         } else {
-            out.push_str(&format!(
-                "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
-                ff = escape_text(font_family),
-                fs = member_font_size,
-                tx = x + 10,
-                vc = effective_color,
-                sa = style_attrs,
-                m = escape_text(&display_text)
-            ));
+            if display_text.contains("<$") {
+                out.push_str(&creole_text(
+                    x + 10,
+                    my,
+                    &format!(
+                        "class=\"uml-member\"{visibility_attr}{modifier_attr} font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}",
+                        escape_text(font_family),
+                        member_font_size,
+                        effective_color,
+                        style_attrs
+                    ),
+                    &display_text,
+                    effective_color,
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
+                    ff = escape_text(font_family),
+                    fs = member_font_size,
+                    tx = x + 10,
+                    vc = effective_color,
+                    sa = style_attrs,
+                    m = escape_text(&display_text)
+                ));
+            }
         }
         my += 16;
     }

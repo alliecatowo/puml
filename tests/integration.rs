@@ -6530,6 +6530,93 @@ fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
 }
 
 #[test]
+fn sprites_hex_grid_render_inline_with_scale_and_color() {
+    let src = "@startuml\n\
+sprite $foo [4x4/16] {\n\
+0FF0\n\
+F00F\n\
+F00F\n\
+0FF0\n\
+}\n\
+Alice -> Bob : Testing <$foo,scale=2,color=orange>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("sprite should render");
+    assert!(svg.contains("data-creole-sprites=\"true\""));
+    assert!(svg.contains("data-sprite=\"foo\""));
+    assert!(svg.contains("scale(2.000)"));
+    assert!(svg.contains("fill=\"orange\""));
+    assert!(!svg.contains("&lt;$foo"));
+}
+
+#[test]
+fn sprites_encoded_z_payload_decodes_and_listsprites_renders_sheet() {
+    let src = "@startuml\n\
+sprite $printer [15x15/8z] NOtH3W0W208HxFz_kMAhj7lHWpa1XC716sz0Pq4MVPEWfBHIuxP3L6kbTcizR8tAhzaqFvXwvFfPEqm0\n\
+listsprites\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("compressed sprite should render");
+    assert!(svg.contains("data-sprite-list=\"true\""));
+    assert!(svg.contains("data-sprite-count=\"1\""));
+    assert!(svg.contains("$printer"));
+    assert!(svg.contains("data-sprite=\"printer\""));
+}
+
+#[test]
+fn sprites_inline_svg_reference_renders_scaled_svg_fragment() {
+    let src = "@startuml\n\
+sprite folder_svg <svg width=\"4\" height=\"4\" viewBox=\"0 0 4 4\"><path d=\"M0 1h4v3H0z\" fill=\"#0f766e\"/></svg>\n\
+Alice -> Bob : <$folder_svg*2>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("inline SVG sprite should render");
+    assert!(svg.contains("puml-sprite-svg"));
+    assert!(svg.contains("data-sprite=\"folder_svg\""));
+    assert!(svg.contains("scale(2.000)"));
+    assert!(svg.contains("M0 1h4v3H0z"));
+}
+
+#[test]
+fn sprites_from_stdlib_include_resolve_to_visible_icon() {
+    let src = "@startuml\n\
+!include <material/folder>\n\
+Alice -> Bob : <$ma_folder{scale=2}>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("stdlib sprite should render");
+    assert!(svg.contains("data-sprite=\"ma_folder\""));
+    assert!(svg.contains("data-sprite-width=\"8\""));
+}
+
+#[test]
+fn sprite_invalid_hex_grid_reports_diagnostic() {
+    let src = "@startuml\n\
+sprite $bad {\n\
+0FG0\n\
+}\n\
+Alice -> Bob : nope\n\
+@enduml\n";
+    let err = render_source_to_svg(src).expect_err("invalid sprite should fail");
+    assert!(err.message.contains("[E_SPRITE_INVALID]"));
+}
+
+#[test]
+fn encodesprite_cli_outputs_compressed_sprite_definition() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("tiny-icon.png");
+    let mut image = image::RgbaImage::new(2, 2);
+    image.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+    image.put_pixel(1, 0, image::Rgba([255, 255, 255, 255]));
+    image.put_pixel(0, 1, image::Rgba([128, 128, 128, 255]));
+    image.put_pixel(1, 1, image::Rgba([0, 0, 0, 0]));
+    image.save(&input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-encodesprite", "16z", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("sprite $tiny-icon [2x2/16z]"));
+}
+
+#[test]
 fn unicode_escape_fixture_checks_cleanly() {
     Command::cargo_bin("puml")
         .expect("binary")

@@ -1,6 +1,17 @@
 ' Deterministic Material folder icon stub.
 !include <material/common>
 
+sprite $ma_folder [8x8/16] {
+00000000
+04444400
+4FFFFF40
+4F444F40
+4FFFFF40
+4F444F40
+4FFFFF40
+00000000
+}
+
 !procedure MA_FOLDER($alias, $label="folder", $descr="")
 MaterialIcon($alias, folder, $label, $descr)
 !endprocedure

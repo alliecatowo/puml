@@ -132,6 +132,23 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub overwrite: bool,
 
+    /// Encode a PNG/JPEG/WebP image as a PlantUML sprite. Format: 4, 8, 16, 4z, 8z, or 16z.
+    #[arg(
+        long = "encodesprite",
+        value_names = ["FORMAT", "IMAGE"],
+        num_args = 2,
+        conflicts_with_all = [
+            "input",
+            "check_fixture",
+            "lint_input",
+            "lint_glob",
+            "metadata",
+            "check",
+            "dump"
+        ]
+    )]
+    pub encodesprite: Vec<String>,
+
     /// Exit with code 1 if any warnings are emitted.
     #[arg(long, action = ArgAction::SetTrue)]
     pub fail_on_warn: bool,
@@ -279,6 +296,7 @@ mod tests {
         assert_eq!(cli.determinism, DeterminismMode::Strict);
         assert_eq!(cli.lint_report, LintReportFormat::Human);
         assert_eq!(cli.charset, "UTF-8");
+        assert!(cli.encodesprite.is_empty());
     }
 
     #[test]
@@ -378,5 +396,12 @@ mod tests {
         let cli =
             Cli::try_parse_from(["puml", "--format", "pdf"]).expect("--format pdf should parse");
         assert_eq!(cli.format, OutputFormat::Pdf);
+    }
+
+    #[test]
+    fn encodesprite_parses_format_and_image() {
+        let cli = Cli::try_parse_from(["puml", "--encodesprite", "16z", "icon.png"])
+            .expect("encodesprite should parse");
+        assert_eq!(cli.encodesprite, vec!["16z", "icon.png"]);
     }
 }

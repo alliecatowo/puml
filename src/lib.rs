@@ -16,6 +16,7 @@ pub mod render;
 pub mod scene;
 pub mod source;
 pub mod specialized;
+pub mod sprites;
 pub mod theme;
 
 pub use ast::Document;
@@ -313,16 +314,18 @@ fn render_document_for_family(
         DiagramFamily::Sequence => {
             let sequence = normalize(document)?;
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
-            Ok(scenes.iter().map(render::render_svg).collect())
+            Ok(render::with_sprite_registry(&sequence.sprites, || {
+                if sequence.list_sprites {
+                    vec![render::render_sprite_sheet(&sequence.sprites)]
+                } else {
+                    scenes.iter().map(render::render_svg).collect()
+                }
+            }))
         }
         DiagramFamily::Class
         | DiagramFamily::Object
         | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => {
-                let mut svg = render::render_class_svg(&family_doc);
-                let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
-                Ok(vec![svg])
-            }
+            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
             model::NormalizedDocument::Sequence(_)
             | model::NormalizedDocument::Timeline(_)
             | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
@@ -333,9 +336,7 @@ fn render_document_for_family(
             )),
         },
         DiagramFamily::Salt => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => {
-                Ok(vec![render::render_salt_svg(&family_doc)])
-            }
+            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during salt render",
             )),
@@ -435,7 +436,15 @@ fn render_family_with(
     renderer: fn(&FamilyDocument) -> String,
 ) -> Result<Vec<String>, Diagnostic> {
     match normalize::normalize_family(document)? {
-        model::NormalizedDocument::Family(doc) => Ok(vec![renderer(&doc)]),
+        model::NormalizedDocument::Family(doc) => {
+            Ok(vec![render::with_sprite_registry(&doc.sprites, || {
+                if doc.list_sprites {
+                    render::render_sprite_sheet(&doc.sprites)
+                } else {
+                    renderer(&doc)
+                }
+            })])
+        }
         model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
             "[E_FAMILY_INTERNAL] unexpected sequence model during extended family render",
         )),
@@ -472,8 +481,14 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
 pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
     match model {
         NormalizedDocument::Sequence(sequence) => {
-            let scenes = layout::layout_pages(sequence, LayoutOptions::default());
-            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+            render::with_sprite_registry(&sequence.sprites, || {
+                if sequence.list_sprites {
+                    vec![render::render_sprite_sheet(&sequence.sprites)]
+                } else {
+                    let scenes = layout::layout_pages(sequence, LayoutOptions::default());
+                    scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+                }
+            })
         }
         NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
@@ -492,16 +507,21 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {
-    let mut svg = match family.kind {
-        ast::DiagramKind::Salt => render::render_salt_svg(family),
-        ast::DiagramKind::Component => render::render_component_svg(family),
-        ast::DiagramKind::Deployment => render::render_deployment_svg(family),
-        ast::DiagramKind::Activity => render::render_activity_svg(family),
-        ast::DiagramKind::Timing => render::render_timing_svg(family),
-        ast::DiagramKind::MindMap => render::render_mindmap_svg(family),
-        ast::DiagramKind::Wbs => render::render_wbs_svg(family),
-        _ => render::render_family_stub_svg(family),
-    };
+    let mut svg = render::with_sprite_registry(&family.sprites, || {
+        if family.list_sprites {
+            return render::render_sprite_sheet(&family.sprites);
+        }
+        match family.kind {
+            ast::DiagramKind::Salt => render::render_salt_svg(family),
+            ast::DiagramKind::Component => render::render_component_svg(family),
+            ast::DiagramKind::Deployment => render::render_deployment_svg(family),
+            ast::DiagramKind::Activity => render::render_activity_svg(family),
+            ast::DiagramKind::Timing => render::render_timing_svg(family),
+            ast::DiagramKind::MindMap => render::render_mindmap_svg(family),
+            ast::DiagramKind::Wbs => render::render_wbs_svg(family),
+            _ => render::render_family_stub_svg(family),
+        }
+    });
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place.  Diagnostic-only violations are silently recorded — they do not

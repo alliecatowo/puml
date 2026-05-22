@@ -44,6 +44,8 @@ fn page_from(
         warnings: document.warnings.clone(),
         hide_unlinked: document.hide_unlinked,
         hidden_participants: document.hidden_participants.clone(),
+        sprites: document.sprites.clone(),
+        list_sprites: document.list_sprites,
     }
 }
 
@@ -102,9 +104,17 @@ pub(super) fn normalize_with_options(
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
     let mut hide_unlinked = false;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::HideUnlinked => {
                 hide_unlinked = true;
             }
@@ -876,6 +886,8 @@ pub(super) fn normalize_with_options(
         warnings,
         hide_unlinked,
         hidden_participants,
+        sprites,
+        list_sprites,
     })
 }
 

@@ -28,9 +28,17 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut class_style = ClassStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::SkinParam { key, value } => {
                 if family_kind == DiagramKind::Salt {
                     nodes.push(FamilyNode {
@@ -470,6 +478,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         style: SequenceStyle::default(),
         family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        sprites,
+        list_sprites,
         warnings,
     })
 }
@@ -583,11 +593,19 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut style = SequenceStyle::default();
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
     // MindMap: track whether subsequent depth-1 nodes should go on the left side.
     let mut mindmap_left_side_mode = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -857,6 +875,8 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         style,
         family_style: None,
         text_overflow_policy,
+        sprites,
+        list_sprites,
         warnings,
         groups: Vec::new(),
         json_projections: Vec::new(),
@@ -1096,9 +1116,17 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut timing_style = TimingStyle::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::ComponentDecl {
                 kind,
                 name,
@@ -1682,6 +1710,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         style: SequenceStyle::default(),
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        sprites,
+        list_sprites,
         warnings: ext_warnings,
         groups,
         json_projections,

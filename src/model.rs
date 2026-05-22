@@ -4,6 +4,7 @@ use crate::ast::{ClassMember, DiagramKind, NoteKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
+use crate::sprites::SpriteRegistry;
 use crate::theme::{
     ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle, TimingStyle,
 };
@@ -544,6 +545,8 @@ pub struct FamilyDocument {
     /// Family-specific style overrides (class/state/component/activity).
     pub family_style: Option<FamilyStyle>,
     pub text_overflow_policy: TextOverflowPolicy,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -715,6 +718,8 @@ pub struct SequenceDocument {
     pub hide_unlinked: bool,
     /// IDs of participants that were removed by the `hide unlinked` filter.
     pub hidden_participants: Vec<String>,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
 }
 
 impl Default for SequenceDocument {
@@ -738,6 +743,8 @@ impl Default for SequenceDocument {
             warnings: Vec::new(),
             hide_unlinked: false,
             hidden_participants: Vec::new(),
+            sprites: SpriteRegistry::new(),
+            list_sprites: false,
         }
     }
 }
@@ -764,6 +771,8 @@ pub struct SequencePage {
     pub hide_unlinked: bool,
     /// IDs of participants that were removed by the `hide unlinked` filter.
     pub hidden_participants: Vec<String>,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
 }
 
 #[derive(Debug, Clone)]
