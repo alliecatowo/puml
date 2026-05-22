@@ -60,9 +60,19 @@ pub struct StateNode {
     pub display: Option<String>,
     pub kind: StateNodeKind,
     pub stereotype: Option<String>,
+    pub style: StateNodeStyle,
     pub internal_actions: Vec<StateInternalAction>,
     /// For composite states: children per region (concurrent → multiple vecs)
     pub regions: Vec<Vec<StateNode>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StateNodeStyle {
+    pub fill_color: Option<String>,
+    pub border_color: Option<String>,
+    pub border_dashed: bool,
+    pub border_thickness: Option<u8>,
+    pub text_color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +92,19 @@ pub enum StateNodeKind {
     Choice,
     /// `<<end>>` stereotype — filled circle
     End,
+    /// `<<entryPoint>>` / `<<exitPoint>>` boundary pseudo-states
+    EntryPoint,
+    ExitPoint,
+    /// `<<inputPin>>` / `<<outputPin>>` pin pseudo-states
+    InputPin,
+    OutputPin,
+    /// `<<expansionInput>>` / `<<expansionOutput>>` expansion port pseudo-states
+    ExpansionInput,
+    ExpansionOutput,
+    /// Attached or floating state note
+    Note,
+    /// Inline `json $alias { ... }` projection in a state diagram
+    JsonProjection,
 }
 
 #[derive(Debug, Clone)]

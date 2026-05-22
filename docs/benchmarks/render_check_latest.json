@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T03:54:03Z",
+  "generated_at_utc": "2026-05-22T04:01:58Z",
   "summary": {
-    "total": 293,
-    "passed": 290,
+    "total": 294,
+    "passed": 291,
     "excluded": 3,
     "failed": 0
   },
@@ -2590,6 +2590,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/state/11_entry_exit_actions_history.puml",
       "artifact_svg": "docs/examples/state/11_entry_exit_actions_history.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/state/12_ch09_parity.puml",
+      "artifact_svg": "docs/examples/state/12_ch09_parity.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

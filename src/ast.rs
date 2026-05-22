@@ -220,8 +220,18 @@ pub struct StateDecl {
     pub name: String,
     pub alias: Option<String>,
     pub stereotype: Option<String>,
+    pub style: StateDeclStyle,
     pub children: Vec<Statement>,
     pub region_dividers: Vec<usize>, // indices into children where `||` appeared
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StateDeclStyle {
+    pub fill_color: Option<String>,
+    pub border_color: Option<String>,
+    pub border_dashed: bool,
+    pub border_thickness: Option<u8>,
+    pub text_color: Option<String>,
 }
 
 /// A state transition: `From --> To` or `From --> To : label`
