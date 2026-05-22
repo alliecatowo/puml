@@ -23,9 +23,17 @@ pub fn render_svg(scene: &Scene) -> String {
     };
     let _ = shadow_filter; // used below per-element
 
+    let sepia_attr = if scene.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{}\">",
-        svg_width, svg_height, viewbox
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"{v}\"{sepia}>",
+        w = svg_width,
+        h = svg_height,
+        v = viewbox,
+        sepia = sepia_attr,
     ));
 
     // Embed SVG filter definitions.

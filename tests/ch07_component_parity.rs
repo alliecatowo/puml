@@ -1,0 +1,236 @@
+/// Chapter 7 component diagram parity tests.
+///
+/// Covers:
+///   7.8 / 7.9  `skinparam componentStyle uml2` (default — badges on left)
+///   7.9        `skinparam componentStyle uml1`   (badges in top-right corner)
+///   7.14       `skinparam componentStyle rectangle` (plain rect, no badges, no «component»)
+///   7.15       `hide @unlinked` / `remove @unlinked` (filter orphan nodes)
+use puml::render_source_to_svg;
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+fn render_svg(src: &str) -> String {
+    render_source_to_svg(src).expect("render should succeed")
+}
+
+// ── 7.8 / 7.9  componentStyle uml2 (default) ─────────────────────────────────
+
+#[test]
+fn component_style_uml2_is_default() {
+    let src = "\
+@startuml
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    // Default (uml2): badges appear on the LEFT side; the rect carries
+    // data-component-style=\"uml2\" (or no attribute — both acceptable); no
+    // \"rectangle\" attribute.
+    assert!(
+        !svg.contains("data-component-style=\"rectangle\""),
+        "uml2 default should NOT use rectangle style"
+    );
+    assert!(
+        !svg.contains("data-component-style=\"uml1\""),
+        "uml2 default should NOT use uml1 style"
+    );
+    // The «component» stereotype text should be present.
+    assert!(
+        svg.contains("component"),
+        "uml2 default should show «component» stereotype"
+    );
+}
+
+// ── 7.9  componentStyle uml1 ─────────────────────────────────────────────────
+
+#[test]
+fn component_style_uml1_sets_badge_attribute() {
+    let src = "\
+@startuml
+skinparam componentStyle uml1
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("data-component-style=\"uml1\""),
+        "uml1 style should set data-component-style=\"uml1\" on component rect; got: {}",
+        &svg[..svg.len().min(400)]
+    );
+}
+
+#[test]
+fn component_style_uml1_badges_are_in_top_right() {
+    let src = "\
+@startuml
+skinparam componentStyle uml1
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    // The SVG should have two small badge rects; since uml1 puts them in the
+    // top-right, we only check the attribute presence (pixel-position testing
+    // is done via visual PNG audit).
+    assert!(
+        svg.contains("data-component-style=\"uml1\""),
+        "uml1 style attribute must be present"
+    );
+    // The «component» stereotype text should still appear.
+    assert!(
+        svg.contains("component"),
+        "uml1 style should still show «component» stereotype"
+    );
+}
+
+// ── 7.14  componentStyle rectangle ───────────────────────────────────────────
+
+#[test]
+fn component_style_rectangle_sets_attribute() {
+    let src = "\
+@startuml
+skinparam componentStyle rectangle
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("data-component-style=\"rectangle\""),
+        "rectangle style should set data-component-style=\"rectangle\"; got: {}",
+        &svg[..svg.len().min(400)]
+    );
+}
+
+#[test]
+fn component_style_rectangle_hides_stereotype() {
+    let src = "\
+@startuml
+skinparam componentStyle rectangle
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    // Rectangle mode: the «component» stereotype text must NOT appear.
+    assert!(
+        !svg.contains("«component»") && !svg.contains("&laquo;component&raquo;"),
+        "rectangle style should suppress «component» stereotype; got SVG containing it"
+    );
+}
+
+#[test]
+fn component_style_rectangle_no_badges() {
+    let src = "\
+@startuml
+skinparam componentStyle rectangle
+[WebServer]
+@enduml
+";
+    let svg = render_svg(src);
+    // Rectangle mode should have no component-badge small rects (they are
+    // identified by having class=\"component-badge\" or similar).  We
+    // specifically verify there is no uml1/uml2 badge attribute.
+    assert!(
+        !svg.contains("data-component-style=\"uml1\""),
+        "rectangle style should not produce uml1 badges"
+    );
+    assert!(
+        !svg.contains("data-component-style=\"uml2\""),
+        "rectangle style should not produce uml2 badges"
+    );
+}
+
+// ── 7.15  hide @unlinked ──────────────────────────────────────────────────────
+
+#[test]
+fn hide_unlinked_removes_orphan_nodes() {
+    let src = "\
+@startuml
+hide @unlinked
+
+[WebServer] --> [Database]
+[UnusedComponent]
+@enduml
+";
+    let svg = render_svg(src);
+    // Linked nodes should appear.
+    assert!(
+        svg.contains("WebServer"),
+        "WebServer (linked) should remain after hide @unlinked"
+    );
+    assert!(
+        svg.contains("Database"),
+        "Database (linked) should remain after hide @unlinked"
+    );
+    // Orphan should be removed.
+    assert!(
+        !svg.contains("UnusedComponent"),
+        "UnusedComponent (orphan) should be removed by hide @unlinked"
+    );
+}
+
+#[test]
+fn remove_unlinked_removes_orphan_nodes() {
+    let src = "\
+@startuml
+remove @unlinked
+
+[WebServer] --> [Database]
+[UnusedComponent]
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("WebServer"),
+        "WebServer (linked) should remain after remove @unlinked"
+    );
+    assert!(
+        svg.contains("Database"),
+        "Database (linked) should remain after remove @unlinked"
+    );
+    assert!(
+        !svg.contains("UnusedComponent"),
+        "UnusedComponent (orphan) should be removed by remove @unlinked"
+    );
+}
+
+#[test]
+fn hide_unlinked_keeps_all_when_all_linked() {
+    let src = "\
+@startuml
+hide @unlinked
+
+[A] --> [B]
+[B] --> [C]
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains(">A<") || svg.contains(">A "),
+        "A should be present"
+    );
+    assert!(
+        svg.contains(">B<") || svg.contains(">B "),
+        "B should be present"
+    );
+    assert!(
+        svg.contains(">C<") || svg.contains(">C "),
+        "C should be present"
+    );
+}
+
+#[test]
+fn hide_unlinked_does_not_affect_sequence_diagrams() {
+    // hide footbox must still work in sequence diagrams and must not be
+    // confused with hide @unlinked.
+    let src = "\
+@startuml
+hide footbox
+A -> B : hello
+@enduml
+";
+    let svg = render_svg(src);
+    // The diagram should render successfully and include the message.
+    assert!(
+        svg.contains("hello"),
+        "sequence message should still render"
+    );
+}

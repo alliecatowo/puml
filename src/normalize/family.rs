@@ -32,6 +32,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut last_relation: Option<(String, String)> = None;
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -121,8 +123,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     SkinParamSupport::UnsupportedKey => {
                         // Class diagrams accept generic sequence keys silently
                         // (PlantUML applies them across all families).
-                        use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport};
-                        if !matches!(
+                        use crate::theme::{
+                            classify_sequence_skinparam, SequenceSkinParamSupport,
+                            SequenceSkinParamValue,
+                        };
+                        if key.trim().eq_ignore_ascii_case("sepia") {
+                            if let SequenceSkinParamSupport::SupportedWithValue(
+                                SequenceSkinParamValue::Sepia(enabled),
+                            ) = classify_sequence_skinparam(&key, &value)
+                            {
+                                sepia = enabled;
+                            }
+                        } else if !matches!(
                             classify_sequence_skinparam(&key, &value),
                             SequenceSkinParamSupport::UnsupportedKey
                         ) {
@@ -477,6 +489,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 });
             }
             StatementKind::Unknown(line) => {
+                // Handle `left to right direction` / `top to bottom direction`
+                if let Some(dir) = parse_family_orientation_directive(&line) {
+                    orientation = dir;
+                    continue;
+                }
                 if family_kind == DiagramKind::Salt {
                     let text = line.trim();
                     if !text.is_empty() {
@@ -536,8 +553,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         footer,
         caption,
         legend,
-        orientation: FamilyOrientation::TopToBottom,
-        style: SequenceStyle::default(),
+        orientation,
+        style: SequenceStyle {
+            sepia,
+            ..SequenceStyle::default()
+        },
         family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         sprites,
@@ -1081,6 +1101,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     ) => {
                         style.hand_drawn = enabled;
                     }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) => {
+                        style.sepia = enabled;
+                    }
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -1442,6 +1467,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut hide_options: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut activity_step_counter: usize = 0;
     let mut activity_active_partition: Option<String> = None;
     let mut activity_fork_depth: usize = 0;
@@ -1459,6 +1485,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -1692,6 +1720,37 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 } else {
                     (rel.from, rel.to)
                 };
+                // Component/Deployment: auto-create nodes for relation endpoints
+                // declared only via bracket shorthand (e.g. `[WebServer] --> [DB]`).
+                if matches!(
+                    family_kind,
+                    DiagramKind::Component | DiagramKind::Deployment
+                ) {
+                    for endpoint in [&from, &to] {
+                        if !endpoint.is_empty()
+                            && !nodes.iter().any(|n| {
+                                n.name == *endpoint || n.alias.as_deref() == Some(endpoint.as_str())
+                            })
+                        {
+                            let node_kind = if family_kind == DiagramKind::Component {
+                                FamilyNodeKind::Component
+                            } else {
+                                FamilyNodeKind::Node
+                            };
+                            nodes.push(FamilyNode {
+                                kind: node_kind,
+                                name: endpoint.clone(),
+                                alias: None,
+                                members: Vec::new(),
+                                depth: 0,
+                                label: None,
+                                mindmap_side: MindMapSide::Right,
+                                wbs_checkbox: None,
+                                fill_color: None,
+                            });
+                        }
+                    }
+                }
                 relations.push(ModelFamilyRelation {
                     from,
                     to,
@@ -1863,6 +1922,14 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                             .with_span(stmt.span),
                         ),
                     }
+                } else if key.trim().eq_ignore_ascii_case("sepia") {
+                    handled = true;
+                    if let SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) = classify_sequence_skinparam(&key, &value)
+                    {
+                        sepia = enabled;
+                    }
                 }
                 if matches!(
                     family_kind,
@@ -1890,6 +1957,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                                 }
                                 ComponentSkinParamValue::ArrowColor(c) => {
                                     component_style.arrow_color = c;
+                                }
+                                ComponentSkinParamValue::StyleMode(mode) => {
+                                    component_style.component_style_mode = mode;
                                 }
                             }
                         }
@@ -2034,6 +2104,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     format: "yaml".to_string(),
                 });
             }
+            StatementKind::HideOption(opt) => {
+                hide_options.insert(opt.to_ascii_lowercase());
+            }
             StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -2055,6 +2128,12 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 }
             }
             StatementKind::Unknown(line) => {
+                // Handle `left to right direction` / `top to bottom direction`
+                // (and reverse variants) for component/state/activity diagrams.
+                if let Some(dir) = parse_family_orientation_directive(&line) {
+                    orientation = dir;
+                    continue;
+                }
                 if family_kind == DiagramKind::Activity {
                     let trimmed = line.trim();
                     if trimmed.is_empty() {
@@ -2125,6 +2204,26 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         }
         _ => None,
     };
+
+    // Apply hide/remove @unlinked for component and deployment diagrams.
+    // A node is "unlinked" if neither its name nor alias appears in any relation endpoint.
+    if matches!(
+        family_kind,
+        DiagramKind::Component | DiagramKind::Deployment
+    ) && (hide_options.contains("hide @unlinked") || hide_options.contains("remove @unlinked"))
+    {
+        let mut linked: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for rel in &relations {
+            linked.insert(rel.from.to_ascii_lowercase());
+            linked.insert(rel.to.to_ascii_lowercase());
+        }
+        nodes.retain(|node| {
+            let name_lc = node.name.to_ascii_lowercase();
+            let alias_lc = node.alias.as_deref().map(str::to_ascii_lowercase);
+            linked.contains(&name_lc) || alias_lc.as_ref().is_some_and(|a| linked.contains(a))
+        });
+    }
+
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
@@ -2134,8 +2233,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         footer,
         caption,
         legend,
-        orientation: FamilyOrientation::TopToBottom,
-        style: SequenceStyle::default(),
+        orientation,
+        style: SequenceStyle {
+            sepia,
+            ..SequenceStyle::default()
+        },
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         sprites,
@@ -2143,7 +2245,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         warnings: ext_warnings,
         groups,
         json_projections,
-        hide_options: std::collections::BTreeSet::new(),
+        hide_options,
         namespace_separator: None,
     })
 }
