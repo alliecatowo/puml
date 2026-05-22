@@ -166,15 +166,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                     if !node_rects.contains_key(name.as_str()) {
                         let x = column_x.get(name.as_str()).copied().unwrap_or(56);
                         let w = column_widths.get(name.as_str()).copied().unwrap_or(140);
-                        node_rects
-                            .entry(name.clone())
-                            .or_default()
-                            .push(NodeRect {
-                                x,
-                                y: top_level_node_y,
-                                w,
-                                h: 28,
-                            });
+                        node_rects.entry(name.clone()).or_default().push(NodeRect {
+                            x,
+                            y: top_level_node_y,
+                            w,
+                            h: 28,
+                        });
                     }
                 }
             }
@@ -425,14 +422,10 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                     .networks
                     .iter()
                     .any(|net| net.nodes.iter().any(|n| &n.name == name));
-                let already_top_level = document
-                    .top_level_nodes
-                    .iter()
-                    .any(|n| &n.name == name);
+                let already_top_level = document.top_level_nodes.iter().any(|n| &n.name == name);
                 if !already_in_network && !already_top_level {
                     let x = column_x.get(name.as_str()).copied().unwrap_or(56);
-                    let node_width =
-                        column_widths.get(name.as_str()).copied().unwrap_or(140);
+                    let node_width = column_widths.get(name.as_str()).copied().unwrap_or(140);
                     out.push_str(&format!(
                         "<rect class=\"nwdiag-node nwdiag-toplevel\" data-nwdiag-name=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"3\" ry=\"3\" fill=\"#f1f5f9\" stroke=\"#475569\" stroke-width=\"1.5\"/>",
                         escape_text(name),
@@ -461,20 +454,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 .get(a.as_str())
                 .and_then(|v| v.first())
                 .map(|r| r.x + col_w_a / 2)
-                .or_else(|| {
-                    column_x
-                        .get(a.as_str())
-                        .map(|&cx| cx + col_w_a / 2)
-                });
+                .or_else(|| column_x.get(a.as_str()).map(|&cx| cx + col_w_a / 2));
             let bx = node_rects
                 .get(b.as_str())
                 .and_then(|v| v.first())
                 .map(|r| r.x + col_w_b / 2)
-                .or_else(|| {
-                    column_x
-                        .get(b.as_str())
-                        .map(|&cx| cx + col_w_b / 2)
-                });
+                .or_else(|| column_x.get(b.as_str()).map(|&cx| cx + col_w_b / 2));
             let ay = node_rects
                 .get(a.as_str())
                 .and_then(|v| v.first())
