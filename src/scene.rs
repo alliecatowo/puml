@@ -26,6 +26,9 @@ pub struct Scene {
     pub legend_text: Option<String>,
     pub legend_halign: LegendHAlign,
     pub legend_valign: LegendVAlign,
+    /// Optional mainframe title — when `Some`, a UML mainframe border is drawn
+    /// around the whole diagram with the given title text in the top-left notch.
+    pub mainframe: Option<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -46,6 +46,7 @@ fn page_from(
         hidden_participants: document.hidden_participants.clone(),
         sprites: document.sprites.clone(),
         list_sprites: document.list_sprites,
+        mainframe: document.mainframe.clone(),
     }
 }
 
@@ -107,6 +108,7 @@ pub(super) fn normalize_with_options(
     let mut hide_unlinked = false;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
+    let mut mainframe: Option<String> = None;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -118,6 +120,9 @@ pub(super) fn normalize_with_options(
             }
             StatementKind::HideUnlinked => {
                 hide_unlinked = true;
+            }
+            StatementKind::Mainframe(title_text) => {
+                mainframe = Some(title_text.clone());
             }
             StatementKind::Participant(p) => {
                 mark_group_content(&mut group_stack);
@@ -224,6 +229,7 @@ pub(super) fn normalize_with_options(
                         position: n.position,
                         target: n.target,
                         text: n.text,
+                        aligned: n.aligned,
                     },
                 });
             }
@@ -474,6 +480,9 @@ pub(super) fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::Handwritten(enabled),
                     ) => style.hand_drawn = enabled,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineNoSolid(nosolid),
+                    ) => style.lifeline_nosolid = nosolid,
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::Sepia(enabled),
                     ) => style.sepia = enabled,
@@ -907,6 +916,7 @@ pub(super) fn normalize_with_options(
         hidden_participants,
         sprites,
         list_sprites,
+        mainframe,
     })
 }
 
@@ -1140,7 +1150,7 @@ fn map_role(role: AstRole) -> ParticipantRole {
 }
 
 fn is_virtual_endpoint(id: &str) -> bool {
-    matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]")
+    matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]" | "?")
 }
 
 fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
@@ -1158,6 +1168,15 @@ fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
                 VirtualEndpointSide::Right
             },
             VirtualEndpointKind::Filled,
+        ),
+        // `?` short arrow endpoint (feature 1.30): stub from diagram edge.
+        "?" => (
+            if is_from {
+                VirtualEndpointSide::Left
+            } else {
+                VirtualEndpointSide::Right
+            },
+            VirtualEndpointKind::Short,
         ),
         _ => return None,
     };

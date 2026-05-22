@@ -2175,6 +2175,7 @@ fn message_to_json(m: &Message) -> Value {
                 puml::ast::VirtualEndpointKind::Circle => "circle",
                 puml::ast::VirtualEndpointKind::Cross => "cross",
                 puml::ast::VirtualEndpointKind::Filled => "filled",
+                puml::ast::VirtualEndpointKind::Short => "short",
             }
         });
     }
@@ -2189,6 +2190,7 @@ fn message_to_json(m: &Message) -> Value {
                 puml::ast::VirtualEndpointKind::Circle => "circle",
                 puml::ast::VirtualEndpointKind::Cross => "cross",
                 puml::ast::VirtualEndpointKind::Filled => "filled",
+                puml::ast::VirtualEndpointKind::Short => "short",
             }
         });
     }
@@ -2446,6 +2448,7 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             position,
             target,
             text,
+            ..
         } => {
             json!({"Note": {"kind": format!("{:?}", kind), "position": position, "target": target, "text": text}})
         }
@@ -2485,6 +2488,7 @@ fn virtual_endpoint_to_json(ep: VirtualEndpoint) -> Value {
             VirtualEndpointKind::Circle => "circle",
             VirtualEndpointKind::Cross => "cross",
             VirtualEndpointKind::Filled => "filled",
+            VirtualEndpointKind::Short => "short",
         }
     })
 }
