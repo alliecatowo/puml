@@ -5606,6 +5606,57 @@ fn class_visibility_markers_render_colored_symbols() {
 }
 
 #[test]
+fn class_ch03_generics_member_refs_and_controls_render() {
+    let src =
+        fs::read_to_string(fixture("families/valid_class_ch03_parity_controls.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_class_ch03_parity_controls.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("class ch03 parity fixture should render");
+    assert!(svg.contains("Repository&lt;T&gt;"));
+    assert!(svg.contains("UserService&lt;T&gt;"));
+    assert!(svg.contains("BaseService"));
+    assert!(svg.contains("Service&lt;T&gt;"));
+    assert!(svg.contains("data-uml-from=\"Repository&lt;T&gt;::cache\""));
+    assert!(svg.contains("data-uml-to=\"UserService&lt;T&gt;::token\""));
+    assert!(svg.contains("member target"));
+    assert!(svg.contains("Enrollment"));
+    assert!(svg.contains("+find(id: ID): T"));
+    assert!(svg.contains("+load(): T"));
+    assert!(svg.contains("~literal"));
+    assert!(!svg.contains("-cache: Map"));
+    assert!(!svg.contains("-token: String"));
+    assert!(!svg.contains("Hidden"));
+    assert!(!svg.contains("Removed"));
+}
+
+#[test]
+fn class_show_overrides_hidden_methods_for_specific_class() {
+    let src = "@startuml\nhide methods\nclass A {\n  +field: int\n  +run()\n}\nclass B {\n  +field: int\n  +run()\n}\nshow B methods\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("show override should render");
+    assert!(
+        svg.matches("+run()").count() == 1,
+        "only B.run should survive the show override: {svg}"
+    );
+}
+
+#[test]
+fn class_note_on_link_attaches_to_recent_relation() {
+    let src =
+        "@startuml\nclass A\nclass B\nA --> B : owns\nnote right on link : link note\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("note on link should render");
+    assert!(svg.contains("link note"));
+    assert!(svg.contains("data-uml-to=\"__note_0001\""));
+}
+
+#[test]
 fn usecase_diagram_renders_ellipse_nodes() {
     let src = fs::read_to_string(fixture("families/valid_usecase_bootstrap.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("usecase svg should render");

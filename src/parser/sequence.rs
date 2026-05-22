@@ -276,7 +276,8 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::Scale(body.to_string()));
     }
 
-    // Class-diagram hide options (parsed here so they work before any class decl sets detected_kind)
+    // Class-diagram hide/show/remove controls (parsed here so they work before
+    // any class decl sets detected_kind).
     if lower.starts_with("hide ") {
         let rest = lower.strip_prefix("hide ").unwrap_or("").trim();
         let class_hide_opts = [
@@ -285,6 +286,21 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             "empty members",
             "empty methods",
             "empty fields",
+            "members",
+            "methods",
+            "fields",
+            "public members",
+            "private members",
+            "protected members",
+            "package members",
+            "public methods",
+            "private methods",
+            "protected methods",
+            "package methods",
+            "public fields",
+            "private fields",
+            "protected fields",
+            "package fields",
         ];
         for opt in class_hide_opts {
             if rest == opt {
@@ -318,8 +334,12 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
                 "[E_NOTE_INVALID] malformed note syntax: missing note head".to_string(),
             ));
         }
-        let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
-        let (pos, target) = parse_note_head(head);
+        let (head, text) = split_note_head_text(tail);
+        let (pos, target) = if let Some(position) = parse_note_on_link_head(head) {
+            (position, Some("on link".to_string()))
+        } else {
+            parse_note_head(head)
+        };
         if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
             return Some(StatementKind::Unknown(format!(
                 "[E_NOTE_INVALID] malformed note syntax: `{}`",
@@ -478,6 +498,33 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
 
     None
+}
+
+fn parse_note_on_link_head(head: &str) -> Option<String> {
+    let lower = head.trim().to_ascii_lowercase();
+    if lower == "on link" {
+        return Some("over".to_string());
+    }
+    for position in ["left", "right", "top", "bottom"] {
+        if lower == format!("{position} on link") {
+            return Some(position.to_string());
+        }
+    }
+    None
+}
+
+fn split_note_head_text(tail: &str) -> (&str, &str) {
+    let mut prev = '\0';
+    for (idx, ch) in tail.char_indices() {
+        if ch == ':' {
+            let next = tail[idx + ch.len_utf8()..].chars().next().unwrap_or('\0');
+            if prev != ':' && next != ':' {
+                return (&tail[..idx], &tail[idx + ch.len_utf8()..]);
+            }
+        }
+        prev = ch;
+    }
+    (tail, "")
 }
 
 fn parse_note_head(head: &str) -> (String, Option<String>) {
@@ -1030,6 +1077,23 @@ fn is_family_common_keyword(kind: &StatementKind) -> bool {
             | StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Scale(_)
+            | StatementKind::SetOption { .. }
+            | StatementKind::HideOption(_)
+            | StatementKind::Pragma(_)
+    )
+}
+
+fn is_family_common_keyword_before_detection(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Title(_)
+            | StatementKind::Caption(_)
+            | StatementKind::Header(_)
+            | StatementKind::Footer(_)
+            | StatementKind::Legend(_)
+            | StatementKind::LegendPos(_)
+            | StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_)
             | StatementKind::Pragma(_)

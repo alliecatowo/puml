@@ -1413,6 +1413,7 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         "classstereotypefontcolor"
         | "classstereotypefontsize"
         | "classstereotypefontname"
+        | "classattributeiconsize"
         | "classattributefontsize"
         | "classmethodfontsize"
         | "objectstereotypefontcolor"

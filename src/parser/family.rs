@@ -5,11 +5,16 @@ fn parse_family_declaration(
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
+        ("exception", Some("<<exception>>")),
+        ("metaclass", Some("<<metaclass>>")),
+        ("stereotype", Some("<<stereotype>>")),
         ("interface", Some("<<interface>>")),
         ("enum", Some("<<enum>>")),
         ("annotation", Some("<<annotation>>")),
         ("protocol", Some("<<protocol>>")),
         ("struct", Some("<<struct>>")),
+        ("circle", Some("<<circle>>")),
+        ("diamond", Some("<<diamond>>")),
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
@@ -22,6 +27,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            heritage,
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -48,6 +54,7 @@ fn parse_family_declaration(
             declaration_marker_members(marker, stereotypes)
         };
         append_inline_fill_member(&mut members, fill_color);
+        append_heritage_members(&mut members, heritage);
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
                 name,
@@ -69,6 +76,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            heritage,
         } = decl;
         if has_block || later_lines_contain_ie_family_context(lines, start) {
             let mut members = if has_block {
@@ -87,6 +95,7 @@ fn parse_family_declaration(
                 declaration_marker_members(None, stereotypes)
             };
             append_inline_fill_member(&mut members, fill_color);
+            append_heritage_members(&mut members, heritage);
             return Ok(Some((
                 StatementKind::ClassDecl(ClassDecl {
                     name,
@@ -112,6 +121,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            ..
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -152,6 +162,10 @@ fn parse_family_declaration(
         )));
     }
 
+    if let Some(kind) = parse_association_class_relation(line) {
+        return Ok(Some((kind, start)));
+    }
+
     if let Some(decl) = parse_parenthesized_usecase_decl(line) {
         let FamilyDeclParts {
             name,
@@ -186,6 +200,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            ..
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -234,9 +249,14 @@ fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: u
         line.starts_with("abstract class ")
             || line.starts_with("abstract ")
             || line.starts_with("annotation ")
+            || line.starts_with("circle ")
             || line.starts_with("class ")
+            || line.starts_with("diamond ")
             || line.starts_with("enum ")
+            || line.starts_with("exception ")
+            || line.starts_with("metaclass ")
             || line.starts_with("protocol ")
+            || line.starts_with("stereotype ")
             || line.starts_with("struct ")
             || (line.starts_with("entity ") && line.ends_with('{'))
     })
@@ -313,6 +333,13 @@ struct FamilyDeclParts {
     has_block: bool,
     stereotypes: Vec<String>,
     fill_color: Option<String>,
+    heritage: Vec<FamilyHeritage>,
+}
+
+#[derive(Debug, Clone)]
+struct FamilyHeritage {
+    arrow: String,
+    target: String,
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
@@ -347,7 +374,8 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         (trimmed, None)
     };
 
-    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(name_raw);
+    let (name_raw, heritage) = split_declaration_heritage(name_raw);
+    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(&name_raw);
     let name = clean_ident(&name_without_stereotypes);
     if name.is_empty() {
         return None;
@@ -359,7 +387,138 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         has_block,
         stereotypes,
         fill_color,
+        heritage,
     })
+}
+
+fn append_heritage_members(members: &mut Vec<ClassMember>, heritage: Vec<FamilyHeritage>) {
+    for item in heritage {
+        members.push(ClassMember {
+            text: format!("\x1fheritage:{}:{}", item.arrow, item.target),
+            modifier: None,
+        });
+    }
+}
+
+fn split_declaration_heritage(input: &str) -> (String, Vec<FamilyHeritage>) {
+    let trimmed = input.trim();
+    let Some((base, clause)) = split_at_first_top_level_heritage_keyword(trimmed) else {
+        return (trimmed.to_string(), Vec::new());
+    };
+
+    let mut heritage = Vec::new();
+    let mut rest = clause.trim();
+    loop {
+        let lower = rest.to_ascii_lowercase();
+        if lower.starts_with("extends ") {
+            rest = rest[8..].trim_start();
+            let (targets, next) = take_heritage_targets(rest);
+            for target in split_heritage_targets(targets) {
+                heritage.push(FamilyHeritage {
+                    arrow: "<|--".to_string(),
+                    target,
+                });
+            }
+            rest = next.trim_start();
+        } else if lower.starts_with("implements ") {
+            rest = rest[11..].trim_start();
+            let (targets, next) = take_heritage_targets(rest);
+            for target in split_heritage_targets(targets) {
+                heritage.push(FamilyHeritage {
+                    arrow: "<|..".to_string(),
+                    target,
+                });
+            }
+            rest = next.trim_start();
+        } else {
+            break;
+        }
+        if rest.is_empty() {
+            break;
+        }
+    }
+
+    (base.trim().to_string(), heritage)
+}
+
+fn split_at_first_top_level_heritage_keyword(input: &str) -> Option<(&str, &str)> {
+    let extends = find_top_level_keyword(input, " extends ");
+    let implements = find_top_level_keyword(input, " implements ");
+    let idx = match (extends, implements) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(a), None) | (None, Some(a)) => a,
+        (None, None) => return None,
+    };
+    Some((&input[..idx], input[idx + 1..].trim_start()))
+}
+
+fn take_heritage_targets(input: &str) -> (&str, &str) {
+    let extends = find_top_level_keyword(input, " extends ");
+    let implements = find_top_level_keyword(input, " implements ");
+    let idx = match (extends, implements) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(a), None) | (None, Some(a)) => a,
+        (None, None) => return (input, ""),
+    };
+    (&input[..idx], input[idx + 1..].trim_start())
+}
+
+fn split_heritage_targets(input: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut angle_depth = 0i32;
+    let mut in_quote = false;
+    for (idx, ch) in input.char_indices() {
+        match ch {
+            '"' => in_quote = !in_quote,
+            '<' if !in_quote => angle_depth += 1,
+            '>' if !in_quote => angle_depth = angle_depth.saturating_sub(1),
+            ',' if !in_quote && angle_depth == 0 => {
+                let target = clean_ident(&input[start..idx]);
+                if !target.is_empty() {
+                    out.push(target);
+                }
+                start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let target = clean_ident(&input[start..]);
+    if !target.is_empty() {
+        out.push(target);
+    }
+    out
+}
+
+fn find_top_level_keyword(input: &str, keyword: &str) -> Option<usize> {
+    let lower = input.to_ascii_lowercase();
+    let needle = keyword.to_ascii_lowercase();
+    let mut search_from = 0usize;
+    while let Some(rel) = lower[search_from..].find(&needle) {
+        let idx = search_from + rel;
+        if is_top_level_span(input, idx) {
+            return Some(idx);
+        }
+        search_from = idx + needle.len();
+    }
+    None
+}
+
+fn is_top_level_span(input: &str, byte_idx: usize) -> bool {
+    let mut angle_depth = 0i32;
+    let mut in_quote = false;
+    for (idx, ch) in input.char_indices() {
+        if idx >= byte_idx {
+            break;
+        }
+        match ch {
+            '"' => in_quote = !in_quote,
+            '<' if !in_quote => angle_depth += 1,
+            '>' if !in_quote => angle_depth = angle_depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    !in_quote && angle_depth == 0
 }
 
 fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<String>) {
@@ -486,6 +645,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         has_block,
         stereotypes: Vec::new(),
         fill_color,
+        heritage: Vec::new(),
     })
 }
 
@@ -716,6 +876,33 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     }))
 }
 
+fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let after_open = trimmed.strip_prefix('(')?;
+    let close = after_open.find(')')?;
+    let pair = &after_open[..close];
+    let (left_raw, right_raw) = pair.split_once(',')?;
+    let left = clean_ident(left_raw);
+    let right = clean_ident(right_raw);
+    if left.is_empty() || right.is_empty() {
+        return None;
+    }
+    let rest = after_open[close + 1..].trim();
+    let arrow_len = family_arrow_token_len(rest)?;
+    let arrow = normalize_family_arrow_token(&rest[..arrow_len]);
+    let association_raw = rest[arrow_len..].trim();
+    let association = clean_bracketed_ident(association_raw);
+    if association.is_empty() {
+        return None;
+    }
+    Some(StatementKind::AssociationClass {
+        left,
+        right,
+        association,
+        arrow,
+    })
+}
+
 fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
     let trimmed = side.trim();
     if let Some(rest) = trimmed.strip_prefix("()") {
@@ -806,6 +993,44 @@ fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<St
             members,
         }),
     })
+}
+
+fn parse_family_visibility_control(
+    line: &str,
+    family: Option<DiagramKind>,
+) -> Option<StatementKind> {
+    if !matches!(family, Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)) {
+        return None;
+    }
+    let lower = line.to_ascii_lowercase();
+    if lower.starts_with("hide ") {
+        let rest = line.strip_prefix("hide ").unwrap_or("").trim();
+        if rest.eq_ignore_ascii_case("@unlinked") {
+            return Some(StatementKind::HideOption("hide @unlinked".to_string()));
+        }
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("hide node {rest}")));
+        }
+    }
+    if lower.starts_with("remove ") {
+        let rest = line.strip_prefix("remove ").unwrap_or("").trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("remove node {rest}")));
+        }
+    }
+    if lower.starts_with("restore ") {
+        let rest = line.strip_prefix("restore ").unwrap_or("").trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("restore node {rest}")));
+        }
+    }
+    if lower.starts_with("show ") {
+        let rest = line.strip_prefix("show ").unwrap_or("").trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("show {rest}")));
+        }
+    }
+    None
 }
 
 fn parse_relation_side_annotations(
@@ -1374,10 +1599,15 @@ fn collect_scoped_class_group_content(
         let declaration_keywords = [
             "abstract class",
             "annotation",
+            "circle",
             "interface",
             "abstract",
+            "diamond",
             "enum",
+            "exception",
+            "metaclass",
             "protocol",
+            "stereotype",
             "struct",
             "class",
             "object",
@@ -1446,10 +1676,15 @@ fn collect_scoped_class_group_content(
         for keyword in [
             "abstract class",
             "annotation",
+            "circle",
             "interface",
             "abstract",
+            "diamond",
             "enum",
+            "exception",
+            "metaclass",
             "protocol",
+            "stereotype",
             "struct",
             "class",
             "object",
@@ -1614,6 +1849,11 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
             || lower.starts_with("interface ")
             || lower.starts_with("abstract ")
             || lower.starts_with("enum ")
+            || lower.starts_with("exception ")
+            || lower.starts_with("metaclass ")
+            || lower.starts_with("stereotype ")
+            || lower.starts_with("circle ")
+            || lower.starts_with("diamond ")
             || lower.starts_with("protocol ")
             || lower.starts_with("struct ")
             || lower.starts_with("class ")

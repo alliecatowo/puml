@@ -1,0 +1,24 @@
+@startuml
+hide private members
+skinparam classAttributeIconSize 0
+
+class Repository<T> {
+  -cache: Map<String, T>
+  \~literal
+  +find(id: ID): T
+}
+
+class UserService<T> extends BaseService implements Service<T> {
+  -token: String
+  +load(): T
+}
+
+Repository<T>::cache --> UserService<T>::token : fills
+note right of UserService<T>::token : member target
+(Repository<T>, UserService<T>) .. Enrollment
+
+hide Hidden
+class Hidden
+remove Removed
+class Removed
+@enduml
