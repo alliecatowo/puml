@@ -171,13 +171,13 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 8 |
-| 🟡 partial | 7 |
-| ❌ missing | 10 |
+| ✅ supported | 11 |
+| 🟡 partial | 5 |
+| ❌ missing | 9 |
 
 Top gaps blocking parity:
-1. **Notes (9.15–9.17)** cause hard error — biggest single blocker.
-2. **Inline color & style on `state` (9.18, 9.21, 9.25)** — `StateDecl` lacks color/border fields.
-3. **`hide empty description` (9.2)** — silently ignored, layout regresses visually.
-4. **Points / Pins / Expansion stereotypes (9.10–9.12)** — render as plain rectangles.
-5. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
+1. **Inline color & style on `state` (9.18, 9.21, 9.25)** — `StateDecl` lacks color/border fields.
+2. **`hide empty description` (9.2)** — silently ignored, layout regresses visually.
+3. **Points / Pins / Expansion stereotypes (9.10–9.12)** — render as plain rectangles or detached boxes instead of snapping to composite boundaries.
+4. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
+5. **Composite/parallel-region layout fidelity** — current rendering has known pseudo-state and divider-placement visual gaps tracked on the board.

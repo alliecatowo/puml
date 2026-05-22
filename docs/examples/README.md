@@ -10,9 +10,10 @@ the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audi
 ## Corpus location and size
 
 - Root: `docs/examples/`
-- Diagram sources: `293` `*.puml` files
-- Render artifacts: `297` `*.svg` files
-- Site gallery manifest: `287` paired family examples across `32` family directories
+- Diagram sources: `298` `*.puml` files
+- Render artifacts: `302` `*.svg` files
+- Render-check scope: `301` total examples (`298` passing, `3` intentionally excluded)
+- Site gallery manifest: paired family examples across `32` family directories
 - Additional docs/index files are also present in this tree
 
 ## Primary indexes

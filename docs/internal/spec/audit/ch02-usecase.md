@@ -75,12 +75,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** Direction-token parsing in `src/parser/family.rs` arrow parser around `:933-940` (dashed/dotted/bold) and length/orientation in family relation parsing.
 **Notes:** Honored by `graph_layout.rs` for hint-driven placement.
 
-### 2.11 Splitting diagrams (`newpage`) — 🟡
+### 2.11 Splitting diagrams (`newpage`) — ✅
 **Feature:** `newpage` keyword splits a diagram into multiple output images/pages.
 **Syntax example:** `:actor1: --> (Usecase1) \n newpage \n :actor2: --> (Usecase2)`
-**Status:** 🟡 Partial
-**Evidence:** Parsed in sequence parser only (`src/parser/sequence.rs:433-437`). AST variant `StatementKind::NewPage` (`src/ast.rs:131`) and model event (`src/model.rs:828`) exist; CLI flag mentions multi-page stdin support (`src/cli.rs:86`). In the *family/usecase* parser, `newpage` raises a parse error (`src/parser/tests.rs:1670` — `class A\nnewpage\n` returns Err).
-**Notes:** Works on sequence diagrams, not on use-case/class/object. Falls into the family-error path.
+**Status:** ✅ Supported
+**Evidence:** Family-level `newpage` splitting is handled by `split_family_newpages` in `src/normalize/mod.rs`; CLI file output writes numbered siblings. Coverage includes `render_source_to_svgs_supports_object_and_usecase_newpage` and `file_family_newpage_output_writes_numbered_files` in `tests/render_e2e.rs` / `tests/integration.rs`.
+**Notes:** Sequence and family diagrams now share the multi-page output contract. `ignore newpage` is also covered by structure fixtures.
 
 ### 2.12 Left to right direction — ✅
 **Feature:** `left to right direction` / `top to bottom direction` to change layout orientation.
@@ -134,6 +134,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 2
-- ✅ Supported: **11** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.12, 2.14, 2.16)
-- 🟡 Partial: **4** (2.4, 2.11, 2.13, 2.17)
+- ✅ Supported: **12** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.16)
+- 🟡 Partial: **3** (2.4, 2.13, 2.17)
 - ❌ Missing: **2** (2.15, 2.18)

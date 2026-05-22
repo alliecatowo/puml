@@ -33,21 +33,21 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | # | Chapter | ✅ | 🟡 | ❌ | Audit |
 |---|---------|----|----|----|-------|
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
-| 2 | Use Case Diagram | 11 | 4 | 2 | [ch02-usecase.md](audit/ch02-usecase.md) |
+| 2 | Use Case Diagram | 12 | 3 | 2 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 5 | 2 | 1 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
 | 6 | Activity (new) | 6 | 12 | 12 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
 | 7 | Component | 12 | 5 | 2 | [ch07-component.md](audit/ch07-component.md) |
 | 8 | Deployment | 14 kw + 5 sec | 10 sec | 15 kw + 2 sec | [ch08-deployment.md](audit/ch08-deployment.md) |
-| 9 | State | 8 | 7 | 10 | [ch09-state.md](audit/ch09-state.md) |
+| 9 | State | 11 | 5 | 9 | [ch09-state.md](audit/ch09-state.md) |
 | 10 | Timing | 3 | 11 | 15 | [ch10-timing.md](audit/ch10-timing.md) |
 | 11 | JSON | 7 | 4 | 3 | [ch11-json.md](audit/ch11-json.md) |
 | 12 | YAML | 3 | 1 | 4 | [ch12-yaml.md](audit/ch12-yaml.md) |
 | 13 | nwdiag | 11 | 4 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
 | 14 | Salt (Wireframe) | 12 | 9 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
 | 15 | ArchiMate | 6 | 2 | 1 | [ch15-archimate.md](audit/ch15-archimate.md) |
-| 16 | Gantt | 15 | 11 | 13 | [ch16-gantt.md](audit/ch16-gantt.md) |
+| 16 | Gantt | 16 | 11 | 12 | [ch16-gantt.md](audit/ch16-gantt.md) |
 | 17 | MindMap | 11 | 2 | 0 | [ch17-mindmap.md](audit/ch17-mindmap.md) |
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
@@ -57,7 +57,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
 | 25 | Preprocessing | 18 | 8 | 2 | [ch25-preproc.md](audit/ch25-preproc.md) |
-| 26 | Unicode | 1 | 1 | 3 | [ch26-unicode.md](audit/ch26-unicode.md) |
+| 26 | Unicode | 3 | 2 | 0 | [ch26-unicode.md](audit/ch26-unicode.md) |
 | 27 | Standard Library | 7/16 bundled | — | 9/16 missing | [ch27-stdlib.md](audit/ch27-stdlib.md) |
 
 ## Historical Strength Notes
@@ -85,10 +85,10 @@ closing implementation work from these notes.
 16. **Skinparam** — 5✅/14 (36%).
 17. **Component** — 12✅/19 (63%).
 18. **Creole** — 12✅/31 (39%). Inline only; all block-level formatting missing.
-19. **State** — 7✅/25 (28%). `note … of` is a hard error.
+19. **State** — 7✅/25 (28%) in the baseline. Recent state-note and state-data-projection work means the headline percentage is stale; trust `ch09-state.md` for current evidence.
 20. **Class** — 9✅/45 (20%). Generics, member-qualified refs, hide/remove, and a large stereotype-skin matrix all missing.
 21. **Information Engineering** — 1✅/5 (20%). `entity` routed to sequence parser.
-22. **Unicode** — 1✅/5 (20%). All three escape forms missing.
+22. **Unicode** — 1✅/5 (20%) in the baseline. Numeric entities, `<U+...>`, and a small deterministic emoji subset now have code/test coverage; trust `ch26-unicode.md` for current evidence.
 23. **Activity (new)** — 6✅/30 (20%). SDL terminators (6.21.2), kill/detach shapes (6.5, 6.20) added 2026-05-21.
 24. **Timing** — 1✅/29 (3%). MVP-only.
 25. **Activity (legacy)** — 0✅/12 (0%). Effectively unsupported — migrate to new syntax.
@@ -116,7 +116,7 @@ Component diagrams now support `hide`/`remove`/`restore $tag` and `@unlinked` pr
 
 ### 5. Creole block-level
 
-Only inline Creole (`**bold**`, `//italic//`, `__under__`, `--strike--`, `[[url]]`, `<color:>`, `<size:>`, `<font:>`) is honored. **All block-level forms are missing:** lists `*`/`#`, headings `=`/`==`, horizontal rules `----`/`====`, tables `|= |`, tree `|_`, emoji `<:name:>`, `<U+XXXX>`/`&#nnn;` escapes, `<sub>`/`<sup>`, `<plain>`, `<back:>`, `<font:>`, `<img:>`. This affects every diagram that renders user text.
+Only inline Creole (`**bold**`, `//italic//`, `__under__`, `--strike--`, `[[url]]`, `<color:>`, `<size:>`, `<font:>`) is broadly honored. **Block-level forms remain missing:** lists `*`/`#`, headings `=`/`==`, horizontal rules `----`/`====`, tables `|= |`, tree `|_`, `<sub>`/`<sup>`, `<plain>`, `<back:>`, `<font:>`, `<img:>`. Unicode escape decoding (`<U+XXXX>` / numeric entities) and a small deterministic emoji subset have since landed in `src/creole.rs`; full PlantUML emoji catalog/directive parity is still missing.
 
 ### 6. Direction modifiers
 
@@ -124,7 +124,7 @@ Only inline Creole (`**bold**`, `//italic//`, `__under__`, `--strike--`, `[[url]
 
 ### 7. `allowmixing` + embedded JSON inside other diagrams
 
-Mentioned in usecase (2.18), object (4.8), class. No code path — diagrams can't host a `json` block today.
+Mentioned in usecase (2.18), object (4.8), class, and state. State diagrams now host `json` / `yaml` projection blocks; broader `allowmixing` across class/object/usecase remains missing.
 
 ### 8. Crow's-foot / IE arrowheads (`||--o{`, `|o--||`, etc.)
 
@@ -138,9 +138,9 @@ Sequence + common. Missing entirely.
 
 Sequence (`-//`, `->o`, `->x`, doubled-slash forms), class (`#--`, `x--`, `}--`, `+--`, `^--`), deployment (`--@`, `-->>`, `0)--(0`, `-(0)-`) all fall through to plain arrows.
 
-### 11. Note-on-state and inline state color cause hard errors
+### 11. State styling gaps remain, but note/data hard errors were fixed
 
-`note left/right/top/bottom of Foo` in a state diagram triggers a hard `E_STATE_MIXED` error (normalizer wildcard arm at `src/normalize/state.rs:141`). Inline `state Foo #pink` is dropped. These should degrade gracefully, not 500.
+`note left/right/top/bottom of Foo` and `note on link` in state diagrams now parse, normalize, and render with focused tests. Inline `state Foo #pink`, state-body style selectors, and some pseudo-state snapping/layout issues remain open.
 
 ### 12. Timing renderer is MVP-only
 
@@ -158,7 +158,7 @@ chapter audit before treating an item as still open.
 4. **Activity (new) `ActivityStep` enrichment** (ch06) — adding color/arrow-style/connector slots to the AST is shallow and unlocks ~14 features.
 5. **IE `entity` routing fix + crow's-foot arrowheads** (ch20) — one-line classification change + arrow-table additions makes IE diagrams functional.
 6. **Deployment node-shape variants** (ch08) — 15 missing `FamilyNodeKind` variants (actor/agent/queue/stack/etc.). Mostly mechanical.
-7. **State diagram `note … of` degraded handling** (ch09) — turn the hard error into a graceful skip; unblocks many existing diagrams.
+7. **State pseudo-state/composite layout and inline styling** (ch09) — notes/data projections landed, but history/parallel-region/pin snapping and inline color/style remain high-value state work.
 8. **Timing `analog` lifecycle + cross-lane arrows + date/anchor tick parsing** (ch10) — timing is currently the weakest family overall.
 9. **Stereotype-scoped skinparam dispatch** (cross-cutting #3) — extends theme table.
 10. **JSON/YAML `#highlight` directive + style integration** (ch11, ch12) — small, high-visibility.
@@ -171,3 +171,8 @@ chapter audit before treating an item as still open.
 ## Maintenance
 
 When a feature ships, update the relevant per-chapter audit and bump the counts in the matrix above. When a new PlantUML version is published, re-run the extract + fan-out workflow (see `scripts/regen-spec-audit.sh` — to be authored if this becomes a recurring exercise).
+
+Renderer changes should also run the committed-artifact freshness path. As of
+PR #997, CI can classify artifact-impacting changes, run artifact regeneration,
+and then re-run the normal PR gate on the regenerated head. Local agents should
+still visually inspect PNG output before accepting generated artifact changes.

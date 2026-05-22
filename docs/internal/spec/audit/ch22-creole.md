@@ -36,11 +36,11 @@ Core implementation: `src/creole.rs` (668 lines). Module docstring:
 **Evidence:** No heading parsing in creole or text renderer.
 **Notes:** Spec uses inside usecase/note text.
 
-### 22.5 Emoji `<:name:>` and `<#color:name:>` — ❌
+### 22.5 Emoji `<:name:>` and `<#color:name:>` — 🟡
 **Feature:** Twemoji emoji via `<:1f600:>`, `<:innocent:>`, `<#green:sunny:>`, `<#0:sunglasses:>`. `emoji <block>` listing command.
-**Status:** ❌
-**Evidence:** No `<:` tag handling in `src/creole.rs`. No `emoji` directive in parser.
-**Notes:** Full 1174 emoji set missing.
+**Status:** 🟡 Partial
+**Evidence:** `src/creole.rs` decodes a small deterministic emoji subset plus numeric hex emoji tags such as `<:1f600:>`.
+**Notes:** Full PlantUML emoji catalog, colorized emoji forms, and the `emoji` listing directive remain missing.
 
 ### 22.6 Horizontal lines (`----`, `====`, `____`, `..title..`) — ❌
 **Feature:** Inline horizontal rules with optional title; works inside notes and creole text.
@@ -71,11 +71,11 @@ Core implementation: `src/creole.rs` (668 lines). Module docstring:
 **Evidence:** No `|_` parsing in creole.
 **Notes:** Note: `src/render/text.rs` has `tree_branch`/`tree_leaf` but those are mindmap rendering helpers, not creole `|_`.
 
-### 22.11 Special characters (`<U+XXXX>`, `&#nnnn;`) — ❌
+### 22.11 Special characters (`<U+XXXX>`, `&#nnnn;`) — ✅
 **Feature:** Unicode codepoint insertion via `<U+221E>` (hex) or `&#nnnnnn;` (decimal).
-**Status:** ❌
-**Evidence:** No `<U+` parsing in `src/creole.rs`. HTML entity `&#nnn;` not converted to char (`src/creole.rs:478` only emits `&#39;` for apostrophe in escape, not the inverse).
-**Notes:** Plain Unicode characters in source pass through normally — only the explicit codepoint syntax is missing.
+**Status:** ✅ Supported
+**Evidence:** `decode_unicode_escapes` in `src/creole.rs` decodes decimal / hex numeric entities and PlantUML `<U+...>` tags before tokenization. Covered by `decodes_numeric_character_references`, `decodes_plantuml_u_plus_tags`, and integration coverage around `valid_unicode_escapes.puml`.
+**Notes:** Invalid or out-of-range codepoints remain literal, which keeps malformed input deterministic.
 
 ### 22.12 Legacy HTML tags — 🟡
 
@@ -133,8 +133,8 @@ Core implementation: `src/creole.rs` (668 lines). Module docstring:
 
 ## Tally — Chapter 22
 
-- ✅ Supported (8): `**bold**`, `//italic//`, `""mono""`, `__underline__`, `--strike--`, `[[url label]]`, `<b>`, `<i>`, `<u>` (basic), `<color:X>`, `<size:N>`, line breaks (`\n`, `<br>`)
-- 🟡 Partial (3): emphasized text (missing `~~wave~~`), `[[url{tooltip} label]]` tooltip, OpenIconic `<&icon>` (parsed but rendering unconfirmed)
-- ❌ Missing (16+): lists (`*`/`#`), `~` escape, headings (`=`, `==`, ...), emoji `<:name:>` + `emoji` directive, horizontal lines (`----`/`====`/`____`/`..title..`), `<code>`, tables (`|= |`, `|`, `<#color>` cells), tree `|_`, `<U+XXXX>` / `&#nnn;`, `<s>`, `<w>`, `<plain>`, `<back:>`, `<font:>`, `<img:>`, `<sub>`/`<sup>`, `<u:color>`, `listopeniconic`
+- ✅ Supported: `**bold**`, `//italic//`, `""mono""`, `__underline__`, `--strike--`, `[[url label]]`, `<b>`, `<i>`, `<u>` (basic), `<color:X>`, `<size:N>`, line breaks (`\n`, `<br>`), numeric entities, and `<U+...>` codepoint escapes
+- 🟡 Partial: emphasized text (missing `~~wave~~`), `[[url{tooltip} label]]` tooltip, OpenIconic `<&icon>` (parsed but rendering unconfirmed), and emoji tags (small deterministic subset, not the full PlantUML catalog/directive)
+- ❌ Missing (16+): lists (`*`/`#`), `~` escape, headings (`=`, `==`, ...), full `emoji` directive/catalog parity, horizontal lines (`----`/`====`/`____`/`..title..`), `<code>`, tables (`|= |`, `|`, `<#color>` cells), tree `|_`, `<s>`, `<w>`, `<plain>`, `<back:>`, `<font:>`, `<img:>`, `<sub>`/`<sup>`, `<u:color>`, `listopeniconic`
 
-**Headline:** Creole engine covers the core inline formatting set (bold/italic/mono/underline/strike, color, size, simple links, line breaks, basic `<b>/<i>/<u>` HTML) but is missing all of the block-level Creole (lists, headings, tables, tree, horizontal rules) and most of the HTML extension tags (`<s>`, `<w>`, `<plain>`, `<back>`, `<font>`, `<img>`, `<sub>`, `<sup>`). Emoji and Unicode codepoint syntax are also absent.
+**Headline:** Creole engine covers the core inline formatting set (bold/italic/mono/underline/strike, color, size, simple links, line breaks, basic `<b>/<i>/<u>` HTML) plus numeric / `<U+...>` Unicode escapes and a small deterministic emoji subset. It is still missing all block-level Creole (lists, headings, tables, tree, horizontal rules), most HTML extension tags (`<s>`, `<w>`, `<plain>`, `<back>`, `<font>`, `<img>`, `<sub>`, `<sup>`), and full PlantUML emoji catalog/directive parity.
