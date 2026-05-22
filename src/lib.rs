@@ -322,21 +322,25 @@ fn render_document_for_family(
                 }
             }))
         }
-        DiagramFamily::Class
-        | DiagramFamily::Object
-        | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
-            model::NormalizedDocument::Sequence(_)
-            | model::NormalizedDocument::Timeline(_)
-            | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
-                "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
-            )),
-            _ => Err(Diagnostic::error(
-                "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
-            )),
-        },
+        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::Family(family_doc) => {
+                    Ok(render_family_document_svgs(&family_doc))
+                }
+                model::NormalizedDocument::Sequence(_)
+                | model::NormalizedDocument::Timeline(_)
+                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
+                )),
+                _ => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
+                )),
+            }
+        }
         DiagramFamily::Salt => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
+            model::NormalizedDocument::Family(family_doc) => {
+                Ok(render_family_document_svgs(&family_doc))
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during salt render",
             )),
@@ -504,6 +508,27 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
         NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
     }
+}
+
+pub fn render_family_document_svgs(family: &FamilyDocument) -> Vec<String> {
+    if family.pages.is_empty() {
+        return vec![render_family_document_svg(family)];
+    }
+    family
+        .pages
+        .iter()
+        .map(|page| {
+            let mut sub = family.clone();
+            sub.nodes = page.nodes.clone();
+            sub.relations = page.relations.clone();
+            sub.groups = page.groups.clone();
+            sub.pages = Vec::new();
+            if let Some(t) = page.title.clone() {
+                sub.title = Some(t);
+            }
+            render_family_document_svg(&sub)
+        })
+        .collect()
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {

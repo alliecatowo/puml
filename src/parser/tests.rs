@@ -1776,9 +1776,14 @@ mod tests {
     }
 
     #[test]
-    fn mixed_family_input_reports_deterministic_error() {
-        let err = parse_with_options("class A\nnewpage\n", &ParseOptions::default()).unwrap_err();
-        assert!(err.message.contains("E_FAMILY_MIXED"));
+    fn family_newpage_is_parsed_for_class_diagrams() {
+        let doc = parse_with_options("class A\nnewpage\nclass B\n", &ParseOptions::default())
+            .expect("family newpage should parse");
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::NewPage(_)
+        ));
     }
 
     #[test]

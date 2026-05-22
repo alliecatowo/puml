@@ -3,7 +3,7 @@ use super::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
     render_relation_marker_defs, usecase_dependency_label,
 };
-use super::svg::{creole_text, escape_text, render_actor_stick_figure};
+use super::svg::{creole_text, escape_text, render_actor_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
@@ -1190,7 +1190,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let header_stereotype_count = count_header_stereotype_members(&node.members);
             let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
             let stereotype_extra_h = (header_stereotype_count as i32) * 14;
-            let body_h = if node.kind == FamilyNodeKind::Note {
+            let body_h = if node.kind == FamilyNodeKind::Diamond {
+                // Diamond nodes are small fixed-size shapes — no text body.
+                0
+            } else if node.kind == FamilyNodeKind::Note {
                 let lines = node
                     .label
                     .as_deref()
@@ -1199,12 +1202,20 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     .count()
                     .max(1) as i32;
                 lines * 16 + 20
+            } else if node.kind == FamilyNodeKind::Map {
+                // Map rows: one 18px row per member entry.
+                (display_member_count as i32) * 18 + 4
             } else if display_member_count == 0 {
                 empty_member_pad
             } else {
                 (display_member_count as i32) * member_line_height + 2 * member_padding
             };
-            let h = c4_node_height(node.kind, header_height + stereotype_extra_h + body_h);
+            // Diamond: allocate a small square box sized for the polygon.
+            let h = if node.kind == FamilyNodeKind::Diamond {
+                node_width.min(50)
+            } else {
+                c4_node_height(node.kind, header_height + stereotype_extra_h + body_h)
+            };
             (key, h)
         })
         .collect();
@@ -2202,6 +2213,10 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     match kind {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",
+        FamilyNodeKind::Diamond => "diamond",
+        FamilyNodeKind::Map => "map",
+        FamilyNodeKind::Diamond => "diamond",
+        FamilyNodeKind::Map => "map",
         FamilyNodeKind::UseCase => "usecase",
         FamilyNodeKind::Salt => "widget",
         FamilyNodeKind::MindMap => "mindmap",
@@ -2228,7 +2243,8 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Folder => "folder",
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
-        FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor => "actor",
+        FamilyNodeKind::BusinessUseCase => "business_usecase",
         FamilyNodeKind::Hexagon => "hexagon",
         FamilyNodeKind::Label => "label",
         FamilyNodeKind::Person => "person",
@@ -2362,6 +2378,133 @@ fn render_class_node(
         return;
     }
 
+    // ── Diamond (association node) rendering ─────────────────────────────────
+    // Draws a rotated square (diamond polygon) centered in the allocated box.
+    if node.kind == FamilyNodeKind::Diamond {
+        let cx = x + w / 2;
+        let cy = y + h / 2;
+        let half = (w.min(h) / 2 - 2).max(8);
+        let top = cy - half;
+        let bottom = cy + half;
+        let left = cx - half;
+        let right = cx + half;
+        let fill = node
+            .fill_color
+            .as_deref()
+            .unwrap_or(&class_style.background_color);
+        let stroke = &class_style.border_color;
+        out.push_str(&format!(
+            "<polygon points=\"{cx},{top} {right},{cy} {cx},{bottom} {left},{cy}\" \
+             fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+        ));
+        return;
+    }
+
+    // ── Map (associative array) rendering ─────────────────────────────────────
+    // A map box has a header (name) and two-column rows for key=>value entries.
+    if node.kind == FamilyNodeKind::Map {
+        let fill = node
+            .fill_color
+            .as_deref()
+            .unwrap_or(&class_style.background_color);
+        let stroke = &class_style.border_color;
+        let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
+        let font_size = class_style.font_size.unwrap_or(13);
+        let font_color = &class_style.font_color;
+        // Draw outer border
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" \
+             fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        ));
+        // Header bar
+        let header_h = header_h.max(24);
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{header_h}\" rx=\"4\" ry=\"4\" \
+             fill=\"#dbeafe\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        ));
+        // Header bottom fix for rounded corners
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{yb}\" width=\"{w}\" height=\"8\" fill=\"#dbeafe\"/>",
+            yb = y + header_h - 4,
+        ));
+        // Header separator
+        out.push_str(&format!(
+            "<line x1=\"{x}\" y1=\"{yb}\" x2=\"{x2}\" y2=\"{yb}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+            yb = y + header_h,
+            x2 = x + w,
+        ));
+        // Header name
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" \
+             font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\">{name}</text>",
+            tx = x + w / 2,
+            ty = y + header_h - 8,
+            ff = escape_text(font_family),
+            fs = font_size,
+            fc = escape_text(font_color),
+            name = escape_text(&node.name),
+        ));
+        // Rows: each member is a key=>value or key<=>value entry
+        let col_x = x + w / 2;
+        let mut row_y = y + header_h;
+        let row_h = 18_i32;
+        let pad = 6_i32;
+        // Vertical divider between key and value columns
+        out.push_str(&format!(
+            "<line x1=\"{col_x}\" y1=\"{y}\" x2=\"{col_x}\" y2=\"{y2}\" stroke=\"{stroke}\" stroke-width=\"0.75\"/>",
+            y2 = y + h,
+        ));
+        for member in &node.members {
+            let raw = member.text.trim();
+            if raw.is_empty() {
+                continue;
+            }
+            // Try to split on => or <=>
+            let (key_text, val_text, bidir) = if let Some(idx) = raw.find("<=>") {
+                (&raw[..idx].trim_end(), raw[idx + 3..].trim_start(), true)
+            } else if let Some(idx) = raw.find("=>") {
+                (&raw[..idx].trim_end(), raw[idx + 2..].trim_start(), false)
+            } else {
+                (raw, "", false)
+            };
+            row_y += row_h;
+            let text_y = row_y - 4;
+            // Row separator
+            out.push_str(&format!(
+                "<line x1=\"{x}\" y1=\"{row_y}\" x2=\"{x2}\" y2=\"{row_y}\" stroke=\"{stroke}\" stroke-width=\"0.5\"/>",
+                x2 = x + w,
+            ));
+            // Key cell (right-aligned within left half)
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{text_y}\" text-anchor=\"end\" font-family=\"{ff}\" \
+                 font-size=\"{fs}\" fill=\"{fc}\">{key}</text>",
+                tx = col_x - pad,
+                ff = escape_text(font_family),
+                fs = font_size - 1,
+                fc = escape_text(font_color),
+                key = escape_text(key_text),
+            ));
+            // Value cell (left-aligned within right half); also show <=> indicator
+            if !val_text.is_empty() || bidir {
+                let display_val = if bidir {
+                    format!("\u{21d4} {}", val_text) // ⇔ for bidirectional
+                } else {
+                    val_text.to_string()
+                };
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{text_y}\" text-anchor=\"start\" font-family=\"{ff}\" \
+                     font-size=\"{fs}\" fill=\"{fc}\">{val}</text>",
+                    tx = col_x + pad,
+                    ff = escape_text(font_family),
+                    fs = font_size - 1,
+                    fc = escape_text(font_color),
+                    val = escape_text(&display_val),
+                ));
+            }
+        }
+        return;
+    }
+
     let scoped_style =
         first_user_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
     let fill = node
@@ -2398,17 +2541,15 @@ fn render_class_node(
                 .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
-        FamilyNodeKind::UseCase => "#dcfce7",
+        FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
 
-    if matches!(node.kind, FamilyNodeKind::Actor) {
-        // Canonical stick-figure rendering for actors (issue #715).
-        // Proportions are shared with the sequence renderer via render_actor_stick_figure.
-        // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
+    if matches!(node.kind, FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor) {
         let cx = x + w / 2;
-        let fig_cy = y + 21; // centre of figure; head top = fig_cy - 21
-        render_actor_stick_figure(out, cx, fig_cy, stroke);
+        let fig_cy = y + 21;
+        let business = matches!(node.kind, FamilyNodeKind::BusinessActor);
+        render_actor_figure(out, cx, fig_cy, stroke, fill, class_style.actor_style, business);
         // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
         let name_y = fig_cy + 27;
         out.push_str(&format!(
@@ -2436,15 +2577,20 @@ fn render_class_node(
         return;
     }
 
-    if matches!(node.kind, FamilyNodeKind::UseCase) {
-        // Ellipse rendering for use cases
+    if matches!(node.kind, FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase) {
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;
         let ry = h / 2;
-        out.push_str(&format!(
-            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        ));
+        if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"12\" ry=\"12\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        } else {
+            out.push_str(&format!(
+                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        }
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
         // the human-readable label as members[0] when the parser embeds `as DisplayName`
         // inside a group. Detect this by checking that members[0] is plain text (not a
@@ -2472,15 +2618,16 @@ fn render_class_node(
         } else {
             (node.name.as_str(), 0)
         };
-        // Name centered — the alias is the internal id only; do NOT display it (fix #478)
-        out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
-            escape_text(font_family),
-            title_font_size,
-            escape_text(font_color),
-            ty = cy + 4,
-            name = escape_text(uc_display_name)
-        ));
+        let label_attrs = format!(
+            " text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\"",
+            escape_text(font_family), title_font_size
+        );
+        let ty = cy + 4;
+        if uc_display_name.contains('\n') || uc_display_name.contains("--") || uc_display_name.contains("==") || uc_display_name.contains("..") || uc_display_name.contains("__") {
+            out.push_str(&creole_text(cx, ty, &label_attrs, uc_display_name, font_color));
+        } else {
+            out.push_str(&format!("<text x=\"{cx}\" y=\"{ty}\"{label_attrs} fill=\"{}\">{name}</text>", escape_text(font_color), name = escape_text(uc_display_name)));
+        }
         // Members rendered below the ellipse (rare for usecases), skipping display-label slot
         let mut my = y + h + 14;
         for member in node.members.iter().skip(uc_member_skip) {
@@ -2737,7 +2884,7 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         // All other C4 nodes need at least 60px for the label + type label
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
-        FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor | FamilyNodeKind::Person => computed.max(64),
         _ => computed,
     }
 }

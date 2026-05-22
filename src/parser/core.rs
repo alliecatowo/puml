@@ -315,6 +315,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         if matches!(
             detected_kind,
             None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+        ) {
+            if let Some(kind) = parse_family_page_break(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
         ) && !(detected_kind.is_none()
             && in_block
             && block_kind == Some(BlockKind::Uml)
@@ -403,6 +414,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if detected_kind.is_none() {
+            if looks_like_usecase_relation_line(line) {
+                if let Some(kind) = parse_family_relation(line, Some(DiagramKind::UseCase)) {
+                    detected_kind = Some(DiagramKind::UseCase);
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
             if let Some(kind) = detect_non_sequence_family(line) {
                 let ambiguous_sequence_participant = matches!(kind, DiagramKind::Deployment)
                     && component_decl_keyword(line).is_some_and(|(kw, _)| {

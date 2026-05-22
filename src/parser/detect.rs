@@ -1,4 +1,44 @@
+/// `:Actor:` endpoint on a family relation line (use case diagram, not activity `:` step).
+fn is_colon_actor_relation_line(line: &str) -> bool {
+    let t = line.trim();
+    if !t.starts_with(':') {
+        return false;
+    }
+    let rest = t[1..].trim_start();
+    let Some((name, tail)) = rest.split_once(':') else {
+        return false;
+    };
+    if name.trim().is_empty() {
+        return false;
+    }
+    let tail = tail.trim_start();
+    tail.starts_with('-') || tail.starts_with('.') || tail.starts_with('<')
+}
+
+pub(super) fn looks_like_usecase_relation_line(line: &str) -> bool {
+    let t = line.trim();
+    if is_colon_actor_relation_line(t) {
+        return true;
+    }
+    t.contains('(')
+        && t.contains(')')
+        && (t.contains("-->") || t.contains("..>") || t.contains("<--") || t.contains(".>"))
+}
+
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
+    if looks_like_usecase_relation_line(line) {
+        return Some(DiagramKind::UseCase);
+    }
+
+    if line.starts_with("usecase ")
+        || line.starts_with("usecase(")
+        || line.starts_with("usecase/")
+        || line.starts_with("actor/")
+        || (line.starts_with('(') && line.contains(')'))
+    {
+        return Some(DiagramKind::UseCase);
+    }
+
     if line.starts_with("component ")
         || line.starts_with("interface ")
         || line.starts_with("port ")
@@ -80,7 +120,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
 
     if line.starts_with("start")
         || line.starts_with("stop")
-        || line.starts_with(':')
+        || (line.starts_with(':') && !is_colon_actor_relation_line(line))
         || line.starts_with("(*)")
         || line.starts_with("if ")
         || line.starts_with("elseif ")

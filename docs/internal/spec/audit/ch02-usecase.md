@@ -19,12 +19,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** `src/parser/family.rs:139` (`actor` keyword, marker `<<actor>>`), `:1349-1352` actor marker embedding. Normalizer promotes to `FamilyNodeKind::Actor` at `src/normalize/family.rs:188-193,285,297`. Renderer label `actor` at `src/render/family.rs:2165`.
 **Notes:** Forward-reference actors (used in a relation without prior declaration) are supported in this codebase via implicit creation in family normalization.
 
-### 2.3 Change Actor style (actorStyle awesome / hollow) — ❌
+### 2.3 Change Actor style (actorStyle awesome / hollow) — ✅
 **Feature:** `skinparam actorStyle awesome|hollow` to switch from stickman to alternative actor glyphs.
 **Syntax example:** `skinparam actorStyle awesome`
-**Status:** ❌ Missing
-**Evidence:** No matches for `actorStyle` / `awesome` / `hollow` in `src/theme.rs`, `src/parser/`, `src/normalize/`, or `src/render/family.rs`. Only `actorfontsize` / `actorfontname` are handled (`src/theme.rs:1396,1403`).
-**Notes:** Stickman is the only actor glyph. The skinparam value is silently dropped.
+**Status:** ✅ Supported
+**Evidence:** `src/theme.rs` (`ActorStyle`, `classify_class_skinparam` `actorstyle`); `src/normalize/family.rs` applies to `ClassStyle.actor_style`; `src/render/svg.rs` `render_actor_figure`; `src/render/family.rs` actor nodes; `tests/ch02_usecase_parity.rs`.
+**Notes:** Awesome uses filled head; hollow uses white-filled head with stick body.
 
 ### 2.4 Usecases description (multiline + separators) — 🟡
 **Feature:** Multi-line usecase descriptions in quotes with `--`, `..`, `==`, `__` separator lines (with optional titles between paired markers).

@@ -587,12 +587,22 @@ pub enum FamilyStyle {
     Timing(TimingStyle),
 }
 
+/// One page after a `newpage` directive in class/object/usecase diagrams.
+#[derive(Debug, Clone)]
+pub struct FamilyPage {
+    pub title: Option<String>,
+    pub nodes: Vec<FamilyNode>,
+    pub relations: Vec<FamilyRelation>,
+    pub groups: Vec<FamilyGroup>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
     pub groups: Vec<FamilyGroup>,
+    pub pages: Vec<FamilyPage>,
     pub json_projections: Vec<JsonProjection>,
     pub hide_options: BTreeSet<String>,
     pub namespace_separator: Option<String>,
@@ -679,6 +689,8 @@ pub struct FamilyNode {
 pub enum FamilyNodeKind {
     Class,
     Object,
+    Diamond,
+    Map,
     UseCase,
     Salt,
     MindMap,
@@ -708,6 +720,8 @@ pub enum FamilyNodeKind {
     File,
     Card,
     Actor,
+    BusinessActor,
+    BusinessUseCase,
     Hexagon,
     Label,
     Person,
