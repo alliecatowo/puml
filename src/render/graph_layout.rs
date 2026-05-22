@@ -1100,8 +1100,24 @@ fn route_edges(
                 .push((ei, tgt_counterpart_x));
         }
 
+        let mut src_group_size_by_edge: BTreeMap<String, usize> = BTreeMap::new();
+        let mut tgt_group_size_by_edge: BTreeMap<String, usize> = BTreeMap::new();
+        for group in src_groups.values() {
+            let n = group.len();
+            for (ei, _) in group {
+                src_group_size_by_edge.insert(ei.edge_id.clone(), n);
+            }
+        }
+        for group in tgt_groups.values() {
+            let n = group.len();
+            for (ei, _) in group {
+                tgt_group_size_by_edge.insert(ei.edge_id.clone(), n);
+            }
+        }
+
         let assign_fan_offsets = |groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>>,
-                                  out: &mut BTreeMap<String, f64>| {
+                                  out: &mut BTreeMap<String, f64>,
+                                  opposite_group_size: &BTreeMap<String, usize>| {
             for (_, mut group) in groups {
                 if group.len() <= 1 {
                     continue;
@@ -1113,6 +1129,11 @@ fn route_edges(
                 });
                 let n = group.len() as f64;
                 for (idx, (ei, _)) in group.iter().enumerate() {
+                    // Only fan true shared-channel endpoint ambiguity where the
+                    // opposite endpoint is also shared (K2,2-style bipartite).
+                    if opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) <= 1 {
+                        continue;
+                    }
                     let lane = idx as f64 - (n - 1.0) / 2.0;
                     let dx = (lane * EDGE_PORT_FAN_SPACING)
                         .clamp(-EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_MAX_SHIFT);
@@ -1120,8 +1141,8 @@ fn route_edges(
                 }
             }
         };
-        assign_fan_offsets(src_groups, &mut edge_src_port_dx);
-        assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx);
+        assign_fan_offsets(src_groups, &mut edge_src_port_dx, &tgt_group_size_by_edge);
+        assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx, &src_group_size_by_edge);
     }
 
     // channel_next_track[upper_rank] = next available track index

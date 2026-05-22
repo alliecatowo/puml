@@ -3718,8 +3718,10 @@ fn render_box_grid_relations_and_labels(
             // For a downward path with n≥3 points:
             //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
             //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
-            let src_keep_routed_x = y1 == fy || y1 == fy + fh;
-            let tgt_keep_routed_x = y2 == ty || y2 == ty + th;
+            // Endpoint anchors can land on visual top/bottom edges that differ
+            // from bbox extents for 3D deployment shapes; use a tolerance.
+            let src_keep_routed_x = (y1 - fy).abs() <= 16 || (y1 - (fy + fh)).abs() <= 16;
+            let tgt_keep_routed_x = (y2 - ty).abs() <= 16 || (y2 - (ty + th)).abs() <= 16;
             let src_x_min = fx.min(fx + fw);
             let src_x_max = fx.max(fx + fw);
             let tgt_x_min = tx.min(tx + tw);
