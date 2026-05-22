@@ -1254,8 +1254,8 @@ mod tests {
         match &object_doc.statements[0].kind {
             StatementKind::ObjectDecl(decl) => {
                 assert_eq!(decl.name, "Settings");
-                assert_eq!(decl.members[0].text, "<<map>>");
-                assert_eq!(decl.members[1].text, "theme => light");
+                assert_eq!(decl.members[0].text, "\x1fkind:map");
+                assert_eq!(decl.members[1].text, "\x1fmap:theme\x1flight");
             }
             other => panic!("unexpected statement: {other:?}"),
         }

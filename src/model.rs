@@ -577,6 +577,15 @@ pub struct JsonProjection {
     pub format: String,
 }
 
+/// MindMap `<style>mindmapDiagram { ... }</style>` overrides (ch17.11).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MindmapStyle {
+    /// `node { BackgroundColor ... }` default for all depths without a `:depth(N)` rule.
+    pub node_background: Option<String>,
+    /// `:depth(N) { BackGroundColor ... }` per-depth fills.
+    pub depth_background: std::collections::BTreeMap<usize, String>,
+}
+
 /// Per-family style overrides carried through the model.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FamilyStyle {
@@ -587,12 +596,23 @@ pub enum FamilyStyle {
     Timing(TimingStyle),
 }
 
+/// One page of a class/object/usecase diagram split by `newpage` (Chapter 2.11).
+#[derive(Debug, Clone)]
+pub struct FamilyPage {
+    pub title: Option<String>,
+    pub nodes: Vec<FamilyNode>,
+    pub relations: Vec<FamilyRelation>,
+    pub groups: Vec<FamilyGroup>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
     pub groups: Vec<FamilyGroup>,
+    /// Non-empty when `newpage` split the diagram; each entry renders as a separate SVG.
+    pub pages: Vec<FamilyPage>,
     pub json_projections: Vec<JsonProjection>,
     pub hide_options: BTreeSet<String>,
     pub namespace_separator: Option<String>,
@@ -608,6 +628,8 @@ pub struct FamilyDocument {
     pub text_overflow_policy: TextOverflowPolicy,
     /// MindMap/WBS: auto word-wrap node labels at this pixel width (`skinparam MaximumWidth`).
     pub maximum_width: Option<i32>,
+    /// MindMap-only style block overrides (`<style>mindmapDiagram { ... }</style>`).
+    pub mindmap_style: Option<MindmapStyle>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,
@@ -708,6 +730,10 @@ pub enum FamilyNodeKind {
     File,
     Card,
     Actor,
+    /// Chapter 2.15 business actor (`actor/` or `:Name:/`).
+    BusinessActor,
+    /// Chapter 2.15 business use case (`(UC)/`, `usecase/`).
+    BusinessUseCase,
     Hexagon,
     Label,
     Person,

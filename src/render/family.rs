@@ -2383,7 +2383,9 @@ fn render_class_node(
                 .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
+        FamilyNodeKind::Map => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
+        FamilyNodeKind::Diamond => "#f8fafc",
         _ => "#f1f5f9",
     };
 
@@ -2539,7 +2541,7 @@ fn render_class_node(
     // otherwise we show just the name.  Either way we underline per UML.
     let header_text = display_name.clone();
     // Underline for objects (PlantUML convention — fix #486)
-    let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
+    let text_decoration = if matches!(node.kind, FamilyNodeKind::Object | FamilyNodeKind::Map) {
         " text-decoration=\"underline\" text-decoration-thickness=\"1\""
     } else {
         ""
@@ -2723,7 +2725,134 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
         FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
+        FamilyNodeKind::Diamond => computed.max(56),
+        FamilyNodeKind::Map => computed.max(48),
         _ => computed,
+    }
+}
+
+fn render_diamond_hub_node(
+    out: &mut String,
+    node: &crate::model::FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    class_style: &ClassStyle,
+) {
+    let cx = x + w / 2;
+    let cy = y + h / 2;
+    let half_w = (w / 2).saturating_sub(4).max(16);
+    let half_h = (h / 2).saturating_sub(4).max(16);
+    let stroke = &class_style.border_color;
+    let fill = class_style.background_color.as_str();
+    out.push_str(&format!(
+        "<polygon class=\"uml-diamond-hub\" data-uml-kind=\"diamond\" points=\"{cx},{top} {right},{cy} {cx},{bottom} {left},{cy}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        top = cy - half_h,
+        bottom = cy + half_h,
+        right = cx + half_w,
+        left = cx - half_w,
+        fill = escape_text(fill),
+        stroke = escape_text(stroke),
+    ));
+    let label = node.alias.as_deref().unwrap_or(&node.name);
+    out.push_str(&format!(
+        "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{fc}\">{lbl}</text>",
+        ty = cy + 4,
+        fc = escape_text(&class_style.font_color),
+        lbl = escape_text(label),
+    ));
+}
+
+fn render_map_table_node(
+    out: &mut String,
+    node: &crate::model::FamilyNode,
+    geometry: ClassNodeGeometry,
+    class_style: &ClassStyle,
+    namespace_separator: Option<&str>,
+) {
+    let ClassNodeGeometry {
+        x,
+        y,
+        w,
+        h,
+        header_h,
+    } = geometry;
+    let stroke = &class_style.border_color;
+    let fill = class_style.background_color.as_str();
+    let header_fill = "#fef3c7";
+    let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
+    let title_font_size = class_style.font_size.unwrap_or(13);
+    let member_font_size = title_font_size.saturating_sub(2).max(9);
+    let font_color = &class_style.font_color;
+    let member_color = class_style.member_color.as_str();
+
+    out.push_str(&format!(
+        "<rect class=\"uml-map\" data-uml-kind=\"map\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        fill = escape_text(fill),
+        stroke = escape_text(stroke),
+    ));
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        hh = header_h,
+        header_fill = escape_text(header_fill),
+        stroke = escape_text(stroke),
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{x}\" y1=\"{ly}\" x2=\"{x2}\" y2=\"{ly}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+        ly = y + header_h,
+        x2 = x + w,
+        stroke = escape_text(stroke),
+    ));
+
+    let display_name = namespace_separator
+        .filter(|sep| !sep.is_empty())
+        .map(|sep| node.name.replace("::", sep))
+        .unwrap_or_else(|| node.name.clone());
+    out.push_str(&format!(
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\" text-decoration=\"underline\">{txt}</text>",
+        tx = x + w / 2,
+        ty = y + header_h - 9,
+        ff = escape_text(font_family),
+        fs = title_font_size,
+        fc = escape_text(font_color),
+        txt = escape_text(&display_name),
+    ));
+
+    let sep_x = x + (w / 2).max(60);
+    out.push_str(&format!(
+        "<line x1=\"{sep_x}\" y1=\"{y1}\" x2=\"{sep_x}\" y2=\"{y2}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+        y1 = y + header_h,
+        y2 = y + h,
+        stroke = escape_text(stroke),
+    ));
+
+    let mut my = y + header_h + 16;
+    for member in &node.members {
+        let Some((key, value)) = map_entry_parts(&member.text) else {
+            continue;
+        };
+        out.push_str(&format!(
+            "<text class=\"uml-map-key\" data-uml-map-row=\"{row}\" x=\"{kx}\" y=\"{my}\" text-anchor=\"start\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{mc}\">{key_txt}</text>",
+            row = escape_text(key),
+            kx = x + MAP_COL_PAD,
+            ff = escape_text(font_family),
+            fs = member_font_size,
+            mc = escape_text(member_color),
+            key_txt = escape_text(key),
+        ));
+        let value_text = escape_text(value);
+        out.push_str(&format!(
+            "<text class=\"uml-map-value\" data-uml-map-row=\"{row}\" x=\"{vx}\" y=\"{my}\" text-anchor=\"start\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{mc}\">{value_text}</text>",
+            row = escape_text(key),
+            vx = sep_x + MAP_COL_PAD,
+            my = my,
+            ff = escape_text(font_family),
+            fs = member_font_size,
+            mc = escape_text(member_color),
+            value_text = value_text,
+        ));
+        my += MAP_ROW_HEIGHT;
     }
 }
 

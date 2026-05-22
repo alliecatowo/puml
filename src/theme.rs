@@ -383,6 +383,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
         stereotype_styles: BTreeMap::new(),
+        actor_style: ActorStyle::default(),
     }
 }
 
@@ -1455,6 +1456,24 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
 
+/// PlantUML `skinparam actorStyle` glyph variant (Chapter 2.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActorStyle {
+    #[default]
+    Stick,
+    Awesome,
+    Hollow,
+}
+
+fn parse_actor_style_value(value: &str) -> Option<ActorStyle> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "stick" | "stickman" | "default" => Some(ActorStyle::Stick),
+        "awesome" => Some(ActorStyle::Awesome),
+        "hollow" => Some(ActorStyle::Hollow),
+        _ => None,
+    }
+}
+
 /// Style overrides for class/object/usecase diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassStyle {
@@ -1466,6 +1485,7 @@ pub struct ClassStyle {
     pub arrow_color: String,
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
+    pub actor_style: ActorStyle,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
 }
 
@@ -1488,6 +1508,7 @@ impl Default for ClassStyle {
             arrow_color: "#1e293b".to_string(),
             font_size: None,
             font_name: None,
+            actor_style: ActorStyle::default(),
             stereotype_styles: BTreeMap::new(),
         }
     }
@@ -1504,6 +1525,7 @@ pub enum ClassSkinParamValue {
     FontSize(u32),
     FontName(String),
     Monochrome(MonochromeMode),
+    ActorStyle(ActorStyle),
     StereotypeBackgroundColor(String, String),
     StereotypeBorderColor(String, String),
     StereotypeHeaderBackgroundColor(String, String),
@@ -1635,6 +1657,11 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
             Some(None) => SkinParamSupport::SupportedNoop,
             None => SkinParamSupport::UnsupportedValue,
         },
+        "actorstyle" => parse_actor_style_value(value)
+            .map(|style| {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ActorStyle(style))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "handwritten" => {
             if parse_bool_value(value).is_some() {
                 SkinParamSupport::SupportedNoop

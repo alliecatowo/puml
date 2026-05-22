@@ -21,6 +21,21 @@ fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -
     node.fill_color.as_deref().unwrap_or(fallback)
 }
 
+fn mindmap_fill<'a>(doc: &'a crate::model::FamilyDocument, node: &'a crate::model::FamilyNode) -> &'a str {
+    if let Some(custom) = node.fill_color.as_deref() {
+        return custom;
+    }
+    if let Some(style) = doc.mindmap_style.as_ref() {
+        if let Some(color) = style.depth_background.get(&node.depth) {
+            return color.as_str();
+        }
+        if let Some(color) = style.node_background.as_deref() {
+            return color;
+        }
+    }
+    mindmap_node_fill(node.depth)
+}
+
 fn mindmap_max_chars(maximum_width: Option<i32>) -> Option<usize> {
     let px = maximum_width.filter(|w| *w > 0)?;
     let inner = px.saturating_sub(MINDMAP_NODE_PAD_X);

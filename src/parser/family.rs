@@ -111,7 +111,7 @@ fn parse_family_declaration(
         }
     }
 
-    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+    for (keyword, marker) in [("map", Some("\x1fkind:map")), ("object", None)] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -351,6 +351,90 @@ struct FamilyDeclParts {
 struct FamilyHeritage {
     arrow: String,
     target: String,
+}
+
+fn business_marker_member() -> ClassMember {
+    ClassMember {
+        text: "<<business>>".to_string(),
+        modifier: None,
+    }
+}
+
+fn strip_trailing_business_slash(input: &str) -> (String, bool) {
+    let trimmed = input.trim();
+    if trimmed.ends_with('/') {
+        (
+            trimmed[..trimmed.len().saturating_sub(1)]
+                .trim_end()
+                .to_string(),
+            true,
+        )
+    } else {
+        (trimmed.to_string(), false)
+    }
+}
+
+fn parse_slash_keyword_family_decl(
+    line: &str,
+    keyword: &str,
+    marker: Option<&str>,
+) -> Option<FamilyDeclParts> {
+    let prefix = format!("{keyword}/");
+    if !line.starts_with(&prefix) {
+        return None;
+    }
+    let rest = line[prefix.len()..].trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let mut decl = parse_named_family_decl(&format!("{keyword} {rest}"), keyword)?;
+    decl.members.push(business_marker_member());
+    if let Some(marker) = marker {
+        decl.members.insert(0, ClassMember {
+            text: marker.to_string(),
+            modifier: None,
+        });
+    }
+    Some(decl)
+}
+
+fn parse_colon_actor_usecase_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with(':') {
+        return None;
+    }
+    let mut body = trimmed.strip_prefix(':')?;
+    let close = body.find(':')?;
+    let name_raw = body[..close].trim();
+    if name_raw.is_empty() {
+        return None;
+    }
+    let (rest, is_business) = strip_trailing_business_slash(body[close + 1..].trim());
+    let has_block = rest.ends_with('{');
+    let rest = if has_block {
+        rest.trim_end_matches('{').trim()
+    } else {
+        rest.as_str()
+    };
+    let (rest, fill_color) = split_declaration_inline_fill(rest);
+    let alias = rest
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|v| !v.is_empty());
+    let mut members = vec![ClassMember {
+        text: "<<actor>>".to_string(),
+        modifier: None,
+    }];
+    if is_business {
+        members.push(business_marker_member());
+    }
+    append_inline_fill_member(&mut members, fill_color);
+    Some(StatementKind::UseCaseDecl(UseCaseDecl {
+        name: clean_ident(name_raw),
+        alias,
+        members,
+    }))
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
@@ -643,7 +727,8 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     if name_raw.is_empty() {
         return None;
     }
-    let rest = trimmed[close + 1..].trim();
+    let (rest, is_business) = strip_trailing_business_slash(trimmed[close + 1..].trim());
+    let rest = rest.as_str();
     let has_block = rest.ends_with('{');
     let rest = if has_block {
         rest.trim_end_matches('{').trim()
@@ -657,6 +742,10 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         .map(str::trim)
         .map(clean_ident)
         .filter(|v| !v.is_empty());
+    let mut members = Vec::new();
+    if is_business {
+        members.push(business_marker_member());
+    }
     Some(FamilyDeclParts {
         name: clean_ident(name_raw),
         alias,
@@ -664,6 +753,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         stereotypes: Vec::new(),
         fill_color,
         heritage: Vec::new(),
+        members,
     })
 }
 
