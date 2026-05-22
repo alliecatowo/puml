@@ -1,6 +1,7 @@
 target/
 .agents/
 .claude/worktrees/
+.DS_Store
 __pycache__/
 *.py[cod]
 

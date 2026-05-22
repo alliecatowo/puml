@@ -76,6 +76,16 @@ def puml_exe_name() -> str:
     return "puml.exe" if os.name == "nt" else "puml"
 
 
+def cargo_debug_dir() -> Path:
+    target_dir = os.environ.get("CARGO_TARGET_DIR")
+    if target_dir:
+        path = Path(target_dir)
+        if not path.is_absolute():
+            path = ROOT / path
+        return path / "debug"
+    return ROOT / "target" / "debug"
+
+
 def ensure_puml_binary() -> Path:
     proc = subprocess.run(
         ["cargo", "build", "--quiet", "--bin", "puml"],
@@ -89,28 +99,38 @@ def ensure_puml_binary() -> Path:
             "failed to build puml binary for docs render check: "
             f"{proc.stderr.strip()}"
         )
-    return ROOT / "target" / "debug" / puml_exe_name()
+    puml_bin = cargo_debug_dir() / puml_exe_name()
+    if not puml_bin.exists():
+        raise RuntimeError(f"puml binary was not produced at expected path: {puml_bin}")
+    return puml_bin
+
+
+def run_puml(args: List[str], stdin_text: Optional[str] = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["cargo", "run", "--quiet", "--bin", "puml", "--", *args],
+        cwd=ROOT,
+        input=stdin_text,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def render_source_text(src: str, puml_bin: Optional[Path] = None) -> Dict[str, Any]:
     if puml_bin is None:
-        proc = subprocess.run(
-            ["cargo", "run", "--quiet", "--", "-"],
-            cwd=ROOT,
-            input=src,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        proc = run_puml(["-"], stdin_text=src)
     else:
-        proc = subprocess.run(
-            [str(puml_bin), "-"],
-            cwd=ROOT,
-            input=src,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                [str(puml_bin), "-"],
+                cwd=ROOT,
+                input=src,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            proc = run_puml(["-"], stdin_text=src)
     if proc.returncode != 0:
         return {
             "ok": False,
@@ -125,13 +145,16 @@ def render_source_text(src: str, puml_bin: Optional[Path] = None) -> Dict[str, A
 def render_source_file(source_ref: str, puml_bin: Path) -> Dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="puml-render-check-") as tmp:
         out_path = Path(tmp) / "artifact.svg"
-        proc = subprocess.run(
-            [str(puml_bin), source_ref, "-o", str(out_path)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                [str(puml_bin), source_ref, "-o", str(out_path)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            proc = run_puml([source_ref, "-o", str(out_path)])
         if proc.returncode != 0:
             return {
                 "ok": False,

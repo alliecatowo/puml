@@ -15,6 +15,7 @@
 use assert_cmd::Command;
 use image::ImageEncoder;
 use serde::Deserialize;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -124,6 +125,23 @@ const MAX_BASELINE_WIDTH_PX: u32 = 640;
 /// anti-aliasing differences that can occur between machines or resvg
 /// versions while still catching real layout regressions.
 const PIXEL_DIFF_THRESHOLD: u8 = 3;
+const RUN_PNG_BASELINES_ENV: &str = "PUML_RUN_PNG_BASELINES";
+
+fn should_run_png_baselines() -> bool {
+    cfg!(target_os = "linux") || env::var_os(RUN_PNG_BASELINES_ENV).is_some()
+}
+
+fn skip_png_baselines_on_this_platform(test_name: &str) -> bool {
+    if should_run_png_baselines() {
+        return false;
+    }
+
+    eprintln!(
+        "{test_name}: skipping PNG baseline diff on this platform; \
+         set {RUN_PNG_BASELINES_ENV}=1 to force the Linux-blessed raster sweep locally"
+    );
+    true
+}
 
 /// Rasterise an SVG string to raw RGBA bytes at `BASELINE_DPI`, scaling the
 /// image down if it would exceed `MAX_BASELINE_WIDTH_PX`.
@@ -878,6 +896,10 @@ fn run_png_sweep<'a>(label: &str, fixtures: impl IntoIterator<Item = &'a Fixture
 /// Compare every reviewed PNG baseline currently committed to git.
 #[test]
 fn png_regression_committed_baselines() {
+    if skip_png_baselines_on_this_platform("png_regression_committed_baselines") {
+        return;
+    }
+
     let manifest = load_manifest();
     let root = workspace_root();
     let fixtures = manifest
@@ -914,6 +936,10 @@ fn png_regression_committed_baselines() {
 /// fixture into a text-only manifest change once it has a documented reason.
 #[test]
 fn png_regression_all_fixtures() {
+    if skip_png_baselines_on_this_platform("png_regression_all_fixtures") {
+        return;
+    }
+
     let manifest = load_manifest();
     run_png_sweep(
         "PNG regression",

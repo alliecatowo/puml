@@ -76,7 +76,7 @@ if [[ "$MODE" == "full" ]]; then
 
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark full profile with enforced gates"
-    ./scripts/bench.sh --enforce-gates
+    ./scripts/bench.sh --skip-build --enforce-gates
   else
     echo "[gate] benchmark full profile skipped (--skip-bench)"
   fi
