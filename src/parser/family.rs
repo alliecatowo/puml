@@ -172,9 +172,16 @@ fn parse_family_declaration(
             alias,
             has_block,
             fill_color,
+            business,
             ..
         } = decl;
         let mut members = Vec::new();
+        if business {
+            members.push(ClassMember {
+                text: "<<business>>".to_string(),
+                modifier: None,
+            });
+        }
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -200,6 +207,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            business,
             ..
         } = decl;
         let mut members = if has_block {
@@ -222,9 +230,28 @@ fn parse_family_declaration(
                     },
                 );
             }
+            if business {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: "<<business>>".to_string(),
+                        modifier: None,
+                    },
+                );
+            }
             members
         } else {
-            declaration_marker_members(marker, stereotypes)
+            let mut members = declaration_marker_members(marker, stereotypes);
+            if business {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: "<<business>>".to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         };
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
@@ -282,9 +309,11 @@ fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start:
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         line.starts_with("usecase ")
+            || line.starts_with("usecase/")
             || line.starts_with("usecase(")
             || line.starts_with('(')
             || line.starts_with("actor ")
+            || line.starts_with("actor/")
     })
 }
 
@@ -345,6 +374,7 @@ struct FamilyDeclParts {
     stereotypes: Vec<String>,
     fill_color: Option<String>,
     heritage: Vec<FamilyHeritage>,
+    business: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -354,18 +384,25 @@ struct FamilyHeritage {
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
-    if !line.starts_with(keyword) {
+    let mut business = false;
+    let keyword_with_business = format!("{keyword}/");
+    let matched_keyword = if line.starts_with(&keyword_with_business) {
+        business = true;
+        keyword_with_business.as_str()
+    } else if line.starts_with(keyword) {
+        keyword
+    } else {
         return None;
-    }
-    if line.len() > keyword.len()
-        && !line[keyword.len()..]
+    };
+    if line.len() > matched_keyword.len()
+        && !line[matched_keyword.len()..]
             .chars()
             .next()
             .is_some_and(char::is_whitespace)
     {
         return None;
     }
-    let rest = line[keyword.len()..].trim();
+    let rest = line[matched_keyword.len()..].trim();
     if rest.is_empty() {
         return None;
     }
@@ -375,6 +412,12 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         rest.trim_end_matches('{').trim()
     } else {
         rest
+    };
+    let trimmed = if let Some(without_business) = trimmed.strip_suffix('/') {
+        business = true;
+        without_business.trim_end()
+    } else {
+        trimmed
     };
     let (trimmed, fill_color) = split_declaration_inline_fill(trimmed);
     let trimmed = trimmed.trim();
@@ -399,6 +442,7 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         stereotypes,
         fill_color,
         heritage,
+        business,
     })
 }
 
@@ -634,7 +678,11 @@ fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
 
 fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     let trimmed = line.trim();
-    let trimmed = trimmed.strip_prefix("usecase ").unwrap_or(trimmed).trim();
+    let (trimmed, mut business) = if let Some(rest) = trimmed.strip_prefix("usecase/") {
+        (rest.trim(), true)
+    } else {
+        (trimmed.strip_prefix("usecase ").unwrap_or(trimmed).trim(), false)
+    };
     if !trimmed.starts_with('(') {
         return None;
     }
@@ -647,6 +695,12 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     let has_block = rest.ends_with('{');
     let rest = if has_block {
         rest.trim_end_matches('{').trim()
+    } else {
+        rest
+    };
+    let rest = if let Some(without_business) = rest.strip_suffix('/') {
+        business = true;
+        without_business.trim_end()
     } else {
         rest
     };
@@ -664,7 +718,27 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         stereotypes: Vec::new(),
         fill_color,
         heritage: Vec::new(),
+        business,
     })
+}
+
+fn parse_family_pagination(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+    if !matches!(
+        family,
+        Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+    ) {
+        return None;
+    }
+    if line.eq_ignore_ascii_case("ignore newpage") {
+        return Some(StatementKind::IgnoreNewPage);
+    }
+    let lower = line.to_ascii_lowercase();
+    let rest = lower.strip_prefix("newpage")?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let label = line[7..].trim();
+    Some(StatementKind::NewPage((!label.is_empty()).then(|| label.to_string())))
 }
 
 fn parse_family_decl_members(
@@ -1726,6 +1800,7 @@ fn collect_scoped_class_group_content(
                 alias,
                 has_block,
                 fill_color,
+                business,
                 ..
             } = decl;
             let has_alias = alias.is_some();
@@ -1738,6 +1813,10 @@ fn collect_scoped_class_group_content(
             if let Some(fill_color) = fill_color {
                 encoded.push('\t');
                 encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+            }
+            if business {
+                encoded.push('\t');
+                encoded.push_str("<<business>>");
             }
             content.members.push(encoded);
             if has_block {
@@ -1777,6 +1856,7 @@ fn collect_scoped_class_group_content(
                     alias,
                     has_block,
                     fill_color,
+                    business,
                     ..
                 } = decl;
                 let has_alias = alias.is_some();
@@ -1791,6 +1871,10 @@ fn collect_scoped_class_group_content(
                 if keyword == "actor" {
                     encoded.push('\t');
                     encoded.push_str("<<actor>>");
+                }
+                if business {
+                    encoded.push('\t');
+                    encoded.push_str("<<business>>");
                 }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
@@ -1852,6 +1936,7 @@ fn collect_scoped_class_group_content(
                     name,
                     alias,
                     fill_color,
+                    business,
                     ..
                 } = decl;
                 let has_alias = alias.is_some();
@@ -1877,6 +1962,10 @@ fn collect_scoped_class_group_content(
                     encoded.push('\t');
                     encoded.push_str("<<actor>>");
                 }
+                if business {
+                    encoded.push('\t');
+                    encoded.push_str("<<business>>");
+                }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
@@ -1897,6 +1986,7 @@ fn collect_scoped_class_group_content(
                     name,
                     alias,
                     fill_color,
+                    business,
                     ..
                 } = decl;
                 let has_alias = alias.is_some();
@@ -1911,6 +2001,10 @@ fn collect_scoped_class_group_content(
                 if keyword == "actor" {
                     encoded.push('\t');
                     encoded.push_str("<<actor>>");
+                }
+                if business {
+                    encoded.push('\t');
+                    encoded.push_str("<<business>>");
                 }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
@@ -2017,8 +2111,10 @@ fn group_body_contains_usecase_family(
         let line = strip_inline_plantuml_comment(raw).trim();
         let lower = line.to_ascii_lowercase();
         lower.starts_with("usecase ")
+            || lower.starts_with("usecase/")
             || lower.starts_with("usecase(")
             || lower.starts_with("actor ")
+            || lower.starts_with("actor/")
             || parse_parenthesized_usecase_decl(line).is_some()
     })
 }

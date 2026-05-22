@@ -8,7 +8,7 @@ use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle, ComponentStyleMode};
+use crate::theme::{ActorStyle, ClassStyle, ComponentStyle, ComponentStyleMode};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -1188,7 +1188,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .map(|node| {
             let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
             let header_stereotype_count = count_header_stereotype_members(&node.members);
-            let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
+            let display_member_count = node
+                .members
+                .iter()
+                .skip(header_stereotype_count)
+                .filter(|member| !is_hidden_member_for_node(node.kind, member.text.trim()))
+                .count();
             let stereotype_extra_h = (header_stereotype_count as i32) * 14;
             let body_h = if node.kind == FamilyNodeKind::Note {
                 let lines = node
@@ -2297,10 +2302,17 @@ fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> {
     }
 }
 
+fn is_internal_family_marker(text: &str) -> bool {
+    matches!(text.trim(), "<<business>>")
+}
+
 /// Return true if `text` is an arbitrary user-defined stereotype marker
 /// (any `<<…>>` value that is NOT one of the built-in type keywords).
 fn is_user_stereotype(text: &str) -> bool {
-    text.starts_with("<<") && text.ends_with(">>") && builtin_type_stereotype_label(text).is_none()
+    text.starts_with("<<")
+        && text.ends_with(">>")
+        && builtin_type_stereotype_label(text).is_none()
+        && !is_internal_family_marker(text)
 }
 
 /// Count how many leading members of `members` are header stereotypes that
@@ -2334,6 +2346,112 @@ fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> 
                 .to_ascii_lowercase()
         })
     })
+}
+
+fn has_business_marker(node: &crate::model::FamilyNode) -> bool {
+    node.members
+        .iter()
+        .any(|member| member.text.trim() == "<<business>>")
+}
+
+fn is_hidden_member_for_node(kind: FamilyNodeKind, text: &str) -> bool {
+    matches!(kind, FamilyNodeKind::Actor | FamilyNodeKind::UseCase)
+        && is_internal_family_marker(text)
+}
+
+fn render_actor_style_awesome(
+    out: &mut String,
+    cx: i32,
+    cy: i32,
+    stroke: &str,
+    hollow: bool,
+    business: bool,
+) {
+    let head_fill = if hollow { "#ffffff" } else { stroke };
+    out.push_str(&format!(
+        "<g data-actor-style=\"{}\" data-business-actor=\"{}\">",
+        if hollow { "hollow" } else { "awesome" },
+        if business { "true" } else { "false" }
+    ));
+    out.push_str(&format!(
+        "<circle cx=\"{cx}\" cy=\"{}\" r=\"7\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cy - 15,
+        head_fill,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<path d=\"M{} {} Q{} {}, {} {} L{} {} Q{} {}, {} {} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx - 10,
+        cy - 2,
+        cx,
+        cy - 10,
+        cx + 10,
+        cy - 2,
+        cx + 6,
+        cy + 15,
+        cx,
+        cy + 19,
+        cx - 6,
+        cy + 15,
+        if hollow { "#ffffff" } else { "#e2e8f0" },
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx - 14,
+        cy + 2,
+        cx + 14,
+        cy + 2,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx - 3,
+        cy + 15,
+        cx - 11,
+        cy + 29,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx + 3,
+        cy + 15,
+        cx + 11,
+        cy + 29,
+        stroke
+    ));
+    if business {
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"8\" rx=\"1\" ry=\"1\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1.2\"/>",
+            cx + 9,
+            cy + 8,
+            stroke
+        ));
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.2\"/>",
+            cx + 13,
+            cy + 8,
+            cx + 17,
+            cy + 4,
+            stroke
+        ));
+    }
+    out.push_str("</g>");
+}
+
+fn render_business_briefcase(out: &mut String, x: i32, y: i32, stroke: &str) {
+    out.push_str(&format!(
+        "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"8\" rx=\"1\" ry=\"1\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1.2\"/>",
+        x, y, stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.2\"/>",
+        x + 4,
+        y,
+        x + 8,
+        y - 4,
+        stroke
+    ));
 }
 
 fn render_class_node(
@@ -2408,7 +2526,26 @@ fn render_class_node(
         // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
         let cx = x + w / 2;
         let fig_cy = y + 21; // centre of figure; head top = fig_cy - 21
-        render_actor_stick_figure(out, cx, fig_cy, stroke);
+        let business = has_business_marker(node);
+        match class_style.actor_style {
+            ActorStyle::Awesome => {
+                render_actor_style_awesome(out, cx, fig_cy, stroke, false, business);
+            }
+            ActorStyle::Hollow => {
+                render_actor_style_awesome(out, cx, fig_cy, stroke, true, business);
+            }
+            ActorStyle::Stickman => {
+                out.push_str(&format!(
+                    "<g data-actor-style=\"stickman\" data-business-actor=\"{}\">",
+                    if business { "true" } else { "false" }
+                ));
+                render_actor_stick_figure(out, cx, fig_cy, stroke);
+                if business {
+                    render_business_briefcase(out, cx + 9, fig_cy + 8, stroke);
+                }
+                out.push_str("</g>");
+            }
+        }
         // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
         let name_y = fig_cy + 27;
         out.push_str(&format!(
@@ -2422,7 +2559,7 @@ fn render_class_node(
         let mut member_y = name_y + 14;
         for member in &node.members {
             let text = member.text.trim();
-            if text.is_empty() {
+            if text.is_empty() || is_hidden_member_for_node(node.kind, text) {
                 continue;
             }
             out.push_str(&format!(
@@ -2437,14 +2574,21 @@ fn render_class_node(
     }
 
     if matches!(node.kind, FamilyNodeKind::UseCase) {
-        // Ellipse rendering for use cases
+        let business = has_business_marker(node);
+        // Ellipse rendering for regular use cases; rounded rectangles for business use cases.
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;
         let ry = h / 2;
-        out.push_str(&format!(
-            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        ));
+        if business {
+            out.push_str(&format!(
+                "<rect data-business-usecase=\"true\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        } else {
+            out.push_str(&format!(
+                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        }
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
         // the human-readable label as members[0] when the parser embeds `as DisplayName`
         // inside a group. Detect this by checking that members[0] is plain text (not a
@@ -2484,6 +2628,9 @@ fn render_class_node(
         // Members rendered below the ellipse (rare for usecases), skipping display-label slot
         let mut my = y + h + 14;
         for member in node.members.iter().skip(uc_member_skip) {
+            if is_hidden_member_for_node(node.kind, member.text.trim()) {
+                continue;
+            }
             out.push_str(&format!(
                 "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
                 escape_text(font_family),

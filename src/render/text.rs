@@ -40,7 +40,10 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
             .iter()
             .map(|page| render_sequence_text(page, mode))
             .collect(),
-        NormalizedDocument::Family(family) => vec![render_family_text(family, mode)],
+        NormalizedDocument::Family(family) => crate::normalize::paginate_family(family)
+            .iter()
+            .map(|page| render_family_text(page, mode))
+            .collect(),
         NormalizedDocument::Timeline(timeline) => vec![render_timeline_text(timeline, mode)],
         NormalizedDocument::State(state) => vec![render_state_text(state, mode)],
         NormalizedDocument::Json(doc) => vec![render_json_text(doc, mode)],

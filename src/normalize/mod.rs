@@ -110,6 +110,86 @@ pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
     sequence::paginate(document)
 }
 
+pub fn paginate_family(document: &FamilyDocument) -> Vec<FamilyDocument> {
+    if document.page_breaks.is_empty() {
+        return vec![document.clone()];
+    }
+
+    let mut pages = Vec::with_capacity(document.page_breaks.len() + 1);
+    let mut prev_nodes = 0usize;
+    let mut prev_relations = 0usize;
+    let mut prev_groups = 0usize;
+    let mut prev_json = 0usize;
+    let mut current_title = document.title.clone();
+
+    for page_break in &document.page_breaks {
+        pages.push(FamilyDocument {
+            kind: document.kind,
+            nodes: document.nodes[prev_nodes..page_break.node_count].to_vec(),
+            relations: document.relations[prev_relations..page_break.relation_count].to_vec(),
+            groups: document.groups[prev_groups..page_break.group_count].to_vec(),
+            json_projections: document.json_projections
+                [prev_json..page_break.json_projection_count]
+                .to_vec(),
+            page_breaks: Vec::new(),
+            hide_options: document.hide_options.clone(),
+            namespace_separator: document.namespace_separator.clone(),
+            title: current_title.clone(),
+            header: document.header.clone(),
+            footer: document.footer.clone(),
+            caption: document.caption.clone(),
+            legend: document.legend.clone(),
+            orientation: document.orientation,
+            style: document.style.clone(),
+            family_style: document.family_style.clone(),
+            text_overflow_policy: document.text_overflow_policy,
+            maximum_width: document.maximum_width,
+            sprites: document.sprites.clone(),
+            list_sprites: document.list_sprites,
+            warnings: document.warnings.clone(),
+        });
+        prev_nodes = page_break.node_count;
+        prev_relations = page_break.relation_count;
+        prev_groups = page_break.group_count;
+        prev_json = page_break.json_projection_count;
+        current_title = cleaned_family_page_title(&page_break.title).or_else(|| document.title.clone());
+    }
+
+    pages.push(FamilyDocument {
+        kind: document.kind,
+        nodes: document.nodes[prev_nodes..].to_vec(),
+        relations: document.relations[prev_relations..].to_vec(),
+        groups: document.groups[prev_groups..].to_vec(),
+        json_projections: document.json_projections[prev_json..].to_vec(),
+        page_breaks: Vec::new(),
+        hide_options: document.hide_options.clone(),
+        namespace_separator: document.namespace_separator.clone(),
+        title: current_title,
+        header: document.header.clone(),
+        footer: document.footer.clone(),
+        caption: document.caption.clone(),
+        legend: document.legend.clone(),
+        orientation: document.orientation,
+        style: document.style.clone(),
+        family_style: document.family_style.clone(),
+        text_overflow_policy: document.text_overflow_policy,
+        maximum_width: document.maximum_width,
+        sprites: document.sprites.clone(),
+        list_sprites: document.list_sprites,
+        warnings: document.warnings.clone(),
+    });
+
+    pages
+}
+
+fn cleaned_family_page_title(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 pub fn normalize_with_options(
     document: Document,
     options: &NormalizeOptions,

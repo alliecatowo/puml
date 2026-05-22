@@ -391,6 +391,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         arrow_color: style.arrow_color.clone(),
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
+        actor_style: ActorStyle::Stickman,
         stereotype_styles: BTreeMap::new(),
     }
 }
@@ -488,6 +489,7 @@ pub fn apply_monochrome_to_class_style(style: &mut ClassStyle, mode: MonochromeM
     style.member_color = ink.clone();
     style.font_color = ink.clone();
     style.arrow_color = ink;
+    style.actor_style = ActorStyle::Stickman;
     style.stereotype_styles.clear();
 }
 
@@ -1496,7 +1498,16 @@ pub struct ClassStyle {
     pub arrow_color: String,
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
+    pub actor_style: ActorStyle,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActorStyle {
+    #[default]
+    Stickman,
+    Awesome,
+    Hollow,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1518,6 +1529,7 @@ impl Default for ClassStyle {
             arrow_color: "#1e293b".to_string(),
             font_size: None,
             font_name: None,
+            actor_style: ActorStyle::Stickman,
             stereotype_styles: BTreeMap::new(),
         }
     }
@@ -1533,6 +1545,7 @@ pub enum ClassSkinParamValue {
     ArrowColor(String),
     FontSize(u32),
     FontName(String),
+    ActorStyle(ActorStyle),
     Monochrome(MonochromeMode),
     StereotypeBackgroundColor(String, String),
     StereotypeBorderColor(String, String),
@@ -1658,6 +1671,18 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 ))
             }
         }
+        "actorstyle" => match value.trim().to_ascii_lowercase().as_str() {
+            "awesome" => SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ActorStyle(
+                ActorStyle::Awesome,
+            )),
+            "hollow" => SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ActorStyle(
+                ActorStyle::Hollow,
+            )),
+            "stickman" | "stickfigure" | "normal" => SkinParamSupport::SupportedWithValue(
+                ClassSkinParamValue::ActorStyle(ActorStyle::Stickman),
+            ),
+            _ => SkinParamSupport::UnsupportedValue,
+        },
         "monochrome" => match parse_monochrome_value(value) {
             Some(Some(mode)) => {
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::Monochrome(mode))

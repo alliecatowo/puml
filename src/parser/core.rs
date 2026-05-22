@@ -178,7 +178,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && line.starts_with("interface ")
                 && later_lines_contain_class_family_declaration(&lines, i);
             let actor_prefers_non_component = detected_kind.is_none()
-                && line.starts_with("actor ")
+                && (line.starts_with("actor ") || line.starts_with("actor/"))
                 && (line.contains("<<")
                     || line.contains('"')
                     || later_lines_contain_usecase_family_declaration(&lines, i)
@@ -193,7 +193,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     is_ambiguous_activity_keyword(kw) && later_lines_contain_activity_context(&lines, i)
                 });
             let ambiguous_usecase_prefers_usecase = detected_kind.is_none()
-                && (line.starts_with("usecase ") || line.starts_with('('))
+                && (line.starts_with("usecase ")
+                    || line.starts_with("usecase/")
+                    || line.starts_with('('))
                 && later_lines_contain_usecase_family_declaration(&lines, i);
             let ambiguous_class_scope = detected_kind.is_none()
                 && (line.starts_with("package ") || line.starts_with("namespace "))
@@ -330,7 +332,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             && block_kind == Some(BlockKind::Uml)
             && ((line.starts_with("interface ")
                 && !later_lines_contain_class_family_declaration(&lines, i))
-                || (line.starts_with("actor ")
+                || ((line.starts_with("actor ") || line.starts_with("actor/"))
                     && !line.contains("<<")
                     && !later_lines_contain_usecase_family_declaration(&lines, i))))
         {
@@ -360,6 +362,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if let Some(kind) = parse_family_visibility_control(line, detected_kind) {
+            statements.push(Statement { span, kind });
+            i += 1;
+            continue;
+        }
+
+        if let Some(kind) = parse_family_pagination(line, detected_kind) {
             statements.push(Statement { span, kind });
             i += 1;
             continue;
@@ -398,7 +406,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         if detected_kind.is_none()
             && in_block
             && block_kind == Some(BlockKind::Uml)
-            && !(line.starts_with("actor ") && line.contains("<<"))
+            && !((line.starts_with("actor ") || line.starts_with("actor/")) && line.contains("<<"))
         {
             if let Some(kind) = parse_participant(line) {
                 detected_kind = Some(select_diagram_kind(

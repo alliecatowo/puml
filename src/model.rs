@@ -587,6 +587,15 @@ pub enum FamilyStyle {
     Timing(TimingStyle),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FamilyPageBreak {
+    pub node_count: usize,
+    pub relation_count: usize,
+    pub group_count: usize,
+    pub json_projection_count: usize,
+    pub title: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
@@ -594,6 +603,7 @@ pub struct FamilyDocument {
     pub relations: Vec<FamilyRelation>,
     pub groups: Vec<FamilyGroup>,
     pub json_projections: Vec<JsonProjection>,
+    pub page_breaks: Vec<FamilyPageBreak>,
     pub hide_options: BTreeSet<String>,
     pub namespace_separator: Option<String>,
     pub title: Option<String>,

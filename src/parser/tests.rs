@@ -1776,9 +1776,14 @@ mod tests {
     }
 
     #[test]
-    fn mixed_family_input_reports_deterministic_error() {
-        let err = parse_with_options("class A\nnewpage\n", &ParseOptions::default()).unwrap_err();
-        assert!(err.message.contains("E_FAMILY_MIXED"));
+    fn family_newpage_is_parsed_as_pagination_statement() {
+        let doc = parse_with_options("class A\nnewpage Next\nclass B\n", &ParseOptions::default())
+            .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::NewPage(Some(_))
+        ));
     }
 
     #[test]

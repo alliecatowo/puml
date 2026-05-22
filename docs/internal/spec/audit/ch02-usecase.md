@@ -19,12 +19,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** `src/parser/family.rs:139` (`actor` keyword, marker `<<actor>>`), `:1349-1352` actor marker embedding. Normalizer promotes to `FamilyNodeKind::Actor` at `src/normalize/family.rs:188-193,285,297`. Renderer label `actor` at `src/render/family.rs:2165`.
 **Notes:** Forward-reference actors (used in a relation without prior declaration) are supported in this codebase via implicit creation in family normalization.
 
-### 2.3 Change Actor style (actorStyle awesome / hollow) — ❌
+### 2.3 Change Actor style (actorStyle awesome / hollow) — ✅
 **Feature:** `skinparam actorStyle awesome|hollow` to switch from stickman to alternative actor glyphs.
 **Syntax example:** `skinparam actorStyle awesome`
-**Status:** ❌ Missing
-**Evidence:** No matches for `actorStyle` / `awesome` / `hollow` in `src/theme.rs`, `src/parser/`, `src/normalize/`, or `src/render/family.rs`. Only `actorfontsize` / `actorfontname` are handled (`src/theme.rs:1396,1403`).
-**Notes:** Stickman is the only actor glyph. The skinparam value is silently dropped.
+**Status:** ✅ Supported
+**Evidence:** `src/theme.rs` now classifies `skinparam actorStyle awesome|hollow|stickman`; `src/normalize/family.rs` applies the chosen actor style to family documents; `src/render/family.rs` emits alternate actor glyphs with `data-actor-style="awesome|hollow"`.
+**Notes:** `stickman` remains the default when no override is set.
 
 ### 2.4 Usecases description (multiline + separators) — 🟡
 **Feature:** Multi-line usecase descriptions in quotes with `--`, `..`, `==`, `__` separator lines (with optional titles between paired markers).
@@ -75,12 +75,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** Direction-token parsing in `src/parser/family.rs` arrow parser around `:933-940` (dashed/dotted/bold) and length/orientation in family relation parsing.
 **Notes:** Honored by `graph_layout.rs` for hint-driven placement.
 
-### 2.11 Splitting diagrams (`newpage`) — 🟡
+### 2.11 Splitting diagrams (`newpage`) — ✅
 **Feature:** `newpage` keyword splits a diagram into multiple output images/pages.
 **Syntax example:** `:actor1: --> (Usecase1) \n newpage \n :actor2: --> (Usecase2)`
-**Status:** 🟡 Partial
-**Evidence:** Parsed in sequence parser only (`src/parser/sequence.rs:433-437`). AST variant `StatementKind::NewPage` (`src/ast.rs:131`) and model event (`src/model.rs:828`) exist; CLI flag mentions multi-page stdin support (`src/cli.rs:86`). In the *family/usecase* parser, `newpage` raises a parse error (`src/parser/tests.rs:1670` — `class A\nnewpage\n` returns Err).
-**Notes:** Works on sequence diagrams, not on use-case/class/object. Falls into the family-error path.
+**Status:** ✅ Supported
+**Evidence:** `src/parser/family.rs` parses `newpage` / `ignore newpage` for family diagrams, `src/normalize/family.rs` records `FamilyPageBreak` entries, and `src/lib.rs` / `src/render/text.rs` paginate class/object/usecase/salt outputs through `normalize::paginate_family(...)`.
+**Notes:** Blank `newpage` titles fall back to the document title, matching the existing sequence pagination behavior.
 
 ### 2.12 Left to right direction — ✅
 **Feature:** `left to right direction` / `top to bottom direction` to change layout orientation.
@@ -103,12 +103,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** `usecase_dependency_label` helper in `src/render/relation.rs:112` translates `include`/`extends` to dependency markers; consumed by `src/render/family.rs:520-522,726,2064`.
 **Notes:** Renders as labeled dotted arrow with stereotype-aware label.
 
-### 2.15 Business Use Case (`/` suffix — Business Usecase / Business Actor) — ❌
+### 2.15 Business Use Case (`/` suffix — Business Usecase / Business Actor) — ✅
 **Feature:** Trailing `/` on `(usecase)/`, `:Actor:/`, `usecase/`, `actor/` to mark business variant.
 **Syntax example:** `(First usecase)/`, `actor/ :Last actor: as Person1`
-**Status:** ❌ Missing
-**Evidence:** No matches for `usecase/`, `actor/`, or business-usecase handling in `src/parser/family.rs` or `src/normalize/family.rs`. The keyword lists at `:139,1326-1329,1398-1401` do not include `actor/` or `usecase/`.
-**Notes:** Trailing `/` likely causes a parse error or is treated as part of the alias.
+**Status:** ✅ Supported
+**Evidence:** `src/parser/family.rs` accepts `actor/`, `usecase/`, and trailing `/` on parenthesized use cases, normalizing them into an internal `<<business>>` marker. `src/render/family.rs` consumes that marker to render business actors distinctly and business use cases as rounded rectangles without exposing the internal marker text.
+**Notes:** Business markers are treated as renderer-internal metadata, not visible user stereotypes.
 
 ### 2.16 Change arrow color and style (inline) — ✅
 **Feature:** `--> (X) #color;line.[bold|dashed|dotted];text:color : label`
@@ -134,6 +134,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 2
-- ✅ Supported: **10** (2.1, 2.2, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.12, 2.14, 2.16)
-- 🟡 Partial: **4** (2.4, 2.11, 2.13, 2.17)
-- ❌ Missing: **3** (2.3, 2.15, 2.18)
+- ✅ Supported: **14** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.15, 2.16)
+- 🟡 Partial: **3** (2.4, 2.13, 2.17)
+- ❌ Missing: **1** (2.18)

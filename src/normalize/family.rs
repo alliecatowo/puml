@@ -18,6 +18,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut relations = Vec::new();
     let mut groups = Vec::new();
     let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
+    let mut page_breaks = Vec::new();
     let mut hide_options = std::collections::BTreeSet::new();
     let mut namespace_separator: Option<String> = None;
     let mut title = None;
@@ -34,6 +35,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut last_relation: Option<(String, String)> = None;
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut sepia = false;
+    let mut ignore_newpage = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -86,6 +88,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                             }
                             ClassSkinParamValue::FontName(n) => {
                                 class_style.font_name = Some(n);
+                            }
+                            ClassSkinParamValue::ActorStyle(style) => {
+                                class_style.actor_style = style;
                             }
                             ClassSkinParamValue::Monochrome(mode) => {
                                 class_monochrome_mode = Some(mode);
@@ -248,11 +253,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // An `actor` declaration becomes a UseCaseDecl with `<<actor>>` as its
                 // first member. Detect this and promote it to Actor kind so the renderer
                 // can draw a stick figure instead of an ellipse.
-                let resolved_kind = if members
-                    .first()
-                    .is_some_and(|m| m.text.trim() == "<<actor>>")
-                {
-                    let _ = members.remove(0); // strip the marker — it was only for detection
+                let resolved_kind = if members.iter().any(|m| m.text.trim() == "<<actor>>") {
+                    members.retain(|m| m.text.trim() != "<<actor>>");
                     FamilyNodeKind::Actor
                 } else {
                     FamilyNodeKind::UseCase
@@ -425,6 +427,20 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::NewPage(next_title) => {
+                if !ignore_newpage {
+                    page_breaks.push(crate::model::FamilyPageBreak {
+                        node_count: nodes.len(),
+                        relation_count: relations.len(),
+                        group_count: groups.len(),
+                        json_projection_count: json_projections.len(),
+                        title: next_title,
+                    });
+                }
+            }
+            StatementKind::IgnoreNewPage => {
+                ignore_newpage = true;
+            }
             StatementKind::Theme(value) => {
                 class_style = class_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(&value)
@@ -546,6 +562,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         relations,
         groups,
         json_projections,
+        page_breaks,
         hide_options,
         namespace_separator,
         title,
@@ -1301,6 +1318,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         warnings,
         groups: Vec::new(),
         json_projections: Vec::new(),
+        page_breaks: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
@@ -2380,6 +2398,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         warnings: ext_warnings,
         groups,
         json_projections,
+        page_breaks: Vec::new(),
         hide_options,
         namespace_separator: None,
     })
