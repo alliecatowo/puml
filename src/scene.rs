@@ -1,6 +1,7 @@
 use crate::ast::NoteKind;
 use crate::model::{
-    LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, SequenceMessageStyle, VirtualEndpoint,
+    LegendHAlign, LegendVAlign, MetadataHAlign, ParticipantRole, ScaleSpec, SequenceMessageStyle,
+    VirtualEndpoint,
 };
 use crate::theme::SequenceStyle;
 
@@ -36,6 +37,7 @@ pub struct Label {
     pub x: i32,
     pub y: i32,
     pub lines: Vec<String>,
+    pub align: MetadataHAlign,
 }
 
 #[derive(Debug, Clone)]

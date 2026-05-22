@@ -45,9 +45,9 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ### 21.5 Footer and header — ✅
 **Feature:** `header`/`endheader`, `footer`/`endfooter`; `left|center|right` alignment qualifier; HTML/creole content.
 **Syntax example:** `header\n<font color=red>Warning</font>\nendheader` / `center footer Generated...`
-**Status:** ✅ (basic); 🟡 (alignment qualifier left/center/right)
-**Evidence:** AST `Header`/`Footer` `src/ast.rs:116-117`. Parser `src/parser/sequence.rs:229-241`. Multiline `src/parser/multiline.rs:35-51`. Rendered sequence `src/render/sequence.rs:72,585`. Text render `src/render/text.rs:61`.
-**Notes:** No explicit `center footer` / `left header` alignment-prefix parsing found in greps. The alignment qualifier may be silently dropped or treated as text. Need follow-up check on `center|left|right header/footer` prefix.
+**Status:** ✅
+**Evidence:** AST `Header`/`Footer` `src/ast.rs:116-117`. Parser `src/parser/sequence.rs:229-241` handles single-line `left|center|right header/footer`; multiline collector `src/parser/multiline.rs:35-51` handles aligned `header`/`footer` blocks. Normalized through `MetadataHAlign` in `src/model.rs` and `src/normalize/sequence.rs`; sequence layout/render emits matching SVG `text-anchor` values in `src/layout.rs` and `src/render/sequence.rs`. Text render `src/render/text.rs:61`. Tests: `tests/ch21_common_parity.rs` (`right_footer_qualifier_sets_svg_text_anchor`, `center_header_qualifier_sets_svg_text_anchor`, `multiline_left_header_qualifier_preserves_header_text`).
+**Notes:** Alignment qualifier is implemented for sequence header/footer rendering. Per-family render coverage remains tracked separately in 21.7.
 
 ### 21.6 Legend — ✅
 **Feature:** `legend ... endlegend`/`end legend`; positioning `legend right`, `legend top left`, etc.
@@ -127,6 +127,6 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ---
 
 ## Tally — Chapter 21
-- ✅ Supported: 12 (`'` comment, `/' '/` block comments, title, caption, header/footer base, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia)
-- 🟡 Partial: 6 (scale, header/footer alignment qualifier, per-family render coverage, skinparam breadth, !theme remote, monochrome)
+- ✅ Supported: 13 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia)
+- 🟡 Partial: 5 (scale, per-family render coverage, skinparam breadth, !theme remote, monochrome)
 - ❌ Missing: 4 (`<style>` blocks, mainframe, hide stereotype, top-level backgroundColor)

@@ -236,6 +236,10 @@ fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoi
 fn parse_keyword(line: &str) -> Option<StatementKind> {
     let lower = line.to_ascii_lowercase();
 
+    if let Some(statement) = parse_aligned_header_footer_keyword(line, &lower) {
+        return Some(statement);
+    }
+
     for k in ["title", "header", "footer", "caption", "legend"] {
         if lower.starts_with(&(k.to_string() + " ")) {
             let v = line[k.len()..].trim().to_string();
@@ -529,6 +533,30 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::Undef(line[6..].trim().to_string()));
     }
 
+    None
+}
+
+pub(crate) fn pack_aligned_metadata(align: &str, text: &str) -> String {
+    format!("METADATA_ALIGN:{}\n{}", align, text)
+}
+
+fn parse_aligned_header_footer_keyword(line: &str, lower: &str) -> Option<StatementKind> {
+    for align in ["left", "center", "right"] {
+        let Some(rest) = lower.strip_prefix(&(align.to_string() + " ")) else {
+            continue;
+        };
+        let original_rest = line[align.len()..].trim_start();
+        for key in ["header", "footer"] {
+            if rest.starts_with(&(key.to_string() + " ")) {
+                let text = original_rest[key.len()..].trim().to_string();
+                let packed = pack_aligned_metadata(align, &text);
+                return Some(match key {
+                    "header" => StatementKind::Header(packed),
+                    _ => StatementKind::Footer(packed),
+                });
+            }
+        }
+    }
     None
 }
 

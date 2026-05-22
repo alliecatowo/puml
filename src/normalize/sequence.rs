@@ -32,7 +32,9 @@ fn page_from(
         teoz: document.teoz,
         title,
         header: document.header.clone(),
+        header_align: document.header_align,
         footer: document.footer.clone(),
+        footer_align: document.footer_align,
         caption: document.caption.clone(),
         legend: document.legend.clone(),
         skinparams: document.skinparams.clone(),
@@ -86,7 +88,9 @@ pub(super) fn normalize_with_options(
 
     let mut title = None;
     let mut header = None;
+    let mut header_align = MetadataHAlign::default();
     let mut footer = None;
+    let mut footer_align = MetadataHAlign::default();
     let mut caption = None;
     let mut legend = None;
     let mut skinparams = Vec::new();
@@ -349,8 +353,16 @@ pub(super) fn normalize_with_options(
                 }
             }
             StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => header = Some(v),
-            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Header(v) => {
+                let (align, text) = unpack_metadata_align(v);
+                header_align = align.unwrap_or_default();
+                header = Some(text);
+            }
+            StatementKind::Footer(v) => {
+                let (align, text) = unpack_metadata_align(v);
+                footer_align = align.unwrap_or_default();
+                footer = Some(text);
+            }
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => {
                 // Parse packed "LEGEND_POS:<pos>\n<text>" format emitted by the parser
@@ -902,7 +914,9 @@ pub(super) fn normalize_with_options(
         teoz,
         title,
         header,
+        header_align,
         footer,
+        footer_align,
         caption,
         legend,
         skinparams,
@@ -1674,6 +1688,22 @@ fn validate_autonumber_format(format: &str) -> Result<(), String> {
         return Err("autonumber format must not contain an embedded quote".to_string());
     }
     Ok(())
+}
+
+fn unpack_metadata_align(value: String) -> (Option<MetadataHAlign>, String) {
+    let Some(rest) = value.strip_prefix("METADATA_ALIGN:") else {
+        return (None, value);
+    };
+    let Some((align, text)) = rest.split_once('\n') else {
+        return (None, value);
+    };
+    let align = match align {
+        "left" => MetadataHAlign::Left,
+        "center" => MetadataHAlign::Center,
+        "right" => MetadataHAlign::Right,
+        _ => return (None, value),
+    };
+    (Some(align), text.to_string())
 }
 
 /// Extract `<<stereotype>>` from an alias string like `"myAlias <<person>>"`.

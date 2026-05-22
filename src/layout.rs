@@ -84,12 +84,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         x: options.margin,
         y: options.margin,
         lines: normalize_label_lines(text, title_max_chars, options.text_overflow_policy),
+        align: document.header_align,
     });
     let header_block_height = metadata_label_block_height(header.as_ref());
     let title = document.title.as_ref().map(|text| Label {
         x: options.margin,
         y: options.margin + header_block_height,
         lines: normalize_label_lines(text, title_max_chars, options.text_overflow_policy),
+        align: Default::default(),
     });
 
     let title_block_height = if let Some(label) = &title {
@@ -703,20 +705,32 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let height = (min_bottom + lower_metadata_height + options.margin)
         .max(participant_top + participant_height + 80);
 
+    let mut header = header;
+    if let Some(label) = &mut header {
+        label.x = metadata_label_x(label.align, width, options.margin);
+    }
+
+    let mut title = title;
+    if let Some(label) = &mut title {
+        label.x = metadata_label_x(label.align, width, options.margin);
+    }
+
     let mut lower_metadata_y = min_bottom + METADATA_LINE_HEIGHT;
     let caption = caption_lines.map(|lines| {
         let label = Label {
             x: options.margin,
             y: lower_metadata_y,
             lines,
+            align: Default::default(),
         };
         lower_metadata_y += metadata_label_block_height(Some(&label));
         label
     });
     let footer = footer_lines.map(|lines| Label {
-        x: options.margin,
+        x: metadata_label_x(document.footer_align, width, options.margin),
         y: lower_metadata_y,
         lines,
+        align: document.footer_align,
     });
 
     Scene {
@@ -774,6 +788,14 @@ fn metadata_lines_right_edge(lines: Option<&Vec<String>>, margin: i32) -> i32 {
                 .unwrap_or(0)
         })
         .unwrap_or(0)
+}
+
+fn metadata_label_x(align: crate::model::MetadataHAlign, width: i32, margin: i32) -> i32 {
+    match align {
+        crate::model::MetadataHAlign::Left => margin,
+        crate::model::MetadataHAlign::Center => width / 2,
+        crate::model::MetadataHAlign::Right => width - margin,
+    }
 }
 
 fn metadata_lines_block_height(lines: Option<&Vec<String>>) -> i32 {

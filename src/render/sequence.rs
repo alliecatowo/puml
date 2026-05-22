@@ -695,11 +695,21 @@ fn render_sequence_metadata_label(
     line_gap: i32,
 ) {
     out.push_str(&format!("<g class=\"{}\">", escape_text(class_name)));
+    let anchor = match label.align {
+        crate::model::MetadataHAlign::Left => "start",
+        crate::model::MetadataHAlign::Center => "middle",
+        crate::model::MetadataHAlign::Right => "end",
+    };
+    let attrs = if attrs.contains("text-anchor=") {
+        attrs.to_string()
+    } else {
+        format!("{attrs} text-anchor=\"{anchor}\"")
+    };
     for (idx, line) in label.lines.iter().enumerate() {
         out.push_str(&creole_text(
             label.x,
             label.y + (idx as i32 * line_gap),
-            attrs,
+            &attrs,
             line,
             color,
         ));

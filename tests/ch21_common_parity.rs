@@ -3,7 +3,8 @@
 /// Covers:
 ///   21.1.2  Block comments  `/' ... '/`
 ///   21.2    `left to right direction` / `top to bottom direction`
-///   21.3    `skinparam sepia true/false`
+///   21.3    header/footer alignment qualifiers
+///   21.4    `skinparam sepia true/false`
 use puml::render_source_to_svg;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -93,6 +94,43 @@ fn left_to_right_direction_on_component_diagram() {
     let src = "@startuml\nleft to right direction\n[Comp A] --> [Comp B]\n@enduml\n";
     let svg = render_svg(src);
     assert!(svg.contains("<svg"));
+}
+
+// ── 21.3  Header/footer alignment qualifiers ────────────────────────────────
+
+#[test]
+fn right_footer_qualifier_sets_svg_text_anchor() {
+    let src = "@startuml\nAlice -> Bob : hello\nright footer Generated\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(svg.contains("class=\"sequence-footer\""));
+    assert!(
+        svg.contains("text-anchor=\"end\"") && svg.contains("Generated"),
+        "expected right footer to render with end anchor; got: {}",
+        &svg[..svg.len().min(800)]
+    );
+}
+
+#[test]
+fn center_header_qualifier_sets_svg_text_anchor() {
+    let src = "@startuml\ncenter header Confidential\nAlice -> Bob : hello\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(svg.contains("class=\"sequence-header\""));
+    assert!(
+        svg.contains("text-anchor=\"middle\"") && svg.contains("Confidential"),
+        "expected center header to render with middle anchor; got: {}",
+        &svg[..svg.len().min(800)]
+    );
+}
+
+#[test]
+fn multiline_left_header_qualifier_preserves_header_text() {
+    let src =
+        "@startuml\nleft header\nLine one\nLine two\nendheader\nAlice -> Bob : hello\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(svg.contains("class=\"sequence-header\""));
+    assert!(svg.contains("Line one"));
+    assert!(svg.contains("Line two"));
+    assert!(svg.contains("text-anchor=\"start\""));
 }
 
 // ── 21.3  skinparam sepia ────────────────────────────────────────────────────
