@@ -237,6 +237,10 @@ puml count --by-kind hello.puml          # → summary + per-kind breakdown
 puml stats hello.puml                    # AST node/edge/kind summary
 puml stats --format json hello.puml      # machine-readable summary
 
+# Raw content hash
+puml hash hello.puml                     # deterministic FNV-1a raw-byte hash
+puml hash --format base64 hello.puml     # base64-encoded hash bytes
+
 # Pipeline inspection (for debugging and tooling)
 puml --dump ast hello.puml
 puml --dump model hello.puml
