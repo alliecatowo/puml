@@ -5,46 +5,7 @@ fn parse_component_scoping_block(
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
     let trimmed = line.trim();
     let lower = trimmed.to_ascii_lowercase();
-    let Some((kind, label_raw)) = lower
-        .starts_with("package ")
-        .then(|| {
-            (
-                "package",
-                trimmed.strip_prefix("package ").unwrap_or("").trim(),
-            )
-        })
-        .or_else(|| {
-            lower
-                .starts_with("node ")
-                .then(|| ("node", trimmed.strip_prefix("node ").unwrap_or("").trim()))
-        })
-        .or_else(|| {
-            lower
-                .starts_with("frame ")
-                .then(|| ("frame", trimmed.strip_prefix("frame ").unwrap_or("").trim()))
-        })
-        .or_else(|| {
-            lower
-                .starts_with("cloud ")
-                .then(|| ("cloud", trimmed.strip_prefix("cloud ").unwrap_or("").trim()))
-        })
-        .or_else(|| {
-            lower.starts_with("rectangle ").then(|| {
-                (
-                    "rectangle",
-                    trimmed.strip_prefix("rectangle ").unwrap_or("").trim(),
-                )
-            })
-        })
-        .or_else(|| {
-            lower.starts_with("namespace ").then(|| {
-                (
-                    "namespace",
-                    trimmed.strip_prefix("namespace ").unwrap_or("").trim(),
-                )
-            })
-        })
-    else {
+    let Some((kind, label_raw)) = component_scoping_block_head(trimmed, &lower) else {
         return Ok(None);
     };
     if !trimmed.ends_with('{') {
@@ -110,25 +71,8 @@ fn collect_scoped_component_group_content(
             idx += 1;
             continue;
         }
-        if (lower.starts_with("package ")
-            || lower.starts_with("namespace ")
-            || lower.starts_with("node ")
-            || lower.starts_with("frame ")
-            || lower.starts_with("cloud ")
-            || lower.starts_with("rectangle "))
-            && line.trim_end().ends_with('{')
-        {
-            let keyword = [
-                "package",
-                "namespace",
-                "node",
-                "frame",
-                "cloud",
-                "rectangle",
-            ]
-            .into_iter()
-            .find(|kw| lower.starts_with(&format!("{kw} ")))
-            .unwrap_or("package");
+        if line.trim_end().ends_with('{') {
+            if let Some((keyword, _)) = component_scoping_block_head(line, &lower) {
             let label = clean_ident(
                 line[keyword.len()..]
                     .trim()
@@ -148,6 +92,7 @@ fn collect_scoped_component_group_content(
                 content.relations.extend(nested.relations);
                 idx = nested_end + 1;
                 continue;
+            }
             }
         }
         if let Some(StatementKind::ComponentDecl {
@@ -204,22 +149,61 @@ fn collect_scoped_component_group_content(
 
 fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
     match kind {
+        ComponentNodeKind::Action => "action",
+        ComponentNodeKind::Agent => "agent",
         ComponentNodeKind::Component => "component",
         ComponentNodeKind::Interface => "interface",
         ComponentNodeKind::Port => "port",
         ComponentNodeKind::Node => "node",
         ComponentNodeKind::Artifact => "artifact",
+        ComponentNodeKind::Boundary => "boundary",
         ComponentNodeKind::Cloud => "cloud",
+        ComponentNodeKind::Circle => "circle",
+        ComponentNodeKind::Collections => "collections",
         ComponentNodeKind::Frame => "frame",
         ComponentNodeKind::Storage => "storage",
+        ComponentNodeKind::Container => "container",
+        ComponentNodeKind::Control => "control",
         ComponentNodeKind::Database => "database",
+        ComponentNodeKind::Entity => "entity",
         ComponentNodeKind::Package => "package",
         ComponentNodeKind::Rectangle => "rectangle",
         ComponentNodeKind::Folder => "folder",
         ComponentNodeKind::File => "file",
         ComponentNodeKind::Card => "card",
         ComponentNodeKind::Actor => "actor",
+        ComponentNodeKind::Hexagon => "hexagon",
+        ComponentNodeKind::Label => "label",
+        ComponentNodeKind::Person => "person",
+        ComponentNodeKind::Process => "process",
+        ComponentNodeKind::Queue => "queue",
+        ComponentNodeKind::Stack => "stack",
+        ComponentNodeKind::UseCase => "usecase",
     }
+}
+
+fn component_scoping_block_head<'a>(
+    trimmed: &'a str,
+    lower: &str,
+) -> Option<(&'static str, &'a str)> {
+    if lower.starts_with("namespace ") {
+        return Some(("namespace", trimmed.strip_prefix("namespace ").unwrap_or("").trim()));
+    }
+    component_decl_keywords()
+        .iter()
+        .map(|(keyword, _)| *keyword)
+        .filter(|keyword| is_component_container_keyword(keyword))
+        .find_map(|keyword| {
+            lower.starts_with(&format!("{keyword} ")).then(|| {
+                (
+                    keyword,
+                    trimmed
+                        .get(keyword.len()..)
+                        .unwrap_or_default()
+                        .trim_start(),
+                )
+            })
+        })
 }
 
 fn append_component_declaration_metadata(

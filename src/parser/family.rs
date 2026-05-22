@@ -281,7 +281,10 @@ fn line_contains_ie_relation_token(line: &str) -> bool {
 fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
-        line.starts_with("usecase ") || line.starts_with("usecase(")
+        line.starts_with("usecase ")
+            || line.starts_with("usecase(")
+            || line.starts_with('(')
+            || line.starts_with("actor ")
     })
 }
 
@@ -321,8 +324,16 @@ fn later_lines_contain_sequence_family_keywords(lines: &[(&str, Span)], start: u
             || lower.starts_with("critical ")
             || lower == "critical"
             || lower.starts_with("ref over ")
-            || lower.starts_with("ref over\t");
+            || lower.starts_with("ref over\t")
+            || (lower.starts_with("==") && lower.ends_with("==") && lower.len() >= 4);
         has_sequence_arrow || is_sequence_keyword
+    })
+}
+
+fn later_lines_contain_activity_context(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        looks_like_old_activity_flow(line) || parse_activity_step(line).is_some()
     })
 }
 
@@ -557,7 +568,9 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
     let after = &trimmed[hash_idx..];
     let token_len = after
         .char_indices()
-        .take_while(|(_, ch)| ch.is_ascii_alphanumeric() || matches!(ch, '#' | '_' | '-' | ':'))
+        .take_while(|(_, ch)| {
+            ch.is_ascii_alphanumeric() || matches!(ch, '#' | '_' | '-' | ':' | ';' | '.')
+        })
         .map(|(idx, ch)| idx + ch.len_utf8())
         .last()
         .unwrap_or(0);
@@ -565,7 +578,12 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
         return (trimmed.to_string(), None);
     }
     let token = &after[..token_len];
-    let Some(color) = parse_relation_color_token(token) else {
+    let fill_token = token
+        .split(';')
+        .find(|part| !part.trim().is_empty())
+        .unwrap_or(token)
+        .trim();
+    let Some(color) = parse_relation_color_token(fill_token) else {
         return (trimmed.to_string(), None);
     };
     let before = trimmed[..hash_idx].trim_end();
@@ -1168,7 +1186,27 @@ fn split_family_arrow_styled(
         if in_quote {
             continue;
         }
-        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+' | '|' | '{' | '}') {
+        if !matches!(
+            ch,
+            '-' | '.'
+                | '<'
+                | '*'
+                | 'o'
+                | '+'
+                | '|'
+                | '{'
+                | '}'
+                | '>'
+                | '0'
+                | '('
+                | ')'
+                | '@'
+                | '^'
+                | '#'
+                | '\\'
+                | '/'
+                | ':'
+        ) {
             continue;
         }
         let rest = &core[idx..];
@@ -1178,12 +1216,28 @@ fn split_family_arrow_styled(
         if len == 1 {
             continue;
         }
-        let lhs = core[..idx].trim();
-        let rhs = core[idx + len..].trim();
+        let mut arrow_start = idx;
+        let mut arrow_len = len;
+        let raw_candidate = &rest[..len];
+        if raw_candidate.starts_with("()") && raw_candidate[2..].contains('-') {
+            arrow_start += 2;
+            arrow_len = arrow_len.saturating_sub(2);
+        }
+        if arrow_len > 2
+            && core[arrow_start..arrow_start + arrow_len].ends_with("()")
+            && core[arrow_start..arrow_start + arrow_len - 2].contains('-')
+        {
+            arrow_len -= 2;
+        }
+        if arrow_len == 1 {
+            continue;
+        }
+        let lhs = core[..arrow_start].trim();
+        let rhs = core[arrow_start + arrow_len..].trim();
         if lhs.is_empty() || rhs.is_empty() {
             continue;
         }
-        let raw_arrow = &rest[..len];
+        let raw_arrow = &core[arrow_start..arrow_start + arrow_len];
         let arrow = normalize_family_arrow_token(raw_arrow);
         if arrow.is_empty() {
             continue;
@@ -1287,7 +1341,29 @@ fn family_arrow_token_len(s: &str) -> Option<usize> {
 
     let len = s
         .char_indices()
-        .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '*' | 'o' | '+' | '{' | '}'))
+        .take_while(|(_, ch)| {
+            matches!(
+                ch,
+                '-' | '.'
+                    | '<'
+                    | '>'
+                    | '|'
+                    | '*'
+                    | 'o'
+                    | '+'
+                    | '{'
+                    | '}'
+                    | '0'
+                    | '('
+                    | ')'
+                    | '@'
+                    | '^'
+                    | '#'
+                    | '\\'
+                    | '/'
+                    | ':'
+            )
+        })
         .map(|(idx, ch)| idx + ch.len_utf8())
         .last()?;
     let token = &s[..len];
@@ -1316,7 +1392,27 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
                 let dir_len = after_with_optional_dir.len().saturating_sub(after.len());
                 let suffix_len = after
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '{' | '}' | 'o'))
+                    .take_while(|(_, ch)| {
+                        matches!(
+                            ch,
+                            '-' | '.'
+                                | '<'
+                                | '>'
+                                | '|'
+                                | '{'
+                                | '}'
+                                | 'o'
+                                | '0'
+                                | '('
+                                | ')'
+                                | '@'
+                                | '^'
+                                | '#'
+                                | '\\'
+                                | '/'
+                                | ':'
+                        )
+                    })
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1329,7 +1425,27 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
             if let Some(after_dir) = after_prefix.strip_prefix(dir) {
                 let suffix_len = after_dir
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '{' | '}' | 'o'))
+                    .take_while(|(_, ch)| {
+                        matches!(
+                            ch,
+                            '-' | '.'
+                                | '<'
+                                | '>'
+                                | '|'
+                                | '{'
+                                | '}'
+                                | 'o'
+                                | '0'
+                                | '('
+                                | ')'
+                                | '@'
+                                | '^'
+                                | '#'
+                                | '\\'
+                                | '/'
+                                | ':'
+                        )
+                    })
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1343,7 +1459,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
 }
 
 fn is_family_arrow_token(token: &str) -> bool {
-    token.contains('-') || token.contains('<') || token.contains('>') || token.contains("..")
+    token.contains('-') || token.contains('.')
 }
 
 fn normalize_family_arrow_token(token: &str) -> String {
@@ -1821,22 +1937,7 @@ fn group_body_contains_component_family(
 ) -> bool {
     lines[start + 1..end_idx].iter().any(|(raw, _)| {
         let line = strip_inline_plantuml_comment(raw).trim();
-        let lower = line.to_ascii_lowercase();
-        lower.starts_with("component ")
-            || lower.starts_with("interface ")
-            || lower.starts_with("node ")
-            || lower.starts_with("artifact ")
-            || lower.starts_with("database ")
-            || lower.starts_with("cloud ")
-            || lower.starts_with("frame ")
-            || lower.starts_with("storage ")
-            || lower.starts_with("rectangle ")
-            || lower.starts_with("folder ")
-            || lower.starts_with("file ")
-            || lower.starts_with("card ")
-            || lower.starts_with("port ")
-            || lower.starts_with("portin ")
-            || lower.starts_with("portout ")
+        component_decl_keyword(line).is_some()
     })
 }
 

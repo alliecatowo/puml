@@ -2194,18 +2194,33 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Component => "component",
         FamilyNodeKind::Interface => "interface",
         FamilyNodeKind::Port => "port",
+        FamilyNodeKind::Action => "action",
+        FamilyNodeKind::Agent => "agent",
         FamilyNodeKind::Node => "node",
         FamilyNodeKind::Artifact => "artifact",
+        FamilyNodeKind::Boundary => "boundary",
         FamilyNodeKind::Cloud => "cloud",
+        FamilyNodeKind::Circle => "circle",
+        FamilyNodeKind::Collections => "collections",
         FamilyNodeKind::Frame => "frame",
         FamilyNodeKind::Storage => "storage",
+        FamilyNodeKind::Container => "container",
+        FamilyNodeKind::Control => "control",
         FamilyNodeKind::Database => "database",
+        FamilyNodeKind::Entity => "entity",
         FamilyNodeKind::Package => "package",
         FamilyNodeKind::Rectangle => "rectangle",
         FamilyNodeKind::Folder => "folder",
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
         FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::Hexagon => "hexagon",
+        FamilyNodeKind::Label => "label",
+        FamilyNodeKind::Person => "person",
+        FamilyNodeKind::Process => "process",
+        FamilyNodeKind::Queue => "queue",
+        FamilyNodeKind::Stack => "stack",
+        FamilyNodeKind::UseCaseDeployment => "usecase",
         FamilyNodeKind::State => "state",
         FamilyNodeKind::StateInitial => "initial",
         FamilyNodeKind::StateFinal => "final",
@@ -2707,7 +2722,7 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         // All other C4 nodes need at least 60px for the label + type label
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
-        FamilyNodeKind::Actor => computed.max(64),
+        FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
         _ => computed,
     }
 }
@@ -4808,6 +4823,14 @@ struct RenderGroupFrame {
     depth: usize,
 }
 
+#[derive(Clone, Copy)]
+struct DeploymentShapeBounds {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
 impl RenderGroupFrame {
     fn display_label(&self) -> String {
         match self.label.as_deref() {
@@ -4898,6 +4921,112 @@ fn collect_render_group_frames(groups: &[FamilyGroup]) -> Vec<RenderGroupFrame> 
     frames
 }
 
+fn render_deployment_stick_shape(
+    out: &mut String,
+    kind_label: &str,
+    bounds: DeploymentShapeBounds,
+    fill: &str,
+    stroke: &str,
+) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
+    let cx = x + w / 2;
+    let head_y = y + 16;
+    out.push_str(&format!(
+        "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" fill-opacity=\"0.16\"/>",
+        kind_label, x, y, w, h, escape_text(fill), stroke
+    ));
+    out.push_str(&format!(
+        "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx,
+        head_y,
+        escape_text(fill),
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{cx}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        head_y + 9,
+        y + h - 24,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        cx - 16,
+        y + 36,
+        cx + 16,
+        y + 36,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        y + h - 24,
+        cx - 12,
+        y + h - 8,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        y + h - 24,
+        cx + 12,
+        y + h - 8,
+        stroke
+    ));
+}
+
+fn render_deployment_queue_shape(
+    out: &mut String,
+    kind_label: &str,
+    bounds: DeploymentShapeBounds,
+    fill: &str,
+    stroke: &str,
+) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
+    let cap = 12;
+    let cx_right = x + w - cap;
+    let cy = y + h / 2;
+    out.push_str(&format!(
+        "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"none\"/>",
+        kind_label,
+        x + cap,
+        y,
+        w - cap * 2,
+        h,
+        escape_text(fill)
+    ));
+    out.push_str(&format!(
+        "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{} {} A{} {} 0 0 0 {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        kind_label,
+        x + cap,
+        y,
+        cap,
+        h / 2,
+        x + cap,
+        y + h,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx_right,
+        cy,
+        cap,
+        h / 2,
+        escape_text(fill),
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        x + cap,
+        y,
+        cx_right,
+        y,
+        stroke,
+        x + cap,
+        y + h,
+        cx_right,
+        y + h,
+        stroke
+    ));
+}
+
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
 /// Component/Interface nodes and falls back to the default for others.
 fn render_family_node_shape_styled(
@@ -4975,18 +5104,33 @@ fn render_family_node_shape_styled(
                 x - 4, y + h - 20, fill, comp_style.border_color
             ));
         }
-        FamilyNodeKind::Node
+        FamilyNodeKind::Action
+        | FamilyNodeKind::Agent
+        | FamilyNodeKind::Node
         | FamilyNodeKind::Frame
         | FamilyNodeKind::Artifact
+        | FamilyNodeKind::Boundary
         | FamilyNodeKind::Cloud
+        | FamilyNodeKind::Circle
+        | FamilyNodeKind::Collections
         | FamilyNodeKind::Storage
+        | FamilyNodeKind::Container
+        | FamilyNodeKind::Control
         | FamilyNodeKind::Database
+        | FamilyNodeKind::Entity
         | FamilyNodeKind::Package
         | FamilyNodeKind::Rectangle
         | FamilyNodeKind::Folder
         | FamilyNodeKind::File
         | FamilyNodeKind::Card
-        | FamilyNodeKind::Actor => {
+        | FamilyNodeKind::Actor
+        | FamilyNodeKind::Hexagon
+        | FamilyNodeKind::Label
+        | FamilyNodeKind::Person
+        | FamilyNodeKind::Process
+        | FamilyNodeKind::Queue
+        | FamilyNodeKind::Stack
+        | FamilyNodeKind::UseCaseDeployment => {
             let fill = node
                 .fill_color
                 .as_deref()
@@ -5095,6 +5239,123 @@ fn render_family_node_shape_styled(
                         escape_text(fill),
                         comp_style.border_color
                     ));
+                }
+                FamilyNodeKind::Queue => {
+                    let bounds = DeploymentShapeBounds { x, y, w, h };
+                    render_deployment_queue_shape(
+                        out,
+                        kind_label,
+                        bounds,
+                        fill,
+                        &comp_style.border_color,
+                    );
+                }
+                FamilyNodeKind::Stack | FamilyNodeKind::Collections => {
+                    for offset in [10, 5, 0] {
+                        out.push_str(&format!(
+                            "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            kind_label,
+                            x + offset,
+                            y + offset,
+                            w - 10,
+                            h - 10,
+                            escape_text(fill),
+                            comp_style.border_color
+                        ));
+                    }
+                }
+                FamilyNodeKind::Hexagon => {
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"hexagon\" points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        x + 18,
+                        y,
+                        x + w - 18,
+                        y,
+                        x + w,
+                        y + h / 2,
+                        x + w - 18,
+                        y + h,
+                        x + 18,
+                        y + h,
+                        x,
+                        y + h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::Circle => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"circle\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        cy,
+                        w / 2,
+                        h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::UseCaseDeployment => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"usecase\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        cy,
+                        w / 2,
+                        h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::Actor | FamilyNodeKind::Person => {
+                    let bounds = DeploymentShapeBounds { x, y, w, h };
+                    render_deployment_stick_shape(
+                        out,
+                        kind_label,
+                        bounds,
+                        fill,
+                        &comp_style.border_color,
+                    );
+                }
+                FamilyNodeKind::Boundary | FamilyNodeKind::Control | FamilyNodeKind::Entity => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        kind_label,
+                        cx,
+                        cy - 4,
+                        (w / 2).saturating_sub(12),
+                        (h / 2).saturating_sub(12),
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    if matches!(node.kind, FamilyNodeKind::Boundary) {
+                        out.push_str(&format!(
+                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            x + 12,
+                            y + h - 14,
+                            x + w - 12,
+                            y + h - 14,
+                            comp_style.border_color
+                        ));
+                    } else if matches!(node.kind, FamilyNodeKind::Control) {
+                        out.push_str(&format!(
+                            "<path d=\"M{} {} L{} {} L{} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            cx + 6,
+                            cy - 14,
+                            cx + 24,
+                            cy - 22,
+                            cx + 18,
+                            cy - 4,
+                            comp_style.border_color
+                        ));
+                    } else {
+                        out.push_str(&format!(
+                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            x + 22,
+                            y + h - 18,
+                            x + w - 22,
+                            y + h - 18,
+                            comp_style.border_color
+                        ));
+                    }
                 }
                 _ => {
                     out.push_str(&format!(

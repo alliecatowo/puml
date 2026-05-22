@@ -289,21 +289,36 @@ pub struct UseCaseDecl {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComponentNodeKind {
+    Action,
+    Agent,
     Component,
     Interface,
     Port,
     Node,
     Artifact,
+    Boundary,
     Cloud,
+    Circle,
+    Collections,
     Frame,
     Storage,
+    Container,
+    Control,
     Database,
+    Entity,
     Package,
     Rectangle,
     Folder,
     File,
     Card,
     Actor,
+    Hexagon,
+    Label,
+    Person,
+    Process,
+    Queue,
+    Stack,
+    UseCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

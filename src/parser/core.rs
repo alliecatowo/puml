@@ -173,6 +173,18 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     || line.contains('"')
                     || later_lines_contain_usecase_family_declaration(&lines, i)
                     || later_lines_contain_sequence_family_keywords(&lines, i));
+            let ambiguous_sequence_participant_prefers_sequence = detected_kind.is_none()
+                && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                    is_ambiguous_sequence_participant_keyword(kw)
+                        && later_lines_contain_sequence_family_keywords(&lines, i)
+                });
+            let ambiguous_activity_keyword_prefers_activity = detected_kind.is_none()
+                && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                    is_ambiguous_activity_keyword(kw) && later_lines_contain_activity_context(&lines, i)
+                });
+            let ambiguous_usecase_prefers_usecase = detected_kind.is_none()
+                && (line.starts_with("usecase ") || line.starts_with('('))
+                && later_lines_contain_usecase_family_declaration(&lines, i);
             let ambiguous_class_scope = detected_kind.is_none()
                 && (line.starts_with("package ") || line.starts_with("namespace "))
                 && line.trim_end().ends_with('{')
@@ -184,7 +196,27 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                             || group_body_contains_usecase_family(&lines, i, end_idx))
                 };
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                let is_deployment_scope = matches!(detected_kind, Some(DiagramKind::Deployment))
+                    || matches!(
+                    &kind,
+                    StatementKind::ClassGroup { kind, .. }
+                        if matches!(
+                            kind.as_str(),
+                            "action"
+                                | "artifact"
+                                | "cloud"
+                                | "container"
+                                | "database"
+                                | "frame"
+                                | "hexagon"
+                                | "node"
+                                | "process"
+                                | "queue"
+                                | "stack"
+                                | "storage"
+                        )
+                );
+                let family = if is_deployment_scope {
                     DiagramKind::Deployment
                 } else {
                     DiagramKind::Component
@@ -194,8 +226,24 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i = end_idx + 1;
                 continue;
             }
-            if !ambiguous_class_interface && !actor_prefers_non_component && !ambiguous_class_scope
+            if !ambiguous_class_interface
+                && !actor_prefers_non_component
+                && !ambiguous_sequence_participant_prefers_sequence
+                && !ambiguous_activity_keyword_prefers_activity
+                && !ambiguous_usecase_prefers_usecase
+                && !ambiguous_class_scope
             {
+                if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
+                    let family = if matches!(detected_kind, Some(DiagramKind::Component)) {
+                        DiagramKind::Component
+                    } else {
+                        DiagramKind::Deployment
+                    };
+                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    statements.push(Statement { span, kind });
+                    i = end_idx + 1;
+                    continue;
+                }
                 if let Some(kind) = parse_component_decl(line) {
                     let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
                         DiagramKind::Deployment
@@ -204,16 +252,31 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                             StatementKind::ComponentDecl {
                                 kind:
                                     ComponentNodeKind::Node
+                                    | ComponentNodeKind::Action
+                                    | ComponentNodeKind::Agent
                                     | ComponentNodeKind::Artifact
+                                    | ComponentNodeKind::Boundary
                                     | ComponentNodeKind::Cloud
+                                    | ComponentNodeKind::Circle
+                                    | ComponentNodeKind::Collections
+                                    | ComponentNodeKind::Container
+                                    | ComponentNodeKind::Control
                                     | ComponentNodeKind::Frame
                                     | ComponentNodeKind::Storage
                                     | ComponentNodeKind::Database
+                                    | ComponentNodeKind::Entity
                                     | ComponentNodeKind::Package
                                     | ComponentNodeKind::Rectangle
                                     | ComponentNodeKind::Folder
                                     | ComponentNodeKind::File
-                                    | ComponentNodeKind::Card,
+                                    | ComponentNodeKind::Card
+                                    | ComponentNodeKind::Hexagon
+                                    | ComponentNodeKind::Label
+                                    | ComponentNodeKind::Person
+                                    | ComponentNodeKind::Process
+                                    | ComponentNodeKind::Queue
+                                    | ComponentNodeKind::Stack
+                                    | ComponentNodeKind::UseCase,
                                 ..
                             } => DiagramKind::Deployment,
                             _ => DiagramKind::Component,
@@ -341,7 +404,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
-                detected_kind = Some(kind);
+                let ambiguous_sequence_participant = matches!(kind, DiagramKind::Deployment)
+                    && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                        is_ambiguous_sequence_participant_keyword(kw)
+                            && later_lines_contain_sequence_family_keywords(&lines, i)
+                    });
+                if !ambiguous_sequence_participant {
+                    detected_kind = Some(kind);
+                }
             } else if parse_component_decl(line).is_some() {
                 detected_kind = Some(DiagramKind::Component);
             } else if looks_like_unsupported_family_syntax(line) {
@@ -355,6 +425,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
                 statements.push(Statement { span, kind });
                 i = end_idx + 1;
                 continue;

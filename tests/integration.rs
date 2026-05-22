@@ -5887,6 +5887,101 @@ fn component_relations_render_dotted_markers_and_styled_port_shape() {
 }
 
 #[test]
+fn deployment_ch08_shape_keywords_render_typed_shapes() {
+    let src = r##"@startuml
+node "K8s Cluster" as k8s {
+  queue "Ingress Queue" as q <<durable>> #aliceblue;line:blue;text:navy
+  stack Jobs
+  hexagon Router
+  process Worker
+  artifact app [
+    boot.jar
+    ----
+    signed
+  ]
+  q --> Jobs
+  Jobs --> Router
+  Router --> Worker
+  Worker --> app
+}
+cloud Edge
+database Store
+agent AgentA
+boundary ApiBoundary
+control Controller
+entity Catalog
+collections Bag
+circle Signal
+person Operator
+actor/ AltUser
+:Colon Actor:
+usecase/ LegacyUC
+(Search) as SearchUC
+container Runtime
+label Marker
+action Deploy
+AgentA 0)--(0 Edge : buffers
+Edge -[#2563eb;line.dashed;line.thickness=3]-> Store : writes
+Operator --> AltUser : approves
+AltUser --> ApiBoundary
+ApiBoundary --> Controller
+Controller --> Catalog
+Catalog --> Runtime
+Runtime --> Deploy
+@enduml
+"##;
+    let svg = render_source_to_svg(src).expect("deployment ch08 shape svg should render");
+
+    for kind in [
+        "node",
+        "queue",
+        "stack",
+        "hexagon",
+        "process",
+        "artifact",
+        "cloud",
+        "database",
+        "agent",
+        "boundary",
+        "control",
+        "entity",
+        "collections",
+        "circle",
+        "person",
+        "actor",
+        "usecase",
+        "container",
+        "label",
+        "action",
+    ] {
+        assert!(
+            svg.contains(&format!("data-uml-kind=\"{kind}\"")),
+            "expected deployment shape kind {kind} in SVG: {svg}"
+        );
+    }
+    assert!(svg.contains("durable"));
+    assert!(svg.contains("boot.jar"));
+    assert!(svg.contains("data-uml-arrow=\"0)--(0\""));
+    assert!(svg.contains("stroke=\"#2563eb\""));
+    assert!(svg.contains("stroke-width=\"3\""));
+    assert!(!svg.contains("line:blue"));
+}
+
+#[test]
+fn sequence_queue_participants_still_prefer_sequence_context() {
+    let src = "@startuml\nqueue Jobs as Q\nparticipant Worker\nQ -> Worker : dispatch\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("sequence queue participant should render");
+    assert!(
+        svg.contains("data-uml-role=\"queue\"") || svg.contains("JobQueue") || svg.contains("Jobs"),
+        "queue participant should remain renderable as a sequence diagram"
+    );
+    assert!(
+        !svg.contains("data-uml-kind=\"queue\""),
+        "ambiguous queue participant should not be stolen by deployment parsing"
+    );
+}
+
+#[test]
 fn component_interfaces_attach_relation_endpoints_to_circle_edges() {
     let svg =
         render_source_to_svg(&fs::read_to_string(example("component/02_interfaces.puml")).unwrap())
