@@ -27,6 +27,7 @@ CLK is high
 CPU is "Stall"
 L1 is "Miss"
 MEM is "Read"
+CPU -> MEM : ReadReq
 
 @4
 CLK is low
@@ -37,16 +38,19 @@ CLK is high
 MEM is "Done"
 CPU is "WriteBack"
 L1 is "Fill"
+MEM -> CPU : ReadResp
 
 @6
 CLK is low
 CPU is "Fetch"
 IO is "DmaStart"
+CPU -> MEM@+1 : DmaKick
 
 @7
 CLK is high
 MEM is "DmaWrite"
 IO is "DmaActive"
+MEM -> IO : DmaAck
 
 @8
 CLK is low

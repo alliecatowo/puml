@@ -365,14 +365,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         }
     }
 
-    let signal_row_mid: std::collections::BTreeMap<&str, i32> = signals
-        .iter()
-        .enumerate()
-        .map(|(idx, signal)| {
-            let row_y = signals_top + (idx as i32) * row_h;
-            (signal.name.as_str(), row_y + row_h / 2)
-        })
-        .collect();
+    let mut signal_row_mid: std::collections::BTreeMap<String, i32> =
+        std::collections::BTreeMap::new();
+    for (idx, signal) in signals.iter().enumerate() {
+        let row_y = signals_top + (idx as i32) * row_h;
+        let y = row_y + row_h / 2;
+        // Accept relation endpoints addressed by declaration name, alias, or display label.
+        signal_row_mid.insert(signal.name.to_ascii_lowercase(), y);
+        if let Some(alias) = signal.alias.as_deref() {
+            signal_row_mid.insert(alias.to_ascii_lowercase(), y);
+        }
+        if let Some(label) = signal.label.as_deref() {
+            signal_row_mid.insert(label.to_ascii_lowercase(), y);
+        }
+    }
 
     // ── Signal rows ───────────────────────────────────────────────────────────
     for (row_idx, signal) in signals.iter().enumerate() {
@@ -921,7 +927,7 @@ fn timing_relation_endpoint(endpoint: &str) -> Option<(&str, i64)> {
 fn render_timing_relations(
     out: &mut String,
     doc: &FamilyDocument,
-    signal_row_mid: &std::collections::BTreeMap<&str, i32>,
+    signal_row_mid: &std::collections::BTreeMap<String, i32>,
     axis_top: i32,
     chart_bottom: i32,
     time_to_x: &dyn Fn(i64) -> i32,
@@ -934,10 +940,12 @@ fn render_timing_relations(
         let Some((to_signal, to_time)) = timing_relation_endpoint(&relation.to) else {
             continue;
         };
-        let Some(&y1) = signal_row_mid.get(from_signal) else {
+        let from_lookup = from_signal.to_ascii_lowercase();
+        let to_lookup = to_signal.to_ascii_lowercase();
+        let Some(&y1) = signal_row_mid.get(&from_lookup) else {
             continue;
         };
-        let Some(&y2) = signal_row_mid.get(to_signal) else {
+        let Some(&y2) = signal_row_mid.get(&to_lookup) else {
             continue;
         };
         let x1 = time_to_x(from_time);
