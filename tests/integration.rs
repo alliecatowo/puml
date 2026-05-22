@@ -1022,6 +1022,23 @@ fn old_style_activity_renders_flow_nodes_instead_of_raw_source() {
 }
 
 #[test]
+fn old_style_activity_arrow_target_detach_renders_detach_bar() {
+    let svg = render_source_to_svg(
+        r#"@startuml
+(*) --> "Step1"
+"Step1" --> detach
+@enduml
+"#,
+    )
+    .expect("old-style detach should render");
+
+    assert!(svg.contains("data-activity-kind=\"Detach\""));
+    assert!(!svg.contains("data-activity-kind=\"Stop\""));
+    assert!(svg.contains("stroke-width=\"3\""));
+    assert!(!svg.contains(">detach<"));
+}
+
+#[test]
 fn timing_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
