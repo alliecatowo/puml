@@ -3952,6 +3952,26 @@ fn file_newpage_output_writes_numbered_files_with_multi_flag() {
 }
 
 #[test]
+fn file_family_newpage_output_writes_numbered_files() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("family_paged.puml");
+    fs::write(
+        &input,
+        "@startuml\nclass A\nnewpage Page Two\nclass B\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("family_paged-1.svg").exists());
+    assert!(tmp.path().join("family_paged-2.svg").exists());
+}
+
+#[test]
 fn multipage_file_output_failure_does_not_leave_partial_writes() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("paged.puml");

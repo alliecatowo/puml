@@ -1554,6 +1554,10 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
     match model {
         NormalizedDocument::Sequence(sequence) => &sequence.warnings,
         NormalizedDocument::Family(family) => &family.warnings,
+        NormalizedDocument::FamilyPages(pages) => pages
+            .iter()
+            .find_map(|page| (!page.warnings.is_empty()).then_some(page.warnings.as_slice()))
+            .unwrap_or(&[]),
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
         NormalizedDocument::State(state) => &state.warnings,
         NormalizedDocument::Json(doc) => &doc.warnings,
@@ -2503,6 +2507,10 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
     match model {
         NormalizedDocument::Sequence(sequence) => model_to_json(sequence),
         NormalizedDocument::Family(family) => family_model_to_json(family),
+        NormalizedDocument::FamilyPages(pages) => json!({
+            "kind": "FamilyPages",
+            "pages": pages.iter().map(family_model_to_json).collect::<Vec<_>>()
+        }),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
         NormalizedDocument::State(state) => state_model_to_json(state),
         NormalizedDocument::Json(doc) => json!({"kind": "Json", "warnings": doc.warnings.len()}),
@@ -2851,6 +2859,28 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "svg_preview": svg
             })
         }
+        NormalizedDocument::FamilyPages(pages) => json!({
+            "kind": "FamilyPages",
+            "pages": pages.iter().map(|family| {
+                let svg = render::render_family_stub_svg(family);
+                json!({
+                    "kind": "FamilyStub",
+                    "family": format!("{:?}", family.kind),
+                    "nodes": family.nodes.iter().map(|n| json!({
+                        "kind": format!("{:?}", n.kind),
+                        "name": n.name,
+                        "alias": n.alias
+                    })).collect::<Vec<_>>(),
+                    "relations": family.relations.iter().map(|r| json!({
+                        "from": r.from,
+                        "to": r.to,
+                        "arrow": r.arrow,
+                        "label": r.label
+                    })).collect::<Vec<_>>(),
+                    "svg_preview": svg
+                })
+            }).collect::<Vec<_>>()
+        }),
         NormalizedDocument::Timeline(timeline) => {
             json!({
                 "kind": "TimelineScene",

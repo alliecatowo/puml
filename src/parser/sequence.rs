@@ -1150,6 +1150,8 @@ fn is_family_common_keyword(kind: &StatementKind) -> bool {
             | StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Scale(_)
+            | StatementKind::NewPage(_)
+            | StatementKind::IgnoreNewPage
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_)
             | StatementKind::Pragma(_)

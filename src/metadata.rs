@@ -126,6 +126,45 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
                 Vec::new(),
             )
         }
+        NormalizedDocument::FamilyPages(pages) => {
+            let kind = pages
+                .first()
+                .map(|page| diagram_kind_name(page.kind))
+                .unwrap_or("family")
+                .to_string();
+            counts.insert("pages".to_string(), pages.len());
+            counts.insert(
+                "nodes".to_string(),
+                pages.iter().map(|page| page.nodes.len()).sum(),
+            );
+            counts.insert(
+                "relations".to_string(),
+                pages.iter().map(|page| page.relations.len()).sum(),
+            );
+            counts.insert(
+                "groups".to_string(),
+                pages.iter().map(|page| page.groups.len()).sum(),
+            );
+            let page_metadata = pages
+                .iter()
+                .enumerate()
+                .map(|(idx, page)| PageMetadata {
+                    index: idx + 1,
+                    title: page.title.clone(),
+                    event_count: page.nodes.len() + page.relations.len() + page.groups.len(),
+                })
+                .collect::<Vec<_>>();
+            (
+                kind,
+                pages.first().and_then(|page| page.title.clone()),
+                pages
+                    .iter()
+                    .flat_map(|page| metadata_warnings(&page.warnings))
+                    .collect(),
+                ast_skinparams(document),
+                page_metadata,
+            )
+        }
         NormalizedDocument::Timeline(timeline) => {
             counts.insert("tasks".to_string(), timeline.tasks.len());
             counts.insert("milestones".to_string(), timeline.milestones.len());
