@@ -27,6 +27,7 @@ jobs:
       run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
       docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
       run_docs_examples_drift: ${{ steps.changes.outputs.run_docs_examples_drift }}
+      run_artifact_regen: ${{ steps.changes.outputs.run_artifact_regen }}
       run_wasm_check: ${{ steps.changes.outputs.run_wasm_check }}
       run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
       run_wasm_site_smoke: ${{ steps.changes.outputs.run_wasm_site_smoke }}
@@ -64,10 +65,72 @@ jobs:
           echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
           echo "Site graph-toggle smoke will still run when documentation/site files can affect rendered docs."
 
+  artifact_regen:
+    name: artifact regen
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_artifact_regen == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    outputs:
+      pushed_regen_commit: ${{ steps.commit.outputs.pushed_regen_commit }}
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Build puml CLI binary for artifact regen
+        run: cargo build --release --bin puml
+
+      - name: Regenerate committed diagram artifacts
+        run: ./scripts/regen-artifacts.sh --force
+
+      - name: Commit regenerated artifacts when drift is detected
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- docs/examples docs/diagrams; then
+            echo "No regenerated artifact drift detected."
+            echo "pushed_regen_commit=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/examples docs/diagrams
+          git commit -m "chore(ci): regenerate diagram artifacts"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          echo "pushed_regen_commit=true" >> "${GITHUB_OUTPUT}"
+
+  skip_after_regen_push:
+    name: skip after regen push
+    needs: [changes, artifact_regen]
+    if: always() && needs.artifact_regen.outputs.pushed_regen_commit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why the heavy gate is skipped
+        run: |
+          echo "Artifact regeneration produced a commit on the PR branch."
+          echo "The synchronize rerun will execute the expensive CI checks once against the updated branch."
+
   fmt:
     name: fmt
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -91,8 +154,8 @@ jobs:
 
   clippy:
     name: clippy
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -116,8 +179,8 @@ jobs:
 
   test:
     name: test
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -153,8 +216,8 @@ jobs:
 
   wasm:
     name: wasm
-    needs: changes
-    if: needs.changes.outputs.run_wasm_check == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_wasm_check == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -178,8 +241,8 @@ jobs:
 
   coverage:
     name: coverage
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -206,8 +269,8 @@ jobs:
 
   docs_examples_drift:
     name: docs examples drift
-    needs: changes
-    if: needs.changes.outputs.run_docs_examples_drift == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_docs_examples_drift == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -229,8 +292,8 @@ jobs:
 
   site_smoke:
     name: site graph toggle smoke
-    needs: changes
-    if: needs.changes.outputs.run_site_smoke == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_site_smoke == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
