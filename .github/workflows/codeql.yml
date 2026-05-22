@@ -24,6 +24,8 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target/codeql
+  CODEQL_EXTRACTOR_RUST_OPTION_CARGO_TARGET_DIR: ${{ github.workspace }}/target/codeql
 
 jobs:
   analyze:
@@ -42,20 +44,22 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: codeql-ubuntu-stable
+          workspaces: |
+            . -> target/codeql
           cache-on-failure: true
+
+      - name: Prepare Rust workspace
+        run: |
+          set -euo pipefail
+          rustup show
+          cargo metadata --format-version 1
+          cargo check --workspace --all-features
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: rust
-          build-mode: manual
-
-      - name: Build Rust workspace
-        run: |
-          set -euo pipefail
-          rustup show
-          cargo metadata --format-version 1
-          cargo build --workspace --all-features
+          build-mode: none
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
