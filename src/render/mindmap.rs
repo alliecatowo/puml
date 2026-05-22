@@ -814,8 +814,8 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     let mut children_of = vec![Vec::<usize>::new(); n];
     {
         let mut stack: Vec<usize> = Vec::new();
-        for i in 0..n {
-            let depth = nodes[i].depth;
+        for (i, node) in nodes.iter().enumerate() {
+            let depth = node.depth;
             while stack.len() > depth {
                 stack.pop();
             }
@@ -850,13 +850,8 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         }
         let mut total_children = 0;
         for (k, child) in children.iter().enumerate() {
-            total_children += compute_wbs_subtree_span(
-                *child,
-                children_of,
-                nodes,
-                sibling_gap,
-                subtree_span,
-            );
+            total_children +=
+                compute_wbs_subtree_span(*child, children_of, nodes, sibling_gap, subtree_span);
             if k > 0 {
                 total_children += sibling_gap;
             }
