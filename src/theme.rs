@@ -383,6 +383,10 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
         stereotype_styles: BTreeMap::new(),
+        package_style: PackageStyle::Rectangle,
+        package_background_color: None,
+        package_border_color: None,
+        package_font_color: None,
     }
 }
 
@@ -1455,6 +1459,41 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
 
+/// Visual shape mode for `skinparam packageStyle`.
+///
+/// PlantUML supports: Rectangle (default), Frame, Cloud, Node, Folder, Database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PackageStyle {
+    /// Default: filled rectangle with a tab header at the top.
+    #[default]
+    Rectangle,
+    /// Lightweight frame: simple border, label in top-left corner, no filled tab.
+    Frame,
+    /// 3-D perspective box: top face angled to suggest physical depth.
+    Node,
+    /// Rounded cloud outline: rx/ry ellipse approximation.
+    Cloud,
+    /// Folder tab shape (similar to Rectangle but with a narrower protruding tab).
+    Folder,
+    /// Database cylinder approximation (ellipse top, rect body).
+    Database,
+}
+
+impl PackageStyle {
+    /// Parse a PlantUML `skinparam packageStyle` value (case-insensitive).
+    pub fn parse_value(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "rectangle" | "rect" => Some(Self::Rectangle),
+            "frame" => Some(Self::Frame),
+            "node" => Some(Self::Node),
+            "cloud" => Some(Self::Cloud),
+            "folder" => Some(Self::Folder),
+            "database" | "db" => Some(Self::Database),
+            _ => None,
+        }
+    }
+}
+
 /// Style overrides for class/object/usecase diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassStyle {
@@ -1467,6 +1506,14 @@ pub struct ClassStyle {
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
+    /// Visual shape mode for package/namespace group frames.
+    pub package_style: PackageStyle,
+    /// Override fill color for package/namespace group frames.
+    pub package_background_color: Option<String>,
+    /// Override stroke color for package/namespace group frames.
+    pub package_border_color: Option<String>,
+    /// Override label/text color for package/namespace group frames.
+    pub package_font_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1489,6 +1536,10 @@ impl Default for ClassStyle {
             font_size: None,
             font_name: None,
             stereotype_styles: BTreeMap::new(),
+            package_style: PackageStyle::Rectangle,
+            package_background_color: None,
+            package_border_color: None,
+            package_font_color: None,
         }
     }
 }
@@ -1508,6 +1559,14 @@ pub enum ClassSkinParamValue {
     StereotypeBorderColor(String, String),
     StereotypeHeaderBackgroundColor(String, String),
     StereotypeFontColor(String, String),
+    /// `skinparam packageStyle <value>`
+    PackageStyleValue(PackageStyle),
+    /// `skinparam packageBackgroundColor <color>`
+    PackageBackgroundColor(String),
+    /// `skinparam packageBorderColor <color>`
+    PackageBorderColor(String),
+    /// `skinparam packageFontColor <color>`
+    PackageFontColor(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1654,18 +1713,31 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         | "linetype"
         | "roundcorner"
         | "shadowing"
-        // Package visual style and layout skinparams — accepted as noop (shape not yet rendered).
-        | "packagestyle"
-        | "packagebackgroundcolor"
-        | "packagebordercolor"
-        | "packagefontcolor"
         | "packagefontsize"
         | "packagefontname"
         | "packagestereotypefontcolor"
         | "namespaceseparator"
         | "groupinheritance"
-        // Generic skinparams used in class diagrams accepted as noop.
         | "genericdisplay" => SkinParamSupport::SupportedNoop,
+        "packagestyle" => match PackageStyle::parse_value(value) {
+            Some(ps) => {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::PackageStyleValue(ps))
+            }
+            None => SkinParamSupport::UnsupportedValue,
+        },
+        "packagebackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::PackageBackgroundColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "packagebordercolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::PackageBorderColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "packagefontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::PackageFontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         _ => SkinParamSupport::UnsupportedKey,
     }
 }

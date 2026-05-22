@@ -116,6 +116,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                                     .or_default()
                                     .font_color = Some(c);
                             }
+                            ClassSkinParamValue::PackageStyleValue(ps) => {
+                                class_style.package_style = ps;
+                            }
+                            ClassSkinParamValue::PackageBackgroundColor(c) => {
+                                class_style.package_background_color = Some(c);
+                            }
+                            ClassSkinParamValue::PackageBorderColor(c) => {
+                                class_style.package_border_color = Some(c);
+                            }
+                            ClassSkinParamValue::PackageFontColor(c) => {
+                                class_style.package_font_color = Some(c);
+                            }
                         }
                     }
                     SkinParamSupport::UnsupportedKey => {

@@ -8,7 +8,7 @@ use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle};
+use crate::theme::{ClassStyle, ComponentStyle, PackageStyle};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -107,12 +107,28 @@ struct ClassNodeBox {
 ///
 /// Draws labeled frame rectangles (with optional tab headers) behind all node
 /// boxes so that node rectangles visually sit on top of the frame borders.
+/// The visual shape is controlled by `class_style.package_style`.
 fn render_class_group_frames(
     out: &mut String,
     group_frames: &[RenderGroupFrame],
     max_group_depth: usize,
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+    class_style: &ClassStyle,
 ) {
+    // Resolve effective package colors from skinparam overrides or fall back to defaults.
+    let pkg_stroke = class_style
+        .package_border_color
+        .as_deref()
+        .unwrap_or("#6366f1");
+    let pkg_fill = class_style
+        .package_background_color
+        .as_deref()
+        .unwrap_or("none");
+    let pkg_label_color = class_style
+        .package_font_color
+        .as_deref()
+        .unwrap_or("#4338ca");
+
     for group in group_frames {
         let mut gx_min = i32::MAX;
         let mut gy_min = i32::MAX;
@@ -141,40 +157,157 @@ fn render_class_group_frames(
         let fh = (gy_max - gy_min) + pad * 2 + label_header;
 
         let group_label = group.display_label();
-        let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
 
-        out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
-            escape_text(&group.scope)
-        ));
-        if uses_tab_header {
-            let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
-            out.push_str(&format!(
-                "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
-            ));
-            out.push_str(&format!(
-                "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"#ffffff\" stroke=\"none\"/>",
-                fy + tab_h - 8
-            ));
-            out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
-                tx = fx + 8,
-                ty = fy + 16,
-                label = escape_text(&group_label)
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#6366f1\" stroke-width=\"1\"/>",
-                fy + tab_h,
-                fx + fw,
-                fy + tab_h
-            ));
+        // Determine the effective package style: the global skinparam setting
+        // drives the shape for "package" and "rectangle" group kinds; other
+        // group kinds (namespace, together, etc.) keep their own defaults.
+        let effective_style = if matches!(group.kind.as_str(), "rectangle" | "package") {
+            class_style.package_style
         } else {
-            out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
-                tx = fx + 8,
-                ty = fy + 14,
-                label = escape_text(&group_label)
-            ));
+            PackageStyle::Frame
+        };
+
+        match effective_style {
+            PackageStyle::Rectangle => {
+                // Filled rectangle with a small tab at the top-left corner.
+                let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"2\" ry=\"2\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    escape_text(&group.scope)
+                ));
+                // Tab rectangle
+                out.push_str(&format!(
+                    "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"2\" ry=\"2\" fill=\"#ffffff\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>"
+                ));
+                // Cover the bottom border of the tab where it meets the body
+                out.push_str(&format!(
+                    "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"4\" fill=\"#ffffff\" stroke=\"none\"/>",
+                    fy + tab_h - 4
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + 8,
+                    ty = fy + 16,
+                    label = escape_text(&group_label)
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{pkg_stroke}\" stroke-width=\"1\"/>",
+                    fx + tab_w, fy + tab_h,
+                    fx + fw, fy + tab_h
+                ));
+            }
+            PackageStyle::Frame => {
+                // Lightweight: simple dashed border, label top-left, no filled tab.
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+                    escape_text(&group.scope)
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + 8,
+                    ty = fy + 14,
+                    label = escape_text(&group_label)
+                ));
+            }
+            PackageStyle::Node => {
+                // 3-D perspective box: main face + angled top and right faces.
+                let depth3d = 10i32;
+                // Main face
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{}\" width=\"{fw}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    escape_text(&group.scope),
+                    fy + depth3d,
+                    fh - depth3d
+                ));
+                // Top face polygon (parallelogram)
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#e8e8e8\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    fx, fy + depth3d,
+                    fx + depth3d, fy,
+                    fx + fw + depth3d, fy,
+                    fx + fw, fy + depth3d
+                ));
+                // Right face polygon
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#d0d0d0\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    fx + fw, fy + depth3d,
+                    fx + fw + depth3d, fy,
+                    fx + fw + depth3d, fy + fh - depth3d,
+                    fx + fw, fy + fh
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + 8,
+                    ty = fy + depth3d + 16,
+                    label = escape_text(&group_label)
+                ));
+            }
+            PackageStyle::Cloud => {
+                // Rounded cloud outline using a large rx/ry ellipse approximation.
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"{}\" ry=\"{}\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\" stroke-dasharray=\"4 2\"/>",
+                    escape_text(&group.scope),
+                    fw / 4,
+                    fh / 4
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + fw / 2,
+                    ty = fy + 16,
+                    label = escape_text(&group_label)
+                ));
+            }
+            PackageStyle::Folder => {
+                // Folder: rect body with a narrow protruding tab at top-left.
+                let folder_tab_w = ((group_label.len() as i32) * 7 + 12).max(40).min(fw / 2);
+                let folder_tab_h = 14i32;
+                // Tab
+                out.push_str(&format!(
+                    "<rect x=\"{fx}\" y=\"{}\" width=\"{folder_tab_w}\" height=\"{folder_tab_h}\" rx=\"3\" ry=\"3\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    fy
+                ));
+                // Body (starts below tab, overlaps bottom of tab to hide joint)
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{}\" width=\"{fw}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    escape_text(&group.scope),
+                    fy + folder_tab_h - 2,
+                    fh - folder_tab_h + 2
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + 6,
+                    ty = fy + folder_tab_h + 16,
+                    label = escape_text(&group_label)
+                ));
+            }
+            PackageStyle::Database => {
+                // Database cylinder: ellipse top cap + rect body.
+                let ellipse_ry = 10i32;
+                let body_top = fy + ellipse_ry;
+                let body_h = fh - ellipse_ry;
+                let cx = fx + fw / 2;
+                let rx = fw / 2;
+                // Body rectangle
+                out.push_str(&format!(
+                    "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{body_top}\" width=\"{fw}\" height=\"{body_h}\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    escape_text(&group.scope)
+                ));
+                // Top ellipse (cap)
+                out.push_str(&format!(
+                    "<ellipse cx=\"{cx}\" cy=\"{body_top}\" rx=\"{rx}\" ry=\"{ellipse_ry}\" fill=\"#e8e8e8\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>"
+                ));
+                // Bottom ellipse outline
+                out.push_str(&format!(
+                    "<ellipse cx=\"{cx}\" cy=\"{}\" rx=\"{rx}\" ry=\"{ellipse_ry}\" fill=\"{pkg_fill}\" stroke=\"{pkg_stroke}\" stroke-width=\"1.5\"/>",
+                    fy + fh
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{pkg_label_color}\">{label}</text>",
+                    tx = fx + 8,
+                    ty = body_top + 20,
+                    label = escape_text(&group_label)
+                ));
+            }
         }
     }
 }
@@ -1359,7 +1492,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Render group frames (together/package/namespace) BEFORE nodes so node
     // rectangles visually sit on top of the frame borders.
-    render_class_group_frames(&mut out, &group_frames, max_group_depth, &node_boxes);
+    render_class_group_frames(
+        &mut out,
+        &group_frames,
+        max_group_depth,
+        &node_boxes,
+        &class_style,
+    );
 
     // Render nodes
     for node in &document.nodes {
