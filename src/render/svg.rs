@@ -292,6 +292,76 @@ fn estimate_text_width(text: &str) -> f32 {
 /// `cx`, `cy` are the **centre** of the figure. The full figure spans roughly
 /// 44 px in height: from `cy - 21` (top of head) to `cy + 23` (feet).
 /// `stroke` is the SVG stroke colour string (e.g. `"#334155"`).
+use crate::theme::ActorStyleKind;
+
+pub(crate) fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
+    let head_cy = cy - 15;
+    out.push_str(&format!(
+        "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"6\" fill=\"{stroke}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    let neck_y = head_cy + 6;
+    let hip_y = head_cy + 20;
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{neck_y}\" x2=\"{cx}\" y2=\"{hip_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    let arm_y = neck_y + 4;
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{arm_y}\" x2=\"{}\" y2=\"{arm_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx - 10,
+        cx + 10
+    ));
+    let leg_end_y = hip_y + 16;
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx - 8
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx + 8
+    ));
+}
+
+pub(crate) fn render_actor_hollow_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
+    render_actor_stick_figure(out, cx, cy, stroke);
+}
+
+pub(crate) fn render_actor_business_figure(
+    out: &mut String,
+    cx: i32,
+    cy: i32,
+    stroke: &str,
+    fill: &str,
+) {
+    let box_w = 28;
+    let box_h = 40;
+    let bx = cx - box_w / 2;
+    let by = cy - 22;
+    out.push_str(&format!(
+        "<rect x=\"{bx}\" y=\"{by}\" width=\"{box_w}\" height=\"{box_h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    render_actor_stick_figure(out, cx, cy - 2, stroke);
+}
+
+pub(crate) fn render_actor_figure(
+    out: &mut String,
+    cx: i32,
+    cy: i32,
+    stroke: &str,
+    fill: &str,
+    style: ActorStyleKind,
+    business: bool,
+) {
+    if business {
+        render_actor_business_figure(out, cx, cy, stroke, fill);
+        return;
+    }
+    match style {
+        ActorStyleKind::Stick => render_actor_stick_figure(out, cx, cy, stroke),
+        ActorStyleKind::Awesome => render_actor_awesome_figure(out, cx, cy, stroke),
+        ActorStyleKind::Hollow => render_actor_hollow_figure(out, cx, cy, stroke),
+    }
+}
+
 pub(crate) fn render_actor_stick_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
     // Head: centre at (cx, cy - 15) -> top of figure is cy - 21
     let head_cy = cy - 15;

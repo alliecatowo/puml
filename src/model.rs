@@ -587,6 +587,15 @@ pub enum FamilyStyle {
     Timing(TimingStyle),
 }
 
+/// Split point recorded when a `newpage` directive is encountered in a family diagram.
+#[derive(Debug, Clone)]
+pub struct FamilyPageBreak {
+    pub node_index: usize,
+    pub relation_index: usize,
+    pub group_index: usize,
+    pub title: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
@@ -611,6 +620,8 @@ pub struct FamilyDocument {
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,
+    /// Indices at which `newpage` splits the diagram into separate render pages.
+    pub page_breaks: Vec<FamilyPageBreak>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -679,6 +690,10 @@ pub struct FamilyNode {
 pub enum FamilyNodeKind {
     Class,
     Object,
+    /// Object-diagram associative array (`map Name { key => value }`).
+    Map,
+    /// Object-diagram n-ary association hub (`diamond NAME`).
+    Diamond,
     UseCase,
     Salt,
     MindMap,

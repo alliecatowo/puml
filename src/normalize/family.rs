@@ -32,6 +32,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut last_relation: Option<(String, String)> = None;
+    let mut page_breaks: Vec<crate::model::FamilyPageBreak> = Vec::new();
+    let mut ignore_newpage = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -115,6 +117,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                                     .entry(stereotype)
                                     .or_default()
                                     .font_color = Some(c);
+                            }
+                            ClassSkinParamValue::ActorStyle(style) => {
+                                class_style.actor_style = style;
                             }
                         }
                     }
@@ -205,8 +210,19 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // Detect and strip C4 stereotypes embedded in the alias
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
-                let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
                 let mut members = decl.members;
+                let resolved_kind = if members
+                    .first()
+                    .is_some_and(|m| m.text == "\x1fkind:map" || m.text == "<<map>>")
+                {
+                    let _ = members.remove(0);
+                    FamilyNodeKind::Map
+                } else if members.first().is_some_and(|m| m.text == "\x1fkind:diamond") {
+                    let _ = members.remove(0);
+                    FamilyNodeKind::Diamond
+                } else {
+                    c4_kind.unwrap_or(FamilyNodeKind::Object)
+                };
                 let fill_color = extract_family_node_fill_color(&mut members);
                 upsert_family_node(
                     &mut nodes,
@@ -408,6 +424,19 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::HideOption(opt) => {
                 hide_options.insert(opt.to_ascii_lowercase());
             }
+            StatementKind::NewPage(v) => {
+                if !ignore_newpage {
+                    page_breaks.push(crate::model::FamilyPageBreak {
+                        node_index: nodes.len(),
+                        relation_index: relations.len(),
+                        group_index: groups.len(),
+                        title: family_cleaned_title(&v),
+                    });
+                }
+            }
+            StatementKind::IgnoreNewPage => {
+                ignore_newpage = true;
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -544,7 +573,90 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         sprites,
         list_sprites,
         warnings,
+        page_breaks,
     })
+}
+
+fn family_cleaned_title(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn slice_family_document(
+    source: &FamilyDocument,
+    node_start: usize,
+    node_end: usize,
+    rel_start: usize,
+    rel_end: usize,
+    group_start: usize,
+    group_end: usize,
+    title: Option<String>,
+) -> FamilyDocument {
+    FamilyDocument {
+        kind: source.kind,
+        nodes: source.nodes[node_start..node_end].to_vec(),
+        relations: source.relations[rel_start..rel_end].to_vec(),
+        groups: source.groups[group_start..group_end].to_vec(),
+        json_projections: source.json_projections.clone(),
+        hide_options: source.hide_options.clone(),
+        namespace_separator: source.namespace_separator.clone(),
+        title,
+        header: source.header.clone(),
+        footer: source.footer.clone(),
+        caption: source.caption.clone(),
+        legend: source.legend.clone(),
+        orientation: source.orientation,
+        style: source.style.clone(),
+        family_style: source.family_style.clone(),
+        text_overflow_policy: source.text_overflow_policy,
+        maximum_width: source.maximum_width,
+        sprites: source.sprites.clone(),
+        list_sprites: source.list_sprites,
+        warnings: source.warnings.clone(),
+        page_breaks: Vec::new(),
+    }
+}
+
+/// Split a family document into render pages at each recorded `newpage` boundary.
+pub fn paginate_family(document: &FamilyDocument) -> Vec<FamilyDocument> {
+    if document.page_breaks.is_empty() {
+        return vec![document.clone()];
+    }
+    let mut pages = Vec::with_capacity(document.page_breaks.len() + 1);
+    let mut node_start = 0;
+    let mut rel_start = 0;
+    let mut group_start = 0;
+    let mut page_title = document.title.clone();
+    for br in &document.page_breaks {
+        pages.push(slice_family_document(
+            document,
+            node_start,
+            br.node_index,
+            rel_start,
+            br.relation_index,
+            group_start,
+            br.group_index,
+            page_title,
+        ));
+        node_start = br.node_index;
+        rel_start = br.relation_index;
+        group_start = br.group_index;
+        page_title = br.title.clone().or_else(|| document.title.clone());
+    }
+    pages.push(slice_family_document(
+        document,
+        node_start,
+        document.nodes.len(),
+        rel_start,
+        document.relations.len(),
+        group_start,
+        document.groups.len(),
+        page_title,
+    ));
+    pages
 }
 
 /// Merge relations that share the same `(from, to, arrow)` triple by joining
@@ -1257,6 +1369,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
+        page_breaks: Vec::new(),
     })
 }
 
@@ -2251,6 +2364,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         json_projections,
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
+        page_breaks: Vec::new(),
     })
 }
 

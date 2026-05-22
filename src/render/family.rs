@@ -3,12 +3,12 @@ use super::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
     render_relation_marker_defs, usecase_dependency_label,
 };
-use super::svg::{creole_text, escape_text, render_actor_stick_figure};
+use super::svg::{creole_text, escape_text, render_actor_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle};
+use crate::theme::{ActorStyleKind, ClassStyle, ComponentStyle};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -2307,6 +2307,16 @@ fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize
         skip += 1;
     }
     skip
+}
+
+fn family_node_has_stereotype(node: &crate::model::FamilyNode, stereotype: &str) -> bool {
+    let needle = stereotype.to_ascii_lowercase();
+    node.members.iter().any(|member| {
+        let text = member.text.trim();
+        text.starts_with("<<")
+            && text.ends_with(">>")
+            && text[2..text.len() - 2].trim().eq_ignore_ascii_case(&needle)
+    })
 }
 
 fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> {

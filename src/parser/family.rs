@@ -1,8 +1,67 @@
+pub(crate) fn parse_page_break_line(line: &str) -> Option<StatementKind> {
+    let lower = line.trim().to_ascii_lowercase();
+    if lower.starts_with("newpage") {
+        return Some(StatementKind::NewPage(
+            line[7..].trim().to_string().into(),
+        ));
+    }
+    if lower == "ignore newpage" {
+        return Some(StatementKind::IgnoreNewPage);
+    }
+    None
+}
+
+fn parse_colon_actor_usecase_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with(':') {
+        return None;
+    }
+    let inner = trimmed.strip_prefix(':')?;
+    let close_idx = inner.rfind(':')?;
+    let mut name_raw = inner[..close_idx].trim();
+    if name_raw.is_empty() {
+        return None;
+    }
+    let mut rest = inner[close_idx + 1..].trim();
+    let mut stereotypes = Vec::new();
+    if name_raw.ends_with('/') {
+        stereotypes.push("business".to_string());
+        name_raw = name_raw.trim_end_matches('/').trim();
+    } else if rest == "/" {
+        stereotypes.push("business".to_string());
+        rest = "";
+    } else if let Some(after_slash) = rest.strip_prefix('/') {
+        stereotypes.push("business".to_string());
+        rest = after_slash.trim();
+    }
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let alias = rest
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|v| !v.is_empty());
+    let members = declaration_marker_members(Some("<<actor>>"), stereotypes);
+    Some(StatementKind::UseCaseDecl(UseCaseDecl {
+        name,
+        alias,
+        members,
+    }))
+}
+
 fn parse_family_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    if let Some(kind) = parse_page_break_line(line) {
+        return Ok(Some((kind, start)));
+    }
+    if let Some(kind) = parse_colon_actor_usecase_decl(line) {
+        return Ok(Some((kind, start)));
+    }
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),
@@ -111,7 +170,7 @@ fn parse_family_declaration(
         }
     }
 
-    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+    for (keyword, marker) in [("map", Some("\x1fkind:map")), ("object", None)] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -171,10 +230,11 @@ fn parse_family_declaration(
             name,
             alias,
             has_block,
+            stereotypes,
             fill_color,
             ..
         } = decl;
-        let mut members = Vec::new();
+        let mut members = declaration_marker_members(None, stereotypes);
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -190,7 +250,12 @@ fn parse_family_declaration(
         )));
     }
 
-    for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
+    for (keyword, marker, business) in [
+        ("actor/", Some("<<actor>>"), true),
+        ("actor", Some("<<actor>>"), false),
+        ("usecase/", None, true),
+        ("usecase", None, false),
+    ] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -198,10 +263,13 @@ fn parse_family_declaration(
             name,
             alias,
             has_block,
-            stereotypes,
+            mut stereotypes,
             fill_color,
             ..
         } = decl;
+        if business {
+            stereotypes.push("business".to_string());
+        }
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
             if let Some(marker) = marker {
@@ -643,7 +711,12 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     if name_raw.is_empty() {
         return None;
     }
-    let rest = trimmed[close + 1..].trim();
+    let mut rest = trimmed[close + 1..].trim();
+    let mut stereotypes = Vec::new();
+    if rest.starts_with('/') {
+        stereotypes.push("business".to_string());
+        rest = rest[1..].trim();
+    }
     let has_block = rest.ends_with('{');
     let rest = if has_block {
         rest.trim_end_matches('{').trim()
@@ -661,7 +734,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         name: clean_ident(name_raw),
         alias,
         has_block,
-        stereotypes: Vec::new(),
+        stereotypes,
         fill_color,
         heritage: Vec::new(),
     })
@@ -684,10 +757,50 @@ fn parse_family_decl_members(
     for (raw, _) in lines.iter().take(end_idx).skip(start + 1) {
         let trimmed = raw.trim();
         if !trimmed.is_empty() {
-            members.push(parse_class_member(trimmed));
+            let member = if keyword == "map" {
+                parse_map_member(trimmed)
+            } else {
+                parse_class_member(trimmed)
+            };
+            members.push(member);
         }
     }
     Ok(members)
+}
+
+fn parse_map_member(raw: &str) -> ClassMember {
+    if let Some((key, value)) = split_map_arrow_row(raw) {
+        return ClassMember {
+            text: format!("\x1fmap:{key}\x1f{value}"),
+            modifier: None,
+        };
+    }
+    parse_class_member(raw)
+}
+
+fn split_map_arrow_row(raw: &str) -> Option<(String, String)> {
+    let mut in_quote = false;
+    let mut arrow_idx = None;
+    for (idx, ch) in raw.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if in_quote {
+            continue;
+        }
+        if raw[idx..].starts_with("=>") {
+            arrow_idx = Some(idx);
+            break;
+        }
+    }
+    let idx = arrow_idx?;
+    let key = raw[..idx].trim();
+    let value = raw[idx + 2..].trim();
+    if key.is_empty() || value.is_empty() {
+        return None;
+    }
+    Some((key.to_string(), value.to_string()))
 }
 
 /// Parse a single member line, extracting any `{field}`, `{method}`, `{abstract}`,

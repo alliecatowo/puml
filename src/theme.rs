@@ -383,6 +383,16 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
         stereotype_styles: BTreeMap::new(),
+        actor_style: ActorStyleKind::default(),
+    }
+}
+
+fn parse_actor_style_value(value: &str) -> Option<ActorStyleKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "stick" | "stickman" | "default" => Some(ActorStyleKind::Stick),
+        "awesome" => Some(ActorStyleKind::Awesome),
+        "hollow" => Some(ActorStyleKind::Hollow),
+        _ => None,
     }
 }
 
@@ -1455,6 +1465,15 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
 
+/// PlantUML `skinparam actorStyle` values (Chapter 2 use case diagrams).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActorStyleKind {
+    #[default]
+    Stick,
+    Awesome,
+    Hollow,
+}
+
 /// Style overrides for class/object/usecase diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassStyle {
@@ -1467,6 +1486,7 @@ pub struct ClassStyle {
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
+    pub actor_style: ActorStyleKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1489,6 +1509,7 @@ impl Default for ClassStyle {
             font_size: None,
             font_name: None,
             stereotype_styles: BTreeMap::new(),
+            actor_style: ActorStyleKind::default(),
         }
     }
 }
@@ -1504,6 +1525,7 @@ pub enum ClassSkinParamValue {
     FontSize(u32),
     FontName(String),
     Monochrome(MonochromeMode),
+    ActorStyle(ActorStyleKind),
     StereotypeBackgroundColor(String, String),
     StereotypeBorderColor(String, String),
     StereotypeHeaderBackgroundColor(String, String),
@@ -1642,6 +1664,9 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::UnsupportedValue
             }
         }
+        "actorstyle" => parse_actor_style_value(value)
+            .map(|style| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ActorStyle(style)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "classstereotypefontcolor"
         | "classstereotypefontsize"
         | "classstereotypefontname"

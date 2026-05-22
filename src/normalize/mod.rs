@@ -110,6 +110,10 @@ pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
     sequence::paginate(document)
 }
 
+pub fn paginate_family(document: &FamilyDocument) -> Vec<FamilyDocument> {
+    family::paginate_family(document)
+}
+
 pub fn normalize_with_options(
     document: Document,
     options: &NormalizeOptions,
