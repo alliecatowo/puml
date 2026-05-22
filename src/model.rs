@@ -679,6 +679,8 @@ pub struct FamilyNode {
 pub enum FamilyNodeKind {
     Class,
     Object,
+    Map,
+    Diamond,
     UseCase,
     Salt,
     MindMap,

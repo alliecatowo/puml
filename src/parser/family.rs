@@ -14,7 +14,6 @@ fn parse_family_declaration(
         ("protocol", Some("<<protocol>>")),
         ("struct", Some("<<struct>>")),
         ("circle", Some("<<circle>>")),
-        ("diamond", Some("<<diamond>>")),
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
@@ -111,7 +110,11 @@ fn parse_family_declaration(
         }
     }
 
-    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+    for (keyword, marker) in [
+        ("diamond", Some("<<diamond>>")),
+        ("map", Some("<<map>>")),
+        ("object", None),
+    ] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -2004,7 +2007,7 @@ fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_i
     lines[start + 1..end_idx].iter().any(|(raw, _)| {
         let line = strip_inline_plantuml_comment(raw).trim();
         let lower = line.to_ascii_lowercase();
-        lower.starts_with("object ") || lower.starts_with("map ")
+        lower.starts_with("object ") || lower.starts_with("map ") || lower.starts_with("diamond ")
     })
 }
 

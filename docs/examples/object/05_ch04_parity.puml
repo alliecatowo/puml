@@ -1,0 +1,9 @@
+@startuml
+object Customer
+object Seller
+diamond Sale
+object Fulfillment
+Customer --> Sale
+Seller --> Sale
+Sale --> Fulfillment
+@enduml
