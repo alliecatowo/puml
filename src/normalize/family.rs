@@ -677,6 +677,22 @@ fn extract_activity_inline_fill(label: &mut Option<String>) -> Option<String> {
     Some(color.trim().to_string())
 }
 
+/// Extract a SDL action shape marker (`\x1fsdl:<shape>\x1f<body>`) from the label.
+/// Returns the shape name and leaves the display label in `label`.
+fn extract_activity_sdl_shape(label: &mut Option<String>) -> Option<String> {
+    let value = label.take()?;
+    let Some(rest) = value.strip_prefix("\x1fsdl:") else {
+        *label = Some(value);
+        return None;
+    };
+    let Some((shape, display)) = rest.split_once('\x1f') else {
+        *label = Some(value);
+        return None;
+    };
+    *label = (!display.is_empty()).then(|| display.to_string());
+    Some(shape.trim().to_string())
+}
+
 fn extract_family_heritage_relations(
     members: &mut Vec<ClassMember>,
     source_id: &str,
@@ -1639,6 +1655,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 let name = format!("__act_{activity_step_counter:04}");
                 let mut label = step.label;
                 let fill_color = extract_activity_inline_fill(&mut label);
+                let sdl_shape = extract_activity_sdl_shape(&mut label);
                 let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
                 match step.kind {
                     ActivityStepKind::PartitionStart => {
@@ -1667,10 +1684,17 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         .clone()
                         .unwrap_or_else(|| "default".to_string())
                 };
-                let alias = format!(
-                    "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
-                    step.kind, lane, activity_fork_depth, activity_fork_branch
-                );
+                let alias = if let Some(shape) = &sdl_shape {
+                    format!(
+                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}|sdl={}",
+                        step.kind, lane, activity_fork_depth, activity_fork_branch, shape
+                    )
+                } else {
+                    format!(
+                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
+                        step.kind, lane, activity_fork_depth, activity_fork_branch
+                    )
+                };
                 nodes.push(FamilyNode {
                     kind,
                     name,

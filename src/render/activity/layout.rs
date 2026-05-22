@@ -11,6 +11,8 @@ pub(super) struct NodeMeta {
     pub lane_name: String,
     pub fork_branch: usize,
     pub arrow_style: Option<ActivityArrowStyle>,
+    /// SDL action shape (e.g. "send", "receive", "input", "output", "bar", "bracket", "brace")
+    pub sdl_shape: Option<String>,
 }
 
 pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
@@ -20,6 +22,7 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
             let mut step_kind = String::new();
             let mut lane_name = "default".to_string();
             let mut fork_branch = 0usize;
+            let mut sdl_shape: Option<String> = None;
             if let Some(alias) = &node.alias {
                 if let Some(meta) = alias.strip_prefix("activity::") {
                     for (pi, part) in meta.split('|').enumerate() {
@@ -31,6 +34,8 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
                             lane_name = v.to_string();
                         } else if let Some(v) = part.strip_prefix("fork_branch=") {
                             fork_branch = v.parse::<usize>().unwrap_or(0);
+                        } else if let Some(v) = part.strip_prefix("sdl=") {
+                            sdl_shape = Some(v.to_string());
                         }
                     }
                 }
@@ -41,6 +46,7 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
                 lane_name,
                 fork_branch,
                 arrow_style,
+                sdl_shape,
             }
         })
         .collect()

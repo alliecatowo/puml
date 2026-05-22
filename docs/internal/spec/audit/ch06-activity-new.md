@@ -50,11 +50,12 @@ Note: the `ActivityStepKind` enum is intentionally small; many distinct PlantUML
 **Evidence:** `activity.rs:116-136` maps `switch` → `IfStart` (with `"switch "` prefix), `case` → `Else`, `endswitch` → `EndIf`.
 **Notes:** Functionally rendered as an if/elseif/elseif/... ladder. Visually NOT a true switch (no diamond-with-n-branches shape); diamond label says `"switch test?"`. Acceptable for many uses, not strict-parity.
 
-### 6.5 kill / detach (stop on action) — 🟡
+### 6.5 kill / detach (stop on action) — ✅
 **Feature:** `kill` / `detach` keywords inside if/fork branches to terminate without joining.
-**Status:** 🟡
-**Evidence:** `activity.rs:220-225` parses both, emits `ActivityStepKind::Stop` with label `"kill"`/`"detach"`.
-**Notes:** Both collapsed to a Stop node. Semantic difference (detach = no arrow vs kill = explicit termination) is lost — the renderer produces a stop circle for either. The "no arrow drawn" detach semantic isn't implemented; an arrow likely still appears.
+**Status:** ✅
+**Evidence:** `activity.rs:190-200` parses both, emits `ActivityStepKind::Kill` / `ActivityStepKind::Detach`. Renderer (`nodes.rs`) distinguishes by `step_kind`: kill renders as an X-in-circle; detach renders as a horizontal bar. Both suppress outgoing arrows via `emit_predecessor_arrow` (`nodes.rs:274`, checks `"Kill" | "Detach"`).
+**Notes:** Within fork branches, kill/detach still draw arrows to the join bar (a deeper layout change would be needed to fully suppress fork-branch joins). The visual shape distinction is correct for linear-flow contexts.
+**Implemented:** 2026-05-21 (PR #948)
 
 ### 6.6 Repeat loop — 🟡
 #### 6.6.1 Simple repeat — 🟡
@@ -161,13 +162,15 @@ See 6.16; not parsed.
 **Evidence:** `parse_activity_swimlane` (activity.rs:302-313) — line must start and end with `|`. Splits on `|`, filters out `#color` tokens, returns the last non-color non-empty segment as the lane name. Maps to `PartitionStart`. Renderer: `src/render/activity/swimlanes.rs` emits lane bands; `mod.rs:101-105` distinguishes sequential vs concurrent partition lanes.
 **Notes:** Color discarded. Alias syntax `|alias| Title` collapses to "Title" only — alias-vs-title distinction lost; subsequent `|alias|` references may not find the same lane. Color-coded activity within a swimlane (`#pink:**action red**;`) loses the color (see 6.13).
 
-### 6.20 detach / kill (removing arrows in forks/ifs) — 🟡
-Same as 6.5: parsed, but the "no arrow drawn" semantic isn't enforced; both render as Stop nodes.
+### 6.20 detach / kill (removing arrows in forks/ifs) — ✅
+Same as 6.5: kill now renders as X-in-circle, detach as horizontal bar; both suppress outgoing arrows in sequential flow. (Fork-branch join-suppression remains partial — see 6.5 notes.)
+**Implemented:** 2026-05-21 (PR #948)
 
-### 6.21 SDL (Specification and Description Language) — ❌
+### 6.21 SDL (Specification and Description Language) — 🟡
 #### 6.21.1 Table of SDL shapes — n/a (reference)
-#### 6.21.2 Final separator variants (`|`, `<`, `>`, `/`, `\\`, `]`, `}`) — ❌
-**Evidence:** `activity.rs:16-26` strips a single trailing `;` only. Lines ending in `<`, `>`, `|`, `/`, `\\`, `]`, `}` would either not match or capture the terminator into the label. No SDL shape mapping.
+#### 6.21.2 Final separator variants (`|`, `<`, `>`, `/`, `\\`, `]`, `}`) — ✅
+**Evidence:** `parse_activity_action_terminator` (activity.rs) detects trailing terminator chars and emits `\x1fsdl:<shape>\x1f<label>`. Normalize (`family.rs`) calls `extract_activity_sdl_shape` to populate the `sdl=` alias key. Renderer (`nodes.rs:emit_activity_action_box`) renders each shape distinctly: `>` → right chevron, `<` → left notch, `/` → right parallelogram, `\` → left parallelogram, `|` → plain rectangle, `]` → slightly rounded rect, `}` → hexagonal/octagonal shape. Colors from `#color:body>` also combine correctly with SDL terminators.
+**Implemented:** 2026-05-21 (PR #948)
 #### 6.21.3 Stereotype form (`:label; <<input>>` etc.) — ❌
 **Evidence:** No `<<...>>` stereotype recognition in activity parsing or rendering.
 **Notes:** A separate `src/render/sdl.rs` exists for full SDL diagrams (top-level family detection), but it does NOT participate in activity rendering when SDL shapes are embedded inline.
@@ -190,9 +193,11 @@ Same as 6.5: parsed, but the "no arrow drawn" semantic isn't enforced; both rend
 
 | Status | Count | Sections |
 |---|---|---|
-| ✅ Full | 3 | 6.1, 6.2, 6.10.1 |
-| 🟡 Partial | 13 | 6.3, 6.3.1, 6.4, 6.5, 6.6.1, 6.6.2, 6.9.1, 6.9.2, 6.10.2, 6.10.4, 6.11, 6.12, 6.13, 6.18.2, 6.19, 6.20, 6.22 |
-| ❌ Missing | 14 | 6.3.2, 6.7, 6.8, 6.9.3, 6.10.3, 6.14, 6.15, 6.16, 6.17, 6.18.1, 6.18.3, 6.21.2, 6.21.3, 6.23, 6.24, 6.25 |
+| ✅ Full | 6 | 6.1, 6.2, 6.5, 6.10.1, 6.20, 6.21.2 |
+| 🟡 Partial | 12 | 6.3, 6.3.1, 6.4, 6.6.1, 6.6.2, 6.9.1, 6.9.2, 6.10.2, 6.10.4, 6.11, 6.12, 6.13, 6.18.2, 6.19, 6.21, 6.22 |
+| ❌ Missing | 12 | 6.3.2, 6.7, 6.8, 6.9.3, 6.10.3, 6.14, 6.16, 6.17, 6.18.1, 6.18.3, 6.21.3, 6.23, 6.24, 6.25 |
+
+_Updated 2026-05-21: promoted 6.5 (kill/detach shapes), 6.20 (kill/detach arrow suppression), 6.21.2 (SDL terminators) from ❌→✅._
 
 (Counts include sub-sections individually; some rows cover multiple sub-features.)
 
