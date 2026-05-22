@@ -148,11 +148,11 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ✅
 **Evidence:** `src/parser/state.rs:113-126` handles all four forms via `as` split + quote stripping.
 
-### 9.23 Display JSON Data on State diagram — ❌
-**Feature:** `json $alias { … }` inline block embedded in a state diagram
+### 9.23 Display JSON Data on State diagram — ✅
+**Feature:** `json $alias { … }` / `yaml $alias { … }` inline block embedded in a state diagram
 **Syntax example:** `json jsonJ { "fruit":"Apple", … }`
-**Status:** ❌
-**Evidence:** `StatementKind::JsonProjection` exists (`src/ast.rs:161-166`) and is parsed, but `src/normalize/state.rs` has no `JsonProjection` arm — falls into the wildcard at line 141 and errors with `E_STATE_MIXED`.
+**Status:** ✅
+**Evidence:** `src/parser/projection_salt.rs` parses JSON/YAML projection blocks, `src/parser/state.rs` accepts them inside composite states, `src/normalize/state.rs` normalizes them to `StateNodeKind::JsonProjection`, and `src/render/state.rs` renders formatted projection cards with key/value rows and nested connectors.
 
 ### 9.24 State description (multi-line on `state` and composite) — 🟡
 **Feature:** `state s3: long descr.` and `s4: long descr.` outside the `state s4` decl
@@ -171,14 +171,13 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 7 |
+| ✅ supported | 8 |
 | 🟡 partial | 7 |
-| ❌ missing | 11 |
+| ❌ missing | 10 |
 
 Top gaps blocking parity:
 1. **Notes (9.15–9.17)** cause hard error — biggest single blocker.
 2. **Inline color & style on `state` (9.18, 9.21, 9.25)** — `StateDecl` lacks color/border fields.
 3. **`hide empty description` (9.2)** — silently ignored, layout regresses visually.
 4. **Points / Pins / Expansion stereotypes (9.10–9.12)** — render as plain rectangles.
-5. **JSON inside state (9.23)** errors out.
-6. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
+5. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
