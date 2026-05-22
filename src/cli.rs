@@ -190,6 +190,32 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Parse and normalize a .puml file and emit diagnostics without rendering.
+    ///
+    /// Useful as a fast pre-commit check. Exits 0 when no errors are found,
+    /// 1 when any diagnostic errors are emitted, and 2 on I/O failure.
+    Lint(LintArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct LintArgs {
+    /// PlantUML source file to lint. Use '-' to read from stdin.
+    #[arg(value_name = "FILE", required = true)]
+    pub file: PathBuf,
+
+    /// Output format for diagnostics.
+    #[arg(long, value_enum, default_value_t = LintFormat::Human)]
+    pub format: LintFormat,
+
+    /// Suppress all non-error output (warnings, summary lines).
+    #[arg(long, short = 'q', action = ArgAction::SetTrue)]
+    pub quiet: bool,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum LintFormat {
+    Human,
+    Json,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -356,6 +382,34 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            Command::Lint(_) => panic!("unexpected lint command"),
+        }
+    }
+
+    #[test]
+    fn lint_subcommand_parses_file_and_flags() {
+        let cli = Cli::try_parse_from(["puml", "lint", "my.puml", "--format", "json", "--quiet"])
+            .expect("lint subcommand should parse");
+        match cli.command.expect("lint command should be present") {
+            Command::Lint(args) => {
+                assert_eq!(args.file, PathBuf::from("my.puml"));
+                assert_eq!(args.format, LintFormat::Json);
+                assert!(args.quiet);
+            }
+            Command::Format(_) => panic!("unexpected format command"),
+        }
+    }
+
+    #[test]
+    fn lint_subcommand_defaults_to_human_format() {
+        let cli =
+            Cli::try_parse_from(["puml", "lint", "diag.puml"]).expect("lint should parse bare");
+        match cli.command.expect("command should be present") {
+            Command::Lint(args) => {
+                assert_eq!(args.format, LintFormat::Human);
+                assert!(!args.quiet);
+            }
+            Command::Format(_) => panic!("unexpected format command"),
         }
     }
 
