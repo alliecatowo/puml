@@ -429,14 +429,24 @@ pub(super) fn compute_layout(
                     // Straight-down arrow from branch last node to the join bar
                     let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
                     let join_bar_top_y = slot_y + 24;
-                    direct_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
+                    let (y1, y2) = if branch_arrow_out_y <= join_bar_top_y {
+                        (branch_arrow_out_y, join_bar_top_y)
+                    } else {
+                        (join_bar_top_y, branch_arrow_out_y)
+                    };
+                    direct_arrows.push((col_cx, y1, col_cx, y2));
                 }
 
                 // Straight-down arrows from the fork bar bottom to each branch column
                 let fork_bar_bottom_y = frame.fork_slot_y + 32;
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
                     let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
-                    direct_arrows.push((col_cx, fork_bar_bottom_y, col_cx, branch_start_y));
+                    let (y1, y2) = if fork_bar_bottom_y <= branch_start_y {
+                        (fork_bar_bottom_y, branch_start_y)
+                    } else {
+                        (branch_start_y, fork_bar_bottom_y)
+                    };
+                    direct_arrows.push((col_cx, y1, col_cx, y2));
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
 
