@@ -3,7 +3,6 @@
 
 @startuml
 
-skinparam componentStyle rectangle
 skinparam packageStyle frame
 
 package "Transports" {

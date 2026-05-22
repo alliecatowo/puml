@@ -1,0 +1,10 @@
+@startuml
+skinparam componentStyle uml2
+package "Backend" {
+  component "API Server" as API
+  component Database
+}
+component Client
+Client --> API
+API --> Database
+@enduml
