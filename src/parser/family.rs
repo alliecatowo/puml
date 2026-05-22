@@ -1065,6 +1065,11 @@ fn parse_family_visibility_control(
     }
     if lower.starts_with("remove ") {
         let rest = line.strip_prefix("remove ").unwrap_or("").trim();
+        if rest.eq_ignore_ascii_case("@unlinked") {
+            // `remove @unlinked` is synonymous with `hide @unlinked` — both drop
+            // all nodes that have no relation edges.
+            return Some(StatementKind::HideOption("hide @unlinked".to_string()));
+        }
         if !rest.is_empty() {
             return Some(StatementKind::HideOption(format!("remove node {rest}")));
         }

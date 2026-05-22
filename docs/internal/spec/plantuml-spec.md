@@ -27,7 +27,7 @@ Across the 27 chapters the audits scored roughly:
 |---|---------|----|----|----|-------|
 | 1 | Sequence Diagram | 22 | 16 | 10 | [ch01-sequence.md](audit/ch01-sequence.md) |
 | 2 | Use Case Diagram | 10 | 4 | 3 | [ch02-usecase.md](audit/ch02-usecase.md) |
-| 3 | Class Diagram | 9 | 12 | 24 | [ch03-class.md](audit/ch03-class.md) |
+| 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 3 | 3 | 2 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
 | 6 | Activity (new) | 3 | 13 | 14 | [ch06-activity-new.md](audit/ch06-activity-new.md) |

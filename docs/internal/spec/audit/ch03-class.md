@@ -103,10 +103,10 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Status:** ❌
 **Evidence:** Grep for `::` in parser/family.rs/normalize/family.rs shows no member-qualified target handling.
 
-### 3.12 Note on links (`note on link`, `note right on link`) — ❌
+### 3.12 Note on links (`note on link`, `note right on link`) — ✅
 **Feature:** Attach note to the most recent relation.
-**Status:** ❌
-**Evidence:** No match for `note on link` / `on link` anywhere in parser, normalize, or render.
+**Status:** ✅
+**Evidence:** `src/parser/sequence.rs:503` `parse_note_on_link_head` parses `on link`, `left on link`, `right on link`, etc. `src/normalize/family.rs:302` resolves `on link` to the most-recent-relation endpoint and creates a dotted edge to the note node. Covered by `tests/ch03_class_parity.rs::note_on_link_*`.
 
 ### 3.13 Abstract class and interface keywords — ✅
 **Feature:** `abstract class X`, `abstract X`, `interface X`, `enum X`, `annotation X` plus italic styling for abstract.
@@ -119,30 +119,30 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Evidence:** `src/normalize/family.rs:256-267` reads `hide_options` for `stereotype`, `circle`, `empty members|methods|fields`. `src/render/family.rs:1748-1749` honours `hide_circle` / `hide_stereotype`.
 **Notes:** `hide private members` / `hide protected members` / per-stereotype hide / `show` overrides are not in the code paths surfaced — likely unhandled.
 
-### 3.15 Hide classes — ❌
+### 3.15 Hide classes — ✅
 **Feature:** `hide Foo2` removes a specific class.
-**Status:** ❌
-**Evidence:** Only set-level options (`empty members`, `circle`, `stereotype`) accumulate in `hide_options`. No per-class hide.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:1016` `parse_family_visibility_control` handles `hide <name>` → `HideOption("hide node <name>")`. `src/normalize/family.rs:789` `collect_filtered_node_names` processes `hide node` entries and removes matching nodes. Covered by `tests/ch03_class_parity.rs::hide_classname_*`.
 
-### 3.16 Remove classes — ❌
+### 3.16 Remove classes — ✅
 **Feature:** `remove Foo2` deletes a class.
-**Status:** ❌
-**Evidence:** No `remove` keyword handling in parser.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:1033` handles `remove <name>` → `HideOption("remove node <name>")`. Same normalization path as `hide`. Covered by `tests/ch03_class_parity.rs::remove_classname_*`.
 
 ### 3.17 Hide/Remove/Restore tagged element (`$tag`, `*`) — ❌
 **Feature:** Tag-based show/hide/remove/restore.
 **Status:** ❌
 **Evidence:** No `$tag` parsing, no `restore`.
 
-### 3.18 Hide/Remove `@unlinked` — ❌
+### 3.18 Hide/Remove `@unlinked` — ✅
 **Feature:** Filter unlinked classes.
-**Status:** ❌
-**Evidence:** Not found in parser or normalize.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:1026` handles `hide @unlinked` → `HideOption("hide @unlinked")`. `remove @unlinked` also maps to the same option (added in this wave). `src/normalize/family.rs:796` `collect_filtered_node_names` implements the unlinked-node filter. Covered by `tests/ch03_class_parity.rs::hide_at_unlinked_*` and `remove_at_unlinked_*`.
 
-### 3.19 Generics `<T>` / `<? extends X>` — ❌
+### 3.19 Generics `<T>` / `<? extends X>` — ✅
 **Feature:** Render generic angle brackets in class name.
-**Status:** ❌
-**Evidence:** No generic handling in keyword parsing (`src/parser/family.rs:7-14`); class name parser will not separate the `<...>` segment. `skinparam genericDisplay old` also absent.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:356` `parse_named_family_decl` preserves `<T, U>` in class names; `src/parser/family.rs:480` `split_heritage_targets` uses angle-depth tracking to correctly split type param lists. Generic names are displayed in SVG text nodes. `skinparam genericDisplay old` accepted as noop. Covered by `tests/ch03_class_parity.rs::generic_type_params_*`.
 
 ### 3.20 Specific Spot `<<(C,#color) Foo>>` — ❌
 **Feature:** Custom spot letter + color via stereotype.
@@ -155,10 +155,10 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Evidence:** `src/parser/family.rs:1174` produces a `package` group node; nested via parser block stack.
 **Notes:** `#color` background tail handling not separately verified; nesting is handled.
 
-### 3.22 Package styles (`<<Node>>`, `<<Rectangle>>`, `<<Folder>>`, `<<Frame>>`, `<<Cloud>>`, `<<Database>>`) — ❌
+### 3.22 Package styles (`<<Node>>`, `<<Rectangle>>`, `<<Folder>>`, `<<Frame>>`, `<<Cloud>>`, `<<Database>>`) — 🟡
 **Feature:** Switch package shape via stereotype.
-**Status:** ❌
-**Evidence:** No skinparam `packageStyle` matched in `classify_class_skinparam`; no per-package stereotype shape override search hits.
+**Status:** 🟡
+**Evidence:** `skinparam packageStyle` is now accepted without a W_SKINPARAM_UNSUPPORTED warning (`src/theme.rs` noop list). Per-package stereotype shape override not yet implemented — packages still render with a single frame shape. Covered by `tests/ch03_class_parity.rs::skinparam_package_style_*`.
 
 ### 3.23 Namespaces (synonymous with packages since 2023.2) — 🟡
 **Feature:** `namespace ns { ... }` block.
@@ -190,16 +190,15 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Status:** ❌
 **Evidence:** No `diamond` keyword; `<>` short form not parsed.
 
-### 3.29 Skinparam — 🟡
+### 3.29 Skinparam — ✅
 **Feature:** `skinparam class { BackgroundColor ... ArrowColor ... BorderColor ... }` and `skinparam stereotypeCBackgroundColor`.
-**Status:** 🟡
-**Evidence:** `src/theme.rs:1361-1424` classifies `BackgroundColor`, `BorderColor`, `ClassHeaderBackgroundColor`, font colors/sizes, `ArrowColor`. Stereotype-specific noop accepted (`classstereotypefontcolor`).
-**Notes:** Many class skinparams accepted as noop only. Bracketed-block form `skinparam class { ... }` requires parser to expand to per-key calls — not verified here.
+**Status:** ✅
+**Evidence:** `src/theme.rs:1521` classifies skinparam keys. Block form `skinparam class { ... }` now expanded in `src/parser/core.rs` `parse_skinparam_block` — each inner key is prefixed with the block category and emitted as individual `SkinParam` statements. Covered by `tests/ch03_class_parity.rs::skinparam_block_*`.
 
-### 3.30 Skinned stereotypes (`BackgroundColor<<Foo>> Wheat`) — ❌
+### 3.30 Skinned stereotypes (`BackgroundColor<<Foo>> Wheat`) — ✅
 **Feature:** Per-stereotype skinparam overrides.
-**Status:** ❌
-**Evidence:** `classify_class_skinparam` keys are pure-keyword matches; no `<<...>>` suffix routing.
+**Status:** ✅
+**Evidence:** `src/theme.rs:2414` `split_stereotype_scope` parses `<<...>>` suffix from skinparam keys and routes to `ClassSkinParamValue::Stereotype*` variants. Works both inline (`skinparam classBackgroundColor<<Foo>> Yellow`) and in block form (`skinparam class { BackgroundColor<<Foo>> Yellow }`). Covered by `tests/ch03_class_parity.rs::skinparam_block_stereotype_scope_*`.
 
 ### 3.31 Color gradient `#color/color`, `#color|color`, `#color\color`, `#color-color` — ❌
 **Feature:** Gradient backgrounds.
@@ -216,10 +215,10 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Status:** ❌
 **Evidence:** No `page ` directive parsing in family parser.
 
-### 3.34 `extends` / `implements` keywords (and comma list) — ❌
+### 3.34 `extends` / `implements` keywords (and comma list) — ✅
 **Feature:** `class ArrayList extends AbstractList implements List`; `class A extends B, C`.
-**Status:** ❌
-**Evidence:** Grep for `extends`/`implements` in parser shows nothing relevant; class header parser doesn't consume these.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:414` `split_declaration_heritage` parses `extends`/`implements` chains and comma-separated target lists. Generates `FamilyHeritage` entries that become inheritance/implementation arrows via `append_heritage_members`. Covered by `tests/ch03_class_parity.rs::extends_*`.
 
 ### 3.35 Bracketed relations: `[bold]`, `[dashed]`, `[dotted]`, `[hidden]`, `[plain]`, `[#color]`, `[thickness=N]`, mixes — ✅
 **Feature:** Inline relation style bracket.
@@ -277,8 +276,19 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 
 ## Tally
 
-- ✅ supported: 9 (3.4, 3.5, 3.6 visibility, 3.9, 3.13, 3.25, 3.26, 3.32, 3.35)
-- 🟡 partial: 12 (3.1, 3.2, 3.3, 3.7, 3.8, 3.10, 3.14, 3.21, 3.23, 3.29, 3.36, 3.37, 3.43)
-- ❌ missing: ~24 — most notably `extends`/`implements` (3.34), member-level notes/arrows (3.11, 3.38), `note on link` (3.12), `remove`/`restore`/`$tag`/`@unlinked` (3.15–3.18), generics (3.19), spot customization (3.20), package styles (3.22), `set separator` FQN expansion (3.24, 3.41), association classes (3.27, 3.28), gradients (3.31), page splitting (3.33), skinned stereotypes (3.30), `groupInheritance` (3.39), JSON block (3.40), qualified associations (3.42), smetana pragma (3.43.3/.6).
+- ✅ supported: 16 (3.4, 3.5, 3.6 visibility, 3.9, 3.12, 3.13, 3.15, 3.16, 3.18, 3.19, 3.25, 3.26, 3.29, 3.30, 3.32, 3.34, 3.35)
+- 🟡 partial: 13 (3.1, 3.2, 3.3, 3.7, 3.8, 3.10, 3.14, 3.21, 3.22, 3.23, 3.36, 3.37, 3.43)
+- ❌ missing: ~16 — member-level notes/arrows (3.11, 3.38), spot customization (3.20), `set separator` FQN expansion (3.24, 3.41), association classes (3.27, 3.28), gradients (3.31), page splitting (3.33), `groupInheritance` skinparam effect (3.39), JSON block (3.40), qualified associations (3.42), smetana pragma (3.43.3/.6), `$tag` system (3.4.1, 3.17), `skinparam classAttributeIconSize 0` (3.6), visibility prefix on class (3.6.2).
+
+### Changes in this wave (ch03-class parity push)
+- 3.12 `note on link` — upgraded ❌→✅ (already implemented, audit was incorrect)
+- 3.15 `hide <class>` — upgraded ❌→✅ (already implemented, audit was incorrect)
+- 3.16 `remove <class>` — upgraded ❌→✅ (already implemented, audit was incorrect)
+- 3.18 `hide/remove @unlinked` — upgraded ❌→✅ (`remove @unlinked` now maps to same path as `hide @unlinked`)
+- 3.19 Generics — upgraded ❌→✅ (already implemented, audit was incorrect)
+- 3.22 `skinparam packageStyle` — upgraded ❌→🟡 (accepted without warning; shape rendering not yet implemented)
+- 3.29 Skinparam block form — upgraded 🟡→✅ (`skinparam class { ... }` block now expanded to individual SkinParam statements)
+- 3.30 Skinned stereotypes — upgraded ❌→✅ (already implemented inline; block form now works via 3.29 fix)
+- 3.34 `extends`/`implements` — upgraded ❌→✅ (already implemented, audit was incorrect)
 
 Hot files for any class-diagram parity push: `src/parser/family.rs` (keyword table + arrow/bracket parsing), `src/normalize/family.rs` (hide_options, stereotype stripping, orientation), `src/theme.rs` (`classify_class_skinparam`), `src/render/family.rs` (member rendering, visibility icons), `src/render/relation.rs` (arrowhead repertoire).
