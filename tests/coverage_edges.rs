@@ -878,6 +878,27 @@ fn normalize_emits_single_bidirectional_message_event() {
 }
 
 #[test]
+fn reverse_arrow_preserves_lexical_participant_order_for_implicit_decls() {
+    let src = "@startuml\nBob <- Alice : back\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let participant_ids = model
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(participant_ids, vec!["Bob", "Alice"]);
+
+    let scene = layout::layout(&model, LayoutOptions::default());
+    assert_eq!(scene.messages.len(), 1);
+    assert!(
+        scene.messages[0].x1 > scene.messages[0].x2,
+        "reverse arrow should render right-to-left"
+    );
+}
+
+#[test]
 fn paginate_newpage_blank_title_falls_back_to_document_title() {
     let src = "@startuml\ntitle Primary\nA -> B\nnewpage   \nB -> A\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");

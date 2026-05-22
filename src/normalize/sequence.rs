@@ -159,6 +159,15 @@ pub(super) fn normalize_with_options(
                     ))
                     .with_span(stmt.span)
                 })?;
+                // Preserve implicit participant declaration order from the
+                // original lexical message sides so `Bob <- Alice` keeps Bob
+                // before Alice when participants are auto-created.
+                if !is_virtual_endpoint(&m.from) {
+                    ensure_implicit(&mut participants, &mut participant_ix, &m.from);
+                }
+                if !is_virtual_endpoint(&m.to) {
+                    ensure_implicit(&mut participants, &mut participant_ix, &m.to);
+                }
                 // Determine the canonical (sender, receiver) pair for the event.
                 // • Bidirectional arrows (<->) keep from/to as written; the
                 //   render arrow already carries heads on both sides.
