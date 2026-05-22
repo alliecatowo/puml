@@ -14,6 +14,20 @@ const CREOLE_SRC: &str = r##"@startmindmap
 @endmindmap
 "##;
 
+const DEPTH_STYLE_SRC: &str = r##"@startmindmap
+<style>
+mindmapDiagram {
+    :depth(1) {
+      BackGroundColor white
+    }
+}
+</style>
+* Root
+** Depth one child
+*** Depth two child
+@endmindmap
+"##;
+
 const MULTILINE_SRC: &str = r##"@startmindmap
 * Root
 **:Line one
@@ -64,6 +78,31 @@ fn mindmap_creole_markup_renders_bold_italic_and_color() {
         "expected blue color creole markup in SVG"
     );
     assert!(svg.contains(">Bold root<") || svg.contains("Bold root"));
+}
+
+#[test]
+fn mindmap_depth_style_applies_background_color() {
+    let document = puml::parser::parse(DEPTH_STYLE_SRC).expect("parse depth style mindmap");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize depth style mindmap")
+    else {
+        panic!("mindmap should normalize as family document");
+    };
+    let depth_one = model
+        .mindmap_style
+        .as_ref()
+        .and_then(|s| s.depth_background.get(&1))
+        .expect("depth(1) background");
+    assert!(
+        depth_one.eq_ignore_ascii_case("white"),
+        "expected white depth-1 fill, got {depth_one}"
+    );
+
+    let svg = puml::render_source_to_svg(DEPTH_STYLE_SRC).expect("render depth style mindmap");
+    assert!(
+        svg.contains("fill=\"white\""),
+        "depth-1 node should use white fill: {svg}"
+    );
 }
 
 #[test]

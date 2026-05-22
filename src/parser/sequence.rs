@@ -289,6 +289,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             "members",
             "methods",
             "fields",
+            "attributes",
             "public members",
             "private members",
             "protected members",

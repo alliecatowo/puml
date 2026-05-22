@@ -533,7 +533,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 style.end_marker = Some("arrow-open");
             }
         }
-        let (x1, y1, x2, y2) = if relation.direction.is_some() {
+        let (mut x1, mut y1, mut x2, mut y2) = if relation.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (from.x, from.y, from.w, from.h),
                 (to.x, to.y, to.w, to.h),
@@ -542,6 +542,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         } else {
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
+        (x1, y1) = apply_map_qualified_anchor(&from_name, ctx.nodes, *from, x1, y1);
+        (x2, y2) = apply_map_qualified_anchor(&to_name, ctx.nodes, *to, x2, y2);
 
         let lat_offset = ctx.parallel_offset.get(&rel_idx).copied().unwrap_or(0);
         let edge_dx_raw = x2 - x1;

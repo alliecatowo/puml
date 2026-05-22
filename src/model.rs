@@ -577,6 +577,13 @@ pub struct JsonProjection {
     pub format: String,
 }
 
+/// MindMap `<style>mindmapDiagram { ... }</style>` overrides (ch17.11).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MindmapStyle {
+    pub node_background: Option<String>,
+    pub depth_background: std::collections::BTreeMap<usize, String>,
+}
+
 /// Per-family style overrides carried through the model.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FamilyStyle {
@@ -608,6 +615,7 @@ pub struct FamilyDocument {
     pub text_overflow_policy: TextOverflowPolicy,
     /// MindMap/WBS: auto word-wrap node labels at this pixel width (`skinparam MaximumWidth`).
     pub maximum_width: Option<i32>,
+    pub mindmap_style: Option<MindmapStyle>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,
@@ -679,6 +687,10 @@ pub struct FamilyNode {
 pub enum FamilyNodeKind {
     Class,
     Object,
+    /// Object-diagram associative array (`map Name { key => value }`).
+    Map,
+    /// Object-diagram n-ary association hub (`diamond NAME`).
+    Diamond,
     UseCase,
     Salt,
     MindMap,

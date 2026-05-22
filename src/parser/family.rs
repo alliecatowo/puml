@@ -2,8 +2,56 @@ fn parse_family_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
+    active_family: Option<DiagramKind>,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
-    for (keyword, marker) in [
+    if !matches!(active_family, Some(DiagramKind::Class)) {
+        if let Some(decl) = parse_named_family_decl(line, "diamond") {
+            let FamilyDeclParts {
+                name,
+                alias,
+                has_block,
+                stereotypes,
+                fill_color,
+                ..
+            } = decl;
+            let mut members = if has_block {
+                parse_family_decl_members(lines, start, "diamond", &name)?
+            } else {
+                Vec::new()
+            };
+            members.insert(
+                0,
+                ClassMember {
+                    text: "\x1fkind:diamond".to_string(),
+                    modifier: None,
+                },
+            );
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
+            append_inline_fill_member(&mut members, fill_color);
+            return Ok(Some((
+                StatementKind::ObjectDecl(ObjectDecl {
+                    name,
+                    alias,
+                    members,
+                }),
+                if has_block {
+                    find_family_decl_end(lines, start)
+                } else {
+                    start
+                },
+            )));
+        }
+    }
+
+    let mut class_keywords: Vec<(&str, Option<&str>)> = vec![
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),
         ("metaclass", Some("<<metaclass>>")),
@@ -14,10 +62,13 @@ fn parse_family_declaration(
         ("protocol", Some("<<protocol>>")),
         ("struct", Some("<<struct>>")),
         ("circle", Some("<<circle>>")),
-        ("diamond", Some("<<diamond>>")),
         ("abstract", Some("<<abstract>>")),
         ("class", None),
-    ] {
+    ];
+    if matches!(active_family, Some(DiagramKind::Class)) {
+        class_keywords.insert(10, ("diamond", Some("<<diamond>>")));
+    }
+    for (keyword, marker) in class_keywords {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -111,7 +162,7 @@ fn parse_family_declaration(
         }
     }
 
-    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+    for (keyword, marker) in [("map", Some("\x1fkind:map")), ("object", None)] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -684,10 +735,50 @@ fn parse_family_decl_members(
     for (raw, _) in lines.iter().take(end_idx).skip(start + 1) {
         let trimmed = raw.trim();
         if !trimmed.is_empty() {
-            members.push(parse_class_member(trimmed));
+            let member = if keyword == "map" {
+                parse_map_member(trimmed)
+            } else {
+                parse_class_member(trimmed)
+            };
+            members.push(member);
         }
     }
     Ok(members)
+}
+
+fn parse_map_member(raw: &str) -> ClassMember {
+    if let Some((key, value)) = split_map_arrow_row(raw) {
+        return ClassMember {
+            text: format!("\x1fmap:{key}\x1f{value}"),
+            modifier: None,
+        };
+    }
+    parse_class_member(raw)
+}
+
+fn split_map_arrow_row(raw: &str) -> Option<(String, String)> {
+    let mut in_quote = false;
+    let mut arrow_idx = None;
+    for (idx, ch) in raw.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if in_quote {
+            continue;
+        }
+        if raw[idx..].starts_with("=>") {
+            arrow_idx = Some(idx);
+            break;
+        }
+    }
+    let idx = arrow_idx?;
+    let key = raw[..idx].trim();
+    let value = raw[idx + 2..].trim();
+    if key.is_empty() || value.is_empty() {
+        return None;
+    }
+    Some((key.to_string(), value.to_string()))
 }
 
 /// Parse a single member line, extracting any `{field}`, `{method}`, `{abstract}`,
