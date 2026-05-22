@@ -202,6 +202,8 @@ pub enum Command {
     Env(EnvArgs),
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Print a deterministic raw-byte content hash of a file.
+    Hash(HashArgs),
     /// Parse and normalize a .puml file and emit diagnostics without rendering.
     ///
     /// Useful as a fast pre-commit check. Exits 0 when no errors are found,
@@ -273,6 +275,32 @@ pub struct FormatArgs {
     /// PlantUML-compatible source files to format.
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct HashArgs {
+    /// Hash algorithm to use.
+    #[arg(long, value_enum, default_value_t = HashAlgoArg::Fnv)]
+    pub algo: HashAlgoArg,
+
+    /// Output encoding for the hash digest.
+    #[arg(long, value_enum, default_value_t = HashFormatArg::Hex)]
+    pub format: HashFormatArg,
+
+    /// The .puml file to hash.
+    #[arg(value_name = "FILE")]
+    pub file: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum HashAlgoArg {
+    Fnv,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum HashFormatArg {
+    Hex,
+    Base64,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
@@ -426,6 +454,7 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Env(_) => panic!("unexpected env command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Lint(_) => panic!("unexpected lint command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }
@@ -442,6 +471,7 @@ mod tests {
             }
             Command::Env(_) => panic!("unexpected env command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Lint(_) => panic!("unexpected lint command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }
@@ -460,6 +490,7 @@ mod tests {
             Command::Count(_) => panic!("unexpected count command"),
             Command::Env(_) => panic!("unexpected env command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
@@ -476,7 +507,34 @@ mod tests {
             Command::Count(_) => panic!("unexpected count command"),
             Command::Env(_) => panic!("unexpected env command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Lint(_) => panic!("unexpected lint command"),
+        }
+    }
+
+    #[test]
+    fn hash_subcommand_parses_file_format_and_algorithm() {
+        let cli = Cli::try_parse_from([
+            "puml",
+            "hash",
+            "--algo",
+            "fnv",
+            "--format",
+            "base64",
+            "diag.puml",
+        ])
+        .expect("hash subcommand should parse");
+        match cli.command.expect("hash command should be present") {
+            Command::Hash(args) => {
+                assert_eq!(args.file, PathBuf::from("diag.puml"));
+                assert_eq!(args.algo, HashAlgoArg::Fnv);
+                assert_eq!(args.format, HashFormatArg::Base64);
+            }
+            Command::Count(_) => panic!("unexpected count command"),
+            Command::Env(_) => panic!("unexpected env command"),
+            Command::Format(_) => panic!("unexpected format command"),
+            Command::Lint(_) => panic!("unexpected lint command"),
+            Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
 
@@ -492,6 +550,7 @@ mod tests {
             Command::Count(_) => panic!("unexpected count command"),
             Command::Env(_) => panic!("unexpected env command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
@@ -551,6 +610,7 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected Format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Lint(_) => panic!("unexpected lint command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }
@@ -566,6 +626,7 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected Format command"),
+            Command::Hash(_) => panic!("unexpected hash command"),
             Command::Lint(_) => panic!("unexpected lint command"),
             Command::Stats(_) => panic!("unexpected stats command"),
         }

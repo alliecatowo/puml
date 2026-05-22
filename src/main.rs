@@ -1,6 +1,7 @@
 mod cli;
 mod cli_count;
 mod cli_env;
+mod cli_hash;
 mod cli_stats;
 mod cli_watch;
 
@@ -283,6 +284,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 .map(|_| ())
                 .map_err(|msg| (EXIT_VALIDATION, msg)),
             CliCommand::Format(args) => run_format_command(args),
+            CliCommand::Hash(args) => cli_hash::run_hash(&args)
+                .map(|_| ())
+                .map_err(|(code, msg)| (code as u8, msg)),
             CliCommand::Lint(args) => run_lint_subcommand(args, lint_context),
             CliCommand::Stats(args) => cli_stats::run_stats(&args)
                 .map(|_| ())
