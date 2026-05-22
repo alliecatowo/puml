@@ -40,7 +40,10 @@ Quick mode contract:
 
 ## Epic #30 Closure Evidence
 
-- `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 85% coverage gate, release build, full benchmark gates).
+- `./scripts/check-all.sh` passed end-to-end at the gate in effect for this
+  historical audit (fmt, clippy, tests, scoped coverage gate, release build,
+  full benchmark gates). The current release contract above is the 87% scoped
+  coverage gate.
 - `./scripts/check-all.sh --quick` passed end-to-end (fmt, clippy, tests, quick benchmark gates).
 - `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, render check).
 - `tests/svg_bounds_audit.rs` now enforces docs-example render closure with `summary.failed == 0`.

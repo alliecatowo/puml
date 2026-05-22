@@ -1,3 +1,9 @@
+> **Historical wave evidence.** This document preserves visual audit observations
+> from the May 18-19, 2026 wave passes. It is not live issue-board truth: issues,
+> labels, and implementation status may have changed after these screenshots were
+> reviewed. Use it as evidence context, then verify current status in GitHub and
+> the authoritative spec audits before planning or closing work.
+
 ## Specialized + non-UML — Wave 7 audit (agent sonnet-4-6)
 
 Audited 2026-05-18. 33 PNGs across GANTT, MINDMAP, WBS, JSON/YAML, CHART, SDL, SALT, ARCHIMATE, NWDIAG, TIMING, CHRONOLOGY, EBNF, REGEX, MATH, DITAA, PREPROCESSOR families.

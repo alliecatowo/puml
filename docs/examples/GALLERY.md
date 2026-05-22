@@ -128,5 +128,5 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 
 See:
 - [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
-- [../audits/parity_gap_core.csv](../audits/parity_gap_core.csv)
-- [../audits/parity_gap_nonuml.csv](../audits/parity_gap_nonuml.csv)
+- [../internal/spec/plantuml-spec.md](../internal/spec/plantuml-spec.md)
+- [../internal/spec/audit/](../internal/spec/audit/)
