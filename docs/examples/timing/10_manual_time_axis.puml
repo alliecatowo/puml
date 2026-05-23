@@ -1,0 +1,23 @@
+@startuml
+title Manual time-axis labels only state changes
+manual time-axis
+concise "Client" as C
+concise "Server" as S
+
+@0
+C is Idle
+S is Idle
+
+@10
+C -> S@15 : request
+
+@20
+S is Handling
+
+@30
+S -> C@35 : response
+
+@45
+C is Done
+S is Idle
+@enduml

@@ -397,6 +397,50 @@ fn timing_ch10_parity_renders_messages_hidden_colors_axis_scale_and_analog() {
 }
 
 #[test]
+fn timing_manual_time_axis_labels_only_state_change_ticks() {
+    let src = r#"@startuml
+manual time-axis
+concise "Client" as C
+concise "Server" as S
+
+@0
+C is Idle
+
+@10
+C -> S@15 : request
+
+@20
+C is Done
+@enduml
+"#;
+    let document = puml::parse(src).expect("parse manual time-axis fixture");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize manual time-axis fixture")
+    else {
+        panic!("manual time-axis fixture should normalize as family model");
+    };
+
+    assert!(model.nodes.iter().any(|node| {
+        node.kind == FamilyNodeKind::TimingEvent
+            && node.label.as_deref() == Some("__timing:manual-time-axis")
+    }));
+
+    let svg = puml::render_source_to_svg(src).expect("render manual time-axis fixture");
+    assert!(svg.contains(">@0</text>"));
+    assert!(svg.contains(">@20</text>"));
+    assert!(
+        !svg.contains(">@10</text>"),
+        "manual time-axis should not label message-only cursor ticks"
+    );
+    assert!(
+        !svg.contains(">@15</text>"),
+        "manual time-axis should not label endpoint-only relation ticks"
+    );
+    assert!(svg.contains("class=\"timing-message\""));
+    assert!(svg.contains(">request</text>"));
+}
+
+#[test]
 fn timing_by_clock_ticks_resolve_using_clock_period() {
     let src = r#"@startuml
 clock "clk" as clk with period 50
