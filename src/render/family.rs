@@ -4627,15 +4627,49 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         })
         .collect();
 
-    // Build EdgeSpec list from doc.relations
+    let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for node in &doc.nodes {
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        gl_name_to_id
+            .entry(key.clone())
+            .or_insert_with(|| key.clone());
+        gl_name_to_id
+            .entry(node.name.clone())
+            .or_insert_with(|| key.clone());
+        if let Some(alias) = &node.alias {
+            gl_name_to_id
+                .entry(alias.clone())
+                .or_insert_with(|| key.clone());
+        }
+        if let Some(unscoped) = node.name.rsplit("::").next() {
+            gl_name_to_id
+                .entry(unscoped.to_string())
+                .or_insert_with(|| key.clone());
+        }
+        if let Some(unscoped) = key.rsplit("::").next() {
+            gl_name_to_id
+                .entry(unscoped.to_string())
+                .or_insert_with(|| key.clone());
+        }
+    }
+    let resolve_gl_endpoint = |endpoint: &str| -> String {
+        gl_name_to_id
+            .get(endpoint)
+            .cloned()
+            .unwrap_or_else(|| endpoint.to_string())
+    };
+
+    // Build EdgeSpec list from doc.relations.  Relations may carry scoped
+    // parser names while layout nodes use aliases, or vice versa.
     let gl_edges: Vec<GlEdgeSpec> = doc
         .relations
         .iter()
         .enumerate()
         .map(|(i, rel)| GlEdgeSpec {
             id: format!("r{i}"),
-            from: rel.from.clone(),
-            to: rel.to.clone(),
+            from: resolve_gl_endpoint(&rel.from),
+            to: resolve_gl_endpoint(&rel.to),
         })
         .collect();
 
@@ -4683,6 +4717,19 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(alias) = &node.alias {
             if let Some(&pos) = positions.get(alias.as_str()) {
                 positions.entry(node.name.clone()).or_insert(pos);
+            }
+        }
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        let pos = positions
+            .get(key.as_str())
+            .or_else(|| positions.get(node.name.as_str()))
+            .copied();
+        if let Some(pos) = pos {
+            if let Some(unscoped) = node.name.rsplit("::").next() {
+                positions.entry(unscoped.to_string()).or_insert(pos);
+            }
+            if let Some(unscoped) = key.rsplit("::").next() {
+                positions.entry(unscoped.to_string()).or_insert(pos);
             }
         }
     }
