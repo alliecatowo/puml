@@ -2,10 +2,11 @@
 ///
 /// Covers:
 ///   21.1.2  Block comments  `/' ... '/`
-///   21.2    scale variants
-///   21.x    `left to right direction` / `top to bottom direction`
-///   21.x    header/footer alignment qualifiers
-///   21.x    `skinparam sepia true/false`
+///   21.2    `left to right direction` / `top to bottom direction`
+///   21.3    header/footer alignment qualifiers
+///   21.4    `skinparam sepia true/false`
+///   21.x    scale variants
+///   21.x    top-level `backgroundColor`
 use puml::{model::ScaleSpec, normalize, parser, render_source_to_svg};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
