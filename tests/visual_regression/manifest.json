@@ -121,8 +121,8 @@
     {
       "path": "docs/examples/json/01_object.puml",
       "family": "json",
-      "expected_text": ["JSON", "active: true", "age: 30", "name: \"Alice\""],
-      "min_text_elements": 5
+      "expected_text": ["JSON", "active", "true", "age", "30", "name", "\"Alice\""],
+      "min_text_elements": 7
     },
     {
       "path": "docs/examples/chart/01_bar.puml",

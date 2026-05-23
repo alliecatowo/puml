@@ -14,7 +14,7 @@ Source: `/tmp/puml-spec/ch12-display-yaml-data.txt`.
 **Syntax example:** `xmas-fifth-day:\n  partridges:\n    count: 1`
 **Status:** ✅
 **Evidence:** `src/normalize/structured.rs:87-147` uses `yaml_rust2::YamlLoader`, handling `Hash`, `Array`, scalars.
-**Notes:** Indent fallback via `flatten_yaml_by_indent` at `:169` if YAML parse fails.
+**Notes:** Structured YAML now renders through the shared key/value table mode with indentation and tree connectors (`src/render/data.rs`). Indent fallback via `flatten_yaml_by_indent` at `:169` if YAML parse fails.
 
 ### 12.2 Specific keys (symbols / unicode: `@fruit`, `$size`, `&color`, `‰`) — ✅
 **Feature:** Non-alphanumeric / unicode mapping keys.
