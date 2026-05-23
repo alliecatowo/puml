@@ -246,6 +246,9 @@ done
 # Docs render check (fail-fast on drift)
 python3 scripts/render_check.py --fail-on-doc-drift --quiet
 
+# Refresh the committed render-check report intentionally
+python3 scripts/render_check.py --fail-on-doc-drift --quiet --output docs/benchmarks/render_check_latest.json
+
 # Bless visual baselines (after visual confirmation only)
 cargo test --release --test visual_regression bless_baselines -- --ignored
 
@@ -264,7 +267,8 @@ Required green markers before any merge to main:
 
 - `[harness] complete`
 - `[autonomy] complete`
-- `summary.failed = 0` in `docs/benchmarks/render_check_latest.json`
+- `python3 scripts/render_check.py --fail-on-doc-drift --quiet` exits `0`
+- `summary.failed = 0` in `docs/benchmarks/render_check_latest.json` after an intentional report refresh
 
 ---
 
@@ -447,7 +451,7 @@ Notes:
 - `differential-svg-oracle` is currently **NOT** a required check; will become required
   once oracle JAR pinning is verified — do not treat a red oracle as a merge blocker yet
 - Coverage gate is `--fail-under-lines 85` in `scripts/check-all.sh`; bump it in Flow F
-- Docs drift check runs `python3 scripts/render_check.py --fail-on-doc-drift`
+- Docs drift check runs `python3 scripts/render_check.py --fail-on-doc-drift` without mutating tracked reports by default
 
 ---
 

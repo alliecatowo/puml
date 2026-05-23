@@ -50,8 +50,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",
-        default=str(ROOT / "docs" / "benchmarks" / "render_check_latest.json"),
-        help="report JSON output path",
+        default=None,
+        help=(
+            "optional report JSON output path; omit for a non-mutating drift check"
+        ),
     )
     parser.add_argument("--quiet", action="store_true", help="suppress pass summary")
     parser.add_argument(
@@ -354,15 +356,22 @@ def main() -> int:
         "entries": entries,
     }
 
-    out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if args.output:
+        out_path = Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     if not args.quiet:
-        print(
-            f"[render_check] wrote {out_path} "
-            f"(total={total}, passed={passed}, excluded={excluded}, failed={failed})"
-        )
+        if args.output:
+            print(
+                f"[render_check] wrote {out_path} "
+                f"(total={total}, passed={passed}, excluded={excluded}, failed={failed})"
+            )
+        else:
+            print(
+                f"[render_check] checked docs examples without writing a report "
+                f"(total={total}, passed={passed}, excluded={excluded}, failed={failed})"
+            )
 
     if args.fail_on_doc_drift and failed > 0:
         print(

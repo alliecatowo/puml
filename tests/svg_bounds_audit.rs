@@ -250,6 +250,44 @@ fn docs_render_check_report_schema_is_stable() {
 }
 
 #[test]
+fn docs_render_check_default_does_not_mutate_tracked_report() {
+    let mut report_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    report_path.push("docs");
+    report_path.push("benchmarks");
+    report_path.push("render_check_latest.json");
+
+    let before = fs::read_to_string(&report_path).expect("tracked report should exist");
+
+    let output = Command::new("python3")
+        .args([
+            "scripts/render_check.py",
+            "--quick",
+            "--quiet",
+            "--fail-on-doc-drift",
+        ])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("failed to run scripts/render_check.py");
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!(
+            "render_check failed\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
+            output.status.code(),
+            stdout,
+            stderr
+        );
+    }
+
+    let after = fs::read_to_string(&report_path).expect("tracked report should exist");
+    assert_eq!(
+        before, after,
+        "render_check without --output must not mutate the tracked report"
+    );
+}
+
+#[test]
 fn differential_oracle_smoke_report_schema_is_stable_in_dry_mode() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("target");

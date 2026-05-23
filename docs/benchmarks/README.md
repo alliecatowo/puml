@@ -23,8 +23,11 @@
 ./scripts/bench.sh --update-baseline
 ./scripts/bench.sh --quick --update-baseline
 
-# docs examples render check (drift detection)
-python3 scripts/render_check.py --output docs/benchmarks/render_check_latest.json
+# docs examples render check (drift detection, non-mutating by default)
+python3 scripts/render_check.py --fail-on-doc-drift --quiet
+
+# intentionally refresh the committed render-check report
+python3 scripts/render_check.py --fail-on-doc-drift --quiet --output docs/benchmarks/render_check_latest.json
 
 # deterministic Java-free differential oracle metadata report
 python3 scripts/differential_oracle_smoke.py --dry-run --quiet --output docs/benchmarks/oracle_smoke_latest.json
@@ -83,6 +86,7 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 ## Failure Handling
 
 - `./scripts/bench.sh` reports gate warnings but exits `0` by default.
+- `scripts/render_check.py` does not write a report unless `--output` is provided.
 - `./scripts/bench.sh --skip-build` skips its internal release build only after confirming `target/release/puml` exists and is executable.
 - `./scripts/bench.sh --enforce-gates` exits non-zero on any gate failure.
 - `./scripts/check-all.sh` always runs benchmark gates in enforce mode; full mode reuses the release binary it just built.
