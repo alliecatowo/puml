@@ -4666,6 +4666,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .relations
         .iter()
         .enumerate()
+        // Explicit arrow directions define edge geometry, not Sugiyama rank
+        // constraints. Hidden relations are rendered for metadata/parity, but
+        // should not override visible directional ordering in the box layout.
+        .filter(|(_, rel)| rel.direction.is_none() && !rel.hidden)
         .map(|(i, rel)| GlEdgeSpec {
             id: format!("r{i}"),
             from: resolve_gl_endpoint(&rel.from),
