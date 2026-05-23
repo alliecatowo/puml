@@ -252,6 +252,13 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             target: percent.to_string(),
         });
     }
+    if let Some(url) = parse_gantt_link_target(rest) {
+        return Some(StatementKind::GanttConstraint {
+            subject: subject_key,
+            kind: "link".to_string(),
+            target: url,
+        });
+    }
     if lower == "is deleted" || lower == "deleted" {
         return Some(StatementKind::GanttConstraint {
             subject: subject_key,
@@ -357,6 +364,7 @@ fn is_gantt_compound_clause(rest: &str) -> bool {
     let lower = rest.to_ascii_lowercase();
     lower.contains(" and ")
         || lower.starts_with("is colored in ")
+        || lower.starts_with("links to ")
         || lower.contains("% complete")
         || lower.contains("% completed")
         || lower == "is deleted"
@@ -530,6 +538,18 @@ fn parse_gantt_completion(rest: &str) -> Option<u32> {
         return value.parse::<u32>().ok().map(|value| value.min(100));
     }
     None
+}
+
+fn parse_gantt_link_target(rest: &str) -> Option<String> {
+    let trimmed = rest.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let target = lower
+        .strip_prefix("links to ")
+        .and_then(|_| trimmed.get("links to ".len()..))?
+        .trim();
+    let inner = target.strip_prefix("[[")?.strip_suffix("]]")?.trim();
+    let url = inner.split_whitespace().next().unwrap_or(inner).trim();
+    (!url.is_empty()).then(|| url.to_string())
 }
 
 fn parse_gantt_day_color(line: &str) -> Option<(String, String, String)> {

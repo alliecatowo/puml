@@ -1,6 +1,6 @@
 # Chapter 16 — Gantt Chart Audit
 
-Tally: 17 ✅ / 11 🟡 / 11 ❌
+Tally: 18 ✅ / 11 🟡 / 10 ❌
 
 ### 16.1.1 Workload (requires N days/weeks) — ✅
 **Feature:** `[Task] requires N days` (also weeks; combined `1 week and 4 days`)
@@ -71,11 +71,11 @@ Tally: 17 ✅ / 11 🟡 / 11 ❌
 **Evidence:** gantt.rs:180-185 + 433-449 parse_gantt_happens_target; timeline.rs:72-85 + reference offset 428-446
 **Notes:** Max-end semantics for multiple milestones unclear (last-write-wins).
 
-### 16.9 Hyperlinks `links to [[url]]` — ❌
+### 16.9 Hyperlinks `links to [[url]]` — ✅
 **Feature:** `[task1] links to [[http://plantuml.com]]`
-**Status:** ❌
-**Evidence:** No "links to" parser
-**Notes:** No hyperlink field on TimelineTask.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` accepts `links to [[...]]` clauses; `src/model.rs` stores `TimelineTask::hyperlink`; `src/normalize/timeline.rs` applies link constraints; `src/render/timeline.rs` emits SVG anchors/data attributes. Covered by `parses_gantt_task_hyperlink_forms` in `src/parser/tests.rs`, `gantt_ch16_task_hyperlink_renders_anchor` in `tests/parity_wave_csv_timeline_activity.rs`, and `docs/examples/gantt/09_ch16_parity.puml`.
+**Notes:** The first token inside the link is used as the href, matching the URL-only Gantt form while tolerating an optional label.
 
 ### 16.10 Calendar / Project starts (verbal forms) — 🟡
 **Feature:** `Project starts the 20th of september 2017` (English natural form)

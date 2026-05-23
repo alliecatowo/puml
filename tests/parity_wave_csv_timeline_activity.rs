@@ -633,6 +633,33 @@ end note
 }
 
 #[test]
+fn gantt_ch16_task_hyperlink_renders_anchor() {
+    let src = r#"@startgantt
+[Build] requires 3 days and links to [[https://example.com/build Build docs]]
+[Review] links to [[https://example.com/review]]
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"gantt-task-link\""));
+    assert!(svg.contains("xlink:href=\"https://example.com/build\""));
+    assert!(svg.contains("data-gantt-link=\"https://example.com/review\""));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(
+        model.tasks[0].hyperlink.as_deref(),
+        Some("https://example.com/build")
+    );
+    assert_eq!(
+        model.tasks[1].hyperlink.as_deref(),
+        Some("https://example.com/review")
+    );
+}
+
+#[test]
 fn gantt_ch16_same_display_name_aliases_remain_distinct() {
     let src = r#"@startgantt
 [SameTaskName] as [T1] lasts 7 days and is colored in pink

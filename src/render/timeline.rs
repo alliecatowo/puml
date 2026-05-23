@@ -567,8 +567,19 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         } else {
             ""
         };
+        if let Some(href) = &task.hyperlink {
+            out.push_str(&format!(
+                "<a class=\"gantt-task-link\" xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
+                escape_text(href)
+            ));
+        }
+        let link_attr = task
+            .hyperlink
+            .as_deref()
+            .map(|href| format!(" data-gantt-link=\"{}\"", escape_text(href)))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{start}\" data-gantt-workload=\"{wl}\" data-gantt-duration=\"{dur}\" data-gantt-resources=\"{res}\" data-gantt-load=\"{load}\" data-gantt-completion=\"{completion}\" data-gantt-deleted=\"{deleted}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"{deleted_attrs}/>",
+            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{start}\" data-gantt-workload=\"{wl}\" data-gantt-duration=\"{dur}\" data-gantt-resources=\"{res}\" data-gantt-load=\"{load}\" data-gantt-completion=\"{completion}\"{link_attr} data-gantt-deleted=\"{deleted}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"{deleted_attrs}/>",
             start = escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
             wl = task.workload_days,
             dur = task.duration_days,
@@ -594,6 +605,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 bx + bw,
                 y + bar_height / 2
             ));
+        }
+        if task.hyperlink.is_some() {
+            out.push_str("</a>");
         }
         if !document.hide_resource_names && !task.resources.is_empty() {
             let resource_label = task.resources.join(", ");
