@@ -1738,6 +1738,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             },
             &class_style,
             document.namespace_separator.as_deref(),
+            document.hide_options.contains("stereotype"),
         );
     }
 
@@ -2900,6 +2901,7 @@ fn render_class_node(
     geometry: ClassNodeGeometry,
     class_style: &ClassStyle,
     namespace_separator: Option<&str>,
+    hide_stereotype: bool,
 ) {
     let ClassNodeGeometry {
         x,
@@ -3024,6 +3026,9 @@ fn render_class_node(
             if text.is_empty() {
                 continue;
             }
+            if hide_stereotype && is_user_stereotype(text) {
+                continue;
+            }
             out.push_str(&format!(
                 "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
                 escape_text(font_family),
@@ -3091,6 +3096,10 @@ fn render_class_node(
         // Members rendered below the ellipse (rare for usecases), skipping display-label slot
         let mut my = y + h + 14;
         for member in node.members.iter().skip(uc_member_skip) {
+            let text = member.text.trim();
+            if hide_stereotype && is_user_stereotype(text) {
+                continue;
+            }
             out.push_str(&format!(
                 "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
                 escape_text(font_family),
@@ -3110,13 +3119,15 @@ fn render_class_node(
     let header_skip = count_header_stereotype_members(&node.members);
     // Build the list of guillemet labels to show in the header (top → bottom).
     let mut header_stereotype_labels: Vec<String> = Vec::new();
-    for m in &node.members[..header_skip] {
-        if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
-            header_stereotype_labels.push(builtin.to_string());
-        } else if is_user_stereotype(&m.text) {
-            // Convert <<foo>> → «foo»
-            let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
-            header_stereotype_labels.push(format!("\u{ab}{inner}\u{bb}"));
+    if !hide_stereotype {
+        for m in &node.members[..header_skip] {
+            if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
+                header_stereotype_labels.push(builtin.to_string());
+            } else if is_user_stereotype(&m.text) {
+                // Convert <<foo>> → «foo»
+                let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
+                header_stereotype_labels.push(format!("\u{ab}{inner}\u{bb}"));
+            }
         }
     }
     // Members to display: skip all header stereotype members
@@ -5184,7 +5195,18 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
             continue;
         };
-        render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
+        render_family_node_shape_styled(
+            &mut out,
+            node,
+            DeploymentShapeBounds {
+                x: nx,
+                y: ny,
+                w: nw,
+                h: nh,
+            },
+            &comp_style,
+            doc.hide_options.contains("stereotype"),
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -5538,7 +5560,15 @@ fn render_centered_multiline_text(
     start_y + ((lines.len() as i32 - 1) * line_height)
 }
 
-fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32, w: i32, h: i32) {
+fn render_family_node_shape(
+    out: &mut String,
+    node: &FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    hide_stereotype: bool,
+) {
     let cx = x + w / 2;
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
@@ -5747,7 +5777,7 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
         node.kind,
         FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
     );
-    if !is_package_container {
+    if !is_package_container && !hide_stereotype {
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
             cx,
@@ -5755,7 +5785,9 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             kind_label
         ));
     }
-    render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+    if !hide_stereotype {
+        render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+    }
 }
 
 fn render_node_stereotype_rows(out: &mut String, node: &FamilyNode, cx: i32, start_y: i32) {
@@ -6022,12 +6054,11 @@ fn render_deployment_queue_shape(
 fn render_family_node_shape_styled(
     out: &mut String,
     node: &FamilyNode,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
+    bounds: DeploymentShapeBounds,
     comp_style: &ComponentStyle,
+    hide_stereotype: bool,
 ) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
     let cx = x + w / 2;
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
@@ -6384,7 +6415,7 @@ fn render_family_node_shape_styled(
         }
         _ => {
             // Delegate to the non-styled version for all other shapes
-            render_family_node_shape(out, node, x, y, w, h);
+            render_family_node_shape(out, node, x, y, w, h, hide_stereotype);
             return;
         }
     }
@@ -6417,7 +6448,7 @@ fn render_family_node_shape_styled(
     );
     let is_rectangle_style_component = node.kind == FamilyNodeKind::Component
         && comp_style.component_style_mode == ComponentStyleMode::Rectangle;
-    if !is_package_container && !is_rectangle_style_component {
+    if !is_package_container && !is_rectangle_style_component && !hide_stereotype {
         let kind_tag_text: std::borrow::Cow<str> = match node.kind {
             FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
             FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
@@ -6428,5 +6459,7 @@ fn render_family_node_shape_styled(
             cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
         ));
     }
-    render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+    if !hide_stereotype {
+        render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+    }
 }

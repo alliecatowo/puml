@@ -96,7 +96,7 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ### 21.x hide footbox — ✅
 **Status:** ✅
 **Evidence:** `src/parser/sequence.rs:263` (`hide footbox` mapped to StatementKind).
-**Notes:** Other `hide` directives (`hide stereotype`, `hide empty members`, etc.) not located in this audit — likely partial.
+**Notes:** Sequence footbox-specific directive; family `hide` directives are tracked separately below.
 
 ### 21.x newpage / ignore newpage — ✅
 **Evidence:** `src/parser/sequence.rs:433-436`. AST `NewPage`, `IgnoreNewPage` at `src/ast.rs:131-132`.
@@ -122,12 +122,15 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Evidence:** Top-level `backgroundColor <color>` is parsed as the common `SkinParam { key: "backgroundColor", value }` path at `src/parser/sequence.rs`, so it is accepted before/after family detection and reused by existing family normalizers/renderers. Tests: `tests/ch21_common_parity.rs` (`top_level_background_color_applies_to_sequence`, `top_level_background_color_before_family_detection_applies_to_class`, `top_level_background_color_after_family_detection_applies_to_component`). Example: `docs/examples/skinparams/20_top_level_background_color.puml`.
 **Notes:** This intentionally reuses the existing `skinparam backgroundColor` machinery rather than adding a parallel renderer-specific directive.
 
-### 21.x hide stereotype — ❌ (not located)
-**Evidence:** No matches in greps.
+### 21.x hide stereotype — ✅
+**Feature:** `hide stereotype` suppresses visible stereotype labels while preserving node labels.
+**Status:** ✅ (class/usecase/component/deployment family renderers)
+**Evidence:** Parsed as `StatementKind::HideOption("stereotype")` in the common keyword path (`src/parser/sequence.rs`) and family parser (`src/parser/family.rs`), stored on `FamilyDocument.hide_options` in `src/normalize/family.rs`, and honored by family renderers in `src/render/family.rs` for class/object header stereotypes, actor/usecase stereotype rows, and component/deployment kind-tag/stereotype rows. Tests: `tests/ch21_common_parity.rs` (`hide_stereotype_suppresses_class_header_stereotype`, `hide_stereotype_suppresses_usecase_actor_stereotypes`, `hide_stereotype_suppresses_component_kind_tag`).
+**Notes:** This is visual suppression only; stereotype metadata still participates in style selection.
 
 ---
 
 ## Tally — Chapter 21
-- ✅ Supported: 14 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia, top-level backgroundColor)
+- ✅ Supported: 15 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia, top-level backgroundColor, hide stereotype)
 - 🟡 Partial: 7 (scale, per-family render coverage, `<style>` block slices, skinparam breadth, !theme remote, monochrome, mainframe)
-- ❌ Missing: 1 (hide stereotype)
+- ❌ Missing: 0
