@@ -132,6 +132,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i = end_idx + 1;
             continue;
         }
+        if let Some((style_kinds, end_idx)) = parse_style_block(&lines, i, line)? {
+            for kind in style_kinds {
+                statements.push(Statement { span, kind });
+            }
+            i = end_idx + 1;
+            continue;
+        }
 
         if let Some(kind) = parse_keyword(line) {
             let multiline_note_head =
@@ -814,6 +821,134 @@ fn parse_skinparam_block(
         end_idx = idx;
     }
     Some((kinds, end_idx))
+}
+
+/// Parse a minimal PlantUML `<style>...</style>` block and map sequence-only
+/// style rules to equivalent `SkinParam` statements.
+///
+/// Supported subset:
+/// - `sequenceDiagram { ... }`
+/// - optional nested selectors under sequenceDiagram:
+///   - `participant { ... }`
+///   - `note { ... }`
+///   - `group { ... }`
+/// - declarations in `Property Value` or `Property: Value;` form
+fn parse_style_block(
+    lines: &[(&str, Span)],
+    start_idx: usize,
+    line: &str,
+) -> Result<Option<(Vec<StatementKind>, usize)>, Diagnostic> {
+    if !line.eq_ignore_ascii_case("<style>") {
+        return Ok(None);
+    }
+    if !is_sequence_style_block(lines, start_idx) {
+        // Leave non-sequence style blocks untouched so existing family-specific
+        // style handling (e.g. mindmap depth styles) keeps working.
+        return Ok(None);
+    }
+
+    let mut kinds: Vec<StatementKind> = Vec::new();
+    let mut in_sequence = false;
+    let mut nested_selector: Option<String> = None;
+
+    for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+        let inner = strip_inline_plantuml_comment(raw).trim();
+        if inner.eq_ignore_ascii_case("</style>") {
+            return Ok(Some((kinds, idx)));
+        }
+        if inner.is_empty() {
+            continue;
+        }
+        if inner.eq_ignore_ascii_case("sequenceDiagram {") {
+            in_sequence = true;
+            nested_selector = None;
+            continue;
+        }
+        if inner == "}" {
+            if nested_selector.is_some() {
+                nested_selector = None;
+            } else {
+                in_sequence = false;
+            }
+            continue;
+        }
+        if !in_sequence {
+            continue;
+        }
+        if inner.ends_with('{') {
+            let selector = inner.trim_end_matches('{').trim().to_ascii_lowercase();
+            nested_selector = Some(selector);
+            continue;
+        }
+
+        let (raw_key, raw_value) = inner
+            .split_once(':')
+            .or_else(|| inner.split_once(|c: char| c.is_whitespace()))
+            .map(|(k, v)| (k.trim(), v.trim()))
+            .unwrap_or((inner, ""));
+        if raw_key.is_empty() || raw_value.is_empty() {
+            continue;
+        }
+        let value = raw_value.trim_end_matches(';').trim();
+        if value.is_empty() {
+            continue;
+        }
+
+        let key = match nested_selector.as_deref() {
+            None => match raw_key.to_ascii_lowercase().as_str() {
+                "arrowcolor" => Some("ArrowColor".to_string()),
+                "lifelinebordercolor" => Some("LifelineBorderColor".to_string()),
+                "backgroundcolor" => Some("BackgroundColor".to_string()),
+                _ => None,
+            },
+            Some("participant") => match raw_key.to_ascii_lowercase().as_str() {
+                "backgroundcolor" => Some("ParticipantBackgroundColor".to_string()),
+                "bordercolor" => Some("ParticipantBorderColor".to_string()),
+                "fontcolor" => Some("ParticipantFontColor".to_string()),
+                _ => None,
+            },
+            Some("note") => match raw_key.to_ascii_lowercase().as_str() {
+                "backgroundcolor" => Some("NoteBackgroundColor".to_string()),
+                "bordercolor" => Some("NoteBorderColor".to_string()),
+                _ => None,
+            },
+            Some("group") => match raw_key.to_ascii_lowercase().as_str() {
+                "backgroundcolor" => Some("GroupBackgroundColor".to_string()),
+                "bordercolor" => Some("GroupBorderColor".to_string()),
+                "headerfontcolor" => Some("GroupHeaderFontColor".to_string()),
+                "headerfontstyle" => Some("GroupHeaderFontStyle".to_string()),
+                _ => None,
+            },
+            Some(_) => None,
+        };
+
+        if let Some(key) = key {
+            kinds.push(StatementKind::SkinParam {
+                key,
+                value: value.to_string(),
+            });
+        }
+    }
+
+    Err(Diagnostic::error(
+        "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
+    )
+    .with_span(lines[start_idx].1))
+}
+
+fn is_sequence_style_block(lines: &[(&str, Span)], start_idx: usize) -> bool {
+    for (raw, _) in lines.iter().skip(start_idx + 1) {
+        let inner = strip_inline_plantuml_comment(raw).trim();
+        if inner.eq_ignore_ascii_case("</style>") {
+            return false;
+        }
+        if inner.is_empty() {
+            continue;
+        }
+        let selector = inner.trim_end_matches('{').trim();
+        return selector.eq_ignore_ascii_case("sequenceDiagram");
+    }
+    false
 }
 
 fn parse_sprite_statement(

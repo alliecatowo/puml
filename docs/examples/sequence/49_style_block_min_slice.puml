@@ -1,0 +1,18 @@
+@startuml
+<style>
+sequenceDiagram {
+  ArrowColor: #0b5394;
+  participant {
+    BackgroundColor #d9ead3
+    BorderColor #274e13
+    FontColor #274e13
+  }
+  note {
+    BackgroundColor #fff2cc
+    BorderColor #7f6000
+  }
+}
+</style>
+Alice -> Bob : style block
+note right of Bob: note from style block
+@enduml
