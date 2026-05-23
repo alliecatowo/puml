@@ -25,7 +25,7 @@ fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -
     if lines.len() <= 1 {
         // Fast path – no newline, emit plain text element.
         return format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
             x, y, font_size, escape_text(fill), escape_text(label)
         );
     }
@@ -36,7 +36,7 @@ fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -
     // Start above the anchor so the block is centred on y.
     let start_y = y - total_h / 2;
     let mut buf = format!(
-        "<text text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
+        "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
         font_size,
         escape_text(fill)
     );
@@ -2456,7 +2456,7 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                 let label_y = ((y1 + y2) / 2).min(height - 8);
                 for (line_idx, line) in label_lines.iter().enumerate() {
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\">{}</text>",
+                        "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\">{}</text>",
                         label_x,
                         label_y + (line_idx as i32 * 12),
                         escape_text(line)
@@ -4517,7 +4517,7 @@ fn render_box_grid_relations_and_labels(
     for entry in adjusted_labels.into_iter().flatten() {
         let (lx, ly, text, color) = entry;
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
             lx, ly, escape_text(&color), escape_text(&text)
         ));
     }
