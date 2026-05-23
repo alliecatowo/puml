@@ -138,6 +138,80 @@ def validate_mcp_contract() -> None:
             fail(f"tool '{name}' properties mismatch spec={sorted(spec_props)} runtime={sorted(runtime_props)}")
 
 
+def validate_lsp_contract() -> None:
+    lsp_doc = load_json(assert_file(".lsp.json"))
+    for key in ["name", "version", "transport", "command", "languages", "capabilities"]:
+        if key not in lsp_doc:
+            fail(f".lsp.json missing key '{key}'")
+    if lsp_doc["transport"] != "stdio":
+        fail(".lsp.json transport must be 'stdio'")
+
+    command = lsp_doc["command"]
+    if not isinstance(command, str) or not command:
+        fail(".lsp.json command must be a non-empty string")
+    if not (AGENT_PACK / command).is_file():
+        fail(f".lsp.json command target is missing: agent-pack/{command}")
+
+    languages = lsp_doc["languages"]
+    if not isinstance(languages, list) or not languages:
+        fail(".lsp.json languages must be a non-empty list")
+    language_ids: set[str] = set()
+    extensions: set[str] = set()
+    for language in languages:
+        if not isinstance(language, dict):
+            fail(".lsp.json language entries must be objects")
+        language_id = language.get("id")
+        if not isinstance(language_id, str) or not language_id:
+            fail(".lsp.json language id must be a non-empty string")
+        if language_id in language_ids:
+            fail(f"duplicate language id in .lsp.json: {language_id}")
+        language_ids.add(language_id)
+        language_extensions = language.get("extensions")
+        if not isinstance(language_extensions, list) or not language_extensions:
+            fail(f".lsp.json language '{language_id}' must include extensions")
+        for extension in language_extensions:
+            if not isinstance(extension, str) or not extension.startswith("."):
+                fail(f".lsp.json language '{language_id}' has invalid extension: {extension!r}")
+            extensions.add(extension)
+
+    if "puml" not in language_ids:
+        fail(".lsp.json must declare the puml language id")
+    for extension in [".puml", ".plantuml", ".iuml"]:
+        if extension not in extensions:
+            fail(f".lsp.json must declare {extension} support")
+
+    capabilities = lsp_doc["capabilities"]
+    if not isinstance(capabilities, list) or not capabilities:
+        fail(".lsp.json capabilities must be a non-empty list")
+    seen_capabilities: set[str] = set()
+    for capability in capabilities:
+        if not isinstance(capability, str) or "/" not in capability:
+            fail(f".lsp.json has invalid capability: {capability!r}")
+        if capability in seen_capabilities:
+            fail(f"duplicate capability in .lsp.json: {capability}")
+        seen_capabilities.add(capability)
+
+    required_capabilities = {
+        "textDocument/publishDiagnostics",
+        "textDocument/completion",
+        "textDocument/hover",
+        "textDocument/semanticTokens/full",
+        "textDocument/formatting",
+        "workspace/executeCommand",
+    }
+    missing = sorted(required_capabilities - seen_capabilities)
+    if missing:
+        fail(f".lsp.json missing required capabilities: {missing}")
+
+    commands = lsp_doc.get("commands", [])
+    if commands is not None:
+        if not isinstance(commands, list):
+            fail(".lsp.json commands must be a list when present")
+        for command_name in commands:
+            if not isinstance(command_name, str) or "." not in command_name:
+                fail(f".lsp.json has invalid command name: {command_name!r}")
+
+
 def main() -> int:
     info("validating filesystem layout")
     assert_dir("skills")
@@ -158,6 +232,9 @@ def main() -> int:
 
     info("validating MCP contract and runtime tool surface")
     validate_mcp_contract()
+
+    info("validating LSP manifest contract")
+    validate_lsp_contract()
 
     info("validation complete")
     return 0

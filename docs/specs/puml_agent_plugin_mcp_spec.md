@@ -30,7 +30,7 @@ Current baseline constraints:
 
 - v0.0.1 ships `.lsp.json` host wiring metadata for `bin/puml-lsp`; release archives
   may still depend on the host to provide or map the actual binary.
-- `scripts/validate_agent_pack.py` validates manifest keys, marketplace metadata, and MCP runtime/spec contract parity.
+- `scripts/validate_agent_pack.py` validates manifest keys, marketplace metadata, MCP runtime/spec contract parity, and the `.lsp.json` language-server manifest contract.
 - `agent-pack/tests/mcp_smoke.sh` and `scripts/harness-check.sh` exercise MCP baseline behavior and parity harness integration.
 
 ## Product position
