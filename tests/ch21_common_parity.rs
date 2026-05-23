@@ -8,6 +8,7 @@
 ///   21.x    scale variants
 ///   21.x    top-level `backgroundColor`
 ///   21.x    family-diagram `mainframe`
+///   21.x    `hide stereotype`
 use puml::{model::ScaleSpec, normalize, parser, render_source_to_svg};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -315,6 +316,52 @@ fn mainframe_on_class_diagram_renders_frame_and_title() {
     assert!(svg.contains("class=\"uml-mainframe\""));
     assert!(svg.contains("Domain Frame"));
     assert!(svg.contains("Visible"));
+}
+
+// ── 21.x  hide stereotype ───────────────────────────────────────────────────
+
+#[test]
+fn hide_stereotype_suppresses_class_header_stereotype() {
+    let src = "@startuml\nhide stereotype\nclass Order <<Entity>>\n@enduml\n";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("Order"));
+    assert!(
+        !svg.contains("\u{ab}Entity\u{bb}") && !svg.contains("&lt;&lt;Entity&gt;&gt;"),
+        "hide stereotype should suppress class stereotype text; got: {}",
+        &svg[..svg.len().min(800)]
+    );
+}
+
+#[test]
+fn hide_stereotype_suppresses_usecase_actor_stereotypes() {
+    let src = "\
+@startuml
+hide stereotype
+actor Shopper <<primary>> as S
+usecase Checkout <<critical>> as UC
+S --> UC : starts
+@enduml
+";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("Shopper"));
+    assert!(svg.contains("Checkout"));
+    assert!(!svg.contains("&lt;&lt;primary&gt;&gt;"));
+    assert!(!svg.contains("&lt;&lt;critical&gt;&gt;"));
+}
+
+#[test]
+fn hide_stereotype_suppresses_component_kind_tag() {
+    let src = "@startuml\nhide stereotype\n[Service]\n@enduml\n";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("Service"));
+    assert!(
+        !svg.contains("\u{ab}component\u{bb}"),
+        "hide stereotype should suppress component kind tag; got: {}",
+        &svg[..svg.len().min(800)]
+    );
 }
 
 // ── 21.x  top-level backgroundColor ──────────────────────────────────────────
