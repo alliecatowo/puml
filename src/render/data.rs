@@ -42,6 +42,8 @@ impl DataFamily {
 struct RenderRow {
     depth: usize,
     label: String,
+    key: String,
+    value: Option<String>,
     path: Vec<String>,
 }
 
@@ -137,6 +139,8 @@ pub fn render_json_svg(document: &JsonDocument) -> String {
             .map(|node| RenderRow {
                 depth: node.depth,
                 label: node.label.clone(),
+                key: node.label.clone(),
+                value: None,
                 path: Vec::new(),
             })
             .collect()
@@ -158,6 +162,8 @@ pub fn render_yaml_svg(document: &YamlDocument) -> String {
             .map(|node| RenderRow {
                 depth: node.depth,
                 label: node.label.clone(),
+                key: node.label.clone(),
+                value: None,
                 path: Vec::new(),
             })
             .collect()
@@ -177,7 +183,11 @@ fn render_structured_svg(
     controls: &StructuredControls,
 ) -> String {
     let width = 760;
-    let height = 80 + (rows.len().max(1) as i32) * 22;
+    let row_height = 24;
+    let table_x = 24;
+    let table_width = width - 48;
+    let key_col_width = 236;
+    let height = 82 + (rows.len().max(1) as i32) * row_height;
     let max_depth = rows.iter().map(|node| node.depth).max().unwrap_or(0);
     let projection = family.projection();
     let mut out = String::new();
@@ -208,50 +218,20 @@ fn render_structured_svg(
             y
         ));
     } else {
+        let table_y = y - 16;
         let node_ys: Vec<i32> = rows
             .iter()
             .enumerate()
-            .map(|(i, _)| y + (i as i32) * 22)
+            .map(|(i, _)| y + (i as i32) * row_height)
             .collect();
-
-        for (index, node) in rows.iter().enumerate() {
-            let x = 24 + (node.depth as i32) * 18;
-            let ny = node_ys[index];
-            if node.depth > 0 {
-                let parent_y = (0..index)
-                    .rev()
-                    .find(|&j| rows[j].depth == node.depth - 1)
-                    .map(|j| node_ys[j])
-                    .unwrap_or(y);
-                let connector_x = 24 + ((node.depth as i32) - 1) * 18 + 9;
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
-                    connector_x,
-                    parent_y + 3,
-                    connector_x,
-                    ny - 3,
-                    family.connector_color(),
-                    family.connector_dash()
-                ));
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
-                    connector_x,
-                    ny - 3,
-                    x,
-                    ny - 3,
-                    family.connector_color(),
-                    family.connector_dash()
-                ));
-            }
-        }
 
         let normal_style = match family {
             DataFamily::Json => RowStyle::json_node(),
             DataFamily::Yaml => RowStyle::yaml_node(),
         };
         for (index, node) in rows.iter().enumerate() {
-            let x = 24 + (node.depth as i32) * 18;
             let ny = node_ys[index];
+            let row_top = ny - 16;
             let highlight = find_highlight(&node.path, controls);
             let (row_style, highlight_class) = match highlight {
                 Some(spec) => {
@@ -297,13 +277,58 @@ fn render_structured_svg(
                 class_attr
             ));
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"18\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x,
-                ny - 12,
-                (width - 48 - (node.depth as i32) * 18).max(80),
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"none\"/>",
+                table_x,
+                row_top,
+                table_width,
+                row_height,
                 escape_text(&row_style.fill),
-                escape_text(&row_style.stroke)
             ));
+            if index > 0 {
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" opacity=\"0.75\"/>",
+                    table_x,
+                    row_top,
+                    table_x + table_width,
+                    row_top,
+                    escape_text(&normal_style.stroke)
+                ));
+            }
+            out.push_str(&format!(
+                "<line class=\"data-table-separator\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" opacity=\"0.85\"/>",
+                table_x + key_col_width,
+                row_top,
+                table_x + key_col_width,
+                row_top + row_height,
+                escape_text(&normal_style.stroke)
+            ));
+            if node.depth > 0 {
+                let parent_y = (0..index)
+                    .rev()
+                    .find(|&j| rows[j].depth == node.depth - 1)
+                    .map(|j| node_ys[j])
+                    .unwrap_or(y);
+                let connector_x = table_x + 12 + ((node.depth as i32) - 1) * 18;
+                let key_x = table_x + 8 + (node.depth as i32) * 18;
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
+                    connector_x,
+                    parent_y,
+                    connector_x,
+                    ny,
+                    family.connector_color(),
+                    family.connector_dash()
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
+                    connector_x,
+                    ny,
+                    key_x - 4,
+                    ny,
+                    family.connector_color(),
+                    family.connector_dash()
+                ));
+            }
             let mut text_attrs = "font-family=\"monospace\" font-size=\"12\"".to_string();
             if let Some(font_style) = &row_style.font_style {
                 text_attrs.push_str(&format!(" font-style=\"{}\"", escape_text(font_style)));
@@ -311,15 +336,36 @@ fn render_structured_svg(
             if let Some(font_weight) = &row_style.font_weight {
                 text_attrs.push_str(&format!(" font-weight=\"{}\"", escape_text(font_weight)));
             }
-            out.push_str(&creole_text(
-                x + 6,
-                ny + 2,
-                &text_attrs,
-                &node.label,
-                &row_style.font_color,
-            ));
+            let key_x = table_x + 8 + (node.depth as i32) * 18;
+            if !node.key.is_empty() {
+                out.push_str(&creole_text(
+                    key_x,
+                    ny + 4,
+                    &text_attrs,
+                    &node.key,
+                    &row_style.font_color,
+                ));
+            }
+            if let Some(value) = &node.value {
+                out.push_str(&creole_text(
+                    table_x + key_col_width + 8,
+                    ny + 4,
+                    &text_attrs,
+                    value,
+                    &row_style.font_color,
+                ));
+            }
             out.push_str("</g>");
         }
+        out.push_str(&format!(
+            "<rect class=\"data-table-frame {}-table\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"/>",
+            projection,
+            table_x,
+            table_y,
+            table_width,
+            rows.len() as i32 * row_height,
+            escape_text(&normal_style.stroke)
+        ));
     }
     out.push_str("</svg>");
     out
@@ -554,11 +600,13 @@ fn flatten_json_render_value(
             let row_label = label
                 .map(|l| format!("{l}: {compact}"))
                 .unwrap_or_else(|| compact.to_string());
-            out.push(RenderRow {
+            out.push(structured_render_row(
                 depth,
-                label: row_label,
-                path: path.clone(),
-            });
+                row_label,
+                label,
+                compact,
+                path.clone(),
+            ));
             for (key, child) in map {
                 let mut child_path = path.clone();
                 child_path.push(key.clone());
@@ -570,11 +618,13 @@ fn flatten_json_render_value(
             let row_label = label
                 .map(|l| format!("{l}: {compact}"))
                 .unwrap_or_else(|| compact.to_string());
-            out.push(RenderRow {
+            out.push(structured_render_row(
                 depth,
-                label: row_label,
-                path: path.clone(),
-            });
+                row_label,
+                label,
+                compact,
+                path.clone(),
+            ));
             for (idx, child) in items.iter().enumerate() {
                 let display = format!("[{idx}]");
                 let mut child_path = path.clone();
@@ -582,34 +632,50 @@ fn flatten_json_render_value(
                 flatten_json_render_value(child, Some(&display), child_path, depth + 1, out);
             }
         }
-        Value::String(s) => out.push(RenderRow {
-            depth,
-            label: label
-                .map(|l| format!("{l}: {}", json_string_label(s)))
-                .unwrap_or_else(|| json_string_label(s)),
-            path,
-        }),
-        Value::Number(n) => out.push(RenderRow {
-            depth,
-            label: label
-                .map(|l| format!("{l}: {n}"))
-                .unwrap_or_else(|| n.to_string()),
-            path,
-        }),
-        Value::Bool(b) => out.push(RenderRow {
-            depth,
-            label: label
-                .map(|l| format!("{l}: {b}"))
-                .unwrap_or_else(|| b.to_string()),
-            path,
-        }),
-        Value::Null => out.push(RenderRow {
-            depth,
-            label: label
-                .map(|l| format!("{l}: null"))
-                .unwrap_or_else(|| "null".to_string()),
-            path,
-        }),
+        Value::String(s) => {
+            let value = json_string_label(s);
+            let row_label = label
+                .map(|l| format!("{l}: {value}"))
+                .unwrap_or_else(|| value.clone());
+            out.push(structured_render_row(depth, row_label, label, &value, path));
+        }
+        Value::Number(n) => {
+            let value = n.to_string();
+            let row_label = label
+                .map(|l| format!("{l}: {value}"))
+                .unwrap_or_else(|| value.clone());
+            out.push(structured_render_row(depth, row_label, label, &value, path));
+        }
+        Value::Bool(b) => {
+            let value = b.to_string();
+            let row_label = label
+                .map(|l| format!("{l}: {value}"))
+                .unwrap_or_else(|| value.clone());
+            out.push(structured_render_row(depth, row_label, label, &value, path));
+        }
+        Value::Null => {
+            let value = "null";
+            let row_label = label
+                .map(|l| format!("{l}: {value}"))
+                .unwrap_or_else(|| value.to_string());
+            out.push(structured_render_row(depth, row_label, label, value, path));
+        }
+    }
+}
+
+fn structured_render_row(
+    depth: usize,
+    label: String,
+    key: Option<&str>,
+    value: &str,
+    path: Vec<String>,
+) -> RenderRow {
+    RenderRow {
+        depth,
+        label,
+        key: key.unwrap_or_default().to_string(),
+        value: Some(value.to_string()),
+        path,
     }
 }
 
@@ -639,13 +705,17 @@ fn flatten_yaml_render_value(
     match value {
         yaml_rust2::Yaml::Hash(map) => {
             let compact = if map.is_empty() { "{}" } else { "{...}" };
-            out.push(RenderRow {
+            let row_label = label
+                .as_deref()
+                .map(|l| format!("{l}: {compact}"))
+                .unwrap_or_else(|| compact.to_string());
+            out.push(structured_render_row(
                 depth,
-                label: label
-                    .map(|l| format!("{l}: {compact}"))
-                    .unwrap_or_else(|| compact.to_string()),
-                path: path.clone(),
-            });
+                row_label,
+                label.as_deref(),
+                compact,
+                path.clone(),
+            ));
             for (key, value) in map {
                 let key_label = yaml_key_label(key);
                 let mut child_path = path.clone();
@@ -655,13 +725,17 @@ fn flatten_yaml_render_value(
         }
         yaml_rust2::Yaml::Array(items) => {
             let compact = if items.is_empty() { "[]" } else { "[...]" };
-            out.push(RenderRow {
+            let row_label = label
+                .as_deref()
+                .map(|l| format!("{l}: {compact}"))
+                .unwrap_or_else(|| compact.to_string());
+            out.push(structured_render_row(
                 depth,
-                label: label
-                    .map(|l| format!("{l}: {compact}"))
-                    .unwrap_or_else(|| compact.to_string()),
-                path: path.clone(),
-            });
+                row_label,
+                label.as_deref(),
+                compact,
+                path.clone(),
+            ));
             for (idx, value) in items.iter().enumerate() {
                 let mut child_path = path.clone();
                 child_path.push(idx.to_string());
@@ -674,14 +748,20 @@ fn flatten_yaml_render_value(
                 );
             }
         }
-        scalar => out.push(RenderRow {
-            depth,
-            label: match label {
-                Some(label) => format!("{label}: {}", yaml_scalar_label(scalar)),
-                None => yaml_scalar_label(scalar),
-            },
-            path,
-        }),
+        scalar => {
+            let value = yaml_scalar_label(scalar);
+            let row_label = match label.as_deref() {
+                Some(label) => format!("{label}: {value}"),
+                None => value.clone(),
+            };
+            out.push(structured_render_row(
+                depth,
+                row_label,
+                label.as_deref(),
+                &value,
+                path,
+            ));
+        }
     }
 }
 

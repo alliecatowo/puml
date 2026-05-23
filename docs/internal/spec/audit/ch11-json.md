@@ -42,7 +42,7 @@ Source: `/tmp/puml-spec/ch11-display-json-data.txt`.
 **Syntax example:** `@startjson [1, 2, 3] @endjson`
 **Status:** 🟡
 **Evidence:** `src/normalize/structured.rs:47-58` handles arrays via `serde_json::Value::Array`.
-**Notes:** Functionally parses, but renders as the same indented-tree layout as objects, not as the PlantUML horizontal-table layout for arrays. Visual fidelity gap. See `src/render/data.rs:3-98` — single per-row tree style, no table mode.
+**Notes:** Functionally parses and now renders through the shared key/value table mode with indentation and tree connectors (`src/render/data.rs`). This improves the PlantUML-like horizontal-table feel for arrays, but remains 🟡 until broader styling/projection parity is complete.
 
 ### 11.6 JSON numbers (decimals, exponents) — ✅
 **Feature:** Integers, decimals, exponent notation (`1E5`).

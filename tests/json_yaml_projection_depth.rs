@@ -28,6 +28,15 @@ fn row_rect_x(svg: &str, label_attr: &str) -> i32 {
     attr_i32(rect, "x")
 }
 
+fn row_text_x(svg: &str, label_attr: &str, text_index: usize) -> i32 {
+    let group = row_group(svg, label_attr);
+    let text = group
+        .split("<text ")
+        .nth(text_index)
+        .unwrap_or_else(|| panic!("missing text {text_index} for row group: {group}"));
+    attr_i32(text, "x")
+}
+
 #[test]
 fn json_nested_maps_arrays_render_depth_metadata_and_geometry() {
     let src = include_str!("fixtures/structured/valid_json_nested_projection.puml");
@@ -40,6 +49,8 @@ fn json_nested_maps_arrays_render_depth_metadata_and_geometry() {
     assert!(svg.contains("class=\"data-tree-node json-node json-depth-4\""));
     assert!(svg.contains("data-json-label=\"[0]: {...}\""));
     assert!(svg.contains("data-json-label=\"replicas: 3\""));
+    assert!(svg.contains("class=\"data-table-frame json-table\""));
+    assert!(svg.contains("class=\"data-table-separator\""));
 
     let root_x = row_rect_x(&svg, "data-json-label=\"{...}\"");
     let service_x = row_rect_x(&svg, "data-json-label=\"service: {...}\"");
@@ -47,9 +58,16 @@ fn json_nested_maps_arrays_render_depth_metadata_and_geometry() {
     let replica_x = row_rect_x(&svg, "data-json-label=\"replicas: 3\"");
 
     assert_eq!(root_x, 24);
-    assert_eq!(service_x - root_x, 18);
-    assert_eq!(array_item_x - service_x, 36);
-    assert_eq!(replica_x - array_item_x, 18);
+    assert_eq!(service_x, root_x);
+    assert_eq!(array_item_x, root_x);
+    assert_eq!(replica_x, root_x);
+    assert_eq!(
+        row_text_x(&svg, "data-json-label=\"service: {...}\"", 1),
+        50
+    );
+    assert_eq!(row_text_x(&svg, "data-json-label=\"[0]: {...}\"", 1), 86);
+    assert_eq!(row_text_x(&svg, "data-json-label=\"replicas: 3\"", 1), 104);
+    assert_eq!(row_text_x(&svg, "data-json-label=\"replicas: 3\"", 2), 268);
 }
 
 #[test]
@@ -64,16 +82,29 @@ fn yaml_nested_maps_arrays_render_depth_metadata_and_geometry() {
     assert!(svg.contains("class=\"data-tree-node yaml-node yaml-depth-4\""));
     assert!(svg.contains("data-yaml-label=\"[0]: {...}\""));
     assert!(svg.contains("data-yaml-label=\"replicas: 3\""));
+    assert!(svg.contains("class=\"data-table-frame yaml-table\""));
+    assert!(svg.contains("class=\"data-table-separator\""));
 
     let service_x = row_rect_x(&svg, "data-yaml-label=\"service: {...}\"");
     let regions_x = row_rect_x(&svg, "data-yaml-label=\"regions: [...]\"");
     let region_item_x = row_rect_x(&svg, "data-yaml-label=\"[0]: {...}\"");
     let replica_x = row_rect_x(&svg, "data-yaml-label=\"replicas: 3\"");
 
-    assert_eq!(service_x, 42);
-    assert_eq!(regions_x - service_x, 18);
-    assert_eq!(region_item_x - regions_x, 18);
-    assert_eq!(replica_x - region_item_x, 18);
+    assert_eq!(service_x, 24);
+    assert_eq!(regions_x, service_x);
+    assert_eq!(region_item_x, service_x);
+    assert_eq!(replica_x, service_x);
+    assert_eq!(
+        row_text_x(&svg, "data-yaml-label=\"service: {...}\"", 1),
+        50
+    );
+    assert_eq!(
+        row_text_x(&svg, "data-yaml-label=\"regions: [...]\"", 1),
+        68
+    );
+    assert_eq!(row_text_x(&svg, "data-yaml-label=\"[0]: {...}\"", 1), 86);
+    assert_eq!(row_text_x(&svg, "data-yaml-label=\"replicas: 3\"", 1), 104);
+    assert_eq!(row_text_x(&svg, "data-yaml-label=\"replicas: 3\"", 2), 268);
 }
 
 #[test]
