@@ -55,8 +55,6 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: sccache
       # Pinned PlantUML version — bump intentionally, never use "latest".
       PLANTUML_VERSION: "1.2026.3"
       PLANTUML_JAR: plantuml-1.2026.3.jar
@@ -177,10 +175,6 @@ jobs:
         with:
           shared-key: oracle-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        if: steps.changes.outputs.run_oracle == 'true'
-        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install cargo-nextest
         if: steps.changes.outputs.run_oracle_smoke == 'true'
