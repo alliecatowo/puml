@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T21:57:10Z",
+  "generated_at_utc": "2026-05-23T03:17:09Z",
   "summary": {
-    "total": 301,
-    "passed": 298,
+    "total": 305,
+    "passed": 302,
     "excluded": 3,
     "failed": 0
   },
@@ -1059,6 +1059,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/component/10_style_rectangle.puml",
       "artifact_svg": "docs/examples/component/10_style_rectangle.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/component/11_multiline_bracket_description.puml",
+      "artifact_svg": "docs/examples/component/11_multiline_bracket_description.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -2313,6 +2324,17 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/sequence/49_style_block_min_slice.puml",
+      "artifact_svg": "docs/examples/sequence/49_style_block_min_slice.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/skinparams/01_arrow_color.puml",
       "artifact_svg": "docs/examples/skinparams/01_arrow_color.svg",
       "artifact_exists": true,
@@ -3206,6 +3228,17 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/usecase/07_business_variants.puml",
+      "artifact_svg": "docs/examples/usecase/07_business_variants.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/wbs/01_basic.puml",
       "artifact_svg": "docs/examples/wbs/01_basic.svg",
       "artifact_exists": true,
@@ -3252,6 +3285,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/wbs/05_four_levels_deep.puml",
       "artifact_svg": "docs/examples/wbs/05_four_levels_deep.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/wbs/06_alias_cross_arrows.puml",
+      "artifact_svg": "docs/examples/wbs/06_alias_cross_arrows.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

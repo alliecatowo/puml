@@ -733,6 +733,8 @@ pub enum FamilyNodeKind {
     File,
     Card,
     Actor,
+    BusinessActor,
+    BusinessUseCase,
     Hexagon,
     Label,
     Person,

@@ -266,15 +266,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // An `actor` declaration becomes a UseCaseDecl with `<<actor>>` as its
                 // first member. Detect this and promote it to Actor kind so the renderer
                 // can draw a stick figure instead of an ellipse.
-                let resolved_kind = if members
-                    .first()
-                    .is_some_and(|m| m.text.trim() == "<<actor>>")
-                {
-                    let _ = members.remove(0); // strip the marker — it was only for detection
-                    FamilyNodeKind::Actor
-                } else {
-                    FamilyNodeKind::UseCase
-                };
+                let resolved_kind = resolve_usecase_node_kind(&mut members);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
@@ -393,20 +385,14 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         // Detect actor marker embedded by the parser for `actor`
                         // declarations inside usecase scoping blocks (e.g.
                         // `rectangle "System" { actor User }`).
-                        let has_actor_marker =
-                            encoded_members.iter().any(|m| m.text.trim() == "<<actor>>");
-                        let nk = if has_actor_marker {
-                            FamilyNodeKind::Actor
+                        let nk = if node_kind == FamilyNodeKind::UseCase {
+                            resolve_usecase_node_kind(&mut encoded_members)
                         } else {
                             match node_kind {
                                 FamilyNodeKind::Object => FamilyNodeKind::Object,
-                                FamilyNodeKind::UseCase => FamilyNodeKind::UseCase,
                                 _ => FamilyNodeKind::Class,
                             }
                         };
-                        // Strip the actor marker from the members list — it was
-                        // only needed for kind detection.
-                        encoded_members.retain(|m| m.text.trim() != "<<actor>>");
                         nodes.push(FamilyNode {
                             kind: nk,
                             name: node_id,
@@ -661,10 +647,39 @@ fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
         if existing.fill_color.is_none() {
             existing.fill_color = node.fill_color.take();
         }
+        if matches!(
+            (existing.kind, node.kind),
+            (FamilyNodeKind::UseCase, FamilyNodeKind::BusinessUseCase)
+                | (FamilyNodeKind::Actor, FamilyNodeKind::BusinessActor)
+                | (FamilyNodeKind::UseCase, FamilyNodeKind::Actor)
+                | (FamilyNodeKind::UseCase, FamilyNodeKind::BusinessActor)
+        ) {
+            existing.kind = node.kind;
+        }
         existing.members.append(&mut node.members);
         return;
     }
     nodes.push(node);
+}
+
+fn resolve_usecase_node_kind(members: &mut Vec<ClassMember>) -> FamilyNodeKind {
+    let has_actor_marker = members
+        .iter()
+        .any(|member| member.text.trim().eq_ignore_ascii_case("<<actor>>"));
+    let has_business_marker = members
+        .iter()
+        .any(|member| member.text.trim().eq_ignore_ascii_case("<<business>>"));
+    members.retain(|member| {
+        let text = member.text.trim();
+        !text.eq_ignore_ascii_case("<<actor>>") && !text.eq_ignore_ascii_case("<<business>>")
+    });
+
+    match (has_actor_marker, has_business_marker) {
+        (true, true) => FamilyNodeKind::BusinessActor,
+        (true, false) => FamilyNodeKind::Actor,
+        (false, true) => FamilyNodeKind::BusinessUseCase,
+        (false, false) => FamilyNodeKind::UseCase,
+    }
 }
 
 fn extract_family_node_fill_color(members: &mut Vec<ClassMember>) -> Option<String> {

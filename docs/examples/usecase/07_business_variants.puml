@@ -1,0 +1,9 @@
+@startuml
+left to right direction
+(Checkout)/ as UC1
+usecase/ "Approve refund" as UC2 #AliceBlue
+:Customer:/ as Customer
+actor/ :Sales Manager: as Manager
+Customer --> UC1
+Manager --> UC2
+@enduml
