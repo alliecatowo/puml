@@ -20,16 +20,14 @@ fn virtual_endpoint_fidelity_fixture_passes_check_mode() {
 
 #[test]
 fn invalid_virtual_endpoint_combination_reports_diagnostic() {
+    let invalid = fixture("errors/invalid_virtual_endpoint_combination.puml");
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("errors/invalid_virtual_endpoint_combination.puml"),
-        ])
+        .args(["--check", &invalid])
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 2, column 1")
+            predicate::str::contains(format!("{invalid}:2:1: error[E_ENDPOINT_COMBINATION]:"))
                 .and(predicate::str::contains(
                     "virtual endpoint messages must include at least one concrete participant",
                 ))

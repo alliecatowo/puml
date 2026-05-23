@@ -1467,16 +1467,14 @@ fn slash_arrow_variants_are_tokenized_into_message_arrows() {
 
 #[test]
 fn malformed_slash_arrow_reports_deterministic_diagnostic() {
+    let invalid = fixture("errors/invalid_arrow_slash_tokenization.puml");
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("errors/invalid_arrow_slash_tokenization.puml"),
-        ])
+        .args(["--check", &invalid])
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 2, column 1")
+            predicate::str::contains(format!("{invalid}:2:1: error[E_ARROW_INVALID]:"))
                 .and(predicate::str::contains(
                     "A -//-> B: malformed-double-slash\n^^^^^^^^",
                 ))
@@ -1515,16 +1513,14 @@ fn expanded_arrow_variants_are_tokenized_into_message_arrows() {
 
 #[test]
 fn malformed_arrow_variant_reports_deterministic_diagnostic() {
+    let invalid = fixture("errors/invalid_arrow_variant_tokenization.puml");
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("errors/invalid_arrow_variant_tokenization.puml"),
-        ])
+        .args(["--check", &invalid])
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 4, column 1")
+            predicate::str::contains(format!("{invalid}:4:1: error[E_ARROW_INVALID]:"))
                 .and(predicate::str::contains("A -/--> B: malformed\n^^^^^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
@@ -1960,7 +1956,7 @@ fn source_related_error_uses_line_column_and_caret_in_all_modes() {
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 2, column 1")
+            predicate::str::contains(format!("{invalid}:2:1: error[E_ARROW_INVALID]:"))
                 .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
@@ -1971,7 +1967,7 @@ fn source_related_error_uses_line_column_and_caret_in_all_modes() {
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 2, column 1")
+            predicate::str::contains(format!("{invalid}:2:1: error[E_ARROW_INVALID]:"))
                 .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
@@ -1982,7 +1978,7 @@ fn source_related_error_uses_line_column_and_caret_in_all_modes() {
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("line 2, column 1")
+            predicate::str::contains(format!("{invalid}:2:1: error[E_ARROW_INVALID]:"))
                 .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
@@ -2760,6 +2756,27 @@ fn diagnostics_default_mode_remains_human_readable() {
 }
 
 #[test]
+fn human_file_diagnostics_include_path_line_column_and_code() {
+    let dir = tempdir().unwrap();
+    let input = dir.path().join("broken.puml");
+    fs::write(&input, "@startuml\nA -x B: bad\n@enduml\n").unwrap();
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .current_dir(dir.path())
+        .args(["--check", "broken.puml"])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("broken.puml:2:1: error[E_ARROW_INVALID]:"));
+    assert!(stderr.contains("A -x B: bad\n^^^^^^"));
+}
+
+#[test]
 fn from_markdown_ingests_mixed_fence_edge_cases_deterministically() {
     let input = fs::read_to_string(fixture("markdown/edge_cases.md")).unwrap();
     let out = Command::cargo_bin("puml")
@@ -3158,34 +3175,34 @@ fn preprocessor_function_procedure_assert_log_and_dump_are_minimally_compatible(
 
 #[test]
 fn preprocessor_assert_false_reports_diagnostic_snapshot() {
+    let invalid = fixture("preprocessor/invalid_assert_false.puml");
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("preprocessor/invalid_assert_false.puml"),
-        ])
+        .args(["--check", &invalid])
         .assert()
         .code(1)
         .get_output()
         .clone();
-    let stderr = String::from_utf8(out.stderr).expect("utf8 stderr");
+    let stderr = String::from_utf8(out.stderr)
+        .expect("utf8 stderr")
+        .replace(&invalid, "<fixture>");
     assert!(stderr.contains("E_PREPROC_ASSERT"));
     assert_snapshot!("preprocessor_assert_false_reports_diagnostic", stderr);
 }
 
 #[test]
 fn preprocessor_unclosed_function_reports_diagnostic_snapshot() {
+    let invalid = fixture("preprocessor/invalid_unclosed_function.puml");
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("preprocessor/invalid_unclosed_function.puml"),
-        ])
+        .args(["--check", &invalid])
         .assert()
         .code(1)
         .get_output()
         .clone();
-    let stderr = String::from_utf8(out.stderr).expect("utf8 stderr");
+    let stderr = String::from_utf8(out.stderr)
+        .expect("utf8 stderr")
+        .replace(&invalid, "<fixture>");
     assert!(stderr.contains("E_FUNCTION_UNCLOSED"));
     assert_snapshot!("preprocessor_unclosed_function_reports_diagnostic", stderr);
 }
