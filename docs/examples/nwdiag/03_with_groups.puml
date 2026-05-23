@@ -1,6 +1,7 @@
 @startnwdiag
 nwdiag {
   group frontend {
+    style = "dotted"
     web01;
     web02;
   }
@@ -9,6 +10,7 @@ nwdiag {
     app02;
   }
   network dmz {
+    style = "dotted"
     web01; web02;
   }
   network internal {
