@@ -6,7 +6,8 @@
 ///   7.14       `skinparam componentStyle rectangle` (plain rect, no badges, no «component»)
 ///   7.15       `hide @unlinked` / `remove @unlinked` (filter orphan nodes)
 ///   7.16       `hide` / `remove` / `restore $tag` (component tags)
-use puml::render_source_to_svg;
+use puml::model::{FamilyStyle, NormalizedDocument};
+use puml::{normalize_family, parse, render_source_to_svg};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,43 @@ skinparam componentStyle rectangle
     assert!(
         !svg.contains("data-component-style=\"uml2\""),
         "rectangle style should not produce uml2 badges"
+    );
+}
+
+#[test]
+fn component_diagram_style_block_component_colors_override_skinparam() {
+    let src = include_str!("fixtures/styling/valid_style_block_component.puml");
+    let document = parse(src).expect("component style block should parse");
+    let model = normalize_family(document).expect("component style block should normalize");
+
+    let NormalizedDocument::Family(family) = model else {
+        panic!("component diagram should normalize as a family document");
+    };
+    let Some(FamilyStyle::Component(style)) = family.family_style else {
+        panic!("component diagram should carry component style");
+    };
+
+    assert_eq!(style.background_color, "#dbeafe");
+    assert_eq!(style.border_color, "#2563eb");
+    assert_eq!(style.font_color, "#7c2d12");
+}
+
+#[test]
+fn component_diagram_style_block_component_colors_reach_svg() {
+    let src = include_str!("fixtures/styling/valid_style_block_component.puml");
+    let svg = render_svg(src);
+
+    assert!(
+        svg.contains("#dbeafe"),
+        "style block component BackgroundColor should reach SVG: {svg}"
+    );
+    assert!(
+        svg.contains("#2563eb"),
+        "style block component BorderColor should reach SVG"
+    );
+    assert!(
+        svg.contains("#7c2d12"),
+        "style block component FontColor should reach SVG"
     );
 }
 

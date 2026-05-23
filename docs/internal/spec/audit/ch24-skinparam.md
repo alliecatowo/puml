@@ -69,6 +69,12 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 **Status:** ✅
 **Evidence:** Sequence (theme.rs:1199), chart (chart.rs:42), and generic families handle it.
 
+### Skinparam replacement: `<style>` blocks — 🟡
+**Feature:** CSS-like style blocks that override skinparam values.
+**Status:** 🟡
+**Evidence:** `src/parser/core.rs` lowers a narrow style subset to existing `SkinParam` statements. Sequence support covers `sequenceDiagram` plus `participant`, `note`, and `group` selectors. Component support covers `componentDiagram { component { BackgroundColor/BorderColor/FontColor ... } }` with override and SVG evidence in `tests/fixtures/styling/valid_style_block_component.puml` and `tests/ch07_component_parity.rs`.
+**Notes:** This intentionally reuses the skinparam classifiers/renderers for now. Broader selector matching, title/header/footer style properties, stereotype-scoped selectors, and most renderer families remain open.
+
 ### Skinparam: `roundcorner` — ✅
 **Feature:** Corner radius on boxes.
 **Evidence:** theme.rs:1164 sequence variant.
@@ -96,6 +102,7 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 | sequenceMessageAlign | 🟡 (no `direction`) |
 | `<<Stereotype>>` scoped overrides | ❌ |
 | Family coverage (actor/usecase/node/db/...) | 🟡 |
+| `<style>` block replacement syntax | 🟡 |
 | `-language` / `help skinparams` | ❌ |
 
-**Score:** 5 ✅ · 4 🟡 · 5 ❌ out of 14. Basic skinparam plumbing is solid; many family-specific keys, stereotype scoping, and the global `monochrome`/`handwritten` flags are missing.
+**Score:** 5 ✅ · 5 🟡 · 5 ❌ out of 15. Basic skinparam plumbing is solid; many family-specific keys, broad style-block selectors, stereotype scoping, and the global `monochrome`/`handwritten` flags are missing.

@@ -1,0 +1,19 @@
+@startuml
+skinparam ComponentBackgroundColor #ffffff
+skinparam ComponentBorderColor #1e293b
+skinparam ComponentFontColor #0f172a
+
+<style>
+componentDiagram {
+  component {
+    BackgroundColor #dbeafe
+    BorderColor: #2563eb;
+    FontColor #7c2d12
+  }
+}
+</style>
+
+component "Styled API" as api
+component "Worker" as worker
+api --> worker
+@enduml

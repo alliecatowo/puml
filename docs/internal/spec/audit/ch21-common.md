@@ -62,11 +62,11 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Evidence:** Top-level common-command extraction happens in `src/parser/sequence.rs:229-241` and the multiline collector, but model fields for these are only present on Document, SequenceDiagram, ClassDiagram, ComponentDiagram, etc. (`src/model.rs:47-51,442-446,537-541,702`). Rendering coverage varies — sequence/mindmap/timeline/salt/data have explicit calls; class/component/state/activity render paths were not located in grep above.
 **Notes:** Gap: confirm `title/caption/legend/header/footer` render on class, component, state, activity, gantt, nwdiag, wbs, archimate.
 
-### 21.8 Style block `<style>...</style>` for title/header/footer/etc. — ❌ (likely)
+### 21.8 Style block `<style>...</style>` for title/header/footer/etc. — 🟡
 **Feature:** Skinparam-replacement `<style>` blocks setting `title { HorizontalAlignment right ... }`.
-**Status:** ❌
-**Evidence:** No matches for `<style>` parser handling in `src/parser/` or `src/normalize/` (only skinparam parsing exists).
-**Notes:** Modern PlantUML `<style>` syntax is the recommended replacement for `skinparam`. Major gap.
+**Status:** 🟡 (minimal sequence slice plus componentDiagram component color slice)
+**Evidence:** Generic `<style>` lowering in `src/parser/core.rs` maps supported selectors to existing `SkinParam` statements. Sequence support covers `sequenceDiagram` plus `participant`, `note`, and `group` selectors (`tests/coverage_edges.rs::style_block_sequence_min_slice_maps_to_skinparams`). Component support covers `componentDiagram { component { BackgroundColor/BorderColor/FontColor ... } }` and proves skinparam override plus SVG output in `tests/ch07_component_parity.rs::component_diagram_style_block_component_colors_override_skinparam` and `tests/ch07_component_parity.rs::component_diagram_style_block_component_colors_reach_svg`.
+**Notes:** Modern PlantUML `<style>` syntax is the recommended replacement for `skinparam`. Broader selector grammar remains a major gap: title/header/footer selectors, class/state/activity/timing/deployment selectors, nested stereotype selectors, and non-color properties still need follow-up.
 
 ### 21.9 Skinparam (general) — 🟡
 **Feature:** `skinparam <key> <value>` and `skinparam <category> { ... }` block form.
@@ -129,5 +129,5 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 
 ## Tally — Chapter 21
 - ✅ Supported: 14 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia, top-level backgroundColor)
-- 🟡 Partial: 5 (scale, per-family render coverage, skinparam breadth, !theme remote, monochrome)
-- ❌ Missing: 3 (`<style>` blocks, mainframe, hide stereotype)
+- 🟡 Partial: 6 (scale, per-family render coverage, `<style>` block slices, skinparam breadth, !theme remote, monochrome)
+- ❌ Missing: 2 (mainframe, hide stereotype)
