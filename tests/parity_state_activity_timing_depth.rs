@@ -73,6 +73,58 @@ fn activity_partition_example_keeps_start_below_lane_header() {
 }
 
 #[test]
+fn activity_new_partition_blocks_render_as_vertical_groups_not_swimlanes() {
+    let src = include_str!("../docs/examples/activity_new/06_partition.puml");
+    let svg =
+        puml::render_source_to_svg(src).expect("activity-new partition example should render");
+    let doc = SvgDoc::parse(&svg);
+
+    let backend_header = *doc
+        .texts_containing("Backend")
+        .first()
+        .expect("Backend partition header should render");
+    let frontend_header = *doc
+        .texts_containing("Frontend")
+        .first()
+        .expect("Frontend partition header should render");
+    let fetch_data = *doc
+        .texts_containing("fetch data")
+        .first()
+        .expect("Backend action should render");
+    let process = *doc
+        .texts_containing("process")
+        .first()
+        .expect("second Backend action should render");
+    let render = *doc
+        .texts_containing("render")
+        .first()
+        .expect("Frontend action should render");
+    let start = doc
+        .elements("circle")
+        .into_iter()
+        .next()
+        .expect("activity start node should render");
+
+    let backend_x = f64_attr(backend_header, "x");
+    let frontend_x = f64_attr(frontend_header, "x");
+    assert!(
+        (backend_x - frontend_x).abs() < 1.0,
+        "brace-delimited partitions should share the main activity column"
+    );
+    assert!(
+        f64_attr(start, "cy") < f64_attr(backend_header, "y"),
+        "start before a partition block should stay outside the first partition"
+    );
+    assert!(
+        f64_attr(backend_header, "y") < f64_attr(fetch_data, "y")
+            && f64_attr(fetch_data, "y") < f64_attr(process, "y")
+            && f64_attr(process, "y") < f64_attr(frontend_header, "y")
+            && f64_attr(frontend_header, "y") < f64_attr(render, "y"),
+        "partition contents should stack vertically in source order"
+    );
+}
+
+#[test]
 fn activity_old_swimlane_example_uses_only_real_lanes_and_keeps_nodes_in_bounds() {
     let src = include_str!("../docs/examples/activity_old/02_swimlanes.puml");
     let svg = puml::render_source_to_svg(src).expect("activity old swimlane example should render");

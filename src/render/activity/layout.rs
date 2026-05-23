@@ -217,6 +217,7 @@ pub(super) fn compute_layout(
     let mut if_stack: Vec<IfFrame> = Vec::new();
     let mut fork_stack: Vec<ForkFrame> = Vec::new();
     let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
+    let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
 
     for (i, meta) in metas.iter().enumerate() {
         let base_cx = lane_center_x(&meta.lane_name);
@@ -528,13 +529,21 @@ pub(super) fn compute_layout(
                     && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)
                 {
                     let slot_y = current_slot_y;
+                    let reserves_partition_space = has_partition_blocks
+                        && (meta.step_kind == "PartitionStart" || meta.step_kind == "PartitionEnd");
+                    let next_slot_y = if reserves_partition_space {
+                        slot_y + lane_header_h
+                    } else {
+                        slot_y
+                    };
                     node_layouts.push(NodeLayout {
                         cx,
                         slot_y,
                         arrow_out_y: slot_y,
-                        next_slot_y: slot_y,
+                        next_slot_y,
                     });
                     suppress_prev_arrow.insert(i);
+                    current_slot_y = next_slot_y;
                 } else {
                     let slot_y = current_slot_y;
                     let arrow_out_y = slot_y + ARROW_OUT;
