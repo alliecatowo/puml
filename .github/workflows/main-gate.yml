@@ -13,10 +13,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
-
 jobs:
   full-gate:
     name: full-gate-and-benchmark-publication
@@ -42,9 +38,6 @@ jobs:
         with:
           shared-key: main-gate-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
