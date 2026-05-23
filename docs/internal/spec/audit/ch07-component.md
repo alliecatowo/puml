@@ -116,8 +116,8 @@ See 7.8/7.9. `uml2` is now the explicit default; `uml1` and `rectangle` are also
 **Feature:** `port p1`, `portin p1`, `portout p1` inside a `component C { ... }` block.
 **Syntax example:** `component C { portin p1; portout po1; component c1 }`
 **Status:** 🟡
-**Evidence:** `src/parser/component.rs:6-8` accepts `port|portin|portout`. Distinguishes by inserting `<<portin>>` / `<<portout>>` marker members (`:97-104`). `ComponentNodeKind::Port` at `src/ast.rs:277`.
-**Notes:** Rendering as a directional port shape (small square on the component boundary) is not custom — likely drawn as a generic node. Visual fidelity untested here.
+**Evidence:** `src/parser/component.rs:6-8` accepts `port|portin|portout`. Distinguishes by inserting `<<portin>>` / `<<portout>>` marker members (`:97-104`). `ComponentNodeKind::Port` at `src/ast.rs:277`. `src/render/family.rs` renders component interfaces as circles and ports as small square nodes with direction metadata. `src/render/graph_layout.rs` now keeps staggered component package groups from overlapping so lollipop/interface edge lanes do not collapse onto package header avoidance lines. Tests: `render::graph_layout::tests::staggered_component_groups_do_not_overlap`.
+**Notes:** Standalone ports render as square port nodes, and the component lollipop example no longer overlaps unrelated packages. Full boundary-attached port placement for `port` declared inside a component block remains partial.
 
 ---
 

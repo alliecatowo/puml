@@ -542,6 +542,7 @@ fn class_run_layout(
         // Right-side gutter only needs margin_x (32px); canvas_margin also absorbs
         // title height and group-label tabs which are only needed vertically.
         canvas_right_margin: Some(margin_x as f64),
+        stack_staggered_group_collisions: false,
     };
 
     let mut gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
@@ -4728,6 +4729,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         // canvas_margin absorbs title + package-label tab height for vertical
         // positioning; the right-side gutter only needs canvas_margin (40px).
         canvas_right_margin: Some(canvas_margin as f64),
+        stack_staggered_group_collisions: family == "component",
     };
 
     // Run hierarchical layout
