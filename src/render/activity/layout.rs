@@ -94,13 +94,13 @@ pub(super) struct NodeLayout {
 
 pub(super) struct LayoutResult {
     pub node_layouts: Vec<NodeLayout>,
-    pub fork_bar_half_widths: std::collections::HashMap<usize, i32>,
+    pub fork_bar_half_widths: std::collections::BTreeMap<usize, i32>,
     /// Extra arrows used for control-flow branch and merge routes.
     pub extra_arrows: Vec<ActivityRoute>,
     /// Direct arrows: fork-bar→branch, branch→join-bar.
     pub direct_arrows: Vec<ActivityRoute>,
     /// Node indices for which the standard prev→cur arrow is suppressed
-    pub suppress_prev_arrow: std::collections::HashSet<usize>,
+    pub suppress_prev_arrow: std::collections::BTreeSet<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -208,10 +208,10 @@ pub(super) fn compute_layout(
     const ARROW_OUT: i32 = ACTIVITY_ARROW_OUT_OFFSET;
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
-    let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
+    let mut fork_bar_half_widths: std::collections::BTreeMap<usize, i32> = Default::default();
     let mut extra_arrows: Vec<ActivityRoute> = Vec::new();
     let mut direct_arrows: Vec<ActivityRoute> = Vec::new();
-    let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
+    let mut suppress_prev_arrow: std::collections::BTreeSet<usize> = Default::default();
 
     let mut current_slot_y = header_h + lane_header_h;
     let mut if_stack: Vec<IfFrame> = Vec::new();

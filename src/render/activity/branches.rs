@@ -26,9 +26,9 @@ pub(super) fn compute_hidden_nodes(
     doc: &FamilyDocument,
     metas: &[NodeMeta],
     node_layouts: &mut [NodeLayout],
-    suppress_prev_arrow: &mut std::collections::HashSet<usize>,
-) -> std::collections::HashSet<usize> {
-    let mut hidden_nodes: std::collections::HashSet<usize> = Default::default();
+    suppress_prev_arrow: &mut std::collections::BTreeSet<usize>,
+) -> std::collections::BTreeSet<usize> {
+    let mut hidden_nodes: std::collections::BTreeSet<usize> = Default::default();
 
     for i in 0..doc.nodes.len() {
         if hidden_nodes.contains(&i) || !matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityAction)
@@ -81,7 +81,7 @@ pub(super) fn compute_hidden_nodes(
 pub(super) fn is_hidden_control_node(
     doc: &FamilyDocument,
     metas: &[NodeMeta],
-    hidden_nodes: &std::collections::HashSet<usize>,
+    hidden_nodes: &std::collections::BTreeSet<usize>,
     idx: usize,
 ) -> bool {
     hidden_nodes.contains(&idx) || is_layout_only_control(doc, metas, idx)
@@ -99,14 +99,14 @@ pub(super) fn redirect_extra_arrows(
     metas: &[NodeMeta],
     node_layouts: &[NodeLayout],
     extra_arrows: Vec<ActivityRoute>,
-    hidden_nodes: &std::collections::HashSet<usize>,
+    hidden_nodes: &std::collections::BTreeSet<usize>,
 ) -> Vec<ActivityRoute> {
-    let slot_index_by_position: std::collections::HashMap<(i32, i32), usize> = node_layouts
+    let slot_index_by_position: std::collections::BTreeMap<(i32, i32), usize> = node_layouts
         .iter()
         .enumerate()
         .map(|(idx, layout)| ((layout.cx, layout.slot_y), idx))
         .collect();
-    let arrow_out_index_by_position: std::collections::HashMap<(i32, i32), usize> = node_layouts
+    let arrow_out_index_by_position: std::collections::BTreeMap<(i32, i32), usize> = node_layouts
         .iter()
         .enumerate()
         .map(|(idx, layout)| ((layout.cx, layout.arrow_out_y), idx))

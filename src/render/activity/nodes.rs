@@ -16,8 +16,8 @@ pub(super) fn render_node(
     i: usize,
     node_layouts: &[NodeLayout],
     metas: &[NodeMeta],
-    hidden_nodes: &std::collections::HashSet<usize>,
-    fork_bar_half_widths: &std::collections::HashMap<usize, i32>,
+    hidden_nodes: &std::collections::BTreeSet<usize>,
+    fork_bar_half_widths: &std::collections::BTreeMap<usize, i32>,
     act_style: &ActivityStyle,
     box_w: i32,
 ) {
@@ -227,7 +227,7 @@ pub(super) fn emit_predecessor_arrow(
     i: usize,
     node_layouts: &[NodeLayout],
     metas: &[NodeMeta],
-    suppress_prev_arrow: &std::collections::HashSet<usize>,
+    suppress_prev_arrow: &std::collections::BTreeSet<usize>,
     act_style: &ActivityStyle,
     bboxes: &[NodeBbox],
 ) {
