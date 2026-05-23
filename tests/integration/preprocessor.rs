@@ -2,6 +2,47 @@ use super::fixture;
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde_json::Value;
+use std::fs;
+use tempfile::tempdir;
+
+#[test]
+fn preproc_flag_dumps_expanded_source_to_stdout() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("main.puml");
+    let include = tmp.path().join("common.puml");
+    fs::write(&include, "Alice -> Bob : $LABEL\n").unwrap();
+    fs::write(
+        &input,
+        "@startuml\n!$LABEL = \"from preproc\"\n!include common.puml\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--preproc", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .stdout(predicate::str::contains("@startuml"))
+        .stdout(predicate::str::contains("Alice -> Bob : \"from preproc\""))
+        .stdout(predicate::str::contains("!include common.puml").not())
+        .stdout(predicate::str::contains("!$LABEL").not());
+}
+
+#[test]
+fn preproc_flag_reports_include_diagnostics_without_rendering() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--preproc", "-"])
+        .write_stdin("@startuml\n!include missing.puml\n@enduml\n")
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "!include from stdin requires include_root option",
+        ));
+}
 
 #[test]
 fn preprocessor_builtin_strlen_expands_to_character_count() {

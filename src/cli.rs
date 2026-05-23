@@ -79,6 +79,14 @@ pub struct Cli {
     #[arg(long = "check-syntax", action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check_syntax: bool,
 
+    /// Dump preprocessed source after include/macro expansion.
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        conflicts_with_all = ["check", "check_syntax", "dump", "metadata", "output"]
+    )]
+    pub preproc: bool,
+
     /// Emit structured JSON metadata after parse and normalization.
     #[arg(
         long,
@@ -429,6 +437,7 @@ mod tests {
         assert!(!cli.htmlcss);
         assert!(!cli.pipe);
         assert!(!cli.check_syntax);
+        assert!(!cli.preproc);
     }
 
     #[test]
@@ -501,6 +510,29 @@ mod tests {
         let output_err = Cli::try_parse_from(["puml", "--pipe", "-o", "diag.svg"])
             .expect_err("--pipe should always write to stdout");
         assert_eq!(output_err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn preproc_compat_flag_selects_stdout_preprocessor_dump() {
+        let cli = Cli::try_parse_from(["puml", "--preproc", "diag.puml"])
+            .expect("--preproc should parse");
+        assert!(cli.preproc);
+        assert_eq!(cli.input, Some(PathBuf::from("diag.puml")));
+        assert!(cli.output.is_none());
+    }
+
+    #[test]
+    fn preproc_compat_flag_conflicts_with_other_non_render_modes_and_output() {
+        for args in [
+            vec!["puml", "--preproc", "--check"],
+            vec!["puml", "--preproc", "--check-syntax"],
+            vec!["puml", "--preproc", "--dump", "ast"],
+            vec!["puml", "--preproc", "--metadata"],
+            vec!["puml", "--preproc", "-o", "out.puml"],
+        ] {
+            let err = Cli::try_parse_from(args).expect_err("--preproc combination should fail");
+            assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+        }
     }
 
     #[test]

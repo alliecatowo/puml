@@ -63,6 +63,11 @@ For PlantUML-compatible stdin-to-stdout mode, use `--pipe`:
 cat hello.puml | puml --pipe > hello.svg
 ```
 
+To inspect include and macro expansion without rendering, use `--preproc`:
+
+```bash
+puml --preproc hello.puml
+```
 `--pipe` does not accept a positional input file or `-o`; it always reads stdin and
 writes stdout.
 

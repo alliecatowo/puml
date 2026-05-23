@@ -14,6 +14,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 | Render from stdin            | `cat x.puml \| puml -` or `\| puml`  | writes SVG to stdout                            |
 | Check / lint                 | `puml --check input.puml`            | exit code only, diagnostics on stderr           |
 | Multi-input lint             | `puml --check --lint-input ...`      | aggregated lint report on stdout                |
+| Preprocessor dump            | `puml --preproc input.puml`          | preprocessed source on stdout                   |
 | Markdown fence extraction    | `puml --from-markdown notes.md`      | renders each fenced diagram block               |
 | AST / model / scene dump     | `puml --dump ast input.puml`         | JSON on stdout                                  |
 | Multi-page mode              | `puml --multi input.puml`            | `newpage` splits into numbered files / JSON     |
@@ -32,6 +33,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --dpi FLOAT                  PNG rasterization DPI (default: 96)
 --check                      parse + normalize only, no render output
 --check-syntax               PlantUML-compatible alias for --check
+--preproc                    dump source after !include and macro expansion
 --lint-input INPUT           repeatable check input (check mode only)
 --lint-glob GLOB             repeatable glob-expanded check input
 --lint-report human|json     lint summary report format (default: human)
