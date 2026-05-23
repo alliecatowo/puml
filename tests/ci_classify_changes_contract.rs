@@ -79,6 +79,23 @@ fn wasm_crate_changes_run_full_and_wasm_site_smoke() {
 }
 
 #[test]
+fn wasm_pack_action_changes_run_wasm_site_smoke() {
+    let output = classify(&[".github/actions/install-wasm-pack/action.yml"]);
+
+    assert_output_contains(
+        &output,
+        &[
+            "run_full_gate=false",
+            "docs_examples_changed=false",
+            "run_docs_examples_drift=false",
+            "run_wasm_check=false",
+            "run_site_smoke=true",
+            "run_wasm_site_smoke=true",
+        ],
+    );
+}
+
+#[test]
 fn docs_examples_changes_keep_drift_and_site_coverage() {
     let output = classify(&["docs/examples/sequence/basic.puml"]);
 

@@ -21,6 +21,7 @@ SITE_SMOKE_FILES = {
 }
 
 WASM_SITE_FILES = {
+    ".github/actions/install-wasm-pack/action.yml",
     "scripts/wasm-smoke.mjs",
     "site/static/js/inline-fence-preview.js",
     "site/static/js/wasm-renderer.js",

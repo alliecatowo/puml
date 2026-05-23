@@ -4,39 +4,32 @@ description: >
   it, extract the binary, and add it to PATH. Avoids the unversioned
   curl|sh installer (issue #453).
 
-inputs:
-  version:
-    description: wasm-pack version to install (without leading "v")
-    required: false
-    default: "0.15.0"
-
 runs:
   using: composite
   steps:
     - name: Install wasm-pack (pinned, verified)
       shell: bash
       env:
-        WASM_PACK_VERSION: ${{ inputs.version }}
+        WASM_PACK_VERSION: "0.15.0"
       run: |
         set -euo pipefail
 
-        # Resolve architecture to the correct release tarball name.
         ARCH="$(uname -m)"
-        case "${ARCH}" in
-          x86_64)
+        case "${WASM_PACK_VERSION}:${ARCH}" in
+          0.15.0:x86_64)
             TRIPLE="x86_64-unknown-linux-musl"
             # SHA-256 of wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz
             # Computed: curl -fsSL <url> | sha256sum
             EXPECTED_SHA256="c09f971ecaed9a2efc80fdcea7a00ef6b53c7fadc8c57d1f61b53a6aa66b668a"
             ;;
-          aarch64)
+          0.15.0:aarch64)
             TRIPLE="aarch64-unknown-linux-musl"
             # SHA-256 of wasm-pack-v0.15.0-aarch64-unknown-linux-musl.tar.gz
             # Computed: curl -fsSL <url> | sha256sum
             EXPECTED_SHA256="e17ef0806381c3a0acb9c9ddad643a49facaa5a2ecf657a421d4d8f3357a24b7"
             ;;
           *)
-            echo "[install-wasm-pack] Unsupported architecture: ${ARCH}" >&2
+            echo "[install-wasm-pack] Unsupported wasm-pack pin/architecture: v${WASM_PACK_VERSION} on ${ARCH}" >&2
             exit 1
             ;;
         esac

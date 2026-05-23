@@ -23,6 +23,7 @@ on:
       - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.github/actions/install-wasm-pack/action.yml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
