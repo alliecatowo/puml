@@ -59,6 +59,10 @@ pub struct Cli {
     #[arg(short = 'o', long = "output", value_name = "OUTPUT")]
     pub output: Option<PathBuf>,
 
+    /// PlantUML-compatible stdin-to-stdout render mode.
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "output"])]
+    pub pipe: bool,
+
     /// Render output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
     pub format: OutputFormat,
@@ -423,6 +427,7 @@ mod tests {
         assert_eq!(cli.charset, "UTF-8");
         assert!(cli.encodesprite.is_empty());
         assert!(!cli.htmlcss);
+        assert!(!cli.pipe);
         assert!(!cli.check_syntax);
     }
 
@@ -475,6 +480,27 @@ mod tests {
         let err = Cli::try_parse_from(["puml", "--allow-url-includes", "--no-url-includes"])
             .expect_err("allow/no-url-includes should conflict");
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn pipe_compat_flag_selects_stdin_stdout_mode() {
+        let cli = Cli::try_parse_from(["puml", "--pipe", "--format", "svg"])
+            .expect("--pipe should parse");
+        assert!(cli.pipe);
+        assert!(cli.input.is_none());
+        assert!(cli.output.is_none());
+        assert_eq!(cli.format, OutputFormat::Svg);
+    }
+
+    #[test]
+    fn pipe_compat_flag_conflicts_with_file_outputs() {
+        let input_err = Cli::try_parse_from(["puml", "--pipe", "diag.puml"])
+            .expect_err("--pipe should not accept a positional input file");
+        assert_eq!(input_err.kind(), clap::error::ErrorKind::ArgumentConflict);
+
+        let output_err = Cli::try_parse_from(["puml", "--pipe", "-o", "diag.svg"])
+            .expect_err("--pipe should always write to stdout");
+        assert_eq!(output_err.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 
     #[test]

@@ -2442,6 +2442,19 @@ fn stdin_input_is_supported() {
 }
 
 #[test]
+fn pipe_flag_reads_stdin_and_writes_svg_stdout() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--pipe")
+        .write_stdin("@startuml\nA -> B: piped\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .stdout(predicate::str::starts_with("<svg"))
+        .stdout(predicate::str::contains("piped"));
+}
+
+#[test]
 fn stdin_dash_path_is_supported() {
     let out = Command::cargo_bin("puml")
         .expect("binary")

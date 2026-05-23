@@ -75,6 +75,12 @@ Use `-o -` to write to stdout (useful for piping into another tool):
 puml hello.puml -o - | rsvg-convert --format pdf > hello.pdf
 ```
 
+For PlantUML-compatible stdin/stdout rendering, use `--pipe`:
+
+```bash
+cat hello.puml | puml --pipe > hello.svg
+```
+
 ---
 
 ## Step 3: Render to PNG
