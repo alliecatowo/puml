@@ -427,7 +427,15 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     cli.allow_url_includes,
                     inject_vars.clone(),
                 )
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))
+                .map_err(|d| {
+                    diag_err_mapped_label(
+                        &raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    )
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
