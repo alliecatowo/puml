@@ -76,7 +76,7 @@ jobs:
           fi
 
       - name: docs examples drift gate
-        run: python3 ./scripts/render_check.py --quiet --fail-on-doc-drift
+        run: python3 ./scripts/render_check.py --quiet --fail-on-doc-drift --output docs/benchmarks/render_check_latest.json
 
       - name: Upload benchmark artifacts
         if: always()

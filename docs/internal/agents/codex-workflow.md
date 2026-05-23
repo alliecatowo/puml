@@ -106,6 +106,9 @@ git status --short
 # run docs/example drift check only
 python3 ./scripts/render_check.py --fail-on-doc-drift --quiet
 
+# intentionally refresh the tracked render-check report
+python3 ./scripts/render_check.py --fail-on-doc-drift --quiet --output docs/benchmarks/render_check_latest.json
+
 # refresh committed docs example SVGs
 for f in docs/examples/*.puml; do cargo run -- "$f"; done
 for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
