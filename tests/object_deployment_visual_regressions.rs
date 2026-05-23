@@ -37,6 +37,29 @@ fn attr_value_in_next_tag_after(haystack: &str, marker: &str, tag_prefix: &str, 
         .expect("attribute should parse as i32")
 }
 
+fn polyline_points_after(haystack: &str, marker: &str) -> Vec<(i32, i32)> {
+    let marker_idx = haystack.find(marker).expect("marker should exist");
+    let points_key = "points=\"";
+    let points_start = haystack[marker_idx..]
+        .find(points_key)
+        .map(|idx| marker_idx + idx + points_key.len())
+        .expect("points attribute should exist");
+    let rest = &haystack[points_start..];
+    let points_end = rest.find('"').expect("points attribute should terminate");
+    rest[..points_end]
+        .split_whitespace()
+        .map(|pair| {
+            let (x, y) = pair
+                .split_once(',')
+                .expect("polyline point should contain comma");
+            (
+                x.parse::<i32>().expect("x coordinate should parse"),
+                y.parse::<i32>().expect("y coordinate should parse"),
+            )
+        })
+        .collect()
+}
+
 #[test]
 fn object_relation_labels_stay_centered_on_vertical_relations() {
     let svg = puml::render_source_to_svg(
@@ -55,6 +78,28 @@ fn object_relation_labels_stay_centered_on_vertical_relations() {
     assert!(
         drift <= 20,
         "expected object relation label within 20px of target center: label_x={label_x}, target_center_x={target_center_x}, drift={drift}"
+    );
+}
+
+#[test]
+fn object_fork_nonparallel_edges_share_midpoint_channel() {
+    let svg = puml::render_source_to_svg(
+        "@startuml\nobject Server {\n  host = api.example.com\n  port = 443\n}\nobject Cache {\n  host = redis.internal\n  port = 6379\n}\nobject Database {\n  host = db.internal\n  port = 5432\n}\nServer --> Cache : uses\nServer --> Database : connects\n@enduml\n",
+    )
+    .expect("object fork svg should render");
+
+    let right = polyline_points_after(&svg, "data-uml-from=\"Server\" data-uml-to=\"Database\"");
+    let left = polyline_points_after(&svg, "data-uml-from=\"Server\" data-uml-to=\"Cache\"");
+    assert!(
+        right.len() >= 3 && left.len() >= 3,
+        "fork edges should keep orthogonal bend points"
+    );
+
+    // For non-parallel siblings in an object fork, both first channel bends
+    // should route through the same midpoint y.
+    assert_eq!(
+        right[1].1, left[1].1,
+        "non-parallel object fork edges should share midpoint channel y"
     );
 }
 

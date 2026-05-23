@@ -504,7 +504,57 @@ fn class_run_layout(
         canvas_right_margin: Some(margin_x as f64),
     };
 
-    let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
+    let mut gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
+
+    // Narrow #803 behavior: for object diagrams only, normalize non-parallel
+    // cross-rank channels to the geometric midpoint between endpoints so forked
+    // one-to-many edges don't receive incidental per-channel fan offsets.
+    //
+    // This keeps the fix local to object rendering instead of changing global
+    // graph-layout geometry for every class-like family.
+    let is_object_diagram = !document.nodes.is_empty()
+        && document
+            .nodes
+            .iter()
+            .all(|node| matches!(node.kind, FamilyNodeKind::Object));
+    if is_object_diagram {
+        let mut pair_counts: std::collections::BTreeMap<(String, String), usize> =
+            std::collections::BTreeMap::new();
+        for edge in &gl_edges {
+            *pair_counts
+                .entry((edge.from.clone(), edge.to.clone()))
+                .or_insert(0) += 1;
+        }
+        for (idx, edge) in gl_edges.iter().enumerate() {
+            if pair_counts
+                .get(&(edge.from.clone(), edge.to.clone()))
+                .copied()
+                .unwrap_or(0)
+                > 1
+            {
+                continue;
+            }
+            let edge_id = format!("r{idx}");
+            let Some(path) = gl_result.edge_paths.get_mut(&edge_id) else {
+                continue;
+            };
+            if path.len() < 4 {
+                continue;
+            }
+            let src = path[0];
+            let dst = *path.last().unwrap_or(&src);
+            // Only adjust cross-rank routes where interior points represent a
+            // channel bend between source and target rows.
+            if (src.1 - dst.1).abs() < 1.0 {
+                continue;
+            }
+            let mid_y = (src.1 + dst.1) / 2.0;
+            let end = path.len().saturating_sub(1);
+            for p in path.iter_mut().take(end).skip(1) {
+                p.1 = mid_y;
+            }
+        }
+    }
 
     // Populate node_boxes: use layout positions when available, else grid fallback.
     let mut node_boxes: std::collections::BTreeMap<String, ClassNodeBox> =
