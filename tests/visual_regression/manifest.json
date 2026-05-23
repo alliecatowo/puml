@@ -63,10 +63,47 @@
       "min_text_elements": 3
     },
     {
+      "path": "docs/examples/usecase/06_multi_system_boundary.puml",
+      "family": "usecase",
+      "expected_text": [
+        "Multiple system boundaries with actor inheritance",
+        "Customer",
+        "Support Agent",
+        "Customer Portal",
+        "Support Console",
+        "Automation Engine",
+        "Open Ticket",
+        "Auto-tag Ticket",
+        "Route to Agent",
+        "triggers",
+        "<<extend>>"
+      ],
+      "min_text_elements": 18
+    },
+    {
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
       "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+      "family": "component",
+      "expected_text": [
+        "Ports, lollipop interfaces, and required connectors",
+        "Order Service",
+        "OrderController",
+        "OrderDomain",
+        "IOrderService",
+        "IOrderRepository",
+        "NotificationSender",
+        "PostgreSQL",
+        "RabbitMQ",
+        "provides",
+        "requires",
+        "publish events"
+      ],
+      "min_text_elements": 20
     },
     {
       "path": "docs/examples/object/01_basic.puml",
