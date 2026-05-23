@@ -87,6 +87,11 @@ pub struct LayoutOptions {
     /// when `None`.  Set explicitly to decouple a large top/left margin (which
     /// absorbs titles and package-label tabs) from the right-side gutter.
     pub canvas_right_margin: Option<f64>,
+    /// Stack vertically staggered group collisions downward instead of shifting
+    /// them sideways. Component diagrams use this to keep downstream packages
+    /// out of lollipop/interface routing channels without changing deployment
+    /// layouts that already have blessed artifacts.
+    pub stack_staggered_group_collisions: bool,
 }
 
 impl Default for LayoutOptions {
@@ -98,6 +103,7 @@ impl Default for LayoutOptions {
             direction: Direction::TopDown,
             canvas_margin: DEFAULT_CANVAS_MARGIN,
             canvas_right_margin: None,
+            stack_staggered_group_collisions: false,
         }
     }
 }
@@ -814,10 +820,20 @@ fn assign_coordinates(
                     let x_overlap = a_right > bx && b_right > ax;
                     let y_overlap = a_bottom > by && b_bottom > ay;
                     if x_overlap && y_overlap {
-                        let (shift_target, shift_amount, shift_down) = if prefer_vertical_shift {
+                        let staggered_tops = (ay - by).abs() > min_gap / 2.0;
+                        let (shift_target, shift_amount, shift_down) = if prefer_vertical_shift
+                            || (options.stack_staggered_group_collisions && staggered_tops)
+                        {
                             // Wide grouped diagrams are more readable when
                             // colliding frames stack into rows instead of
                             // stretching into one extremely long row.
+                            //
+                            // Also stack lower-starting package groups
+                            // vertically. Otherwise a small downstream
+                            // package can sit inside a taller sibling group's
+                            // inter-rank channel, collapsing routed
+                            // lollipop/interface lanes onto that package's
+                            // header-avoidance line.
                             if ay <= by {
                                 (gb.to_string(), a_bottom - by + min_gap, true)
                             } else {
@@ -1544,6 +1560,13 @@ mod tests {
         }
     }
 
+    fn rects_overlap(
+        (ax, ay, aw, ah): (f64, f64, f64, f64),
+        (bx, by, bw, bh): (f64, f64, f64, f64),
+    ) -> bool {
+        ax + aw > bx && bx + bw > ax && ay + ah > by && by + bh > ay
+    }
+
     #[test]
     fn empty_graph_returns_default() {
         let layout = layout_hierarchical(&[], &[], &LayoutOptions::default());
@@ -1596,6 +1619,51 @@ mod tests {
         let (_, _, w, h) = layout.group_bounds["G1"];
         assert!(w > 0.0);
         assert!(h > 0.0);
+    }
+
+    #[test]
+    fn staggered_component_groups_do_not_overlap() {
+        // Regression for component/07: a lower data package was allowed to sit
+        // inside the taller notification package, which collapsed all
+        // lollipop/interface edge tracks onto the package-header avoidance lane.
+        let nodes = vec![
+            make_node("OC", Some("Order Service")),
+            make_node("OD", Some("Order Service")),
+            make_node("OR", Some("Order Service")),
+            make_node("IOrderService", Some("Order Service")),
+            make_node("IOrderRepository", Some("Order Service")),
+            make_node("NS", Some("Notification Service")),
+            make_node("INotifier", Some("Notification Service")),
+            make_node("PG", Some("Database")),
+            make_node("MQ", Some("Message Bus")),
+        ];
+        let edges = vec![
+            make_edge("e1", "OC", "IOrderService"),
+            make_edge("e2", "OD", "IOrderService"),
+            make_edge("e3", "OD", "IOrderRepository"),
+            make_edge("e4", "OR", "IOrderRepository"),
+            make_edge("e5", "NS", "INotifier"),
+            make_edge("e6", "OD", "INotifier"),
+            make_edge("e7", "OR", "PG"),
+            make_edge("e8", "OD", "MQ"),
+        ];
+        let options = LayoutOptions {
+            stack_staggered_group_collisions: true,
+            ..LayoutOptions::default()
+        };
+        let layout = layout_hierarchical(&nodes, &edges, &options);
+
+        let mut groups = layout.group_bounds.iter().collect::<Vec<_>>();
+        groups.sort_by_key(|(name, _)| *name);
+
+        for (idx, (left_name, left)) in groups.iter().enumerate() {
+            for (right_name, right) in groups.iter().skip(idx + 1) {
+                assert!(
+                    !rects_overlap(**left, **right),
+                    "groups {left_name} and {right_name} overlap: {left:?} vs {right:?}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -542,6 +542,7 @@ fn class_run_layout(
         // Right-side gutter only needs margin_x (32px); canvas_margin also absorbs
         // title height and group-label tabs which are only needed vertically.
         canvas_right_margin: Some(margin_x as f64),
+        stack_staggered_group_collisions: false,
     };
 
     let mut gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
@@ -4719,6 +4720,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                                                                               // frames extend pkg_pad (24px) on each side, so a node_separation of 2*pkg_pad
                                                                               // gives frames that just touch.  Add a visible inter-frame gutter on top.
     let node_sep = 2 * pkg_pad + inner_gap; // 48 + 40 = 88px → ~40px gap between frames
+    let has_lollipop_endpoint = doc
+        .relations
+        .iter()
+        .any(|rel| rel.left_lollipop || rel.right_lollipop);
     let gl_options = GlOptions {
         rank_separation: rank_sep,
         node_separation: node_sep as f64,
@@ -4728,6 +4733,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         // canvas_margin absorbs title + package-label tab height for vertical
         // positioning; the right-side gutter only needs canvas_margin (40px).
         canvas_right_margin: Some(canvas_margin as f64),
+        stack_staggered_group_collisions: family == "component" && has_lollipop_endpoint,
     };
 
     // Run hierarchical layout
