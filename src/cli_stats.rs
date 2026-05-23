@@ -482,4 +482,123 @@ mod tests {
             (3, 2)
         );
     }
+
+    fn parse_doc(source: &str) -> Document {
+        let options = ParsePipelineOptions {
+            frontend: puml::FrontendSelection::Auto,
+            compat: puml::CompatMode::Strict,
+            determinism: puml::DeterminismMode::Strict,
+            include_root: None,
+            allow_url_includes: false,
+            inject_vars: Default::default(),
+        };
+        puml::parse_with_pipeline_options(source, &options).expect("fixture should parse")
+    }
+
+    #[test]
+    fn compute_stats_counts_sequence_participants_messages_and_notes() {
+        let doc = parse_doc(
+            "@startuml
+actor User
+boundary UI
+control Controller
+entity Model
+database DB
+collections Cache
+queue Jobs
+User -> UI: click
+UI -> Controller: dispatch
+note right of User: hello
+@enduml
+",
+        );
+
+        let stats = compute_stats(&doc);
+
+        assert_eq!(stats.families, vec!["sequence"]);
+        assert_eq!(stats.edge_count, 2);
+        assert_eq!(stats.node_kinds["actor"], 1);
+        assert_eq!(stats.node_kinds["boundary"], 1);
+        assert_eq!(stats.node_kinds["control"], 1);
+        assert_eq!(stats.node_kinds["entity"], 1);
+        assert_eq!(stats.node_kinds["database"], 1);
+        assert_eq!(stats.node_kinds["collections"], 1);
+        assert_eq!(stats.node_kinds["queue"], 1);
+        assert_eq!(stats.node_kinds["note"], 1);
+    }
+
+    #[test]
+    fn compute_stats_observes_nested_state_depth_and_history() {
+        let doc = parse_doc(
+            "@startuml
+[*] --> Outer
+state Outer {
+  [H] --> Inner
+  state Inner {
+    [*] --> Done
+  }
+}
+Outer --> [*]
+@enduml
+",
+        );
+
+        let stats = compute_stats(&doc);
+
+        assert_eq!(stats.families, vec!["state"]);
+        assert!(stats.max_nesting_depth >= 2, "{stats:?}");
+        assert!(stats.edge_count >= 2, "{stats:?}");
+        assert!(stats.node_kinds["state"] >= 2, "{stats:?}");
+        assert!(
+            stats.node_kinds.get("state-history").copied().unwrap_or(0) <= 1,
+            "{stats:?}"
+        );
+    }
+
+    #[test]
+    fn compute_stats_counts_class_groups_members_relations_and_scopes() {
+        let doc = parse_doc(
+            "@startuml
+namespace Outer.Inner {
+  class A
+  class B
+}
+A --> B
+@enduml
+",
+        );
+
+        let stats = compute_stats(&doc);
+
+        assert_eq!(stats.families, vec!["class"]);
+        assert!(stats.node_kinds["namespace"] >= 1, "{stats:?}");
+        assert_eq!(stats.node_kinds["member"], 2);
+        assert!(stats.edge_count >= 1, "{stats:?}");
+        assert!(stats.max_nesting_depth >= 1, "{stats:?}");
+    }
+
+    #[test]
+    fn format_human_prints_empty_and_populated_kind_sections() {
+        let empty = Stats {
+            families: vec!["unknown".to_string()],
+            ..Stats::default()
+        };
+        assert!(format_human(&empty).contains("node kinds:    (none)"));
+
+        let populated = Stats {
+            node_count: 2,
+            edge_count: 1,
+            families: vec!["sequence".to_string()],
+            max_nesting_depth: 0,
+            node_kinds: BTreeMap::from([("actor".to_string(), 1), ("participant".to_string(), 1)]),
+        };
+        let rendered = format_human(&populated);
+
+        assert!(rendered.contains("nodes:         2"));
+        assert!(rendered.contains("edges:         1"));
+        assert!(rendered.contains("families:      sequence"));
+        assert!(rendered.contains("  actor"));
+        assert!(rendered.contains("  participant"));
+        assert!(!rendered.ends_with('\n'));
+    }
 }

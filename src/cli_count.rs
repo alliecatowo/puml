@@ -380,4 +380,130 @@ mod tests {
             assert_eq!(state_node_kind_label(&kind), label);
         }
     }
+
+    fn normalize_source(source: &str) -> NormalizedDocument {
+        let options = ParsePipelineOptions {
+            frontend: puml::FrontendSelection::Auto,
+            compat: puml::CompatMode::Strict,
+            determinism: puml::DeterminismMode::Strict,
+            include_root: None,
+            allow_url_includes: false,
+            inject_vars: Default::default(),
+        };
+        let doc = puml::parse_with_pipeline_options(source, &options).expect("parse fixture");
+        normalize_family(doc).expect("normalize fixture")
+    }
+
+    #[test]
+    fn extract_counts_handles_sequence_messages_and_roles() {
+        let model = normalize_source(
+            "@startuml
+actor User
+participant Service
+database DB
+User -> Service: request
+Service -> DB: query
+@enduml
+",
+        );
+
+        let counts = extract_counts(&model, true);
+        let by_kind = counts.by_kind.expect("kind breakdown");
+
+        assert_eq!(counts.nodes, 3);
+        assert_eq!(counts.edges, 2);
+        assert_eq!(by_kind["actor"], 1);
+        assert_eq!(by_kind["participant"], 1);
+        assert_eq!(by_kind["database"], 1);
+    }
+
+    #[test]
+    fn extract_counts_handles_family_documents_and_pages() {
+        let family = normalize_source(
+            "@startuml
+class A
+class B
+A --> B
+@enduml
+",
+        );
+        let family_counts = extract_counts(&family, true);
+        assert_eq!(family_counts.nodes, 2);
+        assert_eq!(family_counts.edges, 1);
+        assert_eq!(family_counts.by_kind.expect("family kinds")["class"], 2);
+
+        let pages = normalize_source(
+            "@startuml
+class A
+newpage
+class B
+A --> B
+@enduml
+",
+        );
+        let page_counts = extract_counts(&pages, true);
+        let page_kinds = page_counts.by_kind.expect("page kinds");
+        assert_eq!(page_counts.nodes, 2);
+        assert_eq!(page_counts.edges, 1);
+        assert_eq!(page_kinds["class"], 2);
+    }
+
+    #[test]
+    fn extract_counts_handles_state_nodes_and_transitions() {
+        let model = normalize_source(
+            "@startuml
+[*] --> Running
+Running --> [H]
+Running --> [*]
+@enduml
+",
+        );
+
+        let counts = extract_counts(&model, true);
+        let by_kind = counts.by_kind.as_ref().expect("state kinds");
+
+        assert!(counts.nodes >= 3, "{counts:?}");
+        assert_eq!(counts.edges, 3);
+        assert!(by_kind["state"] >= 1, "{by_kind:?}");
+        assert!(by_kind["start-end"] >= 1, "{by_kind:?}");
+        assert_eq!(by_kind["history-shallow"], 1);
+    }
+
+    #[test]
+    fn extract_counts_returns_zero_for_unsupported_diagram_families() {
+        let model = normalize_source(
+            "@startgantt
+[Task] lasts 2 days
+@endgantt
+",
+        );
+
+        let counts = extract_counts(&model, true);
+
+        assert_eq!(counts.nodes, 0);
+        assert_eq!(counts.edges, 0);
+        assert!(counts.by_kind.is_none());
+    }
+
+    #[test]
+    fn run_count_reports_io_and_parse_failures_with_expected_codes() {
+        let missing = CountArgs {
+            file: std::path::PathBuf::from("definitely-missing-count-fixture.puml"),
+            by_kind: false,
+        };
+        let (code, msg) = run_count(&missing).expect_err("missing file");
+        assert_eq!(code, 2);
+        assert!(msg.contains("could not read"));
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let invalid_path = dir.path().join("invalid.puml");
+        fs::write(&invalid_path, "@startuml\nAlice ->\n@enduml\n").expect("write invalid");
+        let invalid = CountArgs {
+            file: invalid_path,
+            by_kind: false,
+        };
+        let (code, msg) = run_count(&invalid).expect_err("parse failure");
+        assert_eq!(code, 1);
+        assert!(msg.contains("could not parse"));
+    }
 }
