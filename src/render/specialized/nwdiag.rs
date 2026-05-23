@@ -16,6 +16,18 @@ struct BoxSpan {
     w: i32,
 }
 
+struct SharedNodeSpan {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    addresses: Vec<String>,
+    label: String,
+    color: Option<String>,
+    shape: Option<String>,
+    style: Option<String>,
+}
+
 pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     let mut node_columns = Vec::new();
     for net in &document.networks {
@@ -110,6 +122,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         escape_text(document.title.as_deref().unwrap_or("Network diagram"))
     ));
     y += 24;
+    let shared_node_spans = shared_node_spans(document, &column_x, &column_widths, y);
+
     // ── Pass 1: collect node rects so we can compute group overlays ──────────
     let mut node_rects: BTreeMap<String, Vec<NodeRect>> = BTreeMap::new();
     let top_level_node_y = {
@@ -118,6 +132,9 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             let bar_y = scan_y + 24;
             let node_y = bar_y + 30;
             for node in &net.nodes {
+                if shared_node_spans.contains_key(&node.name) {
+                    continue;
+                }
                 let x = column_x.get(&node.name).copied().unwrap_or(56);
                 node_rects
                     .entry(node.name.clone())
@@ -150,6 +167,14 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         }
         top_level_node_y
     };
+    for (name, span) in &shared_node_spans {
+        node_rects.entry(name.clone()).or_default().push(NodeRect {
+            x: span.x,
+            y: span.y,
+            w: span.w,
+            h: span.h,
+        });
+    }
 
     // ── Compute group overlay bounding boxes ─────────────────────────────────
     let group_pad_x = 8i32;
@@ -283,15 +308,27 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         ));
         let node_y = bar_y + 30;
         for node in &net.nodes {
-            let node_fill = node.color.as_deref().unwrap_or("white");
-            let shape = node.shape.as_deref().unwrap_or("box");
-            let style = node.style.as_deref().unwrap_or("solid");
+            let shared_span = shared_node_spans.get(&node.name);
+            let node_fill = shared_span
+                .and_then(|span| span.color.as_deref())
+                .or(node.color.as_deref())
+                .unwrap_or("white");
+            let shape = shared_span
+                .and_then(|span| span.shape.as_deref())
+                .or(node.shape.as_deref())
+                .unwrap_or("box");
+            let style = shared_span
+                .and_then(|span| span.style.as_deref())
+                .or(node.style.as_deref())
+                .unwrap_or("solid");
             let dashed = if style.eq_ignore_ascii_case("dashed") {
                 " stroke-dasharray=\"5 3\""
             } else {
                 ""
             };
-            let node_width = node_width(node);
+            let node_width = shared_span
+                .map(|span| span.w)
+                .unwrap_or_else(|| node_width(node));
             let radius = if shape.eq_ignore_ascii_case("roundedbox")
                 || shape.eq_ignore_ascii_case("cloud")
             {
@@ -299,8 +336,14 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             } else {
                 3
             };
-            let x = column_x.get(&node.name).copied().unwrap_or(56);
+            let x = shared_span
+                .map(|span| span.x)
+                .unwrap_or_else(|| column_x.get(&node.name).copied().unwrap_or(56));
             let connector_x = x + (node_width / 2);
+            let connector_end_y = match shared_span {
+                Some(span) if node_y != span.y => bar_y + 12,
+                _ => node_y,
+            };
             out.push_str(&format!(
                 "<line class=\"nwdiag-connector\" data-nwdiag-network=\"{}\" data-nwdiag-node=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#0284c7\" stroke-width=\"2\"{} />",
                 escape_text(&net.name),
@@ -308,7 +351,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 connector_x,
                 bar_y + 12,
                 connector_x,
-                node_y,
+                connector_end_y,
                 dashed
             ));
             if !node.addresses.is_empty() {
@@ -319,10 +362,34 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                     escape_text(&node.addresses.join(", "))
                 ));
             }
+            if let Some(span) = shared_span {
+                if node_y != span.y {
+                    continue;
+                }
+                if span.h > 28 {
+                    out.push_str(&format!(
+                        "<line class=\"nwdiag-jump-line\" data-nwdiag-node=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#0284c7\" stroke-width=\"2\" stroke-dasharray=\"3 3\" />",
+                        escape_text(&node.name),
+                        connector_x,
+                        node_y + 28,
+                        connector_x,
+                        span.y + span.h
+                    ));
+                }
+            }
+            let data_addresses = shared_span
+                .map(|span| span.addresses.join(", "))
+                .unwrap_or_else(|| node.addresses.join(", "));
+            let shared_class = if shared_span.is_some() {
+                " nwdiag-shared-node"
+            } else {
+                ""
+            };
             out.push_str(&format!(
-                "<rect class=\"nwdiag-node\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1.5\"{}/>",
+                "<rect class=\"nwdiag-node{}\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1.5\"{}/>",
+                shared_class,
                 escape_text(&node.name),
-                escape_text(&node.addresses.join(", ")),
+                escape_text(&data_addresses),
                 escape_text(shape),
                 escape_text(style),
                 x,
@@ -333,8 +400,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 escape_text(node_fill),
                 dashed
             ));
-            let display = node.label.as_deref().unwrap_or(&node.name);
-            let label = if node.addresses.is_empty() {
+            let display = shared_span
+                .map(|span| span.label.as_str())
+                .or(node.label.as_deref())
+                .unwrap_or(&node.name);
+            let label = if node.addresses.is_empty() || shared_span.is_some() {
                 display.to_string()
             } else {
                 format!("{} [{}]", display, node.addresses.join(", "))
@@ -462,6 +532,84 @@ fn node_width(node: &NwdiagNode) -> i32 {
         .and_then(|width| i32::try_from(width).ok())
         .unwrap_or(140)
         .clamp(120, 240)
+}
+
+fn shared_node_spans(
+    document: &NwdiagDocument,
+    column_x: &BTreeMap<String, i32>,
+    column_widths: &BTreeMap<String, i32>,
+    start_y: i32,
+) -> BTreeMap<String, SharedNodeSpan> {
+    let shared_names = shared_network_node_names(document);
+    let mut spans: BTreeMap<String, SharedNodeSpan> = BTreeMap::new();
+    let mut scan_y = start_y;
+    for net in &document.networks {
+        let bar_y = scan_y + 24;
+        let node_y = bar_y + 30;
+        for node in &net.nodes {
+            if !shared_names.contains(&node.name) {
+                continue;
+            }
+            let x = column_x.get(&node.name).copied().unwrap_or(56);
+            let width = column_widths
+                .get(&node.name)
+                .copied()
+                .unwrap_or_else(|| node_width(node));
+            spans
+                .entry(node.name.clone())
+                .and_modify(|span| {
+                    span.h = ((bar_y + 12) - span.y).max(28);
+                    append_unique_addresses(&mut span.addresses, &node.addresses);
+                    if span.color.is_none() {
+                        span.color = node.color.clone();
+                    }
+                    if span.shape.is_none() {
+                        span.shape = node.shape.clone();
+                    }
+                    if span.style.is_none() {
+                        span.style = node.style.clone();
+                    }
+                })
+                .or_insert_with(|| SharedNodeSpan {
+                    x,
+                    y: node_y,
+                    w: width,
+                    h: 28,
+                    addresses: node.addresses.clone(),
+                    label: node.label.clone().unwrap_or_else(|| node.name.clone()),
+                    color: node.color.clone(),
+                    shape: node.shape.clone(),
+                    style: node.style.clone(),
+                });
+        }
+        scan_y = node_y + 52;
+    }
+    spans
+}
+
+fn shared_network_node_names(document: &NwdiagDocument) -> BTreeSet<String> {
+    let mut network_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for net in &document.networks {
+        let mut names_in_network = BTreeSet::new();
+        for node in &net.nodes {
+            names_in_network.insert(node.name.clone());
+        }
+        for name in names_in_network {
+            *network_counts.entry(name).or_default() += 1;
+        }
+    }
+    network_counts
+        .into_iter()
+        .filter_map(|(name, count)| (count > 1).then_some(name))
+        .collect()
+}
+
+fn append_unique_addresses(target: &mut Vec<String>, addresses: &[String]) {
+    for address in addresses {
+        if !target.iter().any(|existing| existing == address) {
+            target.push(address.clone());
+        }
+    }
 }
 
 fn node_is_in_network(document: &NwdiagDocument, name: &str) -> bool {

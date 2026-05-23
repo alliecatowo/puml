@@ -12,8 +12,19 @@ fn nwdiag_peer_links_width_full_and_group_overlay_render() {
     assert!(svg.contains("class=\"nwdiag-node nwdiag-toplevel\""));
     assert!(svg.contains("data-nwdiag-shape=\"cloud\""));
     assert!(svg.contains("group dmz"));
-    assert!(svg.contains("App Edge [203.0.113.10, 2001:db8::10]"));
-    assert!(svg.contains("data-nwdiag-addresses=\"203.0.113.10, 2001:db8::10\""));
+    assert!(svg.contains("App Edge"));
+    assert!(svg.contains("class=\"nwdiag-jump-line\" data-nwdiag-node=\"app\""));
+    assert!(svg.contains("data-nwdiag-addresses=\"203.0.113.10, 2001:db8::10, 10.0.0.10\""));
+    assert_eq!(
+        svg_node_rect_count(&svg, "app"),
+        1,
+        "shared nwdiag node should render as one node box plus jump line"
+    );
+    assert_eq!(
+        svg.matches("data-nwdiag-node=\"app\"").count(),
+        3,
+        "shared app should keep both network connectors plus the jump line"
+    );
 
     let edge_width = svg_network_width(&svg, "network edge (203.0.113.0/24)").expect("edge width");
     let core_width = svg_network_width(&svg, "network core (10.0.0.0/24)").expect("core width");
@@ -53,6 +64,46 @@ nwdiag {
     );
 }
 
+#[test]
+fn nwdiag_shared_node_renders_once_with_jump_line_across_networks() {
+    let src = r#"@startnwdiag
+nwdiag {
+  network public {
+    lb;
+    web;
+  }
+  network private {
+    lb;
+    app;
+  }
+  network ops {
+    lb;
+    metrics;
+  }
+}
+@endnwdiag
+"#;
+    let svg = puml::render_source_to_svg(src).expect("render nwdiag shared node");
+
+    assert_eq!(
+        svg_node_rect_count(&svg, "lb"),
+        1,
+        "shared node should not duplicate a node box per network row"
+    );
+    assert!(svg.contains("class=\"nwdiag-jump-line\" data-nwdiag-node=\"lb\""));
+    assert_eq!(
+        svg.matches("data-nwdiag-node=\"lb\"").count(),
+        4,
+        "shared lb should keep three network connectors plus one jump line"
+    );
+
+    let lb = svg_node_rect(&svg, "lb").expect("lb rect");
+    let app = svg_node_rect(&svg, "app").expect("app rect");
+    let metrics = svg_node_rect(&svg, "metrics").expect("metrics rect");
+    assert!(app.x > lb.x);
+    assert!(metrics.x > lb.x);
+}
+
 fn fixture(name: &str) -> String {
     format!(
         "{}/tests/fixtures/non_sequence/{name}",
@@ -62,6 +113,7 @@ fn fixture(name: &str) -> String {
 
 #[derive(Debug, PartialEq, Eq)]
 struct SvgRectGeom {
+    x: i32,
     y: i32,
 }
 
@@ -87,8 +139,21 @@ fn svg_node_rect(svg: &str, name: &str) -> Option<SvgRectGeom> {
     let rect_start = svg[..tag_start].rfind("<rect ")?;
     let tag = svg[rect_start..].split_once('>')?.0;
     Some(SvgRectGeom {
+        x: svg_attr_i32(tag, "x")?,
         y: svg_attr_i32(tag, "y")?,
     })
+}
+
+fn svg_node_rect_count(svg: &str, name: &str) -> usize {
+    let needle = format!("data-nwdiag-name=\"{name}\"");
+    svg.match_indices("<rect class=\"nwdiag-node")
+        .filter(|(ix, _)| {
+            svg[*ix..]
+                .split_once('>')
+                .map(|(tag, _)| tag.contains(&needle))
+                .unwrap_or(false)
+        })
+        .count()
 }
 
 fn svg_root_attr_i32(svg: &str, attr: &str) -> Option<i32> {

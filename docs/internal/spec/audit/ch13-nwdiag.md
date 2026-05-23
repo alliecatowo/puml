@@ -58,10 +58,10 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 **Evidence:** Captured as raw text; no OpenIconic inline-run renderer hook found in nwdiag specialized path.
 **Notes:** Same text-only limitation as 13.5.
 
-### 13.7 Same nodes on more than two networks (`jump line`) — 🟡
+### 13.7 Same nodes on more than two networks (`jump line`) — ✅
 **Feature:** A node defined in 3+ networks should draw vertical jump connectors.
-**Status:** 🟡
-**Evidence:** `src/render/specialized/nwdiag.rs` lays out nodes in columns per name (col widths logic at `:21-46`). Whether multi-network jump lines render correctly across 3+ networks is unverified — needs visual gate.
+**Status:** ✅
+**Evidence:** `src/render/specialized/nwdiag.rs` collapses repeated network-row nodes into a single rendered node plus `nwdiag-jump-line` connectors. Covered by `tests/ch13_nwdiag_parity.rs` (`nwdiag_shared_node_renders_once_with_jump_line_across_networks`) and `docs/examples/nwdiag/02_multiple_nets.puml`.
 
 ### 13.8 Peer networks (`inet -- router`) — ✅
 **Feature:** Direct node-to-node connection outside a busbar network.
@@ -115,4 +115,4 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 
 ---
 
-**Tally ch13 (17 subsections audited):** ✅ 11 · 🟡 4 · ❌ 2
+**Tally ch13 (17 subsections audited):** ✅ 12 · 🟡 3 · ❌ 2

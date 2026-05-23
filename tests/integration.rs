@@ -4977,12 +4977,14 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
     let svg = render_source_to_svg(&src).expect("render nwdiag topology depth fixture");
 
     assert!(
-        svg.contains("data-nwdiag-addresses=\"10.0.0.10, fd00:10::10\""),
-        "public lb should preserve every bracketed address: {svg}"
+        svg.contains(
+            "data-nwdiag-addresses=\"10.0.0.10, fd00:10::10, 192.168.1.10, fd00:192::10\""
+        ),
+        "shared lb should preserve every bracketed address: {svg}"
     );
     assert!(
-        svg.contains("edge lb [10.0.0.10, fd00:10::10]"),
-        "multi-address label should render both values: {svg}"
+        svg.contains("edge lb"),
+        "shared multi-network node should keep its description label: {svg}"
     );
     assert!(
         svg.contains("stroke-dasharray=\"5 3\""),
@@ -5018,20 +5020,21 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         "private network should be laid out below public network"
     );
 
-    let public_lb = svg_node_rect(&svg, "lb", "10.0.0.10, fd00:10::10").expect("public lb rect");
-    let private_lb =
-        svg_node_rect(&svg, "lb", "192.168.1.10, fd00:192::10").expect("private lb rect");
+    let lb = svg_node_rect(
+        &svg,
+        "lb",
+        "10.0.0.10, fd00:10::10, 192.168.1.10, fd00:192::10",
+    )
+    .expect("shared lb rect");
     assert_eq!(
-        public_lb.x, private_lb.x,
-        "shared node column should be stable"
+        svg_node_rect_count(&svg, "lb"),
+        1,
+        "shared node should render once instead of duplicating per network row"
     );
-    assert!(
-        private_lb.y > public_lb.y,
-        "shared node should appear in each network row"
-    );
+    assert!(svg.contains("class=\"nwdiag-jump-line\" data-nwdiag-node=\"lb\""));
     let private_app = svg_node_rect(&svg, "app01", "192.168.1.21").expect("private app rect");
     assert!(
-        private_app.x > private_lb.x,
+        private_app.x > lb.x,
         "distinct nwdiag nodes should occupy separate horizontal columns instead of one vertical list"
     );
 
@@ -5063,7 +5066,7 @@ fn svg_node_rect(svg: &str, name: &str, addresses: &str) -> Option<SvgRectGeom> 
     let mut rest = svg;
     let name_attr = format!("data-nwdiag-name=\"{name}\"");
     let addresses_attr = format!("data-nwdiag-addresses=\"{addresses}\"");
-    while let Some(ix) = rest.find("<rect class=\"nwdiag-node\"") {
+    while let Some(ix) = rest.find("<rect class=\"nwdiag-node") {
         rest = &rest[ix..];
         let tag = rest.split_once('>')?.0;
         if tag.contains(&name_attr) && tag.contains(&addresses_attr) {
@@ -5075,6 +5078,18 @@ fn svg_node_rect(svg: &str, name: &str, addresses: &str) -> Option<SvgRectGeom> 
         rest = &rest["<rect".len()..];
     }
     None
+}
+
+fn svg_node_rect_count(svg: &str, name: &str) -> usize {
+    let needle = format!("data-nwdiag-name=\"{name}\"");
+    svg.match_indices("<rect class=\"nwdiag-node")
+        .filter(|(ix, _)| {
+            svg[*ix..]
+                .split_once('>')
+                .map(|(tag, _)| tag.contains(&needle))
+                .unwrap_or(false)
+        })
+        .count()
 }
 
 fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
