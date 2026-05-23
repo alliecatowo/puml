@@ -95,7 +95,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let base_lane_area_w = ACTIVITY_BASE_LANE_WIDTH;
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_w + 64;
-    let lane_w = (lane_area_w / (lanes.len() as i32)).max(120);
+    let has_named_lanes = lanes.iter().any(|l| l != "default");
+    let has_partition_markers = metas.iter().any(|meta| meta.step_kind == "PartitionStart");
+    let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
+    // `partition Name { ... }` is a stacked group, while open-ended `|Lane|`
+    // markers keep their existing lane-column behavior.
+    let stacked_partition_blocks = has_named_lanes && has_partition_blocks;
+    let lane_w = if stacked_partition_blocks {
+        lane_area_w
+    } else {
+        (lane_area_w / (lanes.len() as i32)).max(120)
+    };
 
     let lane_index = |name: &str| -> i32 {
         lanes
@@ -105,15 +115,15 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             .unwrap_or(0)
     };
     let lane_center_x = |lane_name: &str| -> i32 {
+        if stacked_partition_blocks {
+            return lane_area_x + lane_area_w / 2;
+        }
         let idx = lane_index(lane_name);
         lane_area_x + idx * lane_w + lane_w / 2
     };
 
-    let has_named_lanes = lanes.iter().any(|l| l != "default");
     let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
-    let sequential_partition_lanes = has_named_lanes
-        && metas.iter().any(|meta| meta.step_kind == "PartitionStart")
-        && !metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
+    let sequential_partition_lanes = has_named_lanes && has_partition_markers;
 
     let fork_col_w = (lane_w / 2).max(160i32);
     let box_w = (lane_w - 24).clamp(120, 220);
@@ -275,6 +285,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         sequential_partition_lanes,
         lane_area_x,
         lane_w,
+        stacked_partition_blocks,
         header_h,
         lane_header_h,
         height,

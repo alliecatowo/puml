@@ -14,6 +14,7 @@ pub(super) fn emit_lanes(
     sequential_partition_lanes: bool,
     lane_area_x: i32,
     lane_w: i32,
+    stacked_partition_blocks: bool,
     header_h: i32,
     lane_header_h: i32,
     height: i32,
@@ -23,7 +24,11 @@ pub(super) fn emit_lanes(
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
     for (idx, lane) in lanes.iter().enumerate() {
-        let lx = lane_left(idx as i32);
+        let lx = if stacked_partition_blocks {
+            lane_area_x
+        } else {
+            lane_left(idx as i32)
+        };
         let bg = lane_fills
             .get(lane)
             .map(String::as_str)
