@@ -43,6 +43,7 @@ Tally: 6 ✅ / 4 🟡 / 2 ❌
 **Feature:** Per-depth, arrow, boxless style targeting
 **Status:** 🟡
 **Evidence:** No targeting logic in render/family.rs for `:depth(N)` selectors on WBS
+**Theme note:** Built-in `!theme` presets now seed WBS depth fill/border colors through the shared tree depth style carrier; `docs/examples/wbs/07_theme_vibrant.puml` and `tests/ch18_wbs_parity.rs` cover this narrow preset slice.
 
 ### 18.8 Word Wrap MaximumWidth — ❌
 **Feature:** Auto-wrap node text by pixel width

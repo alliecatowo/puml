@@ -636,7 +636,7 @@ pub struct FamilyDocument {
     pub legend: Option<String>,
     pub orientation: FamilyOrientation,
     pub style: SequenceStyle,
-    /// Family-specific style overrides (class/state/component/activity).
+    /// Family-specific style overrides (class/component/activity/tree families).
     pub family_style: Option<FamilyStyle>,
     pub text_overflow_policy: TextOverflowPolicy,
     /// MindMap/WBS: auto word-wrap node labels at this pixel width (`skinparam MaximumWidth`).

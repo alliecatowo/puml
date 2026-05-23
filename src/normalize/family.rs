@@ -1229,7 +1229,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 style = resolve_sequence_theme_preset(&value)
                     .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
                     .style;
-                if family_kind == DiagramKind::MindMap {
+                if matches!(family_kind, DiagramKind::MindMap | DiagramKind::Wbs) {
                     mindmap_style = mindmap_style_from_sequence_theme(&style);
                 }
             }
@@ -1378,12 +1378,13 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     if let Some(mode) = monochrome_mode {
         apply_monochrome_to_sequence_style(&mut style, mode);
     }
-    let family_style =
-        if family_kind == DiagramKind::MindMap && !mindmap_style.depth_styles.is_empty() {
-            Some(FamilyStyle::MindMap(mindmap_style))
-        } else {
-            None
-        };
+    let family_style = if matches!(family_kind, DiagramKind::MindMap | DiagramKind::Wbs)
+        && !mindmap_style.depth_styles.is_empty()
+    {
+        Some(FamilyStyle::MindMap(mindmap_style))
+    } else {
+        None
+    };
 
     Ok(FamilyDocument {
         kind: family_kind,
