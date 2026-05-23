@@ -14,12 +14,12 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Evidence:** `src/parser/state.rs:157,162` (transition + internal action), `src/normalize/state.rs:158-180` ([*] split into Initial + synthetic `[*]__end`), `src/render/state.rs:1482` (`start-end` class)
 **Notes:** Initial/final pseudo-state is split when `[*]` is used as both source and target (creates `[*]__end`). `State : foo` is captured as `StateInternalAction` rather than a `display` description; rendered via `internal_actions` (`render/state.rs`).
 
-### 9.2 Change state rendering (`hide empty description`) — ❌
+### 9.2 Change state rendering (`hide empty description`) — ✅
 **Feature:** `hide empty description` to render state as a simple box
 **Syntax example:** `hide empty description`
-**Status:** ❌
-**Evidence:** no match for `empty description` in `src/`. `HideOption` exists but no `empty description` branch in `src/normalize/state.rs`.
-**Notes:** `class` diagram has `hide_empty_members` (`src/render/family.rs:1745`) — no state equivalent. Hides are silently dropped.
+**Status:** ✅
+**Evidence:** `src/parser/family.rs:1240-1244` accepts the directive before state-family detection, `src/parser/sequence.rs:292-296` accepts it once family parsing is active, and `src/normalize/state.rs:12,243-246,318` records `StateDocument.hide_empty_description`. Covered by visual-shape assertions in `tests/state_ch09_parity.rs:6,68,227-239`, early-detection coverage in `tests/state_ch09_parity.rs:242-258`, and `docs/examples/state/12_ch09_parity.puml`.
+**Notes:** Actionless states render as a simple rounded box; states with description/internal-action rows still render their divider and body text.
 
 ### 9.3 Composite state — ✅
 **Feature:** `state X { … }` with nested children, including sub-state to sub-state transitions
@@ -171,13 +171,13 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 14 |
+| ✅ supported | 15 |
 | 🟡 partial | 5 |
-| ❌ missing | 6 |
+| ❌ missing | 5 |
 
 Top gaps blocking parity:
 1. **Inline color & style on `state` (9.18, 9.21, 9.25)** — `StateDecl` lacks color/border fields.
-2. **`hide empty description` (9.2)** — silently ignored, layout regresses visually.
-3. **Pins / Expansion layout polish** — pseudo-state shapes render, but deeper UML-specific positioning beyond entry/exit boundary snapping may still need visual parity passes.
-4. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
-5. **Composite/parallel-region layout fidelity** — current rendering has known pseudo-state and divider-placement visual gaps tracked on the board.
+2. **Pins / Expansion layout polish** — pseudo-state shapes render, but deeper UML-specific positioning beyond entry/exit boundary snapping may still need visual parity passes.
+3. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
+4. **Composite/parallel-region layout fidelity** — current rendering has known pseudo-state and divider-placement visual gaps tracked on the board.
+5. **State-specific `<style>` selectors (9.20, 9.25)** — `stateDiagram`, `arrow`, `diamond`, and `stateBody` selectors still fall back to global theme behavior.

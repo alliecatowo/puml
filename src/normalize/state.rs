@@ -9,6 +9,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut caption = None;
     let mut legend = None;
     let mut state_style = StateStyle::default();
+    let mut hide_empty_description = false;
     let mut monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter = 0usize;
@@ -239,6 +240,11 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         .style,
                 );
             }
+            StatementKind::HideOption(option) => {
+                if option.eq_ignore_ascii_case("empty description") {
+                    hide_empty_description = true;
+                }
+            }
             StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -309,6 +315,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         caption,
         legend,
         state_style,
+        hide_empty_description,
         warnings,
     })
 }

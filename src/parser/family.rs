@@ -1237,6 +1237,11 @@ fn parse_family_visibility_control(
             return Some(StatementKind::HideOption(keyword.to_string()));
         }
     }
+    if lower == "hide empty description" && matches!(family, None | Some(DiagramKind::State)) {
+        return Some(StatementKind::HideOption(
+            "empty description".to_string(),
+        ));
+    }
     if !matches!(
         family,
         Some(

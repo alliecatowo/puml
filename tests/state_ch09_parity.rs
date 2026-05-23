@@ -3,8 +3,10 @@ use std::fs;
 
 const CH09_STATE_SRC: &str = r##"@startuml
 title State ch09 parity slice
+hide empty description
 state Active #pink ##[dashed]blue
 Active : waits for input
+state Empty
 state Styled #back:lightgreen;line:red;line.bold;text:blue
 state Parent {
   state entryIn <<entryPoint>>
@@ -63,6 +65,7 @@ fn state_ch09_metadata_preserves_notes_ports_styles_and_json() {
     else {
         panic!("state should normalize as a state document");
     };
+    assert!(model.hide_empty_description);
 
     let active = model
         .nodes
@@ -220,6 +223,38 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains("stroke-dasharray=\"5 3\""));
     assert!(svg.contains("stroke=\"#dd00aa\""));
     assert!(svg.contains(">colored<"));
+
+    let doc = roxmltree::Document::parse(&svg).expect("state ch09 SVG should parse");
+    assert!(
+        !state_elements_after_metadata(&doc, "Empty")
+            .iter()
+            .any(|node| node.has_tag_name("line")),
+        "hide empty description should keep an actionless state as a simple box"
+    );
+    assert!(
+        state_elements_after_metadata(&doc, "Active")
+            .iter()
+            .any(|node| node.has_tag_name("line")),
+        "states with descriptions/internal actions should keep their compartment divider"
+    );
+}
+
+#[test]
+fn hide_empty_description_before_transition_detects_state_family() {
+    let src = r##"@startuml
+hide empty description
+[*] --> Empty
+Empty --> [*]
+@enduml
+"##;
+    let document = puml::parser::parse(src).expect("parse hide empty description before state");
+    let NormalizedDocument::State(model) =
+        puml::normalize_family(document).expect("normalize hide empty description before state")
+    else {
+        panic!("state should normalize as a state document");
+    };
+    assert!(model.hide_empty_description);
+    assert!(model.nodes.iter().any(|node| node.name == "Empty"));
 }
 
 #[test]
@@ -338,6 +373,26 @@ fn state_shape_after_metadata<'a, 'input>(
         .find(|node| node.has_tag_name(shape_name))
         .copied()
         .unwrap_or_else(|| panic!("missing {shape_name} after state metadata {node_name}"))
+}
+
+fn state_elements_after_metadata<'a, 'input>(
+    doc: &'a roxmltree::Document<'input>,
+    node_name: &str,
+) -> Vec<roxmltree::Node<'a, 'input>> {
+    let elements: Vec<_> = doc.descendants().filter(|node| node.is_element()).collect();
+    let metadata_idx = elements
+        .iter()
+        .position(|node| {
+            node.has_tag_name("metadata") && node.attribute("data-state-node") == Some(node_name)
+        })
+        .unwrap_or_else(|| panic!("missing metadata for state node {node_name}"));
+    let next_metadata_idx = elements
+        .iter()
+        .enumerate()
+        .skip(metadata_idx + 1)
+        .find_map(|(idx, node)| node.has_tag_name("metadata").then_some(idx))
+        .unwrap_or(elements.len());
+    elements[metadata_idx + 1..next_metadata_idx].to_vec()
 }
 
 fn svg_attr_i32(node: roxmltree::Node<'_, '_>, attr: &str) -> i32 {
