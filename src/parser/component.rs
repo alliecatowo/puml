@@ -360,6 +360,60 @@ fn parse_component_interface_shorthand(trimmed: &str) -> Option<StatementKind> {
     })
 }
 
+fn parse_deployment_usecase_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let rest = trimmed.strip_prefix("usecase ")?.trim();
+    if rest.is_empty() || rest.ends_with('{') || looks_like_family_relation_tail(rest) {
+        return None;
+    }
+    let (rest, fill_color) = split_declaration_inline_fill(rest);
+    let rest = rest.trim();
+    let (rest_without_stereotypes, stereotypes) = strip_declaration_stereotypes(rest);
+    let rest = rest_without_stereotypes.trim();
+    let (label, rest_after_label) = if rest.starts_with('"') {
+        let stripped = rest.strip_prefix('"')?;
+        let end = stripped.find('"')?;
+        (
+            Some(stripped[..end].to_string()),
+            stripped[end + 1..].trim(),
+        )
+    } else if rest.starts_with('(') {
+        let stripped = rest.strip_prefix('(')?;
+        let end = stripped.find(')')?;
+        (
+            Some(stripped[..end].to_string()),
+            stripped[end + 1..].trim(),
+        )
+    } else {
+        (None, rest)
+    };
+    let (rest_after_label, tags) = split_component_trailing_tags(rest_after_label);
+    let rest_after_label = rest_after_label.as_str();
+    let (name_raw, alias_raw) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
+        (label.as_deref().unwrap_or("").trim(), Some(alias.trim()))
+    } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+        (lhs.trim(), Some(rhs.trim()))
+    } else if rest_after_label.is_empty() {
+        (label.as_deref().unwrap_or("").trim(), None)
+    } else {
+        (rest_after_label, None)
+    };
+    let name = clean_bracketed_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let mut members = declaration_marker_members(None, stereotypes);
+    append_component_tag_members(&mut members, tags);
+    append_inline_fill_member(&mut members, fill_color);
+    Some(StatementKind::ComponentDecl {
+        kind: ComponentNodeKind::UseCase,
+        name,
+        alias: alias_raw.map(clean_ident).filter(|v| !v.is_empty()),
+        label,
+        members,
+    })
+}
+
 fn parse_component_multiline_decl(
     lines: &[(&str, Span)],
     start: usize,

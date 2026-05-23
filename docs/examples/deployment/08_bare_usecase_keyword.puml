@@ -1,0 +1,10 @@
+@startuml
+title Deployment bare usecase keyword
+
+node Runtime
+usecase "Login Flow" as Login #aliceblue
+usecase Search
+
+Runtime --> Login : exposes
+Login --> Search : delegates
+@enduml
