@@ -31,7 +31,7 @@ Note: the `ActivityStepKind` enum is intentionally small; many distinct PlantUML
 **Syntax example:** `if (Graphviz?) then (yes) ... else (no) ... endif`
 **Status:** 🟡
 **Evidence:** `activity.rs:110-115` parses `if `; `parse_activity_if_label` (351) extracts condition + branch label. `else` @ 45, `endif` @ 56.
-**Notes:** `is (...)` and `equals (...)` are absorbed via `parse_activity_condition_with_branches` (368) which joins condition+branch with `" / "` — lossy but renders. Branch labels on edges are stored on the condition node label, not as edge labels.
+**Notes:** `if (...) then (...) ... else (...)` guard labels are rendered on their branch arrows. `is (...)` and `equals (...)` are still absorbed via `parse_activity_condition_with_branches` (368) which joins condition+branch with `" / "` — lossy but renders.
 
 #### 6.3.1 elseif (horizontal mode) — 🟡
 **Feature:** `elseif (cond) then (label) ... (no) elseif (...) ...`.
@@ -205,7 +205,7 @@ _Updated 2026-05-21: promoted 6.5 (kill/detach shapes), 6.20 (kill/detach arrow 
 1. **Activity arrow styling (6.15)** — no parser for `->`, `-[#blue]->`, `-[#…,dashed]->`, inline arrow labels. Blocks 6.9.3, 6.11 input-split, 6.14, and ch6.22 fidelity.
 2. **Color on actions/partitions (6.13, 6.18.2, 6.19)** — colors are recognized and stripped; rendering ignores them.
 3. **Detach/kill no-arrow semantic (6.5, 6.20, 6.11 multi-end)** — both keywords collapse to Stop nodes; the "suppress trailing arrow" behavior isn't implemented.
-4. **Branch labels become condition text, not edge labels (6.3, 6.6, 6.9)** — visually misplaced.
+4. **Loop branch labels become condition text, not edge labels (6.6, 6.9)** — visually misplaced.
 5. **Backward action (6.6.2, 6.9.2)** — flattened to forward action; no back-edge.
 6. **Connectors `(A)` (6.16, 6.17)** — completely missing.
 7. **Group / package / rectangle / card grouping (6.18.1, 6.18.3)** — only `partition` is honored.

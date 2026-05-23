@@ -2,7 +2,7 @@ use crate::model::{FamilyDocument, FamilyNodeKind};
 use crate::render::svg::escape_text;
 use crate::theme::ActivityStyle;
 
-use super::arrows::{emit_activity_arrow, NodeBbox};
+use super::arrows::{emit_activity_arrow, ActivityArrowStyle, NodeBbox};
 use super::layout::{NodeLayout, NodeMeta};
 
 // ---------------------------------------------------------------------------
@@ -142,10 +142,10 @@ pub(super) fn render_node(
             crate::render::family::render_note_card(out, cx - box_w / 2, y + 2, box_w, 44, &label);
         }
         FamilyNodeKind::ActivityDecision => {
-            let (condition_text, then_guard) = if let Some(idx) = label.find(" / ") {
-                (&label[..idx], Some(&label[idx + 3..]))
+            let condition_text = if let Some(idx) = label.find(" / ") {
+                &label[..idx]
             } else {
-                (label.as_str(), None)
+                label.as_str()
             };
             let dx = 100;
             let dy = 22;
@@ -169,15 +169,6 @@ pub(super) fn render_node(
                 escape_text(&act_style.font_color),
                 escape_text(condition_text)
             ));
-            if let Some(guard) = then_guard {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-                    cx + dx + 4,
-                    y + 2 + dy + 4,
-                    escape_text(&act_style.font_color),
-                    escape_text(guard)
-                ));
-            }
         }
         FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
             if step_kind.contains("ForkAgain") {
@@ -287,14 +278,35 @@ pub(super) fn emit_predecessor_arrow(
     let arrow_style = (prev_idx + 1..i)
         .rev()
         .find_map(|idx| metas[idx].arrow_style.as_ref());
+    let branch_guard_style;
+    let arrow_style = if arrow_style.is_none() && metas[prev_idx].step_kind == "IfStart" {
+        branch_guard_style =
+            first_else_guard_for_if(doc, metas, prev_idx).map(|label| ActivityArrowStyle {
+                label: Some(label.to_string()),
+                ..ActivityArrowStyle::default()
+            });
+        branch_guard_style.as_ref()
+    } else {
+        arrow_style
+    };
     let prev = &node_layouts[prev_idx];
+    let (from_x, from_y) = if metas[prev_idx].step_kind == "IfStart" && prev.cx != cx {
+        let side_x = if cx < prev.cx {
+            prev.cx - 100
+        } else {
+            prev.cx + 100
+        };
+        (side_x, prev.slot_y + 24)
+    } else {
+        (prev.cx, prev.arrow_out_y)
+    };
     // Skip zero-length arrows (same src and dst)
-    if prev.cx != cx || prev.arrow_out_y != y {
+    if from_x != cx || from_y != y {
         if let Some(style) = arrow_style {
             super::arrows::emit_activity_arrow_with_style(
                 out,
-                prev.cx,
-                prev.arrow_out_y,
+                from_x,
+                from_y,
                 cx,
                 y,
                 &act_style.arrow_color,
@@ -302,17 +314,27 @@ pub(super) fn emit_predecessor_arrow(
                 bboxes,
             );
         } else {
-            emit_activity_arrow(
-                out,
-                prev.cx,
-                prev.arrow_out_y,
-                cx,
-                y,
-                &act_style.arrow_color,
-                bboxes,
-            );
+            emit_activity_arrow(out, from_x, from_y, cx, y, &act_style.arrow_color, bboxes);
         }
     }
+}
+
+fn first_else_guard_for_if<'a>(
+    doc: &'a FamilyDocument,
+    metas: &[NodeMeta],
+    if_idx: usize,
+) -> Option<&'a str> {
+    let mut depth = 0usize;
+    for idx in if_idx + 1..metas.len() {
+        match metas[idx].step_kind.as_str() {
+            "IfStart" => depth += 1,
+            "EndIf" if depth == 0 => return None,
+            "EndIf" => depth = depth.saturating_sub(1),
+            "Else" if depth == 0 => return doc.nodes[idx].label.as_deref(),
+            _ => {}
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------

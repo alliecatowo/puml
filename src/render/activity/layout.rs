@@ -95,12 +95,38 @@ pub(super) struct NodeLayout {
 pub(super) struct LayoutResult {
     pub node_layouts: Vec<NodeLayout>,
     pub fork_bar_half_widths: std::collections::HashMap<usize, i32>,
-    /// Extra arrows: (x1, y1, x2, y2) — if-branch merge arrows
-    pub extra_arrows: Vec<(i32, i32, i32, i32)>,
-    /// Direct arrows: fork-bar→branch, branch→join-bar
-    pub direct_arrows: Vec<(i32, i32, i32, i32)>,
+    /// Extra arrows used for control-flow branch and merge routes.
+    pub extra_arrows: Vec<ActivityRoute>,
+    /// Direct arrows: fork-bar→branch, branch→join-bar.
+    pub direct_arrows: Vec<ActivityRoute>,
     /// Node indices for which the standard prev→cur arrow is suppressed
     pub suppress_prev_arrow: std::collections::HashSet<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ActivityRoute {
+    pub x1: i32,
+    pub y1: i32,
+    pub x2: i32,
+    pub y2: i32,
+    pub style: ActivityArrowStyle,
+}
+
+impl ActivityRoute {
+    fn new(x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
+        Self {
+            x1,
+            y1,
+            x2,
+            y2,
+            style: ActivityArrowStyle::default(),
+        }
+    }
+
+    fn with_label(mut self, label: Option<String>) -> Self {
+        self.style.label = label.filter(|label| !label.trim().is_empty());
+        self
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +137,7 @@ struct IfFrame {
     diamond_cx: i32,
     diamond_arrow_out: i32,
     diamond_next_slot: i32,
+    then_guard: Option<String>,
     then_cx: i32,
     then_rightmost_cx: i32,
     then_end_next_slot: i32,
@@ -182,8 +209,8 @@ pub(super) fn compute_layout(
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
-    let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
-    let mut direct_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    let mut extra_arrows: Vec<ActivityRoute> = Vec::new();
+    let mut direct_arrows: Vec<ActivityRoute> = Vec::new();
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 
     let mut current_slot_y = header_h + lane_header_h;
@@ -224,6 +251,10 @@ pub(super) fn compute_layout(
                     diamond_cx: cx,
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
+                    then_guard: doc.nodes[i]
+                        .label
+                        .as_deref()
+                        .and_then(activity_decision_guard),
                     then_cx,
                     then_rightmost_cx: then_cx,
                     then_end_next_slot: next_slot_y,
@@ -251,6 +282,7 @@ pub(super) fn compute_layout(
                 let slot_y = frame.diamond_next_slot;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
+                let then_guard = frame.then_guard.clone();
                 frame.else_start_slot = slot_y;
                 frame.in_else = true;
                 for frame in &mut if_stack {
@@ -259,7 +291,10 @@ pub(super) fn compute_layout(
                     }
                 }
                 suppress_prev_arrow.insert(i);
-                extra_arrows.push((diamond_cx, diamond_arrow_out, else_cx, slot_y));
+                extra_arrows.push(
+                    ActivityRoute::new(diamond_cx, diamond_arrow_out, else_cx, slot_y)
+                        .with_label(then_guard),
+                );
                 node_layouts.push(NodeLayout {
                     cx: else_cx,
                     slot_y,
@@ -278,8 +313,18 @@ pub(super) fn compute_layout(
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
                 suppress_prev_arrow.insert(i);
-                extra_arrows.push((then_cx, then_arrow_out_y, frame.diamond_cx, slot_y));
-                extra_arrows.push((else_cx, else_arrow_out_y, frame.diamond_cx, slot_y));
+                extra_arrows.push(ActivityRoute::new(
+                    then_cx,
+                    then_arrow_out_y,
+                    frame.diamond_cx,
+                    slot_y,
+                ));
+                extra_arrows.push(ActivityRoute::new(
+                    else_cx,
+                    else_arrow_out_y,
+                    frame.diamond_cx,
+                    slot_y,
+                ));
                 node_layouts.push(NodeLayout {
                     cx: frame.diamond_cx,
                     slot_y,
@@ -367,7 +412,12 @@ pub(super) fn compute_layout(
                 });
                 if let Some(repeat_frame) = repeat_stack.pop() {
                     if let Some(body_layout) = node_layouts.get(repeat_frame.body_start_idx) {
-                        extra_arrows.push((cx, arrow_out_y, body_layout.cx, body_layout.slot_y));
+                        extra_arrows.push(ActivityRoute::new(
+                            cx,
+                            arrow_out_y,
+                            body_layout.cx,
+                            body_layout.slot_y,
+                        ));
                     }
                 }
                 current_slot_y = next_slot_y;
@@ -434,7 +484,7 @@ pub(super) fn compute_layout(
                     } else {
                         (join_bar_top_y, branch_arrow_out_y)
                     };
-                    direct_arrows.push((col_cx, y1, col_cx, y2));
+                    direct_arrows.push(ActivityRoute::new(col_cx, y1, col_cx, y2));
                 }
 
                 // Straight-down arrows from the fork bar bottom to each branch column
@@ -446,7 +496,7 @@ pub(super) fn compute_layout(
                     } else {
                         (branch_start_y, fork_bar_bottom_y)
                     };
-                    direct_arrows.push((col_cx, y1, col_cx, y2));
+                    direct_arrows.push(ActivityRoute::new(col_cx, y1, col_cx, y2));
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
 
@@ -515,4 +565,10 @@ pub(super) fn compute_layout(
         direct_arrows,
         suppress_prev_arrow,
     }
+}
+
+fn activity_decision_guard(label: &str) -> Option<String> {
+    label
+        .split_once(" / ")
+        .map(|(_, guard)| guard.trim().to_string())
 }
