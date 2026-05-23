@@ -125,6 +125,18 @@
       "min_text_elements": 5
     },
     {
+      "path": "docs/examples/timing/04_binary.puml",
+      "family": "timing",
+      "expected_text": ["Request", "Ack", "high", "low"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/timing/08_clock_anchor_messages.puml",
+      "family": "timing",
+      "expected_text": ["Clock ticks and anchored messages", "Bus clock", "Producer", "Consumer", "Header", "Payload", "ReceiveHeader", "ReceivePayload"],
+      "min_text_elements": 10
+    },
+    {
       "path": "docs/examples/chart/01_bar.puml",
       "family": "chart",
       "expected_text": ["Q1", "Q2", "Q3", "Q4", "42", "58", "73", "91"],
