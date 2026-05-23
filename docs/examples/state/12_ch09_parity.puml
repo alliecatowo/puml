@@ -7,8 +7,12 @@ Active : waits for input
 state Styled #back:lightgreen;line:red;line.bold;text:blue
 
 state Parent {
+  state entryIn <<entryPoint>>
+  state exitOut <<exitPoint>>
   [*] --> Child
+  entryIn --> Child : enter
   state Child #LightBlue
+  Child --> exitOut : leave
   json $payload {
     "fruit": "Apple",
     "count": 3

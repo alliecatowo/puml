@@ -68,23 +68,23 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Evidence:** `src/parser/state.rs:53-58` matches only `choice|fork|join|end` as keyword stereotypes. `<<start>>`, `<<history>>`, `<<history*>>`, `<<sdlreceive>>` fall through to `state … <<...>>` general form (`src/parser/state.rs:103-110`).
 **Notes:** `<<start>>` is parsed as a stereotype string but `state_decl_to_node` (`normalize/state.rs:359-365`) only maps `fork|join|choice|end` to a kind — `start`, `history`, `history*`, `sdlreceive` all render as a Normal rounded rectangle with `data-state-stereotype` attribute only. `<<end>>` maps to a node kind but renders as a `StateNodeKind::End` filled circle.
 
-### 9.10 Points (`<<entryPoint>>`, `<<exitPoint>>`) — ❌
+### 9.10 Points (`<<entryPoint>>`, `<<exitPoint>>`) — ✅
 **Feature:** Entry/exit point pseudo-states on the boundary of a composite
 **Syntax example:** `state entry1 <<entryPoint>>`
-**Status:** ❌
-**Evidence:** not found — no `entryPoint`/`exitPoint` handling in `src/normalize/state.rs` or `src/render/state.rs`. Falls through to Normal node with stereotype data attribute.
+**Status:** ✅
+**Evidence:** `src/normalize/state.rs:708-722` maps `entryPoint` / `exitPoint` stereotypes to pseudo-state node kinds, `src/render/state.rs:746,1767-1768,2391-2410` renders circle / crossed-circle point shapes, and `src/render/state.rs` snaps composite child entry/exit points to the parent boundary. Covered by `tests/state_ch09_parity.rs`.
 
-### 9.11 Pins (`<<inputPin>>`, `<<outputPin>>`) — ❌
+### 9.11 Pins (`<<inputPin>>`, `<<outputPin>>`) — ✅
 **Feature:** Pin pseudo-states
 **Syntax example:** `state entry1 <<inputPin>>`
-**Status:** ❌
-**Evidence:** not found — no inputPin/outputPin recognition.
+**Status:** ✅
+**Evidence:** `src/normalize/state.rs:719-720` maps `inputPin` / `outputPin` stereotypes to pseudo-state node kinds, and `src/render/state.rs:746-748,1769-1770,2412-2427` renders pin rectangles. Covered by `tests/state_ch09_parity.rs`.
 
-### 9.12 Expansion (`<<expansionInput>>`, `<<expansionOutput>>`) — ❌
+### 9.12 Expansion (`<<expansionInput>>`, `<<expansionOutput>>`) — ✅
 **Feature:** Expansion port pseudo-states
 **Syntax example:** `state entry1 <<expansionInput>>`
-**Status:** ❌
-**Evidence:** not found.
+**Status:** ✅
+**Evidence:** `src/normalize/state.rs:721-722` maps expansion stereotypes to pseudo-state node kinds, and `src/render/state.rs:746-748,1771-1772,2429-2452` renders segmented expansion ports. Covered by `tests/state_ch09_parity.rs`.
 
 ### 9.13 Arrow direction — 🟡
 **Feature:** `-up->`, `-down->`, `-left->`, `-right->` plus shortened forms (`-d-`, `-do-`)
@@ -171,13 +171,13 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 11 |
+| ✅ supported | 14 |
 | 🟡 partial | 5 |
-| ❌ missing | 9 |
+| ❌ missing | 6 |
 
 Top gaps blocking parity:
 1. **Inline color & style on `state` (9.18, 9.21, 9.25)** — `StateDecl` lacks color/border fields.
 2. **`hide empty description` (9.2)** — silently ignored, layout regresses visually.
-3. **Points / Pins / Expansion stereotypes (9.10–9.12)** — render as plain rectangles or detached boxes instead of snapping to composite boundaries.
+3. **Pins / Expansion layout polish** — pseudo-state shapes render, but deeper UML-specific positioning beyond entry/exit boundary snapping may still need visual parity passes.
 4. **History inside transition endpoint (`State3[H*]`)** — endpoint string is left intact, not scoped.
 5. **Composite/parallel-region layout fidelity** — current rendering has known pseudo-state and divider-placement visual gaps tracked on the board.

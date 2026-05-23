@@ -40,7 +40,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 6 | Activity (new) | 6 | 12 | 12 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
 | 7 | Component | 12 | 5 | 2 | [ch07-component.md](audit/ch07-component.md) |
 | 8 | Deployment | 14 kw + 5 sec | 10 sec | 15 kw + 2 sec | [ch08-deployment.md](audit/ch08-deployment.md) |
-| 9 | State | 11 | 5 | 9 | [ch09-state.md](audit/ch09-state.md) |
+| 9 | State | 14 | 5 | 6 | [ch09-state.md](audit/ch09-state.md) |
 | 10 | Timing | 4 | 12 | 13 | [ch10-timing.md](audit/ch10-timing.md) |
 | 11 | JSON | 7 | 4 | 3 | [ch11-json.md](audit/ch11-json.md) |
 | 12 | YAML | 3 | 1 | 4 | [ch12-yaml.md](audit/ch12-yaml.md) |

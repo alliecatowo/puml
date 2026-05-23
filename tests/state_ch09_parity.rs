@@ -7,8 +7,12 @@ state Active #pink ##[dashed]blue
 Active : waits for input
 state Styled #back:lightgreen;line:red;line.bold;text:blue
 state Parent {
+  state entryIn <<entryPoint>>
+  state exitOut <<exitPoint>>
   [*] --> Child
+  entryIn --> Child : enter
   state Child #LightBlue
+  Child --> exitOut : leave
   json $payload {
     "fruit": "Apple",
     "count": 3
@@ -163,6 +167,16 @@ fn state_ch09_metadata_preserves_notes_ports_styles_and_json() {
         .regions
         .iter()
         .flatten()
+        .any(|node| node.name == "entryIn" && node.kind == StateNodeKind::EntryPoint));
+    assert!(parent
+        .regions
+        .iter()
+        .flatten()
+        .any(|node| node.name == "exitOut" && node.kind == StateNodeKind::ExitPoint));
+    assert!(parent
+        .regions
+        .iter()
+        .flatten()
         .any(|node| node.kind == StateNodeKind::JsonProjection
             && node
                 .display
@@ -206,6 +220,30 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains("stroke-dasharray=\"5 3\""));
     assert!(svg.contains("stroke=\"#dd00aa\""));
     assert!(svg.contains(">colored<"));
+}
+
+#[test]
+fn state_entry_and_exit_points_snap_to_composite_boundary() {
+    let svg = puml::render_source_to_svg(CH09_STATE_SRC).expect("render state ch09 slice");
+    let doc = roxmltree::Document::parse(&svg).expect("state ch09 SVG should parse");
+
+    let parent_rect = state_shape_after_metadata(&doc, "Parent", "rect");
+    let parent_x = svg_attr_i32(parent_rect, "x");
+    let parent_right = parent_x + svg_attr_i32(parent_rect, "width");
+
+    let entry_circle = state_shape_after_metadata(&doc, "entryIn", "circle");
+    assert_eq!(
+        svg_attr_i32(entry_circle, "cx"),
+        parent_x,
+        "entryPoint child should be centered on the composite's left boundary"
+    );
+
+    let exit_circle = state_shape_after_metadata(&doc, "exitOut", "circle");
+    assert_eq!(
+        svg_attr_i32(exit_circle, "cx"),
+        parent_right,
+        "exitPoint child should be centered on the composite's right boundary"
+    );
 }
 
 #[test]
@@ -280,6 +318,33 @@ fn state_label_center_y(node: roxmltree::Node<'_, '_>) -> i32 {
 
 fn state_label_half_width(label: &str) -> i32 {
     (label.chars().count() as i32 * 6) / 2
+}
+
+fn state_shape_after_metadata<'a, 'input>(
+    doc: &'a roxmltree::Document<'input>,
+    node_name: &str,
+    shape_name: &str,
+) -> roxmltree::Node<'a, 'input> {
+    let elements: Vec<_> = doc.descendants().filter(|node| node.is_element()).collect();
+    let metadata_idx = elements
+        .iter()
+        .position(|node| {
+            node.has_tag_name("metadata") && node.attribute("data-state-node") == Some(node_name)
+        })
+        .unwrap_or_else(|| panic!("missing metadata for state node {node_name}"));
+    elements
+        .iter()
+        .skip(metadata_idx + 1)
+        .find(|node| node.has_tag_name(shape_name))
+        .copied()
+        .unwrap_or_else(|| panic!("missing {shape_name} after state metadata {node_name}"))
+}
+
+fn svg_attr_i32(node: roxmltree::Node<'_, '_>, attr: &str) -> i32 {
+    node.attribute(attr)
+        .unwrap_or_else(|| panic!("missing SVG attr {attr}"))
+        .parse()
+        .unwrap_or_else(|_| panic!("SVG attr {attr} should be an integer"))
 }
 
 #[test]
