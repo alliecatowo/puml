@@ -1122,6 +1122,16 @@ fn route_edges(
                     if group.len() <= 1 {
                         continue;
                     }
+                    // Apply fan only when every edge in this shared endpoint
+                    // group has a shared opposite endpoint as well. This
+                    // targets true K2,2-style ambiguity and avoids partial
+                    // fan-outs on one-to-many / many-to-one patterns.
+                    let all_bipartite = group.iter().all(|(ei, _)| {
+                        opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) > 1
+                    });
+                    if !all_bipartite {
+                        continue;
+                    }
                     group.sort_by(|(ea, xa), (eb, xb)| {
                         xa.partial_cmp(xb)
                             .unwrap_or(std::cmp::Ordering::Equal)
@@ -1129,11 +1139,6 @@ fn route_edges(
                     });
                     let n = group.len() as f64;
                     for (idx, (ei, _)) in group.iter().enumerate() {
-                        // Only fan true shared-channel endpoint ambiguity where the
-                        // opposite endpoint is also shared (K2,2-style bipartite).
-                        if opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) <= 1 {
-                            continue;
-                        }
                         let lane = idx as f64 - (n - 1.0) / 2.0;
                         let dx = (lane * EDGE_PORT_FAN_SPACING)
                             .clamp(-EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_MAX_SHIFT);
