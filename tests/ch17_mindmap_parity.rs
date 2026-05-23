@@ -38,6 +38,14 @@ mindmapDiagram {
 @endmindmap
 "##;
 
+const THEME_SRC: &str = r##"@startmindmap
+!theme vibrant
+* Theme root
+** Themed branch
+*** Themed leaf
+@endmindmap
+"##;
+
 #[test]
 fn mindmap_maximum_width_skinparam_wraps_long_labels() {
     let document = puml::parser::parse(MAX_WIDTH_SRC).expect("parse mindmap MaximumWidth");
@@ -139,5 +147,34 @@ fn mindmap_depth_style_block_applies_depth_specific_colors() {
     assert!(
         svg.contains("fill=\"darkgreen\""),
         "depth(1) label should use styled font color: {svg}"
+    );
+}
+
+#[test]
+fn mindmap_theme_preset_applies_to_existing_depth_style_hooks() {
+    let document = puml::parser::parse(THEME_SRC).expect("parse themed mindmap");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize themed mindmap")
+    else {
+        panic!("mindmap should normalize as family document");
+    };
+
+    let Some(FamilyStyle::MindMap(style)) = &model.family_style else {
+        panic!("theme preset should be carried as mindmap family_style");
+    };
+    let depth_one = style
+        .depth_styles
+        .get(&1)
+        .expect("theme should seed depth(1) style");
+    assert_eq!(depth_one.background_color.as_deref(), Some("#ede9fe"));
+    assert_eq!(depth_one.font_color.as_deref(), Some("#7c3aed"));
+    assert_eq!(depth_one.border_color.as_deref(), Some("#7c3aed"));
+
+    let svg = puml::render_source_to_svg(THEME_SRC).expect("render themed mindmap");
+    assert!(
+        svg.contains("data-mindmap-depth=\"1\"")
+            && svg.contains("fill=\"#ede9fe\"")
+            && svg.contains("stroke=\"#7c3aed\""),
+        "depth(1) node should use themed colors: {svg}"
     );
 }

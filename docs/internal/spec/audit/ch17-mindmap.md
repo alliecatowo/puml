@@ -63,6 +63,7 @@ Tally: 11 ✅ / 2 🟡 / 0 ❌
 **Feature:** Per-depth styling via `:depth(1) { BackGroundColor white }`
 **Status:** ✅
 **Evidence:** src/normalize/family.rs parses mindmap `<style>` depth selectors into `MindMapStyle`; src/render/mindmap.rs applies per-depth BackgroundColor/FontColor/LineColor; tests/ch17_mindmap_parity.rs covers `:depth(1)`.
+**Theme note:** Built-in `!theme` presets now seed MindMap depth colors through the same `MindMapStyle` renderer hooks; `docs/examples/mindmap/07_theme_vibrant.puml` and `tests/ch17_mindmap_parity.rs` cover the narrow slice.
 
 ### 17.11.2 boxless style class — ✅
 **Feature:** `boxless { FontColor darkgreen }` styles `_`-suffixed nodes
