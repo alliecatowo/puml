@@ -180,6 +180,61 @@ fn invariant3_no_violation_when_label_is_above_edge() {
     );
 }
 
+#[test]
+fn invariant3_ignores_unmarked_node_text_when_edge_labels_are_marked() {
+    let mut svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">"#,
+        r##"<polyline class="uml-relation" data-uml-from="X" data-uml-to="Y" points="20,100 280,100" fill="none" stroke="#555" stroke-width="2"/>"##,
+        r#"<text x="150" y="100" text-anchor="middle" font-family="monospace">node header near route</text>"#,
+        r#"<text class="uml-edge-label" data-uml-label-role="edge" x="150" y="60" text-anchor="middle" font-family="monospace">safe edge label</text>"#,
+        r#"</svg>"#
+    )
+    .to_string();
+    let violations = validate::check_label_edge_clearance(&mut svg, AutoCorrect::Apply);
+    assert!(
+        violations.is_empty(),
+        "marked edge-label mode should not flag ordinary node/header text"
+    );
+    assert!(
+        !svg.contains("uml-edge-label-bg"),
+        "no background rect should be inserted for unmarked text"
+    );
+}
+
+#[test]
+fn invariant3_full_run_adds_background_for_marked_tight_edge_label() {
+    let mut svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">"#,
+        r##"<polyline class="uml-relation" data-uml-from="X" data-uml-to="Y" points="20,100 280,100" fill="none" stroke="#555" stroke-width="2"/>"##,
+        r#"<text class="uml-edge-label" data-uml-label-role="edge" x="150" y="100" text-anchor="middle" font-family="monospace">crowded route label</text>"#,
+        r#"</svg>"#
+    )
+    .to_string();
+    let report = validate::run(&mut svg, AutoCorrect::Apply);
+    assert_eq!(
+        report.background_rects_added, 1,
+        "run() should add one backing rect for the tight marked edge label"
+    );
+    assert!(
+        svg.contains("class=\"uml-edge-label-bg\""),
+        "background rect should be marked for visual/audit checks"
+    );
+}
+
+#[test]
+fn invariant3_component_lollipop_fixture_marks_relation_labels() {
+    let source = include_str!("../docs/examples/component/07_ports_lollipop_interfaces.puml");
+    let svg = render_to_svg(source);
+    assert!(
+        svg.matches("class=\"uml-edge-label\"").count() >= 6,
+        "component lollipop labels should be scoped for the label-clearance invariant"
+    );
+    assert!(
+        svg.contains(">provides</text>") && svg.contains(">requires</text>"),
+        "fixture should continue rendering the crowded lollipop labels this guardrail targets"
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Invariant #4: Package-header reservation
 // ─────────────────────────────────────────────────────────────────────────────

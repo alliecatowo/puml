@@ -191,10 +191,20 @@ enum TextAnchor {
     End,
 }
 
+/// A scraped SVG `<text>` element relevant to render invariants.
+#[derive(Clone)]
+struct TextElement {
+    x: i32,
+    y: i32,
+    anchor: TextAnchor,
+    snippet: String,
+    is_edge_label: bool,
+}
+
 /// Extract every `<text …>` element from the SVG with its `x`, `y`,
-/// `text-anchor`, and a short content snippet.
-/// Returns `(x, y, anchor, snippet)`.
-fn extract_text_elements(svg: &str) -> Vec<(i32, i32, TextAnchor, String)> {
+/// `text-anchor`, a short content snippet, and whether the renderer marked it
+/// as a relation label.
+fn extract_text_elements(svg: &str) -> Vec<TextElement> {
     let mut result = Vec::new();
     let mut pos = 0;
     while let Some(rel) = svg[pos..].find("<text ") {
@@ -232,7 +242,15 @@ fn extract_text_elements(svg: &str) -> Vec<(i32, i32, TextAnchor, String)> {
             .replace("&gt;", ">")
             .replace("&quot;", "\"");
 
-        result.push((x, y, anchor, snippet));
+        let is_edge_label = attrs.contains("class=\"uml-edge-label")
+            || attrs.contains("data-uml-label-role=\"edge\"");
+        result.push(TextElement {
+            x,
+            y,
+            anchor,
+            snippet,
+            is_edge_label,
+        });
         pos = tag_start + 1;
     }
     result
@@ -291,17 +309,17 @@ pub fn check_labels_inside_viewbox(svg: &mut String, mode: AutoCorrect) -> Vec<I
     let mut violations = Vec::new();
     let mut expanded = false;
 
-    for (tx, ty, anchor, snippet) in &texts {
-        let text_len: i32 = snippet.chars().count() as i32;
+    for text in &texts {
+        let text_len: i32 = text.snippet.chars().count() as i32;
         let half_w = text_len * CHAR_WIDTH_PX / 2;
         // Compute the actual left/right edges depending on text-anchor.
-        let (text_left, text_right) = match anchor {
-            TextAnchor::Middle => (tx - half_w, tx + half_w),
-            TextAnchor::End => (tx - text_len * CHAR_WIDTH_PX, *tx),
-            TextAnchor::Start => (*tx, tx + text_len * CHAR_WIDTH_PX),
+        let (text_left, text_right) = match text.anchor {
+            TextAnchor::Middle => (text.x - half_w, text.x + half_w),
+            TextAnchor::End => (text.x - text_len * CHAR_WIDTH_PX, text.x),
+            TextAnchor::Start => (text.x, text.x + text_len * CHAR_WIDTH_PX),
         };
-        let text_bottom = ty + TEXT_DESCENT_PX;
-        let text_top = ty - TEXT_ASCENT_PX;
+        let text_bottom = text.y + TEXT_DESCENT_PX;
+        let text_top = text.y - TEXT_ASCENT_PX;
 
         let left_overflow = (vb_x - text_left).max(0);
         let right_overflow = (text_right - (vb_x + vb_w)).max(0);
@@ -315,13 +333,13 @@ pub fn check_labels_inside_viewbox(svg: &mut String, mode: AutoCorrect) -> Vec<I
                 .max(top_overflow);
             violations.push(InvariantViolation {
                 kind: InvariantKind::LabelOutsideViewbox {
-                    snippet: snippet.clone(),
+                    snippet: text.snippet.clone(),
                     overflow_px,
                 },
                 corrected: matches!(mode, AutoCorrect::Apply),
                 message: format!(
                     "[INV-2] label {:?} overflows viewBox by {}px",
-                    &snippet[..snippet.len().min(20)],
+                    &text.snippet[..text.snippet.len().min(20)],
                     overflow_px
                 ),
             });
@@ -625,21 +643,24 @@ const MIN_LABEL_CLEARANCE_PX: i32 = 4;
 /// the SVG immediately before each offending `<text>` element.
 pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<InvariantViolation> {
     let relations = extract_relation_segments(svg);
-    // Find all text elements with text-anchor="middle" (edge labels).
     let texts = extract_text_elements(svg);
+    let has_marked_edge_labels = texts.iter().any(|text| text.is_edge_label);
     let mut violations = Vec::new();
     let mut inserts: Vec<(usize, String)> = Vec::new(); // (char-pos-in-svg, rect-svg)
 
-    for (tx, ty, anchor, snippet) in &texts {
-        let text_len: i32 = snippet.chars().count() as i32;
+    for text in &texts {
+        if has_marked_edge_labels && !text.is_edge_label {
+            continue;
+        }
+        let text_len: i32 = text.snippet.chars().count() as i32;
         let half_w = text_len * CHAR_WIDTH_PX / 2;
-        let (label_x1, label_x2) = match anchor {
-            TextAnchor::Middle => (tx - half_w, tx + half_w),
-            TextAnchor::End => (tx - text_len * CHAR_WIDTH_PX, *tx),
-            TextAnchor::Start => (*tx, tx + text_len * CHAR_WIDTH_PX),
+        let (label_x1, label_x2) = match text.anchor {
+            TextAnchor::Middle => (text.x - half_w, text.x + half_w),
+            TextAnchor::End => (text.x - text_len * CHAR_WIDTH_PX, text.x),
+            TextAnchor::Start => (text.x, text.x + text_len * CHAR_WIDTH_PX),
         };
-        let label_y1 = ty - TEXT_ASCENT_PX;
-        let label_y2 = ty + TEXT_DESCENT_PX;
+        let label_y1 = text.y - TEXT_ASCENT_PX;
+        let label_y2 = text.y + TEXT_DESCENT_PX;
 
         for (_from, _to, segs) in &relations {
             for seg in segs {
@@ -660,7 +681,7 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                         corrected: matches!(mode, AutoCorrect::Apply),
                         message: format!(
                             "[INV-3] label {:?} has only {clearance}px clearance from edge stroke (min {}px)",
-                            &snippet[..snippet.len().min(20)],
+                            &text.snippet[..text.snippet.len().min(20)],
                             MIN_LABEL_CLEARANCE_PX
                         ),
                     });
@@ -669,14 +690,14 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                         // Queue a white background rect to be inserted before
                         // the text element in the SVG.
                         let rect = format!(
-                            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" opacity=\"0.85\"/>",
+                            "<rect class=\"uml-edge-label-bg\" data-uml-label-role=\"edge-background\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" opacity=\"0.85\"/>",
                             label_x1 - 2,
                             label_y1 - 1,
                             (label_x2 - label_x1) + 4,
                             (label_y2 - label_y1) + 2
                         );
                         // Find the position of this text in the SVG to insert before it.
-                        if let Some(pos) = find_text_element_pos(svg, *tx, *ty) {
+                        if let Some(pos) = find_text_element_pos(svg, text.x, text.y) {
                             inserts.push((pos, rect));
                         }
                     }
@@ -1014,13 +1035,15 @@ pub fn run(svg: &mut String, mode: AutoCorrect) -> InvariantReport {
         report.violations.extend(v);
     }
 
-    // Invariant #3: label-vs-edge-stroke clearance.
-    // NOT applied in run() because scanning all text elements against all
-    // edge segments produces false positives on node header/stereotype labels
-    // that happen to be near edges.  Callers that have precise label/edge
-    // coordinates (e.g. the sequence renderer) should call
-    // check_label_edge_clearance() directly.
-    // The function is still available and tested via the public API.
+    // Invariant #3: label-vs-edge-stroke clearance. Renderers now mark graph
+    // relation labels, so this pass can avoid node/header text false positives.
+    {
+        let before = svg.matches("class=\"uml-edge-label-bg\"").count();
+        let v = check_label_edge_clearance(svg, mode);
+        let after = svg.matches("class=\"uml-edge-label-bg\"").count();
+        report.background_rects_added += after.saturating_sub(before);
+        report.violations.extend(v);
+    }
 
     // Invariant #1: edge-vs-node intersection (diagnostic; layout engine auto-corrects)
     report.violations.extend(check_edge_node_clearance(svg));
