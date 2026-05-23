@@ -249,3 +249,135 @@ fn state_node_kind_label(kind: &StateNodeKind) -> &'static str {
         StateNodeKind::JsonProjection => "json-projection",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn participant_role_labels_cover_all_count_cli_roles() {
+        let cases = [
+            (ParticipantRole::Participant, "participant"),
+            (ParticipantRole::Actor, "actor"),
+            (ParticipantRole::Boundary, "boundary"),
+            (ParticipantRole::Control, "control"),
+            (ParticipantRole::Entity, "entity"),
+            (ParticipantRole::Database, "database"),
+            (ParticipantRole::Collections, "collections"),
+            (ParticipantRole::Queue, "queue"),
+        ];
+
+        for (role, label) in cases {
+            assert_eq!(participant_role_label(role), label);
+        }
+    }
+
+    #[test]
+    fn family_node_kind_labels_cover_count_cli_surface() {
+        let cases = [
+            (FamilyNodeKind::Class, "class"),
+            (FamilyNodeKind::Object, "object"),
+            (FamilyNodeKind::Map, "map"),
+            (FamilyNodeKind::Diamond, "diamond"),
+            (FamilyNodeKind::UseCase, "use-case"),
+            (FamilyNodeKind::Salt, "salt"),
+            (FamilyNodeKind::MindMap, "mindmap"),
+            (FamilyNodeKind::Wbs, "wbs"),
+            (FamilyNodeKind::Component, "component"),
+            (FamilyNodeKind::Interface, "interface"),
+            (FamilyNodeKind::Port, "port"),
+            (FamilyNodeKind::Action, "action"),
+            (FamilyNodeKind::Agent, "agent"),
+            (FamilyNodeKind::Node, "node"),
+            (FamilyNodeKind::Artifact, "artifact"),
+            (FamilyNodeKind::Boundary, "boundary"),
+            (FamilyNodeKind::Cloud, "cloud"),
+            (FamilyNodeKind::Circle, "circle"),
+            (FamilyNodeKind::Collections, "collections"),
+            (FamilyNodeKind::Frame, "frame"),
+            (FamilyNodeKind::Storage, "storage"),
+            (FamilyNodeKind::Container, "container"),
+            (FamilyNodeKind::Control, "control"),
+            (FamilyNodeKind::Database, "database"),
+            (FamilyNodeKind::Entity, "entity"),
+            (FamilyNodeKind::Package, "package"),
+            (FamilyNodeKind::Rectangle, "rectangle"),
+            (FamilyNodeKind::Folder, "folder"),
+            (FamilyNodeKind::File, "file"),
+            (FamilyNodeKind::Card, "card"),
+            (FamilyNodeKind::Actor, "actor"),
+            (FamilyNodeKind::BusinessActor, "business-actor"),
+            (FamilyNodeKind::BusinessUseCase, "business-use-case"),
+            (FamilyNodeKind::Hexagon, "hexagon"),
+            (FamilyNodeKind::Label, "label"),
+            (FamilyNodeKind::Person, "person"),
+            (FamilyNodeKind::Process, "process"),
+            (FamilyNodeKind::Queue, "queue"),
+            (FamilyNodeKind::Stack, "stack"),
+            (FamilyNodeKind::UseCaseDeployment, "use-case-deployment"),
+            (FamilyNodeKind::State, "state"),
+            (FamilyNodeKind::StateInitial, "state-initial"),
+            (FamilyNodeKind::StateFinal, "state-final"),
+            (FamilyNodeKind::StateHistory, "state-history"),
+            (FamilyNodeKind::ActivityStart, "activity-start"),
+            (FamilyNodeKind::ActivityStop, "activity-stop"),
+            (FamilyNodeKind::ActivityAction, "activity-action"),
+            (FamilyNodeKind::ActivityDecision, "activity-decision"),
+            (FamilyNodeKind::ActivityFork, "activity-fork"),
+            (FamilyNodeKind::ActivityForkEnd, "activity-fork-end"),
+            (FamilyNodeKind::ActivityMerge, "activity-merge"),
+            (FamilyNodeKind::ActivityPartition, "activity-partition"),
+            (FamilyNodeKind::Note, "note"),
+            (FamilyNodeKind::TimingConcise, "timing-concise"),
+            (FamilyNodeKind::TimingRobust, "timing-robust"),
+            (FamilyNodeKind::TimingClock, "timing-clock"),
+            (FamilyNodeKind::TimingBinary, "timing-binary"),
+            (FamilyNodeKind::TimingEvent, "timing-event"),
+            (FamilyNodeKind::C4Person, "c4-person"),
+            (FamilyNodeKind::C4PersonExt, "c4-person-ext"),
+            (FamilyNodeKind::C4System, "c4-system"),
+            (FamilyNodeKind::C4SystemExt, "c4-system-ext"),
+            (FamilyNodeKind::C4SystemDb, "c4-system-db"),
+            (FamilyNodeKind::C4SystemQueue, "c4-system-queue"),
+            (FamilyNodeKind::C4Container, "c4-container"),
+            (FamilyNodeKind::C4ContainerExt, "c4-container-ext"),
+            (FamilyNodeKind::C4ContainerDb, "c4-container-db"),
+            (FamilyNodeKind::C4ContainerQueue, "c4-container-queue"),
+            (FamilyNodeKind::C4Component, "c4-component"),
+            (FamilyNodeKind::C4ComponentExt, "c4-component-ext"),
+            (FamilyNodeKind::C4ComponentDb, "c4-component-db"),
+            (FamilyNodeKind::C4ComponentQueue, "c4-component-queue"),
+            (FamilyNodeKind::C4Boundary, "c4-boundary"),
+        ];
+
+        for (kind, label) in cases {
+            assert_eq!(family_node_kind_label(kind), label);
+        }
+    }
+
+    #[test]
+    fn state_node_kind_labels_cover_count_cli_surface() {
+        let cases = [
+            (StateNodeKind::Normal, "state"),
+            (StateNodeKind::StartEnd, "start-end"),
+            (StateNodeKind::HistoryShallow, "history-shallow"),
+            (StateNodeKind::HistoryDeep, "history-deep"),
+            (StateNodeKind::Fork, "fork"),
+            (StateNodeKind::Join, "join"),
+            (StateNodeKind::Choice, "choice"),
+            (StateNodeKind::End, "end"),
+            (StateNodeKind::EntryPoint, "entry-point"),
+            (StateNodeKind::ExitPoint, "exit-point"),
+            (StateNodeKind::InputPin, "input-pin"),
+            (StateNodeKind::OutputPin, "output-pin"),
+            (StateNodeKind::ExpansionInput, "expansion-input"),
+            (StateNodeKind::ExpansionOutput, "expansion-output"),
+            (StateNodeKind::Note, "note"),
+            (StateNodeKind::JsonProjection, "json-projection"),
+        ];
+
+        for (kind, label) in cases {
+            assert_eq!(state_node_kind_label(&kind), label);
+        }
+    }
+}
