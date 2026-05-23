@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Classify changed files
         id: changes
@@ -47,7 +49,9 @@ jobs:
           CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
 
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+            if ! git cat-file -e "${{ github.event.pull_request.base.sha }}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+            fi
             git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
           else
             git ls-files > "${CHANGED_FILES}"
@@ -95,7 +99,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: Build puml CLI binary for artifact regen
         run: cargo build --release --bin puml
@@ -159,7 +172,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: fmt gate
         run: cargo fmt --check
@@ -187,7 +209,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: clippy gate
         run: cargo clippy --all-targets --all-features -- -D warnings
@@ -213,7 +244,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
@@ -270,7 +310,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
@@ -298,7 +347,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -327,7 +385,16 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: docs examples drift gate
         run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
@@ -362,8 +429,17 @@ jobs:
           cache-on-failure: true
 
       - name: Set up sccache
+        continue-on-error: true
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
         uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Fall back when sccache is unavailable
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo "sccache is unavailable; using rustc directly for this job."
+            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
+          fi
 
       - name: Install Zola
         run: |
