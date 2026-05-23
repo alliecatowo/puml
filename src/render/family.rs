@@ -3787,22 +3787,43 @@ fn render_box_grid_relations_and_labels(
             // For a downward path with n≥3 points:
             //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
             //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
+            // Endpoint anchors can land on visual top/bottom edges that differ
+            // from bbox extents for 3D deployment shapes; use a tolerance.
+            let src_keep_routed_x = (y1 - fy).abs() <= 16 || (y1 - (fy + fh)).abs() <= 16;
+            let tgt_keep_routed_x = (y2 - ty).abs() <= 16 || (y2 - (ty + th)).abs() <= 16;
+            let src_x_min = fx.min(fx + fw);
+            let src_x_max = fx.max(fx + fw);
+            let tgt_x_min = tx.min(tx + tw);
+            let tgt_x_max = tx.max(tx + tw);
+
             if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
+                let snapped_x = if src_keep_routed_x {
+                    first.0.clamp(src_x_min, src_x_max)
+                } else {
+                    x1
+                };
+                *first = (snapped_x, y1);
             }
             if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
+                let snapped_x = if tgt_keep_routed_x {
+                    last.0.clamp(tgt_x_min, tgt_x_max)
+                } else {
+                    x2
+                };
+                *last = (snapped_x, y2);
             }
             let n = orth_pts.len();
             if n >= 3 {
                 // Snap the second point's x to x1 so the exit segment from
                 // the source is vertical (orthogonal from the snapped endpoint).
-                orth_pts[1].0 = x1;
+                if !src_keep_routed_x {
+                    orth_pts[1].0 = x1;
+                }
                 // Snap the penultimate point's x to x2 so the entry segment
                 // into the target is also vertical.  For 3-point paths this is
                 // the same element as index 1, so only update when n > 3 to
                 // avoid overwriting the x1-snap above.
-                if n > 3 {
+                if n > 3 && !tgt_keep_routed_x {
                     orth_pts[n - 2].0 = x2;
                 }
             }
