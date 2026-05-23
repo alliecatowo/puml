@@ -357,6 +357,16 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         .max()
         .unwrap_or(0);
 
+    let mindmap_leaf_count = (0..n)
+        .filter(|&idx| family_tree_child_indices(nodes, idx).is_empty())
+        .count();
+    let max_mindmap_depth = max_right_depth.max(max_left_depth);
+    let x_step = if max_mindmap_depth >= 4 && mindmap_leaf_count >= 12 {
+        130
+    } else {
+        X_STEP
+    };
+
     let root_cy = canvas_h / 2;
 
     // Draw nodes recursively — track y-cursors per side.
@@ -411,12 +421,12 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             })
     }
 
-    let depth_bias = (max_left_depth as i32) * X_STEP + 240;
+    let depth_bias = (max_left_depth as i32) * x_step + 240;
     let root_cx_prelim = MARGIN + depth_bias + root_w / 2;
     let root_min_x = root_cx_prelim - root_w / 2;
     let root_max_x = root_cx_prelim + root_w / 2;
     let actual_max_right = {
-        let right_start = root_cx_prelim + root_w / 2 + X_STEP - NODE_PAD_X;
+        let right_start = root_cx_prelim + root_w / 2 + x_step - NODE_PAD_X;
         right_roots
             .iter()
             .map(|&i| {
@@ -425,7 +435,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
                     &display_names,
                     i,
                     right_start,
-                    X_STEP,
+                    x_step,
                     NODE_PAD_X,
                     false,
                     maximum_width,
@@ -436,7 +446,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             .unwrap_or(root_max_x)
     };
     let actual_min_left = {
-        let left_start = root_cx_prelim - root_w / 2 - X_STEP + NODE_PAD_X;
+        let left_start = root_cx_prelim - root_w / 2 - x_step + NODE_PAD_X;
         left_roots
             .iter()
             .map(|&i| {
@@ -445,7 +455,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
                     &display_names,
                     i,
                     left_start,
-                    X_STEP,
+                    x_step,
                     NODE_PAD_X,
                     true,
                     maximum_width,
@@ -459,9 +469,6 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let actual_max_x = root_max_x.max(actual_max_right);
     let extra_left = (MARGIN - actual_min_x).max(0);
     let canvas_w = actual_max_x + extra_left + MARGIN;
-    let mindmap_leaves = (0..n)
-        .filter(|&idx| family_tree_child_indices(nodes, idx).is_empty())
-        .count();
     let root_cx = root_cx_prelim + extra_left;
 
     let mut out = String::new();
@@ -471,8 +478,8 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         h = canvas_h,
         orientation = wbs_orientation_attr(doc.orientation),
         node_count = n,
-        leaf_count = mindmap_leaves,
-        max_depth = max_right_depth.max(max_left_depth)
+        leaf_count = mindmap_leaf_count,
+        max_depth = max_mindmap_depth
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -522,9 +529,9 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             i,
             root_cx + root_w / 2,
             root_cy,
-            root_cx + root_w / 2 + X_STEP - NODE_PAD_X,
+            root_cx + root_w / 2 + x_step - NODE_PAD_X,
             &y_positions,
-            X_STEP,
+            x_step,
             NODE_H,
             NODE_PAD_X,
             false, // left=false → right
@@ -541,9 +548,9 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             i,
             root_cx - root_w / 2,
             root_cy,
-            root_cx - root_w / 2 - X_STEP + NODE_PAD_X,
+            root_cx - root_w / 2 - x_step + NODE_PAD_X,
             &y_positions,
-            X_STEP,
+            x_step,
             NODE_H,
             NODE_PAD_X,
             true, // left=true
@@ -828,11 +835,18 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
 
     let total_leaves = wbs_leaf_count(nodes, 0);
     let max_depth = nodes.iter().map(|n| n.depth).max().unwrap_or(0);
-    let vertical = matches!(
-        doc.orientation,
+    let use_compact_vertical_layout = matches!(doc.orientation, FamilyOrientation::TopToBottom)
+        && total_leaves >= 16
+        && max_depth >= 3;
+    let layout_orientation = if use_compact_vertical_layout {
+        FamilyOrientation::LeftToRight
+    } else {
+        doc.orientation
+    };
+    let layout_vertical = matches!(
+        layout_orientation,
         FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
     );
-    let use_compact_vertical_layout = vertical && total_leaves >= 16 && max_depth >= 3;
     let mut subtree_span = vec![0i32; n];
 
     fn compute_wbs_subtree_span(
@@ -861,19 +875,15 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         span
     }
 
-    let root_span =
+    let _root_span =
         compute_wbs_subtree_span(0, &children_of, nodes, SIBLING_GAP, &mut subtree_span);
 
-    let canvas_w = if vertical {
-        if use_compact_vertical_layout {
-            root_span + 2 * MARGIN
-        } else {
-            (total_leaves as i32) * X_STEP + 2 * MARGIN
-        }
+    let canvas_w = if layout_vertical {
+        (total_leaves as i32) * X_STEP + 2 * MARGIN
     } else {
         (max_depth as i32 + 1) * X_STEP + 2 * MARGIN + 120
     };
-    let canvas_h = if vertical {
+    let canvas_h = if layout_vertical {
         (max_depth as i32 + 1) * Y_STEP + 2 * MARGIN + NODE_H
     } else {
         (total_leaves as i32) * Y_STEP + 2 * MARGIN + NODE_H
@@ -982,7 +992,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         MARGIN,
         NODE_H,
         Y_STEP,
-        doc.orientation,
+        layout_orientation,
         max_depth,
         use_compact_vertical_layout,
         &subtree_span,
@@ -1029,7 +1039,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         if let Some(p) = parent_of[i] {
             let parent_w = wbs_node_width(&nodes[p]);
             let child_w = wbs_node_width(&nodes[i]);
-            let (px, py, cx, cy) = match doc.orientation {
+            let (px, py, cx, cy) = match layout_orientation {
                 FamilyOrientation::TopToBottom => (
                     x_positions[p],
                     y_positions[p] + NODE_H / 2,
@@ -1089,7 +1099,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         }
         let from_w = wbs_node_width(&nodes[from_idx]);
         let to_w = wbs_node_width(&nodes[to_idx]);
-        let (sx, sy, ex, ey) = match doc.orientation {
+        let (sx, sy, ex, ey) = match layout_orientation {
             FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop => {
                 if x_positions[from_idx] <= x_positions[to_idx] {
                     (
