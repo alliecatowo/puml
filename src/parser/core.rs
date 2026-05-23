@@ -841,6 +841,11 @@ fn parse_style_block(
     if !line.eq_ignore_ascii_case("<style>") {
         return Ok(None);
     }
+    if !is_sequence_style_block(lines, start_idx) {
+        // Leave non-sequence style blocks untouched so existing family-specific
+        // style handling (e.g. mindmap depth styles) keeps working.
+        return Ok(None);
+    }
 
     let mut kinds: Vec<StatementKind> = Vec::new();
     let mut in_sequence = false;
@@ -929,6 +934,21 @@ fn parse_style_block(
         "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
     )
     .with_span(lines[start_idx].1))
+}
+
+fn is_sequence_style_block(lines: &[(&str, Span)], start_idx: usize) -> bool {
+    for (raw, _) in lines.iter().skip(start_idx + 1) {
+        let inner = strip_inline_plantuml_comment(raw).trim();
+        if inner.eq_ignore_ascii_case("</style>") {
+            return false;
+        }
+        if inner.is_empty() {
+            continue;
+        }
+        let selector = inner.trim_end_matches('{').trim();
+        return selector.eq_ignore_ascii_case("sequenceDiagram");
+    }
+    false
 }
 
 fn parse_sprite_statement(
