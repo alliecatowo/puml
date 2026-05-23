@@ -32,10 +32,6 @@ permissions:
   pages: write
   id-token: write
 
-env:
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
-
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -66,9 +62,6 @@ jobs:
           key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-pages-
-
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install wasm-pack
         uses: ./.github/actions/install-wasm-pack
