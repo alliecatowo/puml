@@ -1,0 +1,8 @@
+@startuml
+mainframe Domain Frame
+class Visible {
+  +id: UUID
+}
+class Related
+Visible --> Related : links
+@enduml

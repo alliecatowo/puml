@@ -102,11 +102,11 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Evidence:** `src/parser/sequence.rs:433-436`. AST `NewPage`, `IgnoreNewPage` at `src/ast.rs:131-132`.
 **Notes:** Sequence-only by parse site.
 
-### 21.x mainframe — ❌
+### 21.x mainframe — 🟡
 **Feature:** `mainframe <creole text>` draws a UML frame around the diagram.
-**Status:** ❌
-**Evidence:** No matches for `mainframe` in `src/parser/`, `src/normalize/`, `src/render/`, `src/ast.rs`.
-**Notes:** Section 21.11 of the spec relies on this; gap.
+**Status:** 🟡 (sequence + normalized family diagrams)
+**Evidence:** Parsed as `StatementKind::Mainframe` in `src/parser/sequence.rs`, normalized for sequence in `src/normalize/sequence.rs` and family documents in `src/normalize/family.rs`, rendered for sequence in `src/render/sequence.rs`, and appended to family SVGs via `src/render/mod.rs`. Tests: `tests/ch01_sequence_parity.rs` (sequence mainframe) and `tests/ch21_common_parity.rs` (`mainframe_on_class_diagram_renders_frame_and_title`). Example: `docs/examples/class/33_mainframe.puml`.
+**Notes:** Specialized/raw document renderers (for example JSON/YAML/chart/nwdiag) do not yet carry `mainframe`.
 
 ### 21.x left to right direction / top to bottom direction — ✅
 **Status:** ✅
@@ -129,5 +129,5 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 
 ## Tally — Chapter 21
 - ✅ Supported: 14 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia, top-level backgroundColor)
-- 🟡 Partial: 6 (scale, per-family render coverage, `<style>` block slices, skinparam breadth, !theme remote, monochrome)
-- ❌ Missing: 2 (mainframe, hide stereotype)
+- 🟡 Partial: 7 (scale, per-family render coverage, `<style>` block slices, skinparam breadth, !theme remote, monochrome, mainframe)
+- ❌ Missing: 1 (hide stereotype)

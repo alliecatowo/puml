@@ -25,6 +25,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut mainframe = None;
     let mut class_style = ClassStyle::default();
     let mut class_monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
@@ -429,6 +430,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Mainframe(v) => mainframe = Some(v),
             StatementKind::Theme(value) => {
                 class_style = class_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(&value)
@@ -557,6 +559,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         footer,
         caption,
         legend,
+        mainframe,
         orientation,
         style: SequenceStyle {
             sepia,
@@ -1005,6 +1008,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut mainframe = None;
 
     let family_kind = document.kind;
     let mut warnings = Vec::new();
@@ -1034,6 +1038,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Mainframe(v) => mainframe = Some(v),
             StatementKind::SkinParam { key, value } => {
                 if handle_family_overflow_skinparam(
                     &key,
@@ -1395,6 +1400,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         footer,
         caption,
         legend,
+        mainframe,
         orientation,
         style,
         family_style,
@@ -1837,6 +1843,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut mainframe = None;
     let mut hide_options: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut activity_step_counter: usize = 0;
     let mut activity_active_partition: Option<String> = None;
@@ -2332,6 +2339,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             StatementKind::Legend(v) => {
                 legend = Some(sequence::strip_legend_pos_prefix(&v));
             }
+            StatementKind::Mainframe(v) => mainframe = Some(v),
             StatementKind::SkinParam { key, value } => {
                 let mut handled = false;
                 if key.trim().eq_ignore_ascii_case("monochrome") {
@@ -2674,6 +2682,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         footer,
         caption,
         legend,
+        mainframe,
         orientation,
         style: SequenceStyle {
             sepia,

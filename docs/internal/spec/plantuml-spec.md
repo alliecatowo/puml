@@ -52,7 +52,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
-| 21 | Common Commands | 14 | 6 | 3 | [ch21-common.md](audit/ch21-common.md) |
+| 21 | Common Commands | 14 | 7 | 1 | [ch21-common.md](audit/ch21-common.md) |
 | 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
 | 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
@@ -132,7 +132,7 @@ Chapter 20 and class chapter both need these for IDEF1X / IE diagrams. Not nativ
 
 ### 9. `mainframe`
 
-Sequence + common. Missing entirely.
+Sequence and normalized family diagrams support the common command; specialized/raw diagram renderers still need follow-up.
 
 ### 10. Exotic arrowheads
 

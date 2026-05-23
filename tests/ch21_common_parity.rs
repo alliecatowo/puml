@@ -7,6 +7,7 @@
 ///   21.4    `skinparam sepia true/false`
 ///   21.x    scale variants
 ///   21.x    top-level `backgroundColor`
+///   21.x    family-diagram `mainframe`
 use puml::{model::ScaleSpec, normalize, parser, render_source_to_svg};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -302,6 +303,18 @@ fn skinparam_sepia_true_adds_css_filter_on_class_diagram() {
         "expected sepia CSS filter in class SVG; got: {}",
         &svg[..svg.len().min(500)]
     );
+}
+
+// ── 21.x  mainframe on family diagrams ──────────────────────────────────────
+
+#[test]
+fn mainframe_on_class_diagram_renders_frame_and_title() {
+    let src = "@startuml\nmainframe Domain Frame\nclass Visible\n@enduml\n";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("class=\"uml-mainframe\""));
+    assert!(svg.contains("Domain Frame"));
+    assert!(svg.contains("Visible"));
 }
 
 // ── 21.x  top-level backgroundColor ──────────────────────────────────────────

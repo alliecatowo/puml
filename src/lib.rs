@@ -530,6 +530,9 @@ pub fn render_family_document_svg(family: &FamilyDocument) -> String {
             _ => render::render_family_stub_svg(family),
         }
     });
+    if let Some(title) = &family.mainframe {
+        render::append_mainframe_svg(&mut svg, title);
+    }
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place.  Diagnostic-only violations are silently recorded — they do not
