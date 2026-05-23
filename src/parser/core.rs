@@ -254,6 +254,18 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && !ambiguous_usecase_prefers_usecase
                 && !ambiguous_class_scope
             {
+                if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                    if let Some(kind) = parse_deployment_usecase_decl(line) {
+                        detected_kind = Some(select_diagram_kind(
+                            detected_kind,
+                            DiagramKind::Deployment,
+                            span,
+                        )?);
+                        statements.push(Statement { span, kind });
+                        i += 1;
+                        continue;
+                    }
+                }
                 if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
                     let family = if matches!(detected_kind, Some(DiagramKind::Component)) {
                         DiagramKind::Component
@@ -445,6 +457,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind,
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
+            if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                if let Some(kind) = parse_deployment_usecase_decl(line) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
                 statements.push(Statement { span, kind });
                 i = end_idx + 1;

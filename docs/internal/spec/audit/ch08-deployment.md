@@ -14,12 +14,12 @@ nearly all declarable keyword forms.
 
 ---
 
-### 8.1 Declaring element — keyword inventory — 🟡
+### 8.1 Declaring element — keyword inventory — ✅
 
 Per-keyword status. Evidence is `src/parser/component.rs:113-149` keyword table,
 `src/ast.rs:307-337` `ComponentNodeKind`, `src/normalize/family.rs:3009-3040`
 `FamilyNodeKind` mapping, `src/render/family.rs:6124-6150` deployment-shape dispatch,
-and `tests/integration.rs:6147-6221` unless otherwise noted.
+and `tests/integration.rs:6147-6255` unless otherwise noted.
 
 | Keyword | Status | Evidence |
 |---|---|---|
@@ -51,10 +51,10 @@ and `tests/integration.rs:6147-6221` unless otherwise noted.
 | rectangle | ✅ | `ComponentNodeKind::Rectangle` |
 | stack | ✅ | `ComponentNodeKind::Stack`; stacked-card shape |
 | storage | ✅ | `ComponentNodeKind::Storage`; cylinder shape |
-| usecase | 🟡 | parsed via `parser/family.rs:139` (`usecase` keyword in family decls) but not as a `ComponentNodeKind` |
+| usecase | ✅ | standalone `usecase` stays in usecase diagrams; after a deployment context it parses as `ComponentNodeKind::UseCase` via `parse_deployment_usecase_decl` |
 | usecase/ | ✅ | `component.rs:148`; rendered as deployment usecase ellipse |
 
-**Tally for §8.1: 29 ✅, 1 🟡, 0 ❌ out of 30 keyword forms.**
+**Tally for §8.1: 30 ✅, 0 🟡, 0 ❌ out of 30 keyword forms.**
 
 ### 8.1 Long bracketed body (`folder folder [ ... multi-line ... ]`) — 🟡
 **Feature:** Multi-line `[ ... ]` body with `----`, `====`, `....` separators.
@@ -142,14 +142,13 @@ See 8.6. Works for keywords that parse; no-ops for missing keywords.
 
 | Status | Count |
 |---|---|
-| ✅ Supported | 6 (§8.2, §8.4, §8.7, §8.8, stereotypes, +29 of 30 keywords in §8.1) |
+| ✅ Supported | 6 (§8.1 keyword inventory, §8.2, §8.4, §8.7, §8.8, stereotypes) |
 | 🟡 Partial | 8 (§8.1 long-bracket body, §8.3, §8.5, §8.6, §8.9, §8.12/8.13, §8.14, §8.15) |
 | ❌ Missing | 3 sections (§8.10, §8.11, sprites) |
 
 **Headline gaps:**
-1. **Plain `usecase` deployment keyword remains partial** — `usecase/` and `(Usecase)` work in deployment context, but the bare `usecase Foo` keyword still routes through the usecase family path instead of `ComponentNodeKind::UseCase`.
-2. **Multi-line bracketed body separators** (`----`, `====`, `....`) parse as body text but do not render as divider rules.
-3. **Exotic arrow heads** — `--0`, `--@`, `-->>`, `0)--(0`, `-(0)-`, `--(0` are mostly fall-through plain arrows.
-4. **`<style>` block** with per-element CSS-like selectors not parsed.
-5. **`skinparam rectangle { roundCorner<<stereo>> N }`** not honored.
-6. **Sprites** (`sprite $foo [W*H/depth] { ... }` and `<<$foo>>` reference) absent.
+1. **Multi-line bracketed body separators** (`----`, `====`, `....`) parse as body text but do not render as divider rules.
+2. **Exotic arrow heads** — `--0`, `--@`, `-->>`, `0)--(0`, `-(0)-`, `--(0` are mostly fall-through plain arrows.
+3. **`<style>` block** with per-element CSS-like selectors not parsed.
+4. **`skinparam rectangle { roundCorner<<stereo>> N }`** not honored.
+5. **Sprites** (`sprite $foo [W*H/depth] { ... }` and `<<$foo>>` reference) absent.

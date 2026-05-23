@@ -6235,6 +6235,24 @@ Runtime --> Deploy
 }
 
 #[test]
+fn deployment_bare_usecase_keyword_stays_in_deployment_context() {
+    let src = r##"@startuml
+node Runtime
+usecase "Login Flow" as Login #aliceblue
+Runtime --> Login : exposes
+@enduml
+"##;
+    let svg = render_source_to_svg(src).expect("deployment usecase keyword should render");
+
+    assert!(svg.contains("data-uml-kind=\"node\""));
+    assert!(svg.contains("data-uml-kind=\"usecase\""));
+    assert!(svg.contains(">Login Flow<"));
+    assert!(svg.contains("data-uml-from=\"Runtime\" data-uml-to=\"Login\""));
+    assert!(svg.contains("exposes"));
+    assert!(svg.contains("#f0f8ff"));
+}
+
+#[test]
 fn sequence_queue_participants_still_prefer_sequence_context() {
     let src = "@startuml\nqueue Jobs as Q\nparticipant Worker\nQ -> Worker : dispatch\n@enduml\n";
     let svg = render_source_to_svg(src).expect("sequence queue participant should render");
