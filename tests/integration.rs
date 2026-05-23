@@ -5934,6 +5934,33 @@ fn class_package_headers_clear_inner_class_labels() {
 }
 
 #[test]
+fn class_association_tuple_inside_packages_keeps_class_boxes() {
+    use puml::normalize_family;
+    use puml::NormalizedDocument;
+
+    let src = fs::read_to_string(example("class/32_association_class_deep_packages.puml"))
+        .expect("association-class example");
+    let doc = parse(&src).expect("parse ok");
+    let model = normalize_family(doc).expect("normalize ok");
+    let NormalizedDocument::Family(family) = model else {
+        panic!("expected Family model");
+    };
+
+    assert_eq!(family.kind, puml::ast::DiagramKind::Class);
+    assert!(family
+        .nodes
+        .iter()
+        .all(|node| matches!(node.kind, puml::model::FamilyNodeKind::Class)));
+
+    let svg = render_source_to_svg(&src).expect("class example should render");
+    assert!(
+        !svg.contains("<ellipse"),
+        "association-class example should render class boxes, not usecase ellipses"
+    );
+    assert!(svg.contains(">+connection: String<"));
+}
+
+#[test]
 fn class_family_accepts_directional_and_dotted_relation_arrows() {
     let src = "@startuml\nclass Base\nclass Impl\nclass Service\nImpl -up-|> Base\nService ..> Impl : depends\n@enduml\n";
     let svg = render_source_to_svg(src).expect("class directional relation svg should render");
