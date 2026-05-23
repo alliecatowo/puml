@@ -303,3 +303,38 @@ fn skinparam_sepia_true_adds_css_filter_on_class_diagram() {
         &svg[..svg.len().min(500)]
     );
 }
+
+// ── 21.x  top-level backgroundColor ──────────────────────────────────────────
+
+#[test]
+fn top_level_background_color_applies_to_sequence() {
+    let src = "@startuml\nbackgroundColor #fef3c7\nA -> B : hello\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("fill=\"#fef3c7\""),
+        "expected top-level backgroundColor to color sequence canvas; got: {}",
+        &svg[..svg.len().min(500)]
+    );
+}
+
+#[test]
+fn top_level_background_color_before_family_detection_applies_to_class() {
+    let src = "@startuml\nbackgroundColor #e0f2fe\nclass Foo\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("fill=\"#e0f2fe\""),
+        "expected top-level backgroundColor before class detection to color canvas; got: {}",
+        &svg[..svg.len().min(500)]
+    );
+}
+
+#[test]
+fn top_level_background_color_after_family_detection_applies_to_component() {
+    let src = "@startuml\n[API]\nbackgroundColor #dcfce7\n[API] --> [DB]\n@enduml\n";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("fill=\"#dcfce7\""),
+        "expected top-level backgroundColor after component detection to color canvas; got: {}",
+        &svg[..svg.len().min(500)]
+    );
+}

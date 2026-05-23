@@ -208,40 +208,44 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && {
                     let end_idx = find_scoping_block_end(&lines, i);
                     end_idx > i
+                        && !group_body_contains_component_family(&lines, i, end_idx)
                         && (group_body_contains_class_family(&lines, i, end_idx)
                             || group_body_contains_object_family(&lines, i, end_idx)
                             || group_body_contains_usecase_family(&lines, i, end_idx))
                 };
-            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                let is_deployment_scope = matches!(detected_kind, Some(DiagramKind::Deployment))
-                    || matches!(
-                    &kind,
-                    StatementKind::ClassGroup { kind, .. }
-                        if matches!(
-                            kind.as_str(),
-                            "action"
-                                | "artifact"
-                                | "cloud"
-                                | "container"
-                                | "database"
-                                | "frame"
-                                | "hexagon"
-                                | "node"
-                                | "process"
-                                | "queue"
-                                | "stack"
-                                | "storage"
-                        )
-                );
-                let family = if is_deployment_scope {
-                    DiagramKind::Deployment
-                } else {
-                    DiagramKind::Component
-                };
-                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
-                statements.push(Statement { span, kind });
-                i = end_idx + 1;
-                continue;
+            if !ambiguous_class_scope {
+                if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                    let is_deployment_scope =
+                        matches!(detected_kind, Some(DiagramKind::Deployment))
+                            || matches!(
+                                &kind,
+                                StatementKind::ClassGroup { kind, .. }
+                                    if matches!(
+                                        kind.as_str(),
+                                        "action"
+                                            | "artifact"
+                                            | "cloud"
+                                            | "container"
+                                            | "database"
+                                            | "frame"
+                                            | "hexagon"
+                                            | "node"
+                                            | "process"
+                                            | "queue"
+                                            | "stack"
+                                            | "storage"
+                                    )
+                            );
+                    let family = if is_deployment_scope {
+                        DiagramKind::Deployment
+                    } else {
+                        DiagramKind::Component
+                    };
+                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    statements.push(Statement { span, kind });
+                    i = end_idx + 1;
+                    continue;
+                }
             }
             if !ambiguous_class_interface
                 && !actor_prefers_non_component
@@ -823,8 +827,8 @@ fn parse_skinparam_block(
     Some((kinds, end_idx))
 }
 
-/// Parse a minimal PlantUML `<style>...</style>` block and map sequence-only
-/// style rules to equivalent `SkinParam` statements.
+/// Parse a minimal PlantUML `<style>...</style>` block and map supported style
+/// rules to equivalent `SkinParam` statements.
 ///
 /// Supported subset:
 /// - `sequenceDiagram { ... }`
@@ -832,6 +836,7 @@ fn parse_skinparam_block(
 ///   - `participant { ... }`
 ///   - `note { ... }`
 ///   - `group { ... }`
+/// - `componentDiagram { component { ... } }`
 /// - declarations in `Property Value` or `Property: Value;` form
 fn parse_style_block(
     lines: &[(&str, Span)],
@@ -841,14 +846,28 @@ fn parse_style_block(
     if !line.eq_ignore_ascii_case("<style>") {
         return Ok(None);
     }
-    if !is_sequence_style_block(lines, start_idx) {
-        // Leave non-sequence style blocks untouched so existing family-specific
-        // style handling (e.g. mindmap depth styles) keeps working.
-        return Ok(None);
-    }
+    let Some(target) = style_block_target(lines, start_idx) else {
+        // Preserve unsupported style blocks as raw lines so family-specific
+        // style handling (e.g. mindmap depth styles) can consume them without
+        // generic top-level keyword parsing rewriting inner declarations.
+        let mut kinds = vec![StatementKind::Unknown(line.to_string())];
+        for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+            kinds.push(StatementKind::Unknown((*raw).to_string()));
+            if strip_inline_plantuml_comment(raw)
+                .trim()
+                .eq_ignore_ascii_case("</style>")
+            {
+                return Ok(Some((kinds, idx)));
+            }
+        }
+        return Err(Diagnostic::error(
+            "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
+        )
+        .with_span(lines[start_idx].1));
+    };
 
     let mut kinds: Vec<StatementKind> = Vec::new();
-    let mut in_sequence = false;
+    let mut in_target = false;
     let mut nested_selector: Option<String> = None;
 
     for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
@@ -859,8 +878,8 @@ fn parse_style_block(
         if inner.is_empty() {
             continue;
         }
-        if inner.eq_ignore_ascii_case("sequenceDiagram {") {
-            in_sequence = true;
+        if target.matches_open_selector(inner) {
+            in_target = true;
             nested_selector = None;
             continue;
         }
@@ -868,11 +887,11 @@ fn parse_style_block(
             if nested_selector.is_some() {
                 nested_selector = None;
             } else {
-                in_sequence = false;
+                in_target = false;
             }
             continue;
         }
-        if !in_sequence {
+        if !in_target {
             continue;
         }
         if inner.ends_with('{') {
@@ -894,33 +913,7 @@ fn parse_style_block(
             continue;
         }
 
-        let key = match nested_selector.as_deref() {
-            None => match raw_key.to_ascii_lowercase().as_str() {
-                "arrowcolor" => Some("ArrowColor".to_string()),
-                "lifelinebordercolor" => Some("LifelineBorderColor".to_string()),
-                "backgroundcolor" => Some("BackgroundColor".to_string()),
-                _ => None,
-            },
-            Some("participant") => match raw_key.to_ascii_lowercase().as_str() {
-                "backgroundcolor" => Some("ParticipantBackgroundColor".to_string()),
-                "bordercolor" => Some("ParticipantBorderColor".to_string()),
-                "fontcolor" => Some("ParticipantFontColor".to_string()),
-                _ => None,
-            },
-            Some("note") => match raw_key.to_ascii_lowercase().as_str() {
-                "backgroundcolor" => Some("NoteBackgroundColor".to_string()),
-                "bordercolor" => Some("NoteBorderColor".to_string()),
-                _ => None,
-            },
-            Some("group") => match raw_key.to_ascii_lowercase().as_str() {
-                "backgroundcolor" => Some("GroupBackgroundColor".to_string()),
-                "bordercolor" => Some("GroupBorderColor".to_string()),
-                "headerfontcolor" => Some("GroupHeaderFontColor".to_string()),
-                "headerfontstyle" => Some("GroupHeaderFontStyle".to_string()),
-                _ => None,
-            },
-            Some(_) => None,
-        };
+        let key = target.skinparam_key(nested_selector.as_deref(), raw_key);
 
         if let Some(key) = key {
             kinds.push(StatementKind::SkinParam {
@@ -936,19 +929,91 @@ fn parse_style_block(
     .with_span(lines[start_idx].1))
 }
 
-fn is_sequence_style_block(lines: &[(&str, Span)], start_idx: usize) -> bool {
+#[derive(Clone, Copy)]
+enum StyleBlockTarget {
+    Sequence,
+    Component,
+}
+
+impl StyleBlockTarget {
+    fn matches_open_selector(self, line: &str) -> bool {
+        let selector = line.trim_end_matches('{').trim();
+        match self {
+            Self::Sequence => selector.eq_ignore_ascii_case("sequenceDiagram"),
+            Self::Component => selector.eq_ignore_ascii_case("componentDiagram"),
+        }
+    }
+
+    fn skinparam_key(self, nested_selector: Option<&str>, raw_key: &str) -> Option<String> {
+        let key = raw_key.to_ascii_lowercase();
+        match self {
+            Self::Sequence => sequence_style_skinparam_key(nested_selector, &key),
+            Self::Component => component_style_skinparam_key(nested_selector, &key),
+        }
+    }
+}
+
+fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleBlockTarget> {
     for (raw, _) in lines.iter().skip(start_idx + 1) {
         let inner = strip_inline_plantuml_comment(raw).trim();
         if inner.eq_ignore_ascii_case("</style>") {
-            return false;
+            return None;
         }
         if inner.is_empty() {
             continue;
         }
         let selector = inner.trim_end_matches('{').trim();
-        return selector.eq_ignore_ascii_case("sequenceDiagram");
+        if selector.eq_ignore_ascii_case("sequenceDiagram") {
+            return Some(StyleBlockTarget::Sequence);
+        }
+        if selector.eq_ignore_ascii_case("componentDiagram") {
+            return Some(StyleBlockTarget::Component);
+        }
+        return None;
     }
-    false
+    None
+}
+
+fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        None => match key {
+            "arrowcolor" => Some("ArrowColor".to_string()),
+            "lifelinebordercolor" => Some("LifelineBorderColor".to_string()),
+            "backgroundcolor" => Some("BackgroundColor".to_string()),
+            _ => None,
+        },
+        Some("participant") => match key {
+            "backgroundcolor" => Some("ParticipantBackgroundColor".to_string()),
+            "bordercolor" => Some("ParticipantBorderColor".to_string()),
+            "fontcolor" => Some("ParticipantFontColor".to_string()),
+            _ => None,
+        },
+        Some("note") => match key {
+            "backgroundcolor" => Some("NoteBackgroundColor".to_string()),
+            "bordercolor" => Some("NoteBorderColor".to_string()),
+            _ => None,
+        },
+        Some("group") => match key {
+            "backgroundcolor" => Some("GroupBackgroundColor".to_string()),
+            "bordercolor" => Some("GroupBorderColor".to_string()),
+            "headerfontcolor" => Some("GroupHeaderFontColor".to_string()),
+            "headerfontstyle" => Some("GroupHeaderFontStyle".to_string()),
+            _ => None,
+        },
+        Some(_) => None,
+    }
+}
+
+fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        Some("component") => match key {
+            "backgroundcolor" => Some("ComponentBackgroundColor".to_string()),
+            "bordercolor" => Some("ComponentBorderColor".to_string()),
+            "fontcolor" => Some("ComponentFontColor".to_string()),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn parse_sprite_statement(

@@ -147,6 +147,21 @@ fn html_output_writes_self_contained_document_to_stdout() {
 }
 
 #[test]
+fn htmlcss_compat_flag_keeps_self_contained_html_output() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--htmlcss", "--format", "html", "-"])
+        .write_stdin("@startuml\nAlice -> Bob: hi\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .stdout(predicate::str::starts_with("<!doctype html>"))
+        .stdout(predicate::str::contains("<style>"))
+        .stdout(predicate::str::contains("<svg"))
+        .stdout(predicate::str::contains("Alice"));
+}
+
+#[test]
 fn html_file_input_defaults_to_html_extension() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("single_valid.puml");
@@ -5894,6 +5909,55 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 }
 
 #[test]
+fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
+    for (example_path, max_width, max_aspect) in [
+        ("deployment/07_ch08_keyword_parity.puml", 2600, 1.2),
+        ("usecase/06_multi_system_boundary.puml", 2700, 1.8),
+    ] {
+        let svg = render_source_to_svg(&fs::read_to_string(example(example_path)).unwrap())
+            .expect("grouped hierarchy example should render");
+        let width = extract_svg_width_attr(&svg).expect("svg width");
+        let height = extract_svg_height_attr(&svg).expect("svg height");
+        assert!(
+            width <= max_width,
+            "{example_path} should wrap very wide grouped ranks, got width={width}"
+        );
+        assert!(
+            (width as f64 / height as f64) <= max_aspect,
+            "{example_path} should avoid a one-row whitespace aspect, got {width}x{height}"
+        );
+    }
+}
+
+#[test]
+fn component_grouped_lollipop_routes_use_shared_layout_edges() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("component/07_ports_lollipop_interfaces.puml")).unwrap(),
+    )
+    .expect("component grouped lollipop example should render");
+    let width = extract_svg_width_attr(&svg).expect("svg width");
+    let height = extract_svg_height_attr(&svg).expect("svg height");
+    assert!(
+        (width as f64 / height as f64) < 3.0,
+        "component grouped lollipop layout should not regress to an extreme one-row canvas"
+    );
+
+    let order_service = svg_elements_with_attr(&svg, "data-uml-group", "Order Service")
+        .into_iter()
+        .find(|element| element.contains("class=\"uml-group-frame\""))
+        .expect("Order Service frame");
+    let header_bottom = svg_attr_i32_required(order_service, "y") + 40;
+    let order_domain = svg_text_positions(&svg, "OrderDomain")
+        .into_iter()
+        .next()
+        .expect("OrderDomain label");
+    assert!(
+        order_domain.1 > header_bottom + 24,
+        "OrderDomain should sit in the package body, below the reserved header"
+    );
+}
+
+#[test]
 fn class_package_headers_clear_inner_class_labels() {
     let svg = render_source_to_svg(
         &fs::read_to_string(example("class/14_nested_packages.puml")).unwrap(),
@@ -5931,6 +5995,33 @@ fn class_package_headers_clear_inner_class_labels() {
             "{group} package header should stay above enclosed class labels"
         );
     }
+}
+
+#[test]
+fn class_association_tuple_inside_packages_keeps_class_boxes() {
+    use puml::normalize_family;
+    use puml::NormalizedDocument;
+
+    let src = fs::read_to_string(example("class/32_association_class_deep_packages.puml"))
+        .expect("association-class example");
+    let doc = parse(&src).expect("parse ok");
+    let model = normalize_family(doc).expect("normalize ok");
+    let NormalizedDocument::Family(family) = model else {
+        panic!("expected Family model");
+    };
+
+    assert_eq!(family.kind, puml::ast::DiagramKind::Class);
+    assert!(family
+        .nodes
+        .iter()
+        .all(|node| matches!(node.kind, puml::model::FamilyNodeKind::Class)));
+
+    let svg = render_source_to_svg(&src).expect("class example should render");
+    assert!(
+        !svg.contains("<ellipse"),
+        "association-class example should render class boxes, not usecase ellipses"
+    );
+    assert!(svg.contains(">+connection: String<"));
 }
 
 #[test]
@@ -8382,6 +8473,14 @@ token = ? unicode category ? | 4 * \"x\" | [ name ];\n\
 
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     let key = "width=\"";
+    let start = svg.find(key)? + key.len();
+    let rest = &svg[start..];
+    let end = rest.find('"')?;
+    rest[..end].parse::<i32>().ok()
+}
+
+fn extract_svg_height_attr(svg: &str) -> Option<i32> {
+    let key = "height=\"";
     let start = svg.find(key)? + key.len();
     let rest = &svg[start..];
     let end = rest.find('"')?;

@@ -1,6 +1,6 @@
 use crate::model::{FamilyDocument, FamilyNodeKind};
 
-use super::layout::{NodeLayout, NodeMeta};
+use super::layout::{ActivityRoute, NodeLayout, NodeMeta};
 
 // ---------------------------------------------------------------------------
 // Hidden-node deduplication pass
@@ -98,9 +98,9 @@ pub(super) fn redirect_extra_arrows(
     doc: &FamilyDocument,
     metas: &[NodeMeta],
     node_layouts: &[NodeLayout],
-    extra_arrows: Vec<(i32, i32, i32, i32)>,
+    extra_arrows: Vec<ActivityRoute>,
     hidden_nodes: &std::collections::HashSet<usize>,
-) -> Vec<(i32, i32, i32, i32)> {
+) -> Vec<ActivityRoute> {
     let slot_index_by_position: std::collections::HashMap<(i32, i32), usize> = node_layouts
         .iter()
         .enumerate()
@@ -119,21 +119,21 @@ pub(super) fn redirect_extra_arrows(
 
     extra_arrows
         .into_iter()
-        .filter_map(|(x1, y1, mut x2, mut y2)| {
-            if let Some(&src_idx) = arrow_out_index_by_position.get(&(x1, y1)) {
+        .filter_map(|mut route| {
+            if let Some(&src_idx) = arrow_out_index_by_position.get(&(route.x1, route.y1)) {
                 if is_hidden(src_idx) {
                     return None;
                 }
             }
-            if let Some(&dst_idx) = slot_index_by_position.get(&(x2, y2)) {
+            if let Some(&dst_idx) = slot_index_by_position.get(&(route.x2, route.y2)) {
                 if is_hidden(dst_idx) {
                     let next_idx = next_visible(dst_idx)?;
                     let layout = &node_layouts[next_idx];
-                    x2 = layout.cx;
-                    y2 = layout.slot_y;
+                    route.x2 = layout.cx;
+                    route.y2 = layout.slot_y;
                 }
             }
-            Some((x1, y1, x2, y2))
+            Some(route)
         })
         .collect()
 }

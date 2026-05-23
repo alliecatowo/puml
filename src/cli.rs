@@ -135,6 +135,12 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub overwrite: bool,
 
+    /// No-op PlantUML compatibility flag for HTML exports.
+    ///
+    /// `puml --format html` already emits a self-contained HTML document with CSS.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub htmlcss: bool,
+
     /// Encode a PNG/JPEG/WebP image as a PlantUML sprite. Format: 4, 8, 16, 4z, 8z, or 16z.
     #[arg(
         long = "encodesprite",
@@ -393,6 +399,7 @@ mod tests {
         assert_eq!(cli.lint_report, LintReportFormat::Human);
         assert_eq!(cli.charset, "UTF-8");
         assert!(cli.encodesprite.is_empty());
+        assert!(!cli.htmlcss);
     }
 
     #[test]
@@ -599,6 +606,15 @@ mod tests {
         let cli = Cli::try_parse_from(["puml", "--encodesprite", "16z", "icon.png"])
             .expect("encodesprite should parse");
         assert_eq!(cli.encodesprite, vec!["16z", "icon.png"]);
+    }
+
+    #[test]
+    fn htmlcss_compat_flag_parses() {
+        let cli = Cli::try_parse_from(["puml", "--htmlcss", "--format", "html", "diag.puml"])
+            .expect("--htmlcss should parse");
+        assert!(cli.htmlcss);
+        assert_eq!(cli.format, OutputFormat::Html);
+        assert_eq!(cli.input, Some(PathBuf::from("diag.puml")));
     }
 
     #[test]

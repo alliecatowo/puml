@@ -1,6 +1,35 @@
 use puml::model::{FamilyNodeKind, NormalizedDocument};
 
 // ---------------------------------------------------------------------------
+// 6.3 — if / then / else branch guards
+// ---------------------------------------------------------------------------
+
+#[test]
+fn activity_ch06_if_else_renders_both_branch_guards_on_arrows() {
+    let svg = puml::render_source_to_svg(include_str!(
+        "../docs/examples/activity_new/02_if_else.puml"
+    ))
+    .expect("render activity-new if/else guards");
+
+    assert!(
+        svg.contains(">condition?<"),
+        "decision diamond should keep only the condition text"
+    );
+    assert!(
+        !svg.contains(">condition? / yes<"),
+        "then guard should not be folded into the diamond label"
+    );
+    assert!(
+        svg.contains(">yes<"),
+        "then guard should render as branch-arrow text"
+    );
+    assert!(
+        svg.contains(">no<"),
+        "else guard should render as branch-arrow text"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // 6.5 — kill / detach rendering (section 6.5 / 6.20)
 // ---------------------------------------------------------------------------
 

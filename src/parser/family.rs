@@ -655,6 +655,9 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     };
     let (rest, fill_color) = split_declaration_inline_fill(rest);
     let rest = rest.trim();
+    if !rest.is_empty() && !rest.starts_with("as ") {
+        return None;
+    }
     let alias = rest
         .strip_prefix("as ")
         .map(str::trim)
@@ -931,6 +934,70 @@ fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
         association,
         arrow,
     })
+}
+
+fn association_class_family_relations(
+    left: String,
+    right: String,
+    association: String,
+    arrow: String,
+) -> Vec<FamilyRelation> {
+    vec![
+        FamilyRelation {
+            from: left.clone(),
+            to: right.clone(),
+            arrow,
+            label: None,
+            stereotype: None,
+            left_cardinality: None,
+            right_cardinality: None,
+            left_role: None,
+            right_role: None,
+            line_color: None,
+            dashed: false,
+            hidden: false,
+            thickness: None,
+            direction: None,
+            left_lollipop: false,
+            right_lollipop: false,
+        },
+        FamilyRelation {
+            from: association.clone(),
+            to: left,
+            arrow: "..".to_string(),
+            label: None,
+            stereotype: None,
+            left_cardinality: None,
+            right_cardinality: None,
+            left_role: None,
+            right_role: None,
+            line_color: None,
+            dashed: false,
+            hidden: false,
+            thickness: None,
+            direction: None,
+            left_lollipop: false,
+            right_lollipop: false,
+        },
+        FamilyRelation {
+            from: association,
+            to: right,
+            arrow: "..".to_string(),
+            label: None,
+            stereotype: None,
+            left_cardinality: None,
+            right_cardinality: None,
+            left_role: None,
+            right_role: None,
+            line_color: None,
+            dashed: false,
+            hidden: false,
+            thickness: None,
+            direction: None,
+            left_lollipop: false,
+            right_lollipop: false,
+        },
+    ]
 }
 
 fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
@@ -1689,6 +1756,30 @@ fn collect_scoped_class_group_content(
             idx += 1;
             continue;
         }
+        if let Some(StatementKind::AssociationClass {
+            left,
+            right,
+            association,
+            arrow,
+        }) = parse_association_class_relation(line)
+        {
+            let scoped_association = qualify_scoped_identifier(association, scope);
+            if !content.members.iter().any(|member| {
+                member.split('\t').next().unwrap_or(member.as_str()) == scoped_association
+            }) {
+                content.members.push(scoped_association.clone());
+            }
+            content
+                .relations
+                .extend(association_class_family_relations(
+                    qualify_scoped_identifier(left, scope),
+                    qualify_scoped_identifier(right, scope),
+                    scoped_association,
+                    arrow,
+                ));
+            idx += 1;
+            continue;
+        }
         if let Some(StatementKind::FamilyRelation(rel)) =
             parse_family_relation(line, Some(DiagramKind::Class))
         {
@@ -1978,17 +2069,48 @@ fn group_body_contains_component_family(
     start: usize,
     end_idx: usize,
 ) -> bool {
-    lines[start + 1..end_idx].iter().any(|(raw, _)| {
-        let line = strip_inline_plantuml_comment(raw).trim();
-        component_decl_keyword(line).is_some()
-    })
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = strip_inline_plantuml_comment(lines[idx].0).trim();
+        let lower = line.to_ascii_lowercase();
+        if (lower.starts_with("package ")
+            || lower.starts_with("namespace ")
+            || lower.starts_with("rectangle "))
+            && line.trim_end().ends_with('{')
+        {
+            let nested_end = find_scoping_block_end(lines, idx).min(end_idx);
+            if nested_end > idx && group_body_contains_component_family(lines, idx, nested_end) {
+                return true;
+            }
+            idx = nested_end.saturating_add(1);
+            continue;
+        }
+        if component_decl_keyword(line).is_some() {
+            return true;
+        }
+        idx += 1;
+    }
+    false
 }
 
 fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
-    lines[start + 1..end_idx].iter().any(|(raw, _)| {
-        let line = strip_inline_plantuml_comment(raw).trim();
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = strip_inline_plantuml_comment(lines[idx].0).trim();
         let lower = line.to_ascii_lowercase();
-        lower.starts_with("abstract class ")
+        if (lower.starts_with("package ")
+            || lower.starts_with("namespace ")
+            || lower.starts_with("rectangle "))
+            && line.trim_end().ends_with('{')
+        {
+            let nested_end = find_scoping_block_end(lines, idx).min(end_idx);
+            if nested_end > idx && group_body_contains_class_family(lines, idx, nested_end) {
+                return true;
+            }
+            idx = nested_end.saturating_add(1);
+            continue;
+        }
+        if lower.starts_with("abstract class ")
             || lower.starts_with("annotation ")
             || lower.starts_with("interface ")
             || lower.starts_with("abstract ")
@@ -2002,15 +2124,38 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
             || lower.starts_with("struct ")
             || lower.starts_with("class ")
             || (lower.starts_with("entity ") && lower.ends_with('{'))
-    })
+        {
+            return true;
+        }
+        idx += 1;
+    }
+    false
 }
 
 fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
-    lines[start + 1..end_idx].iter().any(|(raw, _)| {
-        let line = strip_inline_plantuml_comment(raw).trim();
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = strip_inline_plantuml_comment(lines[idx].0).trim();
         let lower = line.to_ascii_lowercase();
-        lower.starts_with("object ") || lower.starts_with("map ") || lower.starts_with("diamond ")
-    })
+        if (lower.starts_with("package ")
+            || lower.starts_with("namespace ")
+            || lower.starts_with("rectangle "))
+            && line.trim_end().ends_with('{')
+        {
+            let nested_end = find_scoping_block_end(lines, idx).min(end_idx);
+            if nested_end > idx && group_body_contains_object_family(lines, idx, nested_end) {
+                return true;
+            }
+            idx = nested_end.saturating_add(1);
+            continue;
+        }
+        if lower.starts_with("object ") || lower.starts_with("map ") || lower.starts_with("diamond ")
+        {
+            return true;
+        }
+        idx += 1;
+    }
+    false
 }
 
 fn group_body_contains_usecase_family(
@@ -2018,14 +2163,32 @@ fn group_body_contains_usecase_family(
     start: usize,
     end_idx: usize,
 ) -> bool {
-    lines[start + 1..end_idx].iter().any(|(raw, _)| {
-        let line = strip_inline_plantuml_comment(raw).trim();
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = strip_inline_plantuml_comment(lines[idx].0).trim();
         let lower = line.to_ascii_lowercase();
-        lower.starts_with("usecase ")
+        if (lower.starts_with("package ")
+            || lower.starts_with("namespace ")
+            || lower.starts_with("rectangle "))
+            && line.trim_end().ends_with('{')
+        {
+            let nested_end = find_scoping_block_end(lines, idx).min(end_idx);
+            if nested_end > idx && group_body_contains_usecase_family(lines, idx, nested_end) {
+                return true;
+            }
+            idx = nested_end.saturating_add(1);
+            continue;
+        }
+        if lower.starts_with("usecase ")
             || lower.starts_with("usecase(")
             || lower.starts_with("actor ")
             || parse_parenthesized_usecase_decl(line).is_some()
-    })
+        {
+            return true;
+        }
+        idx += 1;
+    }
+    false
 }
 
 fn scoped_family_kind_for_block(

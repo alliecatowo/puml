@@ -1200,6 +1200,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_scoped_association_class_tuple_as_class_family() {
+        let doc = parse_with_options(
+            "package domain {\n  class User\n  class Group\n  class Membership\n  (User, Group) .. Membership\n}\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(doc.kind, DiagramKind::Class);
+        match &doc.statements[0].kind {
+            StatementKind::ClassGroup { relations, .. } => {
+                assert_eq!(relations.len(), 3);
+                assert!(relations
+                    .iter()
+                    .any(|rel| rel.from == "domain::Membership" && rel.to == "domain::User"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
     fn parses_object_and_usecase_bootstrap_kinds() {
         let object_doc =
             parse_with_options("object Order\nobject Customer\n", &ParseOptions::default())

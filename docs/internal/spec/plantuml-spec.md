@@ -52,7 +52,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
-| 21 | Common Commands | 12 | 6 | 4 | [ch21-common.md](audit/ch21-common.md) |
+| 21 | Common Commands | 14 | 6 | 3 | [ch21-common.md](audit/ch21-common.md) |
 | 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
 | 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
@@ -102,9 +102,9 @@ These themes recur across many chapters. Fixing any one of them lifts the suppor
 
 No `sprite $name [w*h] {...}` definition, no `<$name>` reference, no `listsprites`, no `-encodesprite`. Only Salt-internal placeholder stubs. **Knock-on effect:** every stdlib icon library (AWS, Azure, GCP, Material, Office, tupadr3) parses cleanly but renders as plain stereotyped boxes — so chapter 27 looks much worse than it ought to.
 
-### 2. `<style>` blocks unwired
+### 2. `<style>` blocks partially wired
 
-PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) is ignored across every chapter that mentions it (component, activity, state, timing, common, deployment).
+PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) now has narrow sequence and componentDiagram component-color slices that lower to existing skinparam plumbing. It remains mostly unwired across title/header/footer selectors, class, activity, state, timing, and deployment.
 
 ### 3. Stereotype-scoped skinparam `<<X>>` overrides
 
@@ -153,7 +153,7 @@ themes, but recent merged work may have narrowed some rows; verify the relevant
 chapter audit before treating an item as still open.
 
 1. **Sprite system** (ch23) — biggest single unlock. Enables 5+ stdlib libraries.
-2. **`<style>` block parser + selector engine** (ch21, ch24) — unlocks modern theming across all families.
+2. **`<style>` block parser + selector engine** (ch21, ch24) — expand beyond the current narrow sequence and component color slices to unlock modern theming across all families.
 3. **Class diagram generics + `extends`/`implements` keywords + member-qualified refs `Foo::field`** (ch03) — class is currently the weakest big-family chapter.
 4. **Activity (new) `ActivityStep` enrichment** (ch06) — adding color/arrow-style/connector slots to the AST is shallow and unlocks ~14 features.
 5. **IE `entity` routing fix + crow's-foot arrowheads** (ch20) — one-line classification change + arrow-table additions makes IE diagrams functional.

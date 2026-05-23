@@ -51,6 +51,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --verbose / -v               emit per-stage parse/normalize/render timings
 --fail-on-warn               exit 1 if any warnings are emitted
 --overwrite                  no-op (outputs are always overwritten)
+--htmlcss                    no-op PlantUML compatibility flag for HTML output
 --charset UTF-8              no-op (only UTF-8 is supported)
 --output / -o PATH           write to PATH instead of the derived path
 ```
