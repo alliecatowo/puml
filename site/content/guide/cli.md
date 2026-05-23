@@ -31,6 +31,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --format svg|png             output format (default: svg)
 --dpi FLOAT                  PNG rasterization DPI (default: 96)
 --check                      parse + normalize only, no render output
+--check-syntax               PlantUML-compatible alias for --check
 --lint-input INPUT           repeatable check input (check mode only)
 --lint-glob GLOB             repeatable glob-expanded check input
 --lint-report human|json     lint summary report format (default: human)
@@ -130,6 +131,6 @@ for the surface-by-surface contract.
 
 Always:
 
-- Render / `--check` / `--dump` payload goes to **stdout**.
+- Render / `--check`, `--check-syntax`, and `--dump` payloads go to **stdout**.
 - Diagnostics (human or JSON) go to **stderr**.
 - Lint batch mode keeps diagnostics on stderr and prints the lint summary on stdout.

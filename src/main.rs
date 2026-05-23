@@ -443,7 +443,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return Ok(());
     }
 
-    if cli.check {
+    if cli.check || cli.check_syntax {
         let mut had_warnings = false;
         for source in &diagrams {
             if cli.verbose {
@@ -1164,8 +1164,11 @@ fn is_lint_mode_enabled(cli: &Cli) -> bool {
 }
 
 fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
-    if !cli.check {
-        return Err((EXIT_VALIDATION, "lint mode requires --check".to_string()));
+    if !cli.check && !cli.check_syntax {
+        return Err((
+            EXIT_VALIDATION,
+            "lint mode requires --check or --check-syntax".to_string(),
+        ));
     }
     let diagnostics_output = DiagnosticOutput {
         format: cli.diagnostics,
