@@ -5198,10 +5198,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         render_family_node_shape_styled(
             &mut out,
             node,
-            nx,
-            ny,
-            nw,
-            nh,
+            DeploymentShapeBounds {
+                x: nx,
+                y: ny,
+                w: nw,
+                h: nh,
+            },
             &comp_style,
             doc.hide_options.contains("stereotype"),
         );
@@ -6052,13 +6054,11 @@ fn render_deployment_queue_shape(
 fn render_family_node_shape_styled(
     out: &mut String,
     node: &FamilyNode,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
+    bounds: DeploymentShapeBounds,
     comp_style: &ComponentStyle,
     hide_stereotype: bool,
 ) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
     let cx = x + w / 2;
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
