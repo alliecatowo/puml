@@ -64,10 +64,10 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 **Status:** ❌
 **Evidence:** Not in `classify_class_skinparam` (`src/theme.rs:1361-1424`). Not handled.
 
-### 3.6 Escape leading `\~`, `\+` etc — ❌
+### 3.6 Escape leading `\~`, `\+` etc — ✅
 **Feature:** Allow members literally starting with reserved visibility chars via `\`.
-**Status:** ❌
-**Evidence:** No `\~`/`\-` escape handling in `parse_visibility_member` (`src/render/family.rs:2099`).
+**Status:** ✅
+**Evidence:** `src/render/family.rs:2503` `parse_visibility_member` strips a leading backslash before `+`, `-`, `#`, or `~` and returns normal member text without a visibility symbol. Covered by `tests/ch03_class_parity.rs::escaped_visibility_members_render_as_literal_text`.
 
 ### 3.6.2 Visibility prefix on class itself (`-class`, `#class`, `~class`, `+class`) — ❌
 **Feature:** Apply visibility to the class declaration.
@@ -276,11 +276,12 @@ Legend: ✅ supported, 🟡 partial / quirky, ❌ not implemented.
 
 ## Tally
 
-- ✅ supported: 16 (3.4, 3.5, 3.6 visibility, 3.9, 3.12, 3.13, 3.15, 3.16, 3.18, 3.19, 3.25, 3.26, 3.29, 3.30, 3.32, 3.34, 3.35)
+- ✅ supported: 18 (3.4, 3.5, 3.6 visibility, 3.6 escaped visibility, 3.9, 3.12, 3.13, 3.15, 3.16, 3.18, 3.19, 3.25, 3.26, 3.29, 3.30, 3.32, 3.34, 3.35)
 - 🟡 partial: 13 (3.1, 3.2, 3.3, 3.7, 3.8, 3.10, 3.14, 3.21, 3.22, 3.23, 3.36, 3.37, 3.43)
-- ❌ missing: ~16 — member-level notes/arrows (3.11, 3.38), spot customization (3.20), `set separator` FQN expansion (3.24, 3.41), association classes (3.27, 3.28), gradients (3.31), page splitting (3.33), `groupInheritance` skinparam effect (3.39), JSON block (3.40), qualified associations (3.42), smetana pragma (3.43.3/.6), `$tag` system (3.4.1, 3.17), `skinparam classAttributeIconSize 0` (3.6), visibility prefix on class (3.6.2).
+- ❌ missing: ~15 — member-level notes/arrows (3.11, 3.38), spot customization (3.20), `set separator` FQN expansion (3.24, 3.41), association classes (3.27, 3.28), gradients (3.31), page splitting (3.33), `groupInheritance` skinparam effect (3.39), JSON block (3.40), qualified associations (3.42), smetana pragma (3.43.3/.6), `$tag` system (3.4.1, 3.17), `skinparam classAttributeIconSize 0` (3.6), visibility prefix on class (3.6.2).
 
 ### Changes in this wave (ch03-class parity push)
+- 3.6 escaped leading visibility markers — upgraded ❌→✅ (already implemented, audit was incorrect; added focused regression coverage)
 - 3.12 `note on link` — upgraded ❌→✅ (already implemented, audit was incorrect)
 - 3.15 `hide <class>` — upgraded ❌→✅ (already implemented, audit was incorrect)
 - 3.16 `remove <class>` — upgraded ❌→✅ (already implemented, audit was incorrect)

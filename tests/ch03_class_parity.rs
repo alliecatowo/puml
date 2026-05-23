@@ -10,6 +10,7 @@
 //! - `extends`/`implements` keywords generate heritage relations (3.34)
 //! - `hide <classname>` / `remove <classname>` remove specific classes (3.15–3.16)
 //! - Stereotype-scoped skinparam block form applies per-stereotype colors (3.30)
+//! - Escaped leading visibility markers render as literal member text (3.6)
 
 use puml::model::{FamilyNodeKind, FamilyStyle, NormalizedDocument};
 
@@ -287,6 +288,60 @@ fn remove_classname_removes_that_class() {
     assert!(svg.contains(">A<"), "A should be visible");
     assert!(svg.contains(">B<"), "B should be visible");
     assert!(!svg.contains(">C<"), "C should be removed: svg={svg}");
+}
+
+// ─── 3.6 Escaped leading visibility markers ─────────────────────────────────
+
+const ESCAPED_VISIBILITY_MEMBERS_SRC: &str = r"@startuml
+class Escaped {
+  \+literalPublic
+  \-literalPrivate
+  \#literalProtected
+  \~literalPackage
+  +actualPublic
+}
+@enduml
+";
+
+#[test]
+fn escaped_visibility_members_render_as_literal_text() {
+    let svg = puml::render_source_to_svg(ESCAPED_VISIBILITY_MEMBERS_SRC)
+        .expect("render escaped visibility markers");
+    let doc = SvgDoc::parse(&svg);
+    for literal in [
+        "+literalPublic",
+        "-literalPrivate",
+        "#literalProtected",
+        "~literalPackage",
+    ] {
+        let text = doc
+            .elements("text")
+            .into_iter()
+            .find(|node| node.text().map(str::trim) == Some(literal))
+            .unwrap_or_else(|| panic!("expected escaped member text {literal:?}; svg={svg}"));
+        assert_eq!(
+            text.attribute("data-uml-visibility"),
+            None,
+            "escaped member {literal:?} should not be tagged as a visibility member"
+        );
+        assert_eq!(
+            text.attribute("fill"),
+            Some("#334155"),
+            "escaped member {literal:?} should use the normal member color"
+        );
+    }
+
+    let actual_visibility_members = doc
+        .elements_with_class("text", "uml-member")
+        .into_iter()
+        .filter(|node| node.attribute("data-uml-visibility").is_some())
+        .filter_map(|node| node.text().map(str::trim).map(str::to_string))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actual_visibility_members,
+        vec!["+actualPublic"],
+        "only the unescaped member should receive visibility styling"
+    );
 }
 
 // ─── 3.12 note on link ───────────────────────────────────────────────────────
