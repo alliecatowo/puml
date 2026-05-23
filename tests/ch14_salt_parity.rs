@@ -55,3 +55,19 @@ fn salt_settings_dialog_showcase_composes_menu_tabs_tree_table_and_creole() {
     assert!(svg.contains("Security"));
     assert!(svg.contains("System default"));
 }
+
+#[test]
+fn salt_openiconic_placeholders_are_preserved_as_creole_metadata() {
+    let src = "@startsalt\n{\n| Login <&person> | [Unlock <&key>] |\n}\n@endsalt\n";
+    let svg = puml::render_source_to_svg(src).expect("salt icon placeholders should render");
+
+    assert!(svg.contains("data-salt-creole=\"true\""));
+    assert!(svg.contains("data-salt-icons=\"person\""));
+    assert!(svg.contains("data-salt-icons=\"key\""));
+    assert!(svg.contains("[person]"));
+    assert!(svg.contains("[key]"));
+    assert!(
+        !svg.contains("&lt;&amp;person&gt;") && !svg.contains("&lt;&amp;key&gt;"),
+        "raw OpenIconic markup should not leak into Salt text: {svg}"
+    );
+}
