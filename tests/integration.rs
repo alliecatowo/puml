@@ -6161,6 +6161,7 @@ node "K8s Cluster" as k8s {
   Router --> Worker
   Worker --> app
 }
+node StandaloneNode
 cloud Edge
 database Store
 agent AgentA
@@ -6218,6 +6219,15 @@ Runtime --> Deploy
     }
     assert!(svg.contains("durable"));
     assert!(svg.contains("boot.jar"));
+    assert!(svg.contains("signed"));
+    assert!(
+        !svg.contains("app ["),
+        "scoped multi-line artifact declarations should not leak their opening bracket into the rendered node label"
+    );
+    assert!(
+        !svg.contains("::boot.jar"),
+        "scoped multi-line artifact body lines should stay inside the artifact label, not become scoped nodes"
+    );
     assert!(svg.contains("data-uml-arrow=\"0)--(0\""));
     assert!(svg.contains("stroke=\"#2563eb\""));
     assert!(svg.contains("stroke-width=\"3\""));
