@@ -4732,6 +4732,19 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .relations
         .iter()
         .any(|rel| rel.left_lollipop || rel.right_lollipop);
+    // Component lollipop fixtures may model interfaces as concrete circle nodes
+    // instead of relation endpoint flags; they need the same package stacking.
+    let interface_layout_ids: std::collections::BTreeSet<String> = doc
+        .nodes
+        .iter()
+        .filter(|node| matches!(node.kind, FamilyNodeKind::Interface))
+        .map(|node| node.alias.clone().unwrap_or_else(|| node.name.clone()))
+        .collect();
+    let has_interface_endpoint = doc.relations.iter().any(|rel| {
+        let from = resolve_gl_endpoint(&rel.from);
+        let to = resolve_gl_endpoint(&rel.to);
+        interface_layout_ids.contains(&from) || interface_layout_ids.contains(&to)
+    });
     let gl_options = GlOptions {
         rank_separation: rank_sep,
         node_separation: node_sep as f64,
@@ -4741,7 +4754,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         // canvas_margin absorbs title + package-label tab height for vertical
         // positioning; the right-side gutter only needs canvas_margin (40px).
         canvas_right_margin: Some(canvas_margin as f64),
-        stack_staggered_group_collisions: family == "component" && has_lollipop_endpoint,
+        stack_staggered_group_collisions: family == "component"
+            && (has_lollipop_endpoint || has_interface_endpoint),
     };
 
     // Run hierarchical layout

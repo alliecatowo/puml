@@ -17,8 +17,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
 
 jobs:
   changes:
@@ -98,18 +96,6 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
-
       - name: Build puml CLI binary for artifact regen
         run: cargo build --release --bin puml
 
@@ -171,18 +157,6 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
-
       - name: fmt gate
         run: cargo fmt --check
 
@@ -208,18 +182,6 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
-
       - name: clippy gate
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -242,18 +204,6 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
@@ -309,18 +259,6 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
-
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
@@ -345,18 +283,6 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -383,18 +309,6 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        continue-on-error: true
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
 
       - name: docs examples drift gate
         run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
@@ -427,19 +341,6 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
-      - name: Set up sccache
-        continue-on-error: true
-        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Fall back when sccache is unavailable
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            echo "sccache is unavailable; using rustc directly for this job."
-            echo "RUSTC_WRAPPER=" >> "${GITHUB_ENV}"
-          fi
 
       - name: Install Zola
         run: |
