@@ -734,7 +734,10 @@ fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle
         } else if matches!(lower.as_str(), "line.thin" | "thin") {
             style.members.push("\x1fstyle:border-thickness:1".to_string());
         } else if idx == 0 {
-            if let Some(color) = parse_relation_color_token(part) {
+            let hex_prefixed = format!("#{part}");
+            if let Some(color) =
+                parse_relation_color_token(part).or_else(|| parse_relation_color_token(&hex_prefixed))
+            {
                 style.fill_color = Some(color);
             }
         }
