@@ -134,7 +134,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 to_virtual,
             } => {
                 let is_parallel = style.parallel && !messages.is_empty();
-                let y = if is_parallel {
+                let base_y = if is_parallel {
                     messages
                         .last()
                         .map(|message| message.y)
@@ -163,14 +163,6 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         &options,
                     );
                 }
-                let route_lane = if document.teoz && is_parallel {
-                    let lane = teoz_route_lanes_by_row.entry(y).or_insert(0);
-                    *lane += 1;
-                    *lane
-                } else {
-                    0
-                };
-                let route_y = y + (route_lane * TEOZ_ROUTE_LANE_HEIGHT);
                 let label = autonumber.apply(label.clone());
                 let label_lines = message_label_lines(
                     label.as_deref(),
@@ -179,7 +171,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     document.style.sequence_message_span,
                     &options,
                 );
+                let label_clearance = message_label_top_clearance(
+                    &label_lines,
+                    style.parallel,
+                    document.style.response_message_below_arrow,
+                    arrow,
+                );
+                let y = base_y + label_clearance;
                 let has_label_lines = !label_lines.is_empty();
+                let route_lane = if document.teoz && is_parallel {
+                    let lane = teoz_route_lanes_by_row.entry(y).or_insert(0);
+                    *lane += 1;
+                    *lane
+                } else {
+                    0
+                };
+                let route_y = y + (route_lane * TEOZ_ROUTE_LANE_HEIGHT);
                 let is_self_loop = from == to && from_virtual.is_none() && to_virtual.is_none();
                 // Self-loop messages render a U-shape that drops SELF_LOOP_DROP px below
                 // the message's `y` coordinate.  Allocate at least 2 rows so the loop
@@ -243,6 +250,12 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         x2,
                         document.style.sequence_message_span,
                         &options,
+                    );
+                    let y = y + message_label_top_clearance(
+                        &label_lines,
+                        false,
+                        document.style.response_message_below_arrow,
+                        "-->>",
                     );
                     let row_units = (label_lines.len() as i32).max(1);
                     messages.push(MessageLine {
@@ -792,6 +805,25 @@ fn metadata_label_block_height(label: Option<&Label>) -> i32 {
     label
         .map(|label| metadata_lines_block_height(Some(&label.lines)))
         .unwrap_or(0)
+}
+
+fn message_label_top_clearance(
+    label_lines: &[String],
+    is_parallel: bool,
+    response_message_below_arrow: bool,
+    arrow: &str,
+) -> i32 {
+    if label_lines.is_empty()
+        || is_parallel
+        || (response_message_below_arrow && is_response_message_arrow(arrow))
+    {
+        return 0;
+    }
+    ((label_lines.len() as i32 - 1) * TEXT_LINE_HEIGHT) + 8
+}
+
+fn is_response_message_arrow(arrow: &str) -> bool {
+    arrow.contains("--")
 }
 
 fn metadata_block_right_edge(label: &Option<Label>, margin: i32) -> i32 {
@@ -1991,6 +2023,55 @@ mod tests {
         let bounds: BTreeMap<String, (i32, i32)> = BTreeMap::new();
         let (_gx, gw) = group_horizontal_bounds("group", None, &bounds, &LayoutOptions::default());
         assert!(gw >= LayoutOptions::default().participant_width);
+    }
+
+    #[test]
+    fn wrapped_first_message_label_starts_below_participant_header() {
+        let doc = SequenceDocument {
+            participants: vec![
+                Participant {
+                    id: "Alice".to_string(),
+                    display: "Alice".to_string(),
+                    role: ParticipantRole::Participant,
+                    explicit: true,
+                },
+                Participant {
+                    id: "Bob".to_string(),
+                    display: "Bob".to_string(),
+                    role: ParticipantRole::Participant,
+                    explicit: true,
+                },
+            ],
+            events: vec![SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "Alice".to_string(),
+                    to: "Bob".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some(
+                        "This is a very long message that demonstrates maxMessageSize wrapping"
+                            .to_string(),
+                    ),
+                    style: Default::default(),
+                    from_virtual: None,
+                    to_virtual: None,
+                },
+            }],
+            ..SequenceDocument::default()
+        };
+        let scene = layout(&doc, LayoutOptions::default());
+        assert_eq!(scene.messages.len(), 1);
+        let msg = &scene.messages[0];
+        assert!(
+            msg.label_lines.len() > 1,
+            "fixture should force wrapped message label lines"
+        );
+        let participant_bottom = scene.participants[0].y + scene.participants[0].height;
+        let label_top = msg.y - 8 - (((msg.label_lines.len() as i32) - 1) * TEXT_LINE_HEIGHT);
+        assert!(
+            label_top >= participant_bottom + 8,
+            "wrapped message label top ({label_top}) should be below participant header bottom ({participant_bottom})"
+        );
     }
 
     #[test]

@@ -488,18 +488,41 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
         let src =
             std::fs::read_to_string(format!("{}/{}", env!("CARGO_MANIFEST_DIR"), fixture_name))
                 .expect("fixture");
-        let svg = puml::render_source_to_svg(&src).expect("self-call render");
+        let ast = puml::parse(&src).expect("parse");
+        let doc = puml::normalize(ast).expect("normalize");
+        let scene = layout::layout(&doc, LayoutOptions::default());
+        let svg = render::render_svg(&scene);
 
         assert!(
             svg.contains("<path d=\"M "),
             "self-call loop path should render in {fixture_name}"
         );
+
+        let self_loops = scene
+            .messages
+            .iter()
+            .filter(|message| {
+                message.from_id == message.to_id
+                    && message.from_virtual.is_none()
+                    && message.to_virtual.is_none()
+            })
+            .collect::<Vec<_>>();
         assert!(
-            svg.contains("<polygon points=\"244,300 252,295 252,305\"")
-                || svg.contains("<polygon points=\"84,300 92,295 92,305\"")
-                || svg.contains("<polygon points=\"84,980 92,975 92,985\"")
-                || svg.contains("<polygon points=\"84,460 92,455 92,465\"")
-                || svg.contains("<polygon points=\"84,1020 92,1015 92,1025\""),
+            !self_loops.is_empty(),
+            "expected at least one self-loop message in {fixture_name}"
+        );
+        assert!(
+            self_loops.iter().any(|message| {
+                let tip_x = message.x1;
+                let tip_y = message.route_y + 32;
+                let base_x = tip_x + 8;
+                let polygon = format!(
+                    "<polygon points=\"{tip_x},{tip_y} {base_x},{} {base_x},{}\"",
+                    tip_y - 5,
+                    tip_y + 5
+                );
+                svg.contains(&polygon)
+            }),
             "self-call arrowhead should remain visible in {fixture_name}"
         );
     }

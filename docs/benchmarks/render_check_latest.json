@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-23T02:59:56Z",
+  "generated_at_utc": "2026-05-23T03:30:44Z",
   "summary": {
-    "total": 305,
-    "passed": 302,
+    "total": 306,
+    "passed": 303,
     "excluded": 3,
     "failed": 0
   },
@@ -1510,6 +1510,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/mindmap/06_multiline_node_labels.puml",
       "artifact_svg": "docs/examples/mindmap/06_multiline_node_labels.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/mindmap/07_theme_vibrant.puml",
+      "artifact_svg": "docs/examples/mindmap/07_theme_vibrant.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

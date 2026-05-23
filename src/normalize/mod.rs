@@ -32,10 +32,11 @@ use crate::theme::{
     chart_style_from_sequence_theme, class_style_from_sequence_theme, classify_activity_skinparam,
     classify_chart_skinparam, classify_class_skinparam, classify_component_skinparam,
     classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
-    component_style_from_sequence_theme, resolve_sequence_theme_preset,
-    state_style_from_sequence_theme, timing_style_from_sequence_theme, ActivityStyle, ChartStyle,
-    ClassStyle, ComponentStyle, MindMapDepthStyle, MindMapStyle, SequenceSkinParamSupport,
-    SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle, TimingStyle,
+    component_style_from_sequence_theme, mindmap_style_from_sequence_theme,
+    resolve_sequence_theme_preset, state_style_from_sequence_theme,
+    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
+    MindMapDepthStyle, MindMapStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
+    SequenceStyle, SkinParamSupport, StateStyle, TimingStyle,
 };
 
 mod archimate;

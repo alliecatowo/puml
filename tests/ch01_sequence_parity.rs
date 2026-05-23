@@ -216,19 +216,19 @@ deactivate Bob
         "Bob activation bar should render around the lifeline"
     );
     assert!(
-        svg.contains("x1=\"84\" y1=\"80\" x2=\"239\" y2=\"80\""),
+        svg.contains("x1=\"84\" y1=\"88\" x2=\"239\" y2=\"88\""),
         "incoming call should stop at Bob's left activation edge"
     );
     assert!(
-        svg.contains("x1=\"249\" y1=\"120\" x2=\"399\" y2=\"120\""),
+        svg.contains("x1=\"249\" y1=\"128\" x2=\"399\" y2=\"128\""),
         "active Bob should send from its right activation edge"
     );
     assert!(
-        svg.contains("x1=\"399\" y1=\"160\" x2=\"249\" y2=\"160\""),
+        svg.contains("x1=\"399\" y1=\"168\" x2=\"249\" y2=\"168\""),
         "return to active Bob should land on its right activation edge"
     );
     assert!(
-        svg.contains("x1=\"239\" y1=\"200\" x2=\"84\" y2=\"200\""),
+        svg.contains("x1=\"239\" y1=\"208\" x2=\"84\" y2=\"208\""),
         "active Bob should reply from its left activation edge"
     );
 }

@@ -325,28 +325,46 @@ pub(super) fn emit_activity_arrow_with_style(
 /// Only those arrows whose destination matches `(dst_cx, dst_y)` are emitted.
 pub(super) fn emit_extra_arrows(
     out: &mut String,
-    extra_arrows: &[(i32, i32, i32, i32)],
+    extra_arrows: &[super::layout::ActivityRoute],
     dst_cx: i32,
     dst_y: i32,
     color: &str,
     bboxes: &[NodeBbox],
 ) {
-    for (x1, y1, x2, y2) in extra_arrows
+    for route in extra_arrows
         .iter()
-        .filter(|a| a.2 == dst_cx && a.3 == dst_y)
+        .filter(|route| route.x2 == dst_cx && route.y2 == dst_y)
     {
-        emit_activity_arrow(out, *x1, *y1, *x2, *y2, color, bboxes);
+        emit_activity_arrow_with_style(
+            out,
+            route.x1,
+            route.y1,
+            route.x2,
+            route.y2,
+            color,
+            &route.style,
+            bboxes,
+        );
     }
 }
 
 /// Emit direct arrows (fork-bar→branch, branch→join-bar).
 pub(super) fn emit_direct_arrows(
     out: &mut String,
-    direct_arrows: &[(i32, i32, i32, i32)],
+    direct_arrows: &[super::layout::ActivityRoute],
     color: &str,
     bboxes: &[NodeBbox],
 ) {
-    for (x1, y1, x2, y2) in direct_arrows {
-        emit_activity_arrow(out, *x1, *y1, *x2, *y2, color, bboxes);
+    for route in direct_arrows {
+        emit_activity_arrow_with_style(
+            out,
+            route.x1,
+            route.y1,
+            route.x2,
+            route.y2,
+            color,
+            &route.style,
+            bboxes,
+        );
     }
 }
