@@ -156,6 +156,54 @@ struct ClassNodeBox {
     header_h: i32,
 }
 
+#[derive(Clone, Copy)]
+struct ClassGroupFrameRect {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
+const CLASS_GROUP_DEPTH_OUTSET: i32 = 18;
+const CLASS_GROUP_BASE_PAD: i32 = 20;
+const CLASS_GROUP_TAB_HEIGHT: i32 = 24;
+const CLASS_GROUP_LABEL_GAP: i32 = 28;
+
+fn class_group_frame_rect(
+    group: &RenderGroupFrame,
+    max_group_depth: usize,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) -> Option<ClassGroupFrameRect> {
+    let mut gx_min = i32::MAX;
+    let mut gy_min = i32::MAX;
+    let mut gx_max = i32::MIN;
+    let mut gy_max = i32::MIN;
+    let mut found_any = false;
+    for member_id in &group.member_ids {
+        if let Some(bx) = node_boxes.get(member_id.as_str()) {
+            gx_min = gx_min.min(bx.x);
+            gy_min = gy_min.min(bx.y);
+            gx_max = gx_max.max(bx.x + bx.w);
+            gy_max = gy_max.max(bx.y + bx.h);
+            found_any = true;
+        }
+    }
+    if !found_any {
+        return None;
+    }
+
+    let depth_outset =
+        (max_group_depth.saturating_sub(group.depth) as i32) * CLASS_GROUP_DEPTH_OUTSET;
+    let pad = CLASS_GROUP_BASE_PAD + depth_outset;
+    let label_header = CLASS_GROUP_TAB_HEIGHT + CLASS_GROUP_LABEL_GAP + depth_outset;
+    let x = gx_min - pad;
+    let y = gy_min - pad - label_header;
+    let w = (gx_max - gx_min) + pad * 2;
+    let h = (gy_max - gy_min) + pad * 2 + label_header;
+
+    Some(ClassGroupFrameRect { x, y, w, h })
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ClassPortSide {
     Left,
@@ -296,31 +344,13 @@ fn render_class_group_frames(
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
 ) {
     for group in group_frames {
-        let mut gx_min = i32::MAX;
-        let mut gy_min = i32::MAX;
-        let mut gx_max = i32::MIN;
-        let mut gy_max = i32::MIN;
-        let mut found_any = false;
-        for member_id in &group.member_ids {
-            if let Some(bx) = node_boxes.get(member_id.as_str()) {
-                gx_min = gx_min.min(bx.x);
-                gy_min = gy_min.min(bx.y);
-                gx_max = gx_max.max(bx.x + bx.w);
-                gy_max = gy_max.max(bx.y + bx.h);
-                found_any = true;
-            }
-        }
-        if !found_any {
+        let Some(rect) = class_group_frame_rect(group, max_group_depth, node_boxes) else {
             continue;
-        }
-        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 20 + depth_outset;
-        let tab_h = 24;
-        let label_header = tab_h + 28 + depth_outset;
-        let fx = gx_min - pad;
-        let fy = gy_min - pad - label_header;
-        let fw = (gx_max - gx_min) + pad * 2;
-        let fh = (gy_max - gy_min) + pad * 2 + label_header;
+        };
+        let fx = rect.x;
+        let fy = rect.y;
+        let fw = rect.w;
+        let fh = rect.h;
 
         let group_label = group.display_label();
         let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
@@ -330,6 +360,7 @@ fn render_class_group_frames(
             escape_text(&group.scope)
         ));
         if uses_tab_header {
+            let tab_h = CLASS_GROUP_TAB_HEIGHT;
             let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
             out.push_str(&format!(
                 "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
@@ -662,32 +693,10 @@ fn class_compute_canvas(
     let mut groups_right = margin_x;
     let mut groups_bottom = margin_top + title_block_height;
     for group in group_frames {
-        let mut gx_min = i32::MAX;
-        let mut gy_min = i32::MAX;
-        let mut gx_max = i32::MIN;
-        let mut gy_max = i32::MIN;
-        let mut found_any = false;
-        for member_id in &group.member_ids {
-            if let Some(bx) = node_boxes.get(member_id.as_str()) {
-                gx_min = gx_min.min(bx.x);
-                gy_min = gy_min.min(bx.y);
-                gx_max = gx_max.max(bx.x + bx.w);
-                gy_max = gy_max.max(bx.y + bx.h);
-                found_any = true;
-            }
+        if let Some(rect) = class_group_frame_rect(group, max_group_depth, node_boxes) {
+            groups_right = groups_right.max(rect.x + rect.w);
+            groups_bottom = groups_bottom.max(rect.y + rect.h);
         }
-        if !found_any {
-            continue;
-        }
-        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 16 + depth_outset;
-        let label_header = PKG_TAB_HEIGHT + depth_outset;
-        let fx = gx_min - pad;
-        let fy = gy_min - pad - label_header;
-        let fw = (gx_max - gx_min) + pad * 2;
-        let fh = (gy_max - gy_min) + pad * 2 + label_header;
-        groups_right = groups_right.max(fx + fw);
-        groups_bottom = groups_bottom.max(fy + fh);
     }
 
     let proj_extra_height: i32 = json_projections.iter().fold(0, |acc, proj| {
@@ -1476,12 +1485,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;
     let empty_member_pad: i32 = 8;
-    // group_top_reserve must match label_header+pad used in frame rendering loop.
-    // label_header is 40px (bumped from 28 to prevent package header / first-child clipping).
+    // Reserve enough top room for the deepest package frame header plus its
+    // outer padding. The exact frame geometry is centralized in
+    // `class_group_frame_rect`; this pre-layout value must cover the same stack.
     let group_top_reserve = if group_frames.is_empty() {
         0
     } else {
-        ((max_group_depth as i32) + 1) * 52
+        ((max_group_depth as i32) + 1) * (CLASS_GROUP_TAB_HEIGHT + CLASS_GROUP_LABEL_GAP)
     };
     let relation_pair_label_lanes = relation_pair_label_lane_map(document);
     let relation_source_label_lanes = relation_source_label_lane_map(document);
