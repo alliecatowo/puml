@@ -472,6 +472,35 @@ pub fn chart_style_from_sequence_theme(style: &SequenceStyle) -> ChartStyle {
     }
 }
 
+pub fn mindmap_style_from_sequence_theme(style: &SequenceStyle) -> MindMapStyle {
+    let mut depth_styles = BTreeMap::new();
+    depth_styles.insert(
+        0,
+        MindMapDepthStyle {
+            background_color: Some(style.group_background_color.clone()),
+            font_color: Some(style.arrow_color.clone()),
+            border_color: Some(style.group_border_color.clone()),
+        },
+    );
+    depth_styles.insert(
+        1,
+        MindMapDepthStyle {
+            background_color: Some(style.participant_background_color.clone()),
+            font_color: Some(style.arrow_color.clone()),
+            border_color: Some(style.participant_border_color.clone()),
+        },
+    );
+    depth_styles.insert(
+        2,
+        MindMapDepthStyle {
+            background_color: Some(style.note_background_color.clone()),
+            font_color: Some(style.arrow_color.clone()),
+            border_color: Some(style.note_border_color.clone()),
+        },
+    );
+    MindMapStyle { depth_styles }
+}
+
 pub fn apply_monochrome_to_sequence_style(style: &mut SequenceStyle, mode: MonochromeMode) {
     let ink = mode.ink().to_string();
     let paper = mode.paper().to_string();
