@@ -103,7 +103,8 @@ Source: `/tmp/puml-spec/ch14-salt-wireframe.txt`.
 ### 14.17 OpenIconic in salt (`<&person>`, `<&key>`) — 🟡
 **Feature:** OpenIconic icons inside cell text.
 **Status:** 🟡
-**Evidence:** No OpenIconic icon substitution found in salt cell renderer; tokens treated as text.
+**Evidence:** `src/render/salt.rs:1139-1150` detects `<&...>` placeholders in Salt text, annotates the SVG with `data-salt-icons`, and routes labels through Creole rendering; `src/creole.rs:559-564` converts icon tags into deterministic `[icon]` placeholder spans; `tests/ch14_salt_parity.rs` verifies `<&person>`/`<&key>` placeholders are preserved as Salt Creole metadata without leaking raw markup.
+**Notes:** Still partial: true OpenIconic glyph substitution and `listopeniconic` catalog support are not implemented.
 
 ### 14.18 title / header / footer / caption / legend — 🟡
 **Feature:** Common commands on a salt diagram.
