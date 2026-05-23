@@ -492,7 +492,7 @@ fn class_run_layout(
         })
         .collect();
 
-    let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
+    let is_usecase = is_real_usecase_layout(document);
     let rank_separation = if is_usecase {
         // Keep usecase layouts tighter than class/object while still reserving
         // enough inter-rank clearance so actors/labels don't collide with
@@ -1344,6 +1344,22 @@ fn class_node_width(kind: FamilyNodeKind, default_width: i32) -> i32 {
     }
 }
 
+fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
+    if !matches!(document.kind, crate::ast::DiagramKind::UseCase) {
+        return false;
+    }
+
+    document.nodes.iter().all(|node| {
+        matches!(
+            node.kind,
+            FamilyNodeKind::UseCase
+                | FamilyNodeKind::Actor
+                | FamilyNodeKind::Person
+                | FamilyNodeKind::Note
+        ) && node.members.is_empty()
+    })
+}
+
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
@@ -1404,7 +1420,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .max()
         .unwrap_or(0);
     let col_gap: i32 = 80.max(relation_label_gap);
-    let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
+    let is_usecase = is_real_usecase_layout(document);
     let row_gap: i32 = if is_usecase { 46 } else { 64 };
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
