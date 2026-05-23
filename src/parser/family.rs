@@ -26,6 +26,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            style_members,
             heritage,
             ..
         } = decl;
@@ -54,6 +55,7 @@ fn parse_family_declaration(
             declaration_marker_members(marker, stereotypes)
         };
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, style_members);
         append_heritage_members(&mut members, heritage);
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
@@ -76,6 +78,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            style_members,
             heritage,
             ..
         } = decl;
@@ -96,6 +99,7 @@ fn parse_family_declaration(
                 declaration_marker_members(None, stereotypes)
             };
             append_inline_fill_member(&mut members, fill_color);
+            append_inline_style_members(&mut members, style_members);
             append_heritage_members(&mut members, heritage);
             return Ok(Some((
                 StatementKind::ClassDecl(ClassDecl {
@@ -126,6 +130,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            style_members,
             ..
         } = decl;
         let mut members = if has_block {
@@ -153,6 +158,7 @@ fn parse_family_declaration(
             declaration_marker_members(marker, stereotypes)
         };
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, style_members);
         return Ok(Some((
             StatementKind::ObjectDecl(ObjectDecl {
                 name,
@@ -177,12 +183,14 @@ fn parse_family_declaration(
             alias,
             has_block,
             fill_color,
+            style_members,
             business,
             ..
         } = decl;
         let mut members = Vec::new();
         append_business_member(&mut members, business);
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, style_members);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
                 name,
@@ -202,12 +210,14 @@ fn parse_family_declaration(
             name,
             alias,
             fill_color,
+            style_members,
             business,
             ..
         } = decl;
         let mut members = declaration_marker_members(Some("<<actor>>"), Vec::new());
         append_business_member(&mut members, business);
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, style_members);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
                 name,
@@ -233,6 +243,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            style_members,
             business,
             ..
         } = decl;
@@ -262,6 +273,7 @@ fn parse_family_declaration(
         };
         append_business_member(&mut members, business || keyword.ends_with('/'));
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, style_members);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
                 name,
@@ -379,6 +391,7 @@ struct FamilyDeclParts {
     has_block: bool,
     stereotypes: Vec<String>,
     fill_color: Option<String>,
+    style_members: Vec<String>,
     business: bool,
     heritage: Vec<FamilyHeritage>,
 }
@@ -412,7 +425,7 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
     } else {
         rest
     };
-    let (trimmed, fill_color) = split_declaration_inline_fill(trimmed);
+    let (trimmed, inline_style) = split_declaration_inline_style(trimmed);
     let supports_business = keyword
         .trim_end_matches('/')
         .eq_ignore_ascii_case("actor")
@@ -445,7 +458,8 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         alias,
         has_block,
         stereotypes,
-        fill_color,
+        fill_color: inline_style.fill_color,
+        style_members: inline_style.members,
         business: business || keyword.ends_with('/'),
         heritage,
     })
@@ -590,6 +604,13 @@ fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<
     }
 }
 
+fn append_inline_style_members(members: &mut Vec<ClassMember>, style_members: Vec<String>) {
+    members.extend(style_members.into_iter().map(|text| ClassMember {
+        text,
+        modifier: None,
+    }));
+}
+
 fn append_business_member(members: &mut Vec<ClassMember>, business: bool) {
     if business {
         members.push(ClassMember {
@@ -620,6 +641,17 @@ fn clean_family_decl_ident(input: &str) -> String {
 }
 
 fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
+    let (cleaned, style) = split_declaration_inline_style(input);
+    (cleaned, style.fill_color)
+}
+
+#[derive(Debug, Clone, Default)]
+struct FamilyInlineStyle {
+    fill_color: Option<String>,
+    members: Vec<String>,
+}
+
+fn split_declaration_inline_style(input: &str) -> (String, FamilyInlineStyle) {
     let trimmed = input.trim();
     let mut in_quote = false;
     let mut last_hash: Option<usize> = None;
@@ -633,7 +665,7 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
         }
     }
     let Some(hash_idx) = last_hash else {
-        return (trimmed.to_string(), None);
+        return (trimmed.to_string(), FamilyInlineStyle::default());
     };
     if hash_idx > 0
         && !trimmed[..hash_idx]
@@ -641,7 +673,7 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
             .last()
             .is_some_and(char::is_whitespace)
     {
-        return (trimmed.to_string(), None);
+        return (trimmed.to_string(), FamilyInlineStyle::default());
     }
     let after = &trimmed[hash_idx..];
     let token_len = after
@@ -653,16 +685,11 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
         .last()
         .unwrap_or(0);
     if token_len == 0 {
-        return (trimmed.to_string(), None);
+        return (trimmed.to_string(), FamilyInlineStyle::default());
     }
     let token = &after[..token_len];
-    let fill_token = token
-        .split(';')
-        .find(|part| !part.trim().is_empty())
-        .unwrap_or(token)
-        .trim();
-    let Some(color) = parse_relation_color_token(fill_token) else {
-        return (trimmed.to_string(), None);
+    let Some(style) = parse_family_decl_inline_style_token(token) else {
+        return (trimmed.to_string(), FamilyInlineStyle::default());
     };
     let before = trimmed[..hash_idx].trim_end();
     let suffix = after[token_len..].trim_start();
@@ -673,7 +700,46 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
         }
         cleaned.push_str(suffix);
     }
-    (cleaned, Some(color))
+    (cleaned, style)
+}
+
+fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle> {
+    let mut style = FamilyInlineStyle::default();
+    for (idx, raw_part) in token.trim_start_matches('#').split(';').enumerate() {
+        let part = raw_part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let lower = part.to_ascii_lowercase();
+        if let Some(color) = lower
+            .strip_prefix("back:")
+            .and_then(parse_relation_color_token)
+        {
+            style.fill_color = Some(color);
+        } else if let Some(color) = lower
+            .strip_prefix("line:")
+            .and_then(parse_relation_color_token)
+        {
+            style.members.push(format!("\x1fstyle:border:{color}"));
+        } else if let Some(color) = lower
+            .strip_prefix("text:")
+            .and_then(parse_relation_color_token)
+        {
+            style.members.push(format!("\x1fstyle:text:{color}"));
+        } else if matches!(lower.as_str(), "line.dashed" | "line.dotted" | "dashed" | "dotted")
+        {
+            style.members.push("\x1fstyle:border-dashed".to_string());
+        } else if matches!(lower.as_str(), "line.bold" | "line.thick" | "bold" | "thick") {
+            style.members.push("\x1fstyle:border-thickness:3".to_string());
+        } else if matches!(lower.as_str(), "line.thin" | "thin") {
+            style.members.push("\x1fstyle:border-thickness:1".to_string());
+        } else if idx == 0 {
+            if let Some(color) = parse_relation_color_token(part) {
+                style.fill_color = Some(color);
+            }
+        }
+    }
+    (style.fill_color.is_some() || !style.members.is_empty()).then_some(style)
 }
 
 fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) -> Vec<ClassMember> {
@@ -735,7 +801,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     } else {
         rest
     };
-    let (rest, fill_color) = split_declaration_inline_fill(rest);
+    let (rest, inline_style) = split_declaration_inline_style(rest);
     let (rest, suffix_business) = if let Some(after) = rest.trim().strip_prefix('/') {
         (after.trim_start().to_string(), true)
     } else {
@@ -755,7 +821,8 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         alias,
         has_block,
         stereotypes: Vec::new(),
-        fill_color,
+        fill_color: inline_style.fill_color,
+        style_members: inline_style.members,
         business: keyword_business || suffix_business,
         heritage: Vec::new(),
     })
@@ -770,7 +837,7 @@ fn parse_colon_actor_decl(line: &str) -> Option<FamilyDeclParts> {
         return None;
     }
     let rest = rest[close + 1..].trim();
-    let (rest, fill_color) = split_declaration_inline_fill(rest);
+    let (rest, inline_style) = split_declaration_inline_style(rest);
     let (rest, business) = if let Some(after) = rest.trim().strip_prefix('/') {
         (after.trim_start().to_string(), true)
     } else {
@@ -790,7 +857,8 @@ fn parse_colon_actor_decl(line: &str) -> Option<FamilyDeclParts> {
         alias,
         has_block: false,
         stereotypes: Vec::new(),
-        fill_color,
+        fill_color: inline_style.fill_color,
+        style_members: inline_style.members,
         business,
         heritage: Vec::new(),
     })
@@ -1950,6 +2018,7 @@ fn collect_scoped_class_group_content(
                 alias,
                 has_block,
                 fill_color,
+                style_members,
                 business,
                 ..
             } = decl;
@@ -1967,6 +2036,10 @@ fn collect_scoped_class_group_content(
             if let Some(fill_color) = fill_color {
                 encoded.push('\t');
                 encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+            }
+            for style_member in style_members {
+                encoded.push('\t');
+                encoded.push_str(&style_member);
             }
             content.members.push(encoded);
             if has_block {
@@ -2008,6 +2081,7 @@ fn collect_scoped_class_group_content(
                     alias,
                     has_block,
                     fill_color,
+                    style_members,
                     business,
                     ..
                 } = decl;
@@ -2031,6 +2105,10 @@ fn collect_scoped_class_group_content(
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+                }
+                for style_member in style_members {
+                    encoded.push('\t');
+                    encoded.push_str(&style_member);
                 }
                 let nested_end = if has_block {
                     let nested_end = find_family_decl_end(lines, idx);
@@ -2090,6 +2168,7 @@ fn collect_scoped_class_group_content(
                     name,
                     alias,
                     fill_color,
+                    style_members,
                     business,
                     ..
                 } = decl;
@@ -2124,6 +2203,10 @@ fn collect_scoped_class_group_content(
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
                 }
+                for style_member in style_members {
+                    encoded.push('\t');
+                    encoded.push_str(&style_member);
+                }
                 for member in members_text {
                     encoded.push('\t');
                     encoded.push_str(&member);
@@ -2140,6 +2223,7 @@ fn collect_scoped_class_group_content(
                     name,
                     alias,
                     fill_color,
+                    style_members,
                     business,
                     ..
                 } = decl;
@@ -2163,6 +2247,10 @@ fn collect_scoped_class_group_content(
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+                }
+                for style_member in style_members {
+                    encoded.push('\t');
+                    encoded.push_str(&style_member);
                 }
                 content.members.push(encoded);
                 idx += 1;
