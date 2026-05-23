@@ -1218,10 +1218,20 @@ fn group_horizontal_bounds(
             }
         }
     }
-    let width = (bounds_by_id.len() as i32 * options.participant_spacing)
-        .max(options.participant_width + 64)
-        .max(min_content_width);
-    (options.margin, width)
+    let min_left = bounds_by_id
+        .values()
+        .map(|(left, _)| *left)
+        .min()
+        .unwrap_or(options.margin);
+    let max_right = bounds_by_id
+        .values()
+        .map(|(_, right)| *right)
+        .max()
+        .unwrap_or(options.margin + options.participant_width);
+    let participant_span_width = (max_right - min_left).max(options.participant_width);
+    let width = participant_span_width.max(min_content_width);
+    let x = (min_left - ((width - participant_span_width) / 2)).max(options.margin);
+    (x, width)
 }
 
 fn multiline_metrics(text: &str) -> (i32, i32) {
@@ -1810,7 +1820,7 @@ mod tests {
 
         let (gx, gw) = group_horizontal_bounds("group", Some("over   "), &bounds, &options);
         assert_eq!(gx, options.margin);
-        assert!(gw >= options.participant_width + 64);
+        assert!(gw >= options.participant_width);
         assert_eq!(group_content_min_size("group", None), (0, 0));
 
         assert_eq!(row_units_for_height(40, 0), 1);
@@ -1888,6 +1898,40 @@ mod tests {
 
         let bounds: BTreeMap<String, (i32, i32)> = BTreeMap::new();
         let (_gx, gw) = group_horizontal_bounds("group", None, &bounds, &LayoutOptions::default());
-        assert!(gw >= LayoutOptions::default().participant_width + 64);
+        assert!(gw >= LayoutOptions::default().participant_width);
+    }
+
+    #[test]
+    fn group_horizontal_bounds_default_span_matches_participants() {
+        let options = LayoutOptions::default();
+        let mut bounds = BTreeMap::new();
+        bounds.insert(
+            "A".to_string(),
+            (options.margin, options.margin + options.participant_width),
+        );
+        bounds.insert(
+            "B".to_string(),
+            (
+                options.margin + options.participant_spacing,
+                options.margin + options.participant_spacing + options.participant_width,
+            ),
+        );
+        bounds.insert(
+            "C".to_string(),
+            (
+                options.margin + (options.participant_spacing * 2),
+                options.margin + (options.participant_spacing * 2) + options.participant_width,
+            ),
+        );
+
+        let (x, width) = group_horizontal_bounds("alt", Some("branch"), &bounds, &options);
+        let right = x + width;
+        let participant_right =
+            options.margin + (options.participant_spacing * 2) + options.participant_width;
+        assert_eq!(x, options.margin);
+        assert_eq!(
+            right, participant_right,
+            "default alt/opt/loop-style frame should end at the rightmost participant edge"
+        );
     }
 }
