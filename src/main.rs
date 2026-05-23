@@ -408,6 +408,39 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         ));
     }
 
+    if cli.preproc {
+        let values = diagrams
+            .iter()
+            .map(|source| {
+                preprocess_for_cli(
+                    &source.source,
+                    include_root.clone(),
+                    cli.dialect,
+                    cli.compat,
+                    cli.determinism,
+                    source.frontend_hint,
+                    cli.allow_url_includes,
+                    inject_vars.clone(),
+                )
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (idx, preprocessed) in values.iter().enumerate() {
+            if idx > 0 {
+                println!();
+            }
+            print!("{preprocessed}");
+            if !preprocessed.ends_with('\n') {
+                println!();
+            }
+        }
+        if cli.duration {
+            eprintln!("elapsed: {:?}", started.elapsed());
+        }
+        return Ok(());
+    }
+
     if cli.metadata {
         let values = diagrams
             .iter()

@@ -81,6 +81,12 @@ For PlantUML-compatible stdin/stdout rendering, use `--pipe`:
 cat hello.puml | puml --pipe > hello.svg
 ```
 
+To inspect include and macro expansion without rendering, use `--preproc`:
+
+```bash
+puml --preproc hello.puml
+```
+
 ---
 
 ## Step 3: Render to PNG

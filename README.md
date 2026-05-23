@@ -229,6 +229,9 @@ puml --watch hello.puml -o out.svg       # explicit output path
 puml --check hello.puml                  # exit 0 = valid
 puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Markdown file
 
+# Preprocessor dump
+puml --preproc hello.puml                # print source after !include / macro expansion
+
 # Count nodes and edges
 puml count hello.puml                    # → "4 nodes, 3 edges"
 puml count --by-kind hello.puml          # → summary + per-kind breakdown
