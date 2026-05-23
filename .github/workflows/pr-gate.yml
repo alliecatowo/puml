@@ -304,7 +304,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: coverage gate
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
 
   docs_examples_drift:
     name: docs examples drift
