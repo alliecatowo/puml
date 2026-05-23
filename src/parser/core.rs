@@ -208,40 +208,44 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && {
                     let end_idx = find_scoping_block_end(&lines, i);
                     end_idx > i
+                        && !group_body_contains_component_family(&lines, i, end_idx)
                         && (group_body_contains_class_family(&lines, i, end_idx)
                             || group_body_contains_object_family(&lines, i, end_idx)
                             || group_body_contains_usecase_family(&lines, i, end_idx))
                 };
-            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                let is_deployment_scope = matches!(detected_kind, Some(DiagramKind::Deployment))
-                    || matches!(
-                    &kind,
-                    StatementKind::ClassGroup { kind, .. }
-                        if matches!(
-                            kind.as_str(),
-                            "action"
-                                | "artifact"
-                                | "cloud"
-                                | "container"
-                                | "database"
-                                | "frame"
-                                | "hexagon"
-                                | "node"
-                                | "process"
-                                | "queue"
-                                | "stack"
-                                | "storage"
-                        )
-                );
-                let family = if is_deployment_scope {
-                    DiagramKind::Deployment
-                } else {
-                    DiagramKind::Component
-                };
-                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
-                statements.push(Statement { span, kind });
-                i = end_idx + 1;
-                continue;
+            if !ambiguous_class_scope {
+                if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                    let is_deployment_scope =
+                        matches!(detected_kind, Some(DiagramKind::Deployment))
+                            || matches!(
+                                &kind,
+                                StatementKind::ClassGroup { kind, .. }
+                                    if matches!(
+                                        kind.as_str(),
+                                        "action"
+                                            | "artifact"
+                                            | "cloud"
+                                            | "container"
+                                            | "database"
+                                            | "frame"
+                                            | "hexagon"
+                                            | "node"
+                                            | "process"
+                                            | "queue"
+                                            | "stack"
+                                            | "storage"
+                                    )
+                            );
+                    let family = if is_deployment_scope {
+                        DiagramKind::Deployment
+                    } else {
+                        DiagramKind::Component
+                    };
+                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    statements.push(Statement { span, kind });
+                    i = end_idx + 1;
+                    continue;
+                }
             }
             if !ambiguous_class_interface
                 && !actor_prefers_non_component
