@@ -289,6 +289,11 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower == "hide unlinked" {
         return Some(StatementKind::HideUnlinked);
     }
+    if lower == "hide empty description" {
+        return Some(StatementKind::HideOption(
+            "empty description".to_string(),
+        ));
+    }
 
     // `mainframe <title>` — UML mainframe border around the whole diagram (feature 1.43).
     if lower.starts_with("mainframe") {

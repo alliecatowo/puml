@@ -71,6 +71,7 @@ pub struct StateDocument {
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub state_style: StateStyle,
+    pub hide_empty_description: bool,
     pub warnings: Vec<Diagnostic>,
 }
 

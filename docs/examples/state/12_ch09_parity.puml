@@ -1,8 +1,11 @@
 @startuml
 title State diagram Chapter 9 parity slice
+hide empty description
 
 state Active #pink ##[dashed]blue
 Active : waits for input
+
+state Empty
 
 state Styled #back:lightgreen;line:red;line.bold;text:blue
 

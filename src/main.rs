@@ -2851,6 +2851,7 @@ fn state_model_to_json(model: &StateDocument) -> Value {
             "label": t.label
         })).collect::<Vec<_>>(),
         "title": model.title,
+        "hide_empty_description": model.hide_empty_description,
         "warnings": model.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     })
 }
