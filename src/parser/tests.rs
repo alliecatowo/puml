@@ -1711,6 +1711,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_gantt_completion_percentage_forms() {
+        let doc = parse_with_options(
+            "@startgantt\n[Build] is 40% complete\n[Test] requires 3 days and is 10% completed\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttCompound {
+                ref name,
+                ref clauses,
+                ..
+            } if name == "Build" && clauses == "is 40% complete"
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttCompound {
+                ref name,
+                ref clauses,
+                ..
+            } if name == "Test" && clauses == "requires 3 days and is 10% completed"
+        ));
+    }
+
+    #[test]
     fn parses_gantt_closed_weekday_calendar_statements() {
         let doc = parse_with_options(
             "@startgantt\nProject starts 2026-05-01\nsaturday are closed\nsundays are closed\n[Build] lasts 2 days\n@endgantt\n",

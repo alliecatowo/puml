@@ -598,6 +598,7 @@ Project starts 2022-06-27
 hide resources names
 hide resources footbox
 [task1] on {Alice} starts D+0 and requires 1 week and is 40% completed
+[task1] is 45% complete
 note bottom
 handoff memo
 end note
@@ -609,7 +610,7 @@ end note
     let svg = puml::render_source_to_svg(src).expect("gantt render");
     assert!(svg.contains("data-gantt-hide-resource-names=\"true\""));
     assert!(svg.contains("data-gantt-hide-resource-footbox=\"true\""));
-    assert!(svg.contains("data-gantt-completion=\"40\""));
+    assert!(svg.contains("data-gantt-completion=\"45\""));
     assert!(svg.contains("class=\"gantt-task-completion\""));
     assert!(svg.contains("class=\"gantt-note\""));
     assert!(svg.contains("handoff memo"));
@@ -624,7 +625,7 @@ end note
     assert!(model.hide_resource_footbox);
     assert_eq!(model.resource_off_ranges.len(), 1);
     assert_eq!(model.notes.len(), 1);
-    assert_eq!(model.tasks[0].completion_percent, Some(40));
+    assert_eq!(model.tasks[0].completion_percent, Some(45));
     assert!(model
         .tasks
         .iter()

@@ -47,7 +47,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 13 | nwdiag | 12 | 3 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
 | 14 | Salt (Wireframe) | 12 | 9 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
 | 15 | ArchiMate | 6 | 2 | 1 | [ch15-archimate.md](audit/ch15-archimate.md) |
-| 16 | Gantt | 16 | 11 | 12 | [ch16-gantt.md](audit/ch16-gantt.md) |
+| 16 | Gantt | 17 | 11 | 11 | [ch16-gantt.md](audit/ch16-gantt.md) |
 | 17 | MindMap | 11 | 2 | 0 | [ch17-mindmap.md](audit/ch17-mindmap.md) |
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |

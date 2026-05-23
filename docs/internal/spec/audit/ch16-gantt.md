@@ -1,6 +1,6 @@
 # Chapter 16 — Gantt Chart Audit
 
-Tally: 16 ✅ / 11 🟡 / 12 ❌
+Tally: 17 ✅ / 11 🟡 / 11 ❌
 
 ### 16.1.1 Workload (requires N days/weeks) — ✅
 **Feature:** `[Task] requires N days` (also weeks; combined `1 week and 4 days`)
@@ -59,11 +59,11 @@ Tally: 16 ✅ / 11 🟡 / 12 ❌
 **Evidence:** `src/parser/gantt.rs` parses task color metadata, `src/normalize/timeline.rs` applies fill/stroke colors, and `src/render/timeline.rs` emits colored Gantt task bars. Covered by `gantt_issue_779_named_date_marker_and_task_color_render` in `tests/parity_wave_csv_timeline_activity.rs` and `docs/examples/gantt/09_ch16_parity.puml`.
 **Notes:** Legend text itself renders, but full PlantUML legend cell-color fidelity still depends on broader Creole/table support.
 
-### 16.7 Completion percentage — ❌
+### 16.7 Completion percentage — ✅
 **Feature:** `[foo] is 40% completed` / `is 40% complete` / `requires N days and is 10% complete`
-**Status:** ❌
-**Evidence:** No `% complete` or `completed` parser branch in src/parser/gantt.rs
-**Notes:** Tasks have no completion field on TimelineTask.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` parses `% complete` and `% completed` clauses into Gantt compound/constraint metadata; `src/model.rs` stores `TimelineTask::completion_percent`; `src/normalize/timeline.rs` applies completion constraints; `src/render/timeline.rs` emits `data-gantt-completion` plus a `gantt-task-completion` overlay. Covered by `parses_gantt_completion_percentage_forms` in `src/parser/tests.rs`, `gantt_ch16_completion_notes_resource_off_and_hide_options_render` in `tests/parity_wave_csv_timeline_activity.rs`, and `docs/examples/gantt/09_ch16_parity.puml`.
+**Notes:** Percentages are clamped to 100 during parse/normalize.
 
 ### 16.8.1/2/3 Milestone happens — ✅
 **Feature:** `[M] happens at [T]'s end` / `happens 2020-07-10` / `happens N days after [T]'s end`
