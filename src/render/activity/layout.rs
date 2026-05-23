@@ -412,12 +412,14 @@ pub(super) fn compute_layout(
                 });
                 if let Some(repeat_frame) = repeat_stack.pop() {
                     if let Some(body_layout) = node_layouts.get(repeat_frame.body_start_idx) {
-                        extra_arrows.push(ActivityRoute::new(
-                            cx,
-                            arrow_out_y,
-                            body_layout.cx,
-                            body_layout.slot_y,
-                        ));
+                        let guard_label = doc.nodes[i]
+                            .label
+                            .as_deref()
+                            .and_then(activity_decision_guard);
+                        extra_arrows.push(
+                            ActivityRoute::new(cx, arrow_out_y, body_layout.cx, body_layout.slot_y)
+                                .with_label(guard_label),
+                        );
                     }
                 }
                 current_slot_y = next_slot_y;

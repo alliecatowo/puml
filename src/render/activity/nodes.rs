@@ -325,8 +325,8 @@ fn first_else_guard_for_if<'a>(
     if_idx: usize,
 ) -> Option<&'a str> {
     let mut depth = 0usize;
-    for idx in if_idx + 1..metas.len() {
-        match metas[idx].step_kind.as_str() {
+    for (idx, meta) in metas.iter().enumerate().skip(if_idx + 1) {
+        match meta.step_kind.as_str() {
             "IfStart" => depth += 1,
             "EndIf" if depth == 0 => return None,
             "EndIf" => depth = depth.saturating_sub(1),
