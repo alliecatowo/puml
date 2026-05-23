@@ -303,17 +303,18 @@ fn render_structured_svg(
                 escape_text(&normal_style.stroke)
             ));
             if node.depth > 0 {
-                let parent_y = (0..index)
-                    .rev()
-                    .find(|&j| rows[j].depth == node.depth - 1)
-                    .map(|j| node_ys[j])
-                    .unwrap_or(y);
+                let parent_index = (0..index).rev().find(|&j| rows[j].depth == node.depth - 1);
+                let parent_y = parent_index.map(|j| node_ys[j]).unwrap_or(y);
+                let connector_start_y = parent_index
+                    .filter(|&j| rows[j].path.is_empty() && rows[j].key.is_empty())
+                    .map(|_| row_top)
+                    .unwrap_or(parent_y);
                 let connector_x = table_x + 12 + ((node.depth as i32) - 1) * 18;
                 let key_x = table_x + 8 + (node.depth as i32) * 18;
                 out.push_str(&format!(
                     "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
                     connector_x,
-                    parent_y,
+                    connector_start_y,
                     connector_x,
                     ny,
                     family.connector_color(),
