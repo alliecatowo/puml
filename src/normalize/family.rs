@@ -235,7 +235,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     c4_kind.unwrap_or(FamilyNodeKind::Object)
                 };
                 let fill_color = extract_family_node_fill_color(&mut members);
-                let node_id = clean_alias.as_deref().unwrap_or(&decl.name).to_string();
+                let (name, typed_label) = if resolved_kind == FamilyNodeKind::Object {
+                    split_object_instance_type(decl.name)
+                } else {
+                    (decl.name, None)
+                };
+                let node_id = clean_alias.as_deref().unwrap_or(&name).to_string();
                 if resolved_kind == FamilyNodeKind::Map {
                     relations.extend(extract_map_row_relations(&members, &node_id));
                 }
@@ -243,11 +248,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     &mut nodes,
                     FamilyNode {
                         kind: resolved_kind,
-                        name: decl.name,
+                        name,
                         alias: clean_alias,
                         members,
                         depth: 0,
-                        label: None,
+                        label: typed_label,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
                         fill_color,
@@ -663,6 +668,21 @@ fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
         return;
     }
     nodes.push(node);
+}
+
+fn split_object_instance_type(name: String) -> (String, Option<String>) {
+    let Some((instance, class_name)) = name.split_once(" : ") else {
+        return (name, None);
+    };
+    let instance = instance.trim();
+    let class_name = class_name.trim();
+    if instance.is_empty() || class_name.is_empty() || class_name.contains('=') {
+        return (name, None);
+    }
+    (
+        instance.to_string(),
+        Some(format!("{instance} : {class_name}")),
+    )
 }
 
 fn resolve_usecase_node_kind(members: &mut Vec<ClassMember>) -> FamilyNodeKind {

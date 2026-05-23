@@ -71,7 +71,7 @@
     {
       "path": "docs/examples/object/01_basic.puml",
       "family": "object",
-      "expected_text": ["Alice", "Bob", "knows"],
+      "expected_text": ["Alice : Person", "Bob : Person", "knows"],
       "min_text_elements": 3
     },
     {
