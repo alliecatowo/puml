@@ -224,6 +224,15 @@ jobs:
       - name: doc test gate
         run: cargo test --doc
 
+      - name: Upload visual regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-visual-smoke-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: target/visual-diff
+
       - name: Upload benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7
