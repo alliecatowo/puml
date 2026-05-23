@@ -73,9 +73,8 @@ cargo test --test visual_regression bless_baselines -- --ignored
 ```
 
 Debug artefacts (SVG and PNG renders) are written to `target/visual-diff/`
-and are `.gitignore`'d. On PR Gate failures, the `visual smoke fixture matrix`
-job uploads that directory as the `pr-visual-smoke-<run_number>` artifact with
-14-day retention.
+and are `.gitignore`'d. On PR Gate failures, the `test` job uploads that
+directory as the `pr-visual-smoke-<run_number>` artifact with 14-day retention.
 
 ## Adding a fixture with a baseline
 
@@ -155,7 +154,7 @@ visual change directly in the GitHub UI.
 
 When PR Gate fails in the visual smoke job:
 
-1. Open the `visual smoke fixture matrix` job.
+1. Open the `test` job.
 2. Download `pr-visual-smoke-<run_number>` from the job artifacts.
 3. Inspect `target/visual-diff/<family>/<fixture>.diff.png` and
    `<fixture>.png.new`.
@@ -194,5 +193,5 @@ named full text sweep remains in PR Gate so text-specific failures produce
 `target/visual-diff/*.svg` artifacts even when the broader test suite is
 filtered or retried.
 
-The visual smoke job uploads `target/visual-diff` as
-`pr-visual-smoke-<run_number>` on success or failure.
+The `test` job uploads `target/visual-diff` as `pr-visual-smoke-<run_number>`
+on success or failure.
