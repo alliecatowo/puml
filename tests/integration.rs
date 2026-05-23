@@ -5814,6 +5814,19 @@ fn usecase_diagram_renders_ellipse_nodes() {
 }
 
 #[test]
+fn usecase_inline_element_style_reaches_node_geometry() {
+    let src = "@startuml\nactor Shopper #line:DarkGreen;text:DarkBlue\nusecase Checkout #back:Wheat;line:red;line.dashed;line.bold;text:blue\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("styled usecase svg should render");
+
+    assert!(svg.contains("fill=\"#f5deb3\""));
+    assert!(svg.contains("stroke=\"#ff0000\""));
+    assert!(svg.contains("stroke-width=\"3\""));
+    assert!(svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(svg.contains("fill=\"#0000ff\">Checkout</text>"));
+    assert!(svg.contains("fill=\"#00008b\">Shopper</text>"));
+}
+
+#[test]
 fn usecase_include_extend_dependencies_render_as_dashed_open_arrows() {
     let src = "@startuml\nusecase Login\nusecase Authorize\nusecase Recover\nLogin ..> Authorize : <<include>>\nRecover .left.> Login : extends\n@enduml\n";
     let svg = render_source_to_svg(src).expect("usecase include/extend svg should render");

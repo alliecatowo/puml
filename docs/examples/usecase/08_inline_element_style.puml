@@ -1,0 +1,9 @@
+@startuml
+left to right direction
+actor Shopper #line:DarkGreen;text:DarkBlue
+actor Support #line:DarkSlateBlue;line.bold;text:DarkSlateBlue
+usecase "Browse catalog" as Browse #back:Wheat;line:DarkGreen;text:DarkBlue
+usecase "Checkout" as Checkout #pink;line:red;line.dashed;line.bold;text:blue
+Shopper --> Browse
+Support --> Checkout : assists
+@enduml

@@ -32,6 +32,7 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 ### usecase/
 - `05_actor_generalization_system_boundary.puml` — 3-level actor hierarchy, extend/include
 - `06_multi_system_boundary.puml` — 3 system boundaries, automation triggers
+- `08_inline_element_style.puml` — inline actor/usecase fill, border, dash, and text styles
 
 ### deployment/
 - `05_three_tier_cloud_onprem.puml` — cloud + VPN + on-prem nesting, replication links

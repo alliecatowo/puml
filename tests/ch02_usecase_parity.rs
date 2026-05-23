@@ -35,6 +35,14 @@ Manager --> UC2
 @enduml
 "##;
 
+const INLINE_ELEMENT_STYLE_SRC: &str = r##"@startuml
+left to right direction
+actor Shopper #back:Wheat;line:DarkGreen;line.bold;text:DarkBlue
+usecase "Styled checkout" as Checkout #pink;line:red;line.dashed;line.bold;text:blue
+Shopper --> Checkout
+@enduml
+"##;
+
 #[test]
 fn actor_style_awesome_renders_distinct_actor_glyph() {
     let svg =
@@ -158,5 +166,45 @@ fn business_variants_render_business_shapes() {
     assert!(
         svg.contains("fill=\"#f0f8ff\""),
         "business usecase should preserve inline fill color; svg={svg}"
+    );
+}
+
+#[test]
+fn inline_element_style_renders_usecase_node_style() {
+    let svg = puml::render_source_to_svg(INLINE_ELEMENT_STYLE_SRC)
+        .expect("render inline usecase node style");
+
+    assert!(
+        svg.contains("<ellipse")
+            && svg.contains("fill=\"#ffc0cb\"")
+            && svg.contains("stroke=\"#ff0000\""),
+        "usecase inline fill and line color should reach ellipse geometry; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "usecase line.dashed should render dashed node border; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke-width=\"3\""),
+        "usecase line.bold should render a thicker node border; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#0000ff\">Styled checkout</text>"),
+        "usecase text: color should style the label; svg={svg}"
+    );
+}
+
+#[test]
+fn inline_element_style_renders_actor_node_style() {
+    let svg =
+        puml::render_source_to_svg(INLINE_ELEMENT_STYLE_SRC).expect("render inline actor style");
+
+    assert!(
+        svg.contains("stroke=\"#006400\""),
+        "actor line: color should style the actor glyph stroke; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#00008b\">Shopper</text>"),
+        "actor text: color should style the actor label; svg={svg}"
     );
 }

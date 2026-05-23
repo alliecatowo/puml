@@ -117,12 +117,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** Inline arrow style parsing at `src/parser/family.rs:933-940` (`dashed`/`dotted`/`bold`/`thin`/`hidden`, `line:` prefix).
 **Notes:** Stroke color, dash pattern, thickness honored; `text:` label color follows the same path.
 
-### 2.17 Change element color and style (inline) — 🟡
+### 2.17 Change element color and style (inline) — ✅
 **Feature:** Inline element style `#[color|back:color];line:color;line.[bold|dashed|dotted];text:color` on an actor/usecase declaration.
 **Syntax example:** `actor b #pink;line:red;line.bold;text:red`
-**Status:** 🟡 Partial
-**Evidence:** Inline `#color` after a declaration is generally consumed by the family declaration parser, but explicit support for the full extended grammar (`back:`, `line.bold` on nodes, `text:` on element) is not clearly present in `src/parser/family.rs`. Class/usecase node fills via plain `#color` are supported.
-**Notes:** Plain `#color` works for fill; the extended style sub-grammar likely degrades to fill-only.
+**Status:** ✅ Supported
+**Evidence:** `src/parser/family.rs` parses declaration inline style tokens into hidden style members (`fill`, `back:`, `line:`, `line.bold`, `line.dashed`/`line.dotted`, `text:`). `src/render/family.rs` applies them to usecase/actor node geometry and labels. Covered by `tests/ch02_usecase_parity.rs` and the targeted integration test `usecase_inline_element_style_reaches_node_geometry`.
+**Notes:** `docs/examples/usecase/08_inline_element_style.puml` exercises the rendered actor/usecase inline style slice.
 
 ### 2.18 Display JSON Data (`allowmixing` + `json` block) — ❌
 **Feature:** `allowmixing` directive allows mixing JSON blocks into a usecase diagram.
@@ -134,6 +134,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 2
-- ✅ Supported: **14** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.15, 2.16)
-- 🟡 Partial: **3** (2.4, 2.13, 2.17)
+- ✅ Supported: **15** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.15, 2.16, 2.17)
+- 🟡 Partial: **2** (2.4, 2.13)
 - ❌ Missing: **1** (2.18)

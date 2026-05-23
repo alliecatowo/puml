@@ -2895,6 +2895,37 @@ fn render_map_rows(
     }
 }
 
+#[derive(Default)]
+struct FamilyNodeInlineStyle {
+    border_color: Option<String>,
+    text_color: Option<String>,
+    border_dashed: bool,
+    border_thickness: Option<f32>,
+}
+
+fn family_node_inline_style(node: &crate::model::FamilyNode) -> FamilyNodeInlineStyle {
+    let mut style = FamilyNodeInlineStyle::default();
+    for member in &node.members {
+        let text = member.text.trim();
+        if let Some(color) = text.strip_prefix("\x1fstyle:border:") {
+            style.border_color = Some(color.trim().to_string());
+        } else if let Some(color) = text.strip_prefix("\x1fstyle:text:") {
+            style.text_color = Some(color.trim().to_string());
+        } else if text == "\x1fstyle:border-dashed" {
+            style.border_dashed = true;
+        } else if let Some(width) = text.strip_prefix("\x1fstyle:border-thickness:") {
+            if let Ok(width) = width.trim().parse::<f32>() {
+                style.border_thickness = Some(width.clamp(1.0, 8.0));
+            }
+        }
+    }
+    style
+}
+
+fn is_family_style_member(text: &str) -> bool {
+    text.starts_with("\x1fstyle:")
+}
+
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
@@ -2929,14 +2960,31 @@ fn render_class_node(
         .as_deref()
         .or_else(|| scoped_style.and_then(|style| style.background_color.as_deref()))
         .unwrap_or(&class_style.background_color);
-    let stroke = scoped_style
-        .and_then(|style| style.border_color.as_deref())
+    let inline_style = family_node_inline_style(node);
+    let stroke = inline_style
+        .border_color
+        .as_deref()
+        .or_else(|| scoped_style.and_then(|style| style.border_color.as_deref()))
         .unwrap_or(&class_style.border_color);
     let scoped_font_color = scoped_style
         .and_then(|style| style.font_color.as_deref())
         .filter(|color| !color.is_empty());
-    let font_color = scoped_font_color.unwrap_or(&class_style.font_color);
-    let member_color = scoped_font_color.unwrap_or(class_style.member_color.as_str());
+    let font_color = inline_style
+        .text_color
+        .as_deref()
+        .or(scoped_font_color)
+        .unwrap_or(&class_style.font_color);
+    let member_color = inline_style
+        .text_color
+        .as_deref()
+        .or(scoped_font_color)
+        .unwrap_or(class_style.member_color.as_str());
+    let stroke_dash = if inline_style.border_dashed {
+        " stroke-dasharray=\"5 3\""
+    } else {
+        ""
+    };
+    let stroke_width = inline_style.border_thickness.unwrap_or(1.5);
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
@@ -2992,9 +3040,11 @@ fn render_class_node(
         let fig_cy = y + 21;
         if matches!(node.kind, FamilyNodeKind::BusinessActor) {
             out.push_str(&format!(
-                "<rect class=\"uml-business-actor\" data-uml-kind=\"business-actor\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"10\" ry=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                "<rect class=\"uml-business-actor\" data-uml-kind=\"business-actor\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"10\" ry=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
                 fill,
-                stroke
+                stroke,
+                stroke_width,
+                stroke_dash
             ));
         }
         match class_style.actor_style {
@@ -3023,7 +3073,7 @@ fn render_class_node(
         let mut member_y = name_y + 14;
         for member in &node.members {
             let text = member.text.trim();
-            if text.is_empty() {
+            if text.is_empty() || is_family_style_member(text) {
                 continue;
             }
             if hide_stereotype && is_user_stereotype(text) {
@@ -3050,11 +3100,11 @@ fn render_class_node(
         let ry = h / 2;
         if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
             out.push_str(&format!(
-                "<rect class=\"uml-business-usecase\" data-uml-kind=\"business-usecase\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+                "<rect class=\"uml-business-usecase\" data-uml-kind=\"business-usecase\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
             ));
         } else {
             out.push_str(&format!(
-                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
             ));
         }
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
@@ -3097,7 +3147,7 @@ fn render_class_node(
         let mut my = y + h + 14;
         for member in node.members.iter().skip(uc_member_skip) {
             let text = member.text.trim();
-            if hide_stereotype && is_user_stereotype(text) {
+            if is_family_style_member(text) || (hide_stereotype && is_user_stereotype(text)) {
                 continue;
             }
             out.push_str(&format!(
@@ -3135,13 +3185,13 @@ fn render_class_node(
 
     // Outer rect
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
     ));
     // Header band — taller when we display stereotype labels (14px per label — fix #470, #551)
     let stereotype_extra = (header_stereotype_labels.len() as i32) * 14;
     let effective_header_h = header_h + stereotype_extra;
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
         hh = effective_header_h
     ));
     // Header separator line
@@ -3250,6 +3300,9 @@ fn render_class_node(
     let mut section_started = false; // tracks if we've seen at least one non-divider member
     for (midx, member) in display_members.iter().enumerate() {
         let raw_text = member.text.trim();
+        if is_family_style_member(raw_text) {
+            continue;
+        }
         // Auto-insert divider before the first operation when no explicit divider exists (fix #468)
         if auto_divider == Some(midx) {
             let div_y = my - 8;
