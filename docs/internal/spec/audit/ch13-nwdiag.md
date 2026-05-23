@@ -44,7 +44,7 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 ### 13.4 Extended network/group syntax (color, description, shape) — ✅
 **Feature:** `network X { color = "red" description = "..." }`, and `[shape = database]` on nodes.
 **Status:** ✅
-**Evidence:** `src/normalize/nwdiag.rs:85-94` network-level color/description/shape/style; `:186-198` node-level color/shape/style/label.
+**Evidence:** `src/normalize/nwdiag.rs:85-94` network-level color/description/shape/style; `:186-198` node-level color/shape/style/label. `src/render/specialized/nwdiag.rs` renders `style = "dashed"` and `style = "dotted"` as visible stroke patterns for network/group/node outlines and node connectors.
 
 ### 13.5 Sprites (`<$application_server>` in description) — 🟡
 **Feature:** Sprite references inside `description = "<$sprite>\n web01"`.

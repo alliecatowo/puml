@@ -104,6 +104,35 @@ nwdiag {
     assert!(metrics.x > lb.x);
 }
 
+#[test]
+fn nwdiag_dotted_style_attributes_render_as_dotted_strokes() {
+    let src = r##"@startnwdiag
+nwdiag {
+  internet [shape = cloud, style = "dotted"];
+  group edge {
+    style = "dotted"
+    web;
+  }
+  network public {
+    style = "dotted"
+    web [style = "dotted"];
+  }
+}
+@endnwdiag
+"##;
+    let svg = puml::render_source_to_svg(src).expect("render nwdiag dotted styles");
+
+    assert!(svg.contains("data-nwdiag-style=\"dotted\""));
+    assert!(
+        svg.matches("stroke-dasharray=\"1 3\"").count() >= 4,
+        "dotted style should affect group, network, connector, and node strokes"
+    );
+    assert!(
+        svg.contains("class=\"nwdiag-node nwdiag-toplevel\"")
+            && svg.contains("data-nwdiag-name=\"internet\"")
+    );
+}
+
 fn fixture(name: &str) -> String {
     format!(
         "{}/tests/fixtures/non_sequence/{name}",

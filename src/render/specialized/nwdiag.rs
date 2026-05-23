@@ -237,11 +237,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     }
 
     for overlay in &overlays {
-        let dashed = if overlay.style.eq_ignore_ascii_case("dashed") {
-            " stroke-dasharray=\"5 3\""
-        } else {
-            ""
-        };
+        let dash = nwdiag_stroke_dash(&overlay.style);
         let radius = if overlay.shape.eq_ignore_ascii_case("roundedbox") {
             12
         } else {
@@ -258,7 +254,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             radius,
             radius,
             escape_text(&overlay.color),
-            dashed
+            dash
         ));
     }
 
@@ -272,11 +268,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     for net in &document.networks {
         let net_fill = net.color.as_deref().unwrap_or("#e0f2fe");
         let net_style = net.style.as_deref().unwrap_or("solid");
-        let net_dash = if net_style.eq_ignore_ascii_case("dashed") {
-            " stroke-dasharray=\"5 3\""
-        } else {
-            ""
-        };
+        let net_dash = nwdiag_stroke_dash(net_style);
         let (network_x, network_width) = network_geometry(net, &column_x, inner_width);
         out.push_str(&format!(
             "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
@@ -321,11 +313,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 .and_then(|span| span.style.as_deref())
                 .or(node.style.as_deref())
                 .unwrap_or("solid");
-            let dashed = if style.eq_ignore_ascii_case("dashed") {
-                " stroke-dasharray=\"5 3\""
-            } else {
-                ""
-            };
+            let dash = nwdiag_stroke_dash(style);
             let node_width = shared_span
                 .map(|span| span.w)
                 .unwrap_or_else(|| node_width(node));
@@ -352,7 +340,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 bar_y + 12,
                 connector_x,
                 connector_end_y,
-                dashed
+                dash
             ));
             if !node.addresses.is_empty() {
                 out.push_str(&format!(
@@ -398,7 +386,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 radius,
                 radius,
                 escape_text(node_fill),
-                dashed
+                dash
             ));
             let display = shared_span
                 .map(|span| span.label.as_str())
@@ -424,11 +412,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let node_fill = node.color.as_deref().unwrap_or("#f1f5f9");
         let shape = node.shape.as_deref().unwrap_or("box");
         let style = node.style.as_deref().unwrap_or("solid");
-        let dashed = if style.eq_ignore_ascii_case("dashed") {
-            " stroke-dasharray=\"5 3\""
-        } else {
-            ""
-        };
+        let dash = nwdiag_stroke_dash(style);
         let node_width = node_width(node);
         let radius =
             if shape.eq_ignore_ascii_case("roundedbox") || shape.eq_ignore_ascii_case("cloud") {
@@ -449,7 +433,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             radius,
             radius,
             escape_text(node_fill),
-            dashed
+            dash
         ));
         let display = node.label.as_deref().unwrap_or(&node.name);
         let label = if node.addresses.is_empty() {
@@ -716,4 +700,20 @@ fn label_chip_x(overlay_x: i32, overlay_width: i32, chip_width: i32, connector_x
     }
 
     left
+}
+
+fn nwdiag_stroke_dash(style: &str) -> &'static str {
+    if style
+        .split([',', ' '])
+        .any(|part| part.eq_ignore_ascii_case("dotted"))
+    {
+        " stroke-dasharray=\"1 3\""
+    } else if style
+        .split([',', ' '])
+        .any(|part| part.eq_ignore_ascii_case("dashed"))
+    {
+        " stroke-dasharray=\"5 3\""
+    } else {
+        ""
+    }
 }
