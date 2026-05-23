@@ -672,6 +672,24 @@ fn manifest_requires_semantic_text_expectations_or_explicit_exception() {
 }
 
 #[test]
+fn pr_gate_uploads_visual_diff_artifacts_from_test_job() {
+    let workflow_path = workspace_root().join(".github/workflows/pr-gate.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", workflow_path.display()));
+
+    assert!(
+        workflow.contains("name: pr-visual-smoke-${{ github.run_number }}"),
+        "PR Gate must upload a stable pr-visual-smoke artifact so PNG baseline \
+         failures have downloadable diff images"
+    );
+    assert!(
+        workflow.contains("path: target/visual-diff"),
+        "PR Gate must upload target/visual-diff, where visual_regression writes \
+         .png.new and .diff.png files"
+    );
+}
+
+#[test]
 fn visual_regression_focused_text_presence_sweep() {
     let manifest = load_manifest();
     let mut failures: Vec<Failure> = Vec::new();
@@ -886,7 +904,7 @@ fn run_png_sweep<'a>(label: &str, fixtures: impl IntoIterator<Item = &'a Fixture
              cargo test --test visual_regression bless_baselines -- --ignored\n\n\
              Diff artefacts are written to target/visual-diff/. On PR Gate, \
              download the pr-visual-smoke-<run_number> artifact from the \
-             visual smoke fixture matrix job. See \
+             test job. See \
              tests/visual_regression/README.md for full workflow.\n",
         );
         panic!("{report}");
