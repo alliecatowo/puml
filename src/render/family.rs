@@ -492,9 +492,17 @@ fn class_run_layout(
         })
         .collect();
 
+    let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
+    let rank_separation = if is_usecase {
+        // Usecase diagrams render better with tighter rank spacing; using only
+        // the row gap avoids the inflated per-rank stride that class/object
+        // diagrams still benefit from.
+        row_gap as f64
+    } else {
+        (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60)) as f64
+    };
     let gl_options = GlOptions {
-        rank_separation: (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60))
-            as f64,
+        rank_separation,
         node_separation: col_gap as f64,
         group_padding: 16.0,
         direction: crate::render::graph_layout::Direction::TopDown,
@@ -1395,7 +1403,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .max()
         .unwrap_or(0);
     let col_gap: i32 = 80.max(relation_label_gap);
-    let row_gap: i32 = 64;
+    let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
+    let row_gap: i32 = if is_usecase { 36 } else { 64 };
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;
