@@ -9,6 +9,7 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
     let mut v_axis: Option<ChartAxis> = None;
     let mut series: Vec<ChartSeries> = Vec::new();
     let mut legend = ChartLegend::default();
+    let mut legend_entries: Vec<ChartLegendEntry> = Vec::new();
     let mut palette = Vec::new();
     let mut annotations = Vec::new();
     let mut label_mode = crate::model::ChartLabelMode::Auto;
@@ -18,10 +19,19 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
     let mut monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut first_non_empty = true;
+    let mut in_legend_block = false;
+    let mut rows: Vec<ChartDataRow> = Vec::new();
     for line in body {
         let line = line.trim();
         if line.is_empty() || line.starts_with('\'') {
             continue;
+        }
+        if in_legend_block {
+            if let Some(entry) = parse_chart_legend_entry(line) {
+                legend_entries.push(entry);
+                continue;
+            }
+            in_legend_block = false;
         }
         if let Some(theme_name) = line.strip_prefix("!theme ") {
             style = chart_style_from_sequence_theme(
@@ -140,6 +150,7 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
         }
         if lower.starts_with("legend") {
             legend = parse_chart_legend(line);
+            in_legend_block = true;
             continue;
         }
         if let Some(mode) = parse_chart_label_mode(line) {
@@ -164,38 +175,38 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
             series.push(parsed.1);
             continue;
         }
-        // Parse data point: "Label" value  OR  Label value
-        let (label, rest) = if let Some(stripped) = line.strip_prefix('"') {
-            if let Some(end) = stripped.find('"') {
-                (
-                    stripped[..end].to_string(),
-                    stripped[end + 1..].trim().trim_start_matches(':').trim(),
-                )
-            } else {
-                warnings.push(Diagnostic::warning(format!(
-                    "[W_CHART_UNQUOTED] unterminated quoted label on line `{line}`"
-                )));
-                (stripped.to_string(), "")
+        match parse_chart_data_row(line) {
+            Ok(row) => rows.push(row),
+            Err(message) => {
+                warnings.push(Diagnostic::warning(message));
             }
-        } else if let Some((head, tail)) = line.split_once(':') {
-            (head.trim().trim_matches('"').to_string(), tail.trim())
-        } else {
-            let mut parts = line.splitn(2, char::is_whitespace);
-            let head = parts.next().unwrap_or("");
-            let tail = parts.next().unwrap_or("").trim();
-            (head.to_string(), tail)
-        };
-        let value_str = rest.split_whitespace().next().unwrap_or("");
-        match value_str.parse::<f64>() {
-            Ok(v) => data.push(ChartPoint {
-                label,
-                value: v,
-                color: parse_chart_point_color(rest),
-            }),
-            Err(_) => warnings.push(Diagnostic::warning(format!(
-                "[W_CHART_NUMERIC] could not parse numeric value `{value_str}`"
-            ))),
         }
+    }
+    if series.is_empty() && rows.iter().any(|row| row.values.len() > 1) {
+        series = rows_to_chart_series(&rows, &legend_entries);
+        let categories = rows.iter().map(|row| row.label.clone()).collect::<Vec<_>>();
+        match &mut h_axis {
+            Some(axis) if axis.categories.is_empty() => axis.categories = categories,
+            None => {
+                h_axis = Some(ChartAxis {
+                    label: Some("Category".to_string()),
+                    categories,
+                    ..ChartAxis::default()
+                });
+            }
+            _ => {}
+        }
+    } else if series.is_empty() {
+        data = rows
+            .into_iter()
+            .filter_map(|row| {
+                row.values.first().copied().map(|value| ChartPoint {
+                    label: row.label,
+                    value,
+                    color: row.color,
+                })
+            })
+            .collect();
     }
     // #545: Auto-generate a title when none is supplied in the source.
     let title = title.or_else(|| {
@@ -419,6 +430,93 @@ fn parse_chart_legend(line: &str) -> ChartLegend {
         }
     }
     legend
+}
+
+#[derive(Debug, Clone)]
+struct ChartLegendEntry {
+    name: String,
+    color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ChartDataRow {
+    label: String,
+    values: Vec<f64>,
+    color: Option<String>,
+}
+
+fn parse_chart_legend_entry(line: &str) -> Option<ChartLegendEntry> {
+    let (name, rest) = parse_chart_label_and_rest(line).ok()?;
+    let color = rest
+        .split(|c: char| c.is_whitespace() || c == ':' || c == ',')
+        .find_map(|token| normalize_chart_color(token.trim_matches('"')));
+    if name.is_empty() || (color.is_none() && !line.contains(':')) {
+        return None;
+    }
+    Some(ChartLegendEntry { name, color })
+}
+
+fn parse_chart_data_row(line: &str) -> Result<ChartDataRow, String> {
+    let (label, rest) = parse_chart_label_and_rest(line)?;
+    let values = rest
+        .split(|c: char| c.is_whitespace() || c == ':' || c == ',')
+        .filter(|token| !token.is_empty())
+        .filter_map(|token| token.parse::<f64>().ok())
+        .collect::<Vec<_>>();
+    if values.is_empty() {
+        let value_str = rest.split_whitespace().next().unwrap_or("");
+        return Err(format!(
+            "[W_CHART_NUMERIC] could not parse numeric value `{value_str}`"
+        ));
+    }
+    Ok(ChartDataRow {
+        label,
+        values,
+        color: parse_chart_point_color(rest),
+    })
+}
+
+fn parse_chart_label_and_rest(line: &str) -> Result<(String, &str), String> {
+    if let Some(stripped) = line.strip_prefix('"') {
+        if let Some(end) = stripped.find('"') {
+            return Ok((
+                stripped[..end].to_string(),
+                stripped[end + 1..].trim().trim_start_matches(':').trim(),
+            ));
+        }
+        return Err(format!(
+            "[W_CHART_UNQUOTED] unterminated quoted label on line `{line}`"
+        ));
+    }
+    if let Some((head, tail)) = line.split_once(':') {
+        return Ok((head.trim().trim_matches('"').to_string(), tail.trim()));
+    }
+    let mut parts = line.splitn(2, char::is_whitespace);
+    let head = parts.next().unwrap_or("");
+    let tail = parts.next().unwrap_or("").trim();
+    Ok((head.to_string(), tail))
+}
+
+fn rows_to_chart_series(
+    rows: &[ChartDataRow],
+    legend_entries: &[ChartLegendEntry],
+) -> Vec<ChartSeries> {
+    let count = rows.iter().map(|row| row.values.len()).max().unwrap_or(0);
+    (0..count)
+        .map(|idx| {
+            let legend_entry = legend_entries.get(idx);
+            ChartSeries {
+                name: legend_entry
+                    .map(|entry| entry.name.clone())
+                    .unwrap_or_else(|| format!("Series {}", idx + 1)),
+                values: rows
+                    .iter()
+                    .map(|row| row.values.get(idx).copied().unwrap_or(0.0))
+                    .collect(),
+                color: legend_entry.and_then(|entry| entry.color.clone()),
+            }
+        })
+        .collect()
 }
 
 fn parse_chart_series(line: &str) -> Option<(ChartSubtype, ChartSeries)> {

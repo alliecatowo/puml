@@ -79,6 +79,88 @@ legend bottom
 }
 
 #[test]
+fn chart_row_matrix_uses_legend_entries_as_series_metadata() {
+    let src = "@startchart
+title Monthly Revenue by Product Line (Stacked Bar)
+bar
+  \"Jan\" : 120 : 80 : 45
+  \"Feb\" : 130 : 90 : 50
+legend
+  \"Hardware\" : \"SteelBlue\"
+  \"Software\" : \"DarkGreen\"
+  \"Services\" : \"DarkOrange\"
+@endchart
+";
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse chart");
+    let NormalizedDocument::Chart(model) = puml::normalize_family(doc).expect("normalize chart")
+    else {
+        panic!("expected chart model");
+    };
+    assert!(
+        model.warnings.is_empty(),
+        "legend color names must not be parsed as numeric chart rows: {:?}",
+        model.warnings
+    );
+    assert!(model.data.is_empty());
+    assert_eq!(
+        model
+            .series
+            .iter()
+            .map(|series| series.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Hardware", "Software", "Services"]
+    );
+    assert_eq!(model.series[0].values, [120.0, 130.0]);
+    assert_eq!(model.series[1].values, [80.0, 90.0]);
+    assert_eq!(model.series[2].values, [45.0, 50.0]);
+    assert_eq!(model.series[0].color.as_deref(), Some("#4682b4"));
+    assert_eq!(model.series[1].color.as_deref(), Some("#006400"));
+    assert_eq!(model.series[2].color.as_deref(), Some("#ff8c00"));
+    assert_eq!(
+        model
+            .h_axis
+            .as_ref()
+            .expect("h-axis should be synthesized")
+            .label
+            .as_deref(),
+        Some("Category")
+    );
+    assert_eq!(
+        model
+            .h_axis
+            .as_ref()
+            .expect("h-axis should be synthesized")
+            .categories,
+        ["Jan", "Feb"]
+    );
+}
+
+#[test]
+fn chart_row_matrix_line_renders_multiple_colored_series() {
+    let src = "@startchart
+line
+  \"W1\" : 1200 : 800 : 400
+  \"W2\" : 1350 : 820 : 430
+legend
+  \"Desktop\" : \"SteelBlue\"
+  \"Mobile\" : \"DarkOrange\"
+  \"Tablet\" : \"DarkGreen\"
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("row-matrix line chart should render");
+    assert!(svg.contains("data-chart-series=\"Desktop|Mobile|Tablet\""));
+    assert!(svg.contains("stroke=\"#4682b4\""));
+    assert!(svg.contains("stroke=\"#ff8c00\""));
+    assert!(svg.contains("stroke=\"#006400\""));
+    assert!(svg.contains(">Desktop</text>"));
+    assert!(svg.contains(">Mobile</text>"));
+    assert!(svg.contains(">Tablet</text>"));
+}
+
+#[test]
 fn chart_horizontal_stacked_bar_mode_renders_metadata_and_legend() {
     let src = "@startchart
 h-axis [Q1,Q2]
