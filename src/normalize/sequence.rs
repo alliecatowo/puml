@@ -1009,8 +1009,14 @@ pub(super) fn strip_legend_pos_prefix(v: &str) -> String {
 /// Parse a scale body (everything after "scale ").
 /// Supports:
 ///   "1.5"          → Factor(1.5)
+///   "2/3"          → Factor(0.666...)
+///   "200 width"    → Width(200)
+///   "200 height"   → Height(200)
 ///   "800*600"      → Fixed { width: 800, height: 600 }
 ///   "max 800"      → Max(800)
+///   "max 800 width"  → MaxWidth(800)
+///   "max 600 height" → MaxHeight(600)
+///   "max 800*600"    → MaxFixed { width: 800, height: 600 }
 fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
     let trimmed = body.trim();
     if trimmed.is_empty() {
@@ -1018,8 +1024,33 @@ fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
     }
     let lower = trimmed.to_ascii_lowercase();
     if let Some(rest) = lower.strip_prefix("max ") {
-        let n: u32 = rest.trim().parse().ok()?;
+        let rest = rest.trim();
+        if let Some(value) = rest.strip_suffix(" width") {
+            let n: u32 = value.trim().parse().ok()?;
+            return Some(ScaleSpec::MaxWidth(n));
+        }
+        if let Some(value) = rest.strip_suffix(" height") {
+            let n: u32 = value.trim().parse().ok()?;
+            return Some(ScaleSpec::MaxHeight(n));
+        }
+        if let Some(idx) = rest.find('*') {
+            let w: u32 = rest[..idx].trim().parse().ok()?;
+            let h: u32 = rest[idx + 1..].trim().parse().ok()?;
+            return Some(ScaleSpec::MaxFixed {
+                width: w,
+                height: h,
+            });
+        }
+        let n: u32 = rest.parse().ok()?;
         return Some(ScaleSpec::Max(n));
+    }
+    if let Some(value) = lower.strip_suffix(" width") {
+        let n: u32 = value.trim().parse().ok()?;
+        return Some(ScaleSpec::Width(n));
+    }
+    if let Some(value) = lower.strip_suffix(" height") {
+        let n: u32 = value.trim().parse().ok()?;
+        return Some(ScaleSpec::Height(n));
     }
     if let Some(idx) = trimmed.find('*') {
         let w: u32 = trimmed[..idx].trim().parse().ok()?;
@@ -1028,6 +1059,14 @@ fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
             width: w,
             height: h,
         });
+    }
+    if let Some(idx) = trimmed.find('/') {
+        let numerator: f64 = trimmed[..idx].trim().parse().ok()?;
+        let denominator: f64 = trimmed[idx + 1..].trim().parse().ok()?;
+        if numerator > 0.0 && denominator > 0.0 {
+            return Some(ScaleSpec::Factor(numerator / denominator));
+        }
+        return None;
     }
     let f: f64 = trimmed.parse().ok()?;
     if f > 0.0 {

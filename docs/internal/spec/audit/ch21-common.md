@@ -24,9 +24,9 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ### 21.2 Zoom / scale — 🟡
 **Feature:** `scale 1.5`, `scale 2/3`, `scale 200 width`, `scale 200 height`, `scale 200*100`, `scale max 300*200`, `scale max 1024 width`, `scale max 800 height`.
 **Syntax example:** `scale 180*90`
-**Status:** 🟡 (sequence/gantt only; emits to SVG via `ScaleSpec`; need to verify all subtypes)
-**Evidence:** Parsed at `src/parser/sequence.rs:273-277` (StatementKind::Scale). Normalized at `src/normalize/sequence.rs:679-681`, `parse_scale_spec` at `src/normalize/sequence.rs:922`. ScaleSpec model at `src/scene.rs:25`. Rendered at `src/render/sequence.rs:921-932` with `Factor`, `Fixed`, `Max` variants. Gantt-side scale directive `src/parser/gantt.rs:7-11`.
-**Notes:** `scale max <n> width/height` and `scale <n> width|height` need confirmation in `parse_scale_spec`. Non-sequence families (class, state, activity, component) may not honor the scale spec end-to-end.
+**Status:** 🟡 (sequence/gantt only; sequence supports all listed output-size variants)
+**Evidence:** Parsed at `src/parser/sequence.rs` (`StatementKind::Scale`). Normalized at `src/normalize/sequence.rs` (`parse_scale_spec`) into `ScaleSpec::{Factor,Width,Height,Fixed,Max,MaxWidth,MaxHeight,MaxFixed}`. Rendered in sequence SVG dimensions at `src/render/sequence.rs` (`compute_svg_dimensions`). Tests: `tests/ch21_common_parity.rs` covers `scale 2/3`, `<n> width`, `<n> height`, `max <n> width`, `max <n> height`, and `max <w>*<h>`. Gantt-side scale directive remains `src/parser/gantt.rs:7-11`.
+**Notes:** Non-sequence families (class, state, activity, component) may not honor the scale spec end-to-end.
 
 ### 21.3 Title (single-line + multi-line `title`/`end title`) — ✅
 **Feature:** Single-line `title <text>`; multiline `title ... end title`; `\n` newlines; creole in titles.
