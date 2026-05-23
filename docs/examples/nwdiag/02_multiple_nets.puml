@@ -10,5 +10,10 @@ nwdiag {
     app1;
     app2;
   }
+  network ops {
+    address = "172.16.0.x"
+    lb;
+    metrics;
+  }
 }
 @endnwdiag
