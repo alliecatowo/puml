@@ -494,10 +494,11 @@ fn class_run_layout(
 
     let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
     let rank_separation = if is_usecase {
-        // Usecase diagrams render better with tighter rank spacing; using only
-        // the row gap avoids the inflated per-rank stride that class/object
-        // diagrams still benefit from.
-        row_gap as f64
+        // Keep usecase layouts tighter than class/object while still reserving
+        // enough inter-rank clearance so actors/labels don't collide with
+        // package headers in grouped examples.
+        let max_node_h = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60) as f64;
+        row_gap as f64 + max_node_h * 0.5
     } else {
         (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60)) as f64
     };
@@ -1404,7 +1405,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .unwrap_or(0);
     let col_gap: i32 = 80.max(relation_label_gap);
     let is_usecase = matches!(document.kind, crate::ast::DiagramKind::UseCase);
-    let row_gap: i32 = if is_usecase { 36 } else { 64 };
+    let row_gap: i32 = if is_usecase { 46 } else { 64 };
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;
