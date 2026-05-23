@@ -66,10 +66,10 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ❌
 **Evidence:** `normalize_timing_state_literal` strips outer `{` `}` and returns `"-"` or `"hidden"` as the literal state, which then renders as a normal coloured box labeled "-" or "hidden".
 
-### 10.11 Hide time axis (`hide time-axis`) — ❌
+### 10.11 Hide time axis (`hide time-axis`) — ✅
 **Feature:** Suppress the top time axis
-**Status:** ❌
-**Evidence:** No `time-axis` / `time_axis` reference in `src/render/timing.rs`. `HideOption` may accept the string but renderer always emits the axis (`src/render/timing.rs:196-273`).
+**Status:** ✅
+**Evidence:** `src/parser/timing.rs:138-143` parses `hide time-axis` into `__timing:hide-time-axis`; `src/render/timing.rs:62` reads the option and `src/render/timing.rs:171-176,264-335` suppresses the axis panel, tick marks, tick labels, range labels, and minor ticks. Exercised by `tests/timing_advanced_geometry.rs:321-390` and `docs/examples/timing/07_chapter10_parity.puml`.
 
 ### 10.12 Using Time and Date (`@2019/07/02`, `@1:15:00`) — 🟡
 **Feature:** Use absolute date or wall-clock time as tick label
@@ -82,10 +82,11 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ❌
 **Evidence:** No `date format` handler in timing parse/render. Lines fall through as Unknown.
 
-### 10.14 Manage time axis labels (`manual time-axis` vs default) — ❌
+### 10.14 Manage time axis labels (`manual time-axis` vs default) — 🟡
 **Feature:** Default label-per-tick vs label-on-state-change
-**Status:** ❌
-**Evidence:** No `manual time-axis` keyword. Renderer always labels every tick (`src/render/timing.rs:240-245`).
+**Status:** 🟡
+**Evidence:** `src/parser/timing.rs:146-151` parses `manual time-axis` into `__timing:manual-time-axis`; `src/render/timing.rs:62-63` reads the option and `src/render/timing.rs:301-335` labels only state-change ticks when manual mode is active. Exercised by `tests/timing_advanced_geometry.rs:400-441` and `docs/examples/timing/10_manual_time_axis.puml`.
+**Notes:** Manual-mode label suppression is covered for state-change vs message/endpoint-only ticks. Broader PlantUML parity around generated scale ticks and `use date format` remains partial.
 
 ### 10.15 Adding constraint (`WB@0 <-> @50 : {50 ms lag}`, `@200 <-> @+150 : {150 ms}`) — 🟡
 **Feature:** Bi-directional time-range constraint arrow
@@ -173,18 +174,18 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 3 |
-| 🟡 partial | 11 |
-| ❌ missing | 15 |
+| ✅ supported | 4 |
+| 🟡 partial | 12 |
+| ❌ missing | 13 |
 
 Top gaps blocking parity:
 
 1. **`analog` participant kind (§10.1, 10.25, 10.26)** — missing variant entirely; documents break.
 2. **Anchor-heavy constraint/highlight cases (§10.5, 10.15, 10.20)** — anchored messages work, but constraint-arrow rendering and anchored highlight-band fidelity still lag PlantUML.
-3. **Date/time axis formatting controls (§10.12, 10.13, 10.14)** — absolute date/time ticks now render, but `use date format` remains unsupported and manual/date-label semantics are still partial.
+3. **Date/time axis formatting controls (§10.12, 10.13, 10.14)** — absolute date/time ticks and `manual time-axis` label suppression now render, but `use date format` and generated scale tick semantics remain partial.
 5. **Inline per-event color (§10.21) and brace states `{-}`/`{hidden}` (§10.9, 10.10)** — `#` and `{}` modifiers are absorbed into state label text.
 6. **Constraint arrows vs highlight bands (§10.15)** — currently rendered as a yellow band, not a constraint with end caps.
-7. **`hide time-axis`, `scale N as N pixels`, `mode compact` (§10.7, 10.11, 10.24)** — global layout switches all ignored.
+7. **`scale N as N pixels`, `mode compact` (§10.7, 10.24)** — global layout switches need a focused audit refresh; `hide time-axis` is now covered.
 8. **`has` keyword to declare robust signal value ordering (§10.27)** — missing.
 9. **Trailing `: comment` on `is` (§10.29)** is folded into the state string instead of treated as a per-event annotation.
 10. **Header/footer/legend/caption (§10.18)** rendered nowhere in `render_timing_svg`.

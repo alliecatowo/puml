@@ -62,6 +62,7 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 ### timing/
 - `05_concurrent_timelines_message_arrows.puml` — 4 concise lanes + clock (CPU/cache/memory/IO)
 - `06_robust_states_value_annotations.puml` — robust timing with string value annotations
+- `10_manual_time_axis.puml` — manual axis labels only on state-change ticks
 
 ### chart/
 - `05_stacked_bar.puml` — stacked bar chart with 3 series (6 months)
