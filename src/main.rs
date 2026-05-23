@@ -369,7 +369,8 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return run_lint_mode(&cli);
     }
 
-    let (_input_name, raw, input_path) = read_input(cli.input.as_deref())?;
+    let input_arg = if cli.pipe { None } else { cli.input.as_deref() };
+    let (_input_name, raw, input_path) = read_input(input_arg)?;
     let include_root = cli
         .include_root
         .clone()
