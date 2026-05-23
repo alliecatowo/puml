@@ -1,9 +1,26 @@
 # puml vs PlantUML vs Mermaid
 
-An objective look at where each tool wins, where it doesn't, and how to choose.
+PlantUML, Mermaid, and `puml` solve overlapping problems with different tradeoffs.
+This page is intentionally practical: choose the tool whose constraints match your
+team rather than treating any one renderer as universally best.
 
-> For per-feature PlantUML support detail, see the canonical support matrix at
-> [`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md).
+For detailed PlantUML compatibility status, see the internal support matrix at
+[`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md) and the parity
+source of truth at
+[`docs/internal/parity/plantuml_parity_source_of_truth.md`](internal/parity/plantuml_parity_source_of_truth.md).
+
+---
+
+## Summary
+
+| Need | Best fit |
+|---|---|
+| Full PlantUML language compatibility today | PlantUML |
+| Diagrams rendered directly by GitHub or common wikis | Mermaid |
+| Offline deterministic CLI rendering without Java or Node | puml |
+| Existing `.puml` corpus with CI validation | PlantUML or puml, depending on feature coverage |
+| Browser-first authoring with a simple syntax | Mermaid |
+| Rust/WASM embedding using this renderer | puml |
 
 ---
 
@@ -11,196 +28,125 @@ An objective look at where each tool wins, where it doesn't, and how to choose.
 
 | Feature | PlantUML | Mermaid | puml |
 |---|---|---|---|
-| **Runtime dependency** | JVM (Java 8+) | Node.js + browser | None — single static binary |
-| **Install size** | ~10 MB JAR + JDK (~200 MB) | ~100 MB Node + packages | ~10 MB binary |
-| **Offline rendering** | Yes (Java must be installed) | Requires browser or Node runtime | Yes, always |
-| **Output: SVG** | Yes | Yes (browser-rendered) | Yes |
-| **Output: PNG** | Yes | Via plugin / headless browser | Yes (native, no browser) |
-| **Output: PDF** | Yes | No | No (SVG → PDF via external tool) |
-| **Output: HTML** | No | No | Yes (self-contained) |
-| **Output: JPG, WebP** | No | No | Yes |
-| **Output: ASCII / Unicode text** | Yes | No | Yes (`--format txt`, `--format utxt`) |
-| **Deterministic output** | Varies across JVM versions | Varies across browser/Node versions | Deterministic across platforms |
-| **CLI** | Yes (`java -jar plantuml.jar`) | Limited (`mmdc` requires Node) | Yes — designed as a compiler tool |
-| **LSP / editor** | Third-party plugins | Third-party plugins | Built-in `puml-lsp` |
-| **WASM / browser embed** | No | Yes | Yes (`crates/puml-wasm`) |
-| **Diagram families** | ~30, deep coverage | ~15 | ~25, coverage varies |
-| **PlantUML syntax** | Reference implementation | Separate language | Target, not yet 100% |
-| **Mermaid syntax** | No | Reference implementation | Adapter for selected families |
-| **PicoUML dialect** | No | No | Yes (ergonomic superset) |
-| **Layout engine** | Graphviz (external) | Dagre | Built-in (hierarchical + orthogonal) |
-| **`!include` support** | Yes (full preprocessor) | No | Yes (file + URL with opt-in) |
-| **Semantic tokens** | Via extensions | No | Built-in |
-| **License** | GPL | MIT | MIT |
-| **Language** | Java | JavaScript / TypeScript | Rust |
-| **Binary size** | N/A (JAR + JRE) | N/A (Node ecosystem) | ~10 MB |
+| Primary runtime | JVM | Browser / Node | Native Rust binary |
+| Java required | Yes | No | No |
+| Node required for CLI | No | Usually yes (`mmdc`) | No |
+| Offline rendering | Yes after install | Depends on CLI/browser setup | Yes |
+| SVG output | Yes | Yes | Yes |
+| PNG output | Yes | Via CLI/headless browser | Yes |
+| PDF output | Yes | Not a core CLI output | Yes |
+| JPG / WebP output | No | Not a core CLI output | Yes |
+| HTML output | No | Usually host-provided | Yes, self-contained |
+| ASCII / Unicode text | Yes | No | Yes (`txt`, `atxt`, `utxt`) |
+| PlantUML syntax | Reference implementation | No | Targeted compatibility, partial |
+| Mermaid syntax | No | Reference implementation | Selected adapter support |
+| PicoUML syntax | No | No | Yes |
+| Preprocessor includes | Full PlantUML preprocessor | No | Local includes; URL includes opt in |
+| Deterministic CLI artifacts | Not guaranteed byte-identical | Browser/runtime dependent | Design goal and CI invariant |
+| Language server | Third-party ecosystem | Third-party ecosystem | `puml-lsp` in this repo |
+| WASM/browser renderer | No | Yes | Yes, via `crates/puml-wasm` |
+| License | GPL | MIT | MIT |
 
 ---
 
-## Install size comparison
+## Where PlantUML wins
 
-| Tool | What you install | Approximate disk |
-|---|---|---|
-| PlantUML | plantuml.jar + Java runtime | 200–500 MB (JDK) |
-| Mermaid CLI (`mmdc`) | Node.js + npm packages + Chromium | 300–600 MB |
-| puml | Single static binary | ~10 MB |
+Choose PlantUML when you need the reference implementation or the deepest language
+coverage right now. It remains the safest choice for complex preprocessor macros,
+large legacy corpora, complete `skinparam` behavior, LaTeX/math backends, `ditaa`, and
+pixel expectations based on PlantUML itself.
 
-For CI environments, install time matters. `cargo install puml` from crates.io takes
-under 2 minutes on a cached Rust toolchain. The pre-built binary download takes under
-5 seconds.
+Tradeoffs:
 
----
-
-## Diagram family coverage
-
-### PlantUML (~30 families, reference implementation)
-
-PlantUML is the most feature-complete option. It covers every diagram type it has ever
-added, with years of refinement. This includes advanced families like:
-
-- Sequence, class, object, use case, component, deployment, state, activity
-- Timing, Gantt, chronology, MindMap, WBS
-- Salt wireframes, JSON, YAML, nwdiag, Archimate
-- EBNF, regex, math (LaTeX), SDL, ditaa, C4-style
-- Network diagrams, entity-relationship
-
-### Mermaid (~15 families)
-
-Mermaid covers the most commonly used families well:
-
-- Flowchart, sequence, class, state, ER, Gantt
-- Pie charts, Git graph, user journey, quadrant charts
-- C4, block diagrams, packet diagrams
-
-The language syntax is simpler and more approachable than PlantUML. The tradeoff is
-less expressive power for complex diagrams and no offline-first story.
-
-### puml (~25 families, coverage varies)
-
-puml targets the same set as PlantUML. As of v0.1.0, baseline rendering across all
-major families has landed. Depth of coverage varies: sequence, class, component, and
-state diagrams are the most polished; some advanced features (complex skinparam
-overrides, deep preprocessor macros, PDF) are partial or missing.
-
-See the [parity tracking document](internal/parity/plantuml_parity_source_of_truth.md)
-for the current per-feature status.
+- You need Java, and some diagrams also depend on Graphviz or optional backends.
+- Startup cost matters in CI when invoking the renderer many times.
+- Output can vary with JVM, Graphviz, fonts, and platform details.
 
 ---
 
-## Layout engine
+## Where Mermaid wins
 
-| | PlantUML | Mermaid | puml |
-|---|---|---|---|
-| Engine | Graphviz (external `dot`) | Dagre (JS port of Graphviz) | Built-in hierarchical layout |
-| External dependency | Yes (`dot` must be on PATH) | No (bundled) | No (compiled in) |
-| Orthogonal edge routing | Via Graphviz | Partial | Built-in (Wave-21+) |
-| Customizable layout | Via `left to right direction` etc. | Limited | Growing |
+Choose Mermaid when your host already renders Mermaid fences and the supported diagram
+families are enough. It is especially convenient in GitHub Markdown, docs platforms,
+and browser-first authoring flows where the diagram source stays inline.
 
-PlantUML's layout quality is excellent because Graphviz is a mature, proven engine.
-The downside is the external dependency and the overhead of JVM + Graphviz interop.
+Tradeoffs:
 
-Mermaid uses Dagre, a JS port of Graphviz's algorithms, which gives reasonable results
-in the browser without any external process.
-
-puml's layout engine is built in Rust, eliminating all external dependencies. Stage 1
-(hierarchical layout) and orthogonal edge routing are complete. Advanced layout options
-(force-directed, custom rank strategies) are on the roadmap.
+- It is a different language, not PlantUML-compatible syntax.
+- CLI rendering typically brings a Node and browser/headless-browser dependency.
+- Output can differ across browser/runtime versions.
 
 ---
 
-## Performance
+## Where puml wins
 
-Informal benchmarks on a single sequence diagram (~30 elements):
+Choose `puml` when you want a compiler-like CLI for diagrams:
 
-| Tool | Cold start | Render time |
-|---|---|---|
-| PlantUML | ~2–3 s (JVM startup) | ~100–300 ms |
-| Mermaid CLI | ~3–5 s (Chromium startup) | ~200–500 ms |
-| puml | ~10 ms | ~5–50 ms |
+- One native binary for rendering and validation.
+- No Java, Node, browser, or network dependency for local file renders.
+- Deterministic SVG-first artifacts that are friendly to code review and caching.
+- Native outputs for SVG, PNG, JPG, WebP, PDF, HTML, and text.
+- Built-in `--check`, JSON diagnostics, Markdown fence extraction, and LSP support.
+- A Rust/WASM codebase that can power both local CI and a browser editor.
 
-For a single diagram, the difference is noticeable but not usually blocking. For CI
-pipelines rendering dozens or hundreds of diagrams, the JVM/Chromium startup cost
-per invocation adds up quickly. `puml` amortizes nothing because there's nothing to
-start — each invocation is just process startup + parse + render.
+Tradeoffs:
 
----
-
-## Determinism
-
-PlantUML's output varies between JVM versions and sometimes between runs (timestamp
-metadata, font metrics that depend on the JVM's font stack). This makes byte-for-byte
-comparison in CI unreliable.
-
-Mermaid's output varies between browser versions and across operating systems because
-rendering depends on the browser's SVG engine and layout calculations.
-
-`puml` is designed for deterministic output: same input → byte-identical output across
-platforms and runs. This is a hard invariant enforced by CI. It makes diff-based review
-and content-addressed caching reliable.
+- PlantUML parity is incomplete. Common families are useful, but edge cases and deep
+  language features still need the parity matrix.
+- Visual output is not pixel-identical to PlantUML because `puml` has its own layout
+  and rendering engine.
+- Some distribution channels are not yet stable user-facing install paths: no supported
+  Homebrew tap, Docker image, npm CLI, or Marketplace extension is documented here.
 
 ---
 
-## Where each tool wins
+## Migration from PlantUML to puml
 
-### Choose PlantUML when:
+Start with validation before changing artifacts:
 
-- You need complete PlantUML feature parity today (complex preprocessor macros, full
-  skinparam surface, LaTeX math rendering, PDF output).
-- Your team already uses Java and JVM tooling is standard.
-- You need pixel-identical compatibility with existing PlantUML tooling.
-- You need the `ditaa` or `jlatexmath` backends.
+```bash
+find . -name '*.puml' -not -path './target/*' -exec puml --check {} +
+```
 
-### Choose Mermaid when:
+Then render a small representative set and compare the SVG or PNG output visually:
 
-- You want diagrams that render natively in GitHub Markdown, Notion, Confluence, or
-  other wikis that support Mermaid inline.
-- Your diagrams are simple and the browser-native rendering is good enough.
-- You don't need offline rendering or a CLI workflow.
-- You want a simpler language syntax that non-engineers can learn quickly.
+```bash
+puml docs/architecture.puml
+puml --format png --dpi 192 docs/architecture.puml
+```
 
-### Choose puml when:
+Common migration checks:
 
-- You have PlantUML diagrams and want to stop installing Java.
-- You need deterministic, diff-friendly SVG output in git.
-- You want to render diagrams in CI without a JVM or Chromium.
-- You want a built-in LSP without third-party extensions.
-- You're writing new diagrams and want offline-first + editor integration.
-- You want to embed diagram rendering in a Rust or WASM project.
+| Area | What to verify |
+|---|---|
+| Preprocessor | Deep macros and conditionals may not match PlantUML yet. |
+| Includes | Local includes are supported; URL includes require `--allow-url-includes`. |
+| Themes / skinparam | Many common cases work; complex cascades should be checked. |
+| Layout | Topology should match intent, but spacing and routes are renderer-specific. |
+| PDF | `puml --format pdf` is available; verify output in your PDF viewer. |
+| Markdown | `puml --from-markdown --check file.md` validates supported fenced blocks. |
 
----
-
-## The honest tradeoffs of puml
-
-- **Parity is a goal, not a guarantee.** Some advanced PlantUML features are partial.
-  Run `puml --check` against your diagrams to see what works.
-- **v0.1.0 is young.** The renderer is solid for common cases; edge cases may need
-  workarounds or fixes. File issues — they get fixed fast.
-- **No PDF.** If you need PDF output today, use `rsvg-convert` or Inkscape to convert
-  SVG → PDF.
-- **Homebrew and platform packages** aren't yet available. Install via cargo or the
-  pre-built binary.
+If a diagram is critical and uses advanced PlantUML features, keep PlantUML in that
+path until `puml --check` and visual review both pass.
 
 ---
 
-## Migration guide: PlantUML → puml
+## Migration from Mermaid to puml
 
-Most PlantUML diagrams work as-is. Common friction points:
+`puml` is not a Mermaid replacement for every Mermaid feature. It has selected Mermaid
+adapter support so teams can route simple Mermaid-style inputs into the same renderer,
+but the native language target is PlantUML-compatible `.puml` plus PicoUML.
 
-1. **Run `puml --check` on your corpus** — get a clear view of what's supported.
-2. **skinparam overrides** — many work; complex themes may need adjustment.
-3. **`!include` with remote URLs** — requires `--allow-url-includes` flag.
-4. **PDF output** — no native PDF; convert SVG with `rsvg-convert` or Inkscape.
-5. **`!pragma layout` directives** — some are honored; Graphviz-specific ones are
-   ignored.
-
-See [troubleshooting.md](troubleshooting.md) for specific error messages and fixes.
+Choose a migration only if you need offline deterministic artifacts or want diagrams as
+checked-in rendered files. If your current platform renders Mermaid directly and that is
+enough, Mermaid may remain the simpler option.
 
 ---
 
 ## Further reading
 
-- [Quickstart](quickstart.md) — get your first diagram rendered in 5 minutes
-- [Install guide](install.md) — all install methods
-- [FAQ](faq.md) — common questions about compatibility and workflow
-- [Parity tracking](internal/parity/plantuml_parity_source_of_truth.md) — per-feature
-  status against PlantUML
+- [Quickstart](quickstart.md)
+- [Install guide](install.md)
+- [FAQ](faq.md)
+- [CI integration](ci-integration.md)
+- [Examples gallery](examples/GALLERY.md)
