@@ -13,6 +13,10 @@
 
 use puml::model::{FamilyNodeKind, FamilyStyle, NormalizedDocument};
 
+#[path = "svg_test_helpers.rs"]
+mod svg_test_helpers;
+use svg_test_helpers::{bounds, SvgDoc};
+
 // ─── 3.29 skinparam block form ───────────────────────────────────────────────
 
 const SKINPARAM_BLOCK_SRC: &str = r##"@startuml
@@ -148,6 +152,49 @@ fn skinparam_package_style_no_diagnostic_warnings() {
         unsupported.is_empty(),
         "no W_SKINPARAM_UNSUPPORTED warnings for packageStyle: {unsupported:?}"
     );
+}
+
+#[test]
+fn package_frames_fit_inside_svg_viewbox() {
+    let svg = puml::render_source_to_svg(
+        r##"@startuml
+package "Outer Boundary" {
+  package "Inner Domain" {
+    class "A class with a fairly wide name" as A
+    class "Another class with members" as B {
+      +identifier: VeryLongDomainSpecificIdentifier
+    }
+  }
+}
+A --> B : relation label
+@enduml
+"##,
+    )
+    .expect("render nested class packages");
+    let doc = SvgDoc::parse(&svg);
+    let viewbox: Vec<f64> = doc
+        .root_attr("viewBox")
+        .expect("svg should expose a viewBox")
+        .split_whitespace()
+        .map(|part| part.parse::<f64>().expect("numeric viewBox component"))
+        .collect();
+    assert_eq!(viewbox.len(), 4, "viewBox should have four components");
+    let (vb_x, vb_y, vb_right, vb_bottom) = (
+        viewbox[0],
+        viewbox[1],
+        viewbox[0] + viewbox[2],
+        viewbox[1] + viewbox[3],
+    );
+
+    let frames = doc.elements_with_class("rect", "uml-group-frame");
+    assert!(!frames.is_empty(), "expected rendered package frames");
+    for frame in frames {
+        let b = bounds(frame);
+        assert!(
+            b.x >= vb_x && b.right() <= vb_right && b.y >= vb_y && b.bottom() <= vb_bottom,
+            "package frame should fit viewBox: frame={b:?}, viewBox={viewbox:?}"
+        );
+    }
 }
 
 // ─── 3.18 hide @unlinked / remove @unlinked ─────────────────────────────────
