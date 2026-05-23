@@ -3709,29 +3709,31 @@ fn render_box_grid_relations_and_labels(
 
         // If the orthogonal router leaves/enters on a different side than
         // `pick_port` chose, align anchors to the path's first/last segment.
-        if let Some(ref orth_pts) = ortho_path {
-            if orth_pts.len() >= 2 {
-                let (p0x, p0y) = orth_pts[0];
-                let (p1x, p1y) = orth_pts[1];
-                if !interface_nodes.contains(&from_name) {
-                    if p1x == p0x {
-                        x1 = p1x.clamp(fx, fx + fw);
-                        y1 = if p1y < p0y { fy } else { fy + fh };
-                    } else if p1y == p0y {
-                        y1 = p1y.clamp(fy, fy + fh);
-                        x1 = if p1x < p0x { fx } else { fx + fw };
+        if !interface_nodes.is_empty() {
+            if let Some(ref orth_pts) = ortho_path {
+                if orth_pts.len() >= 2 {
+                    let (p0x, p0y) = orth_pts[0];
+                    let (p1x, p1y) = orth_pts[1];
+                    if !interface_nodes.contains(&from_name) {
+                        if p1x == p0x {
+                            x1 = p1x.clamp(fx, fx + fw);
+                            y1 = if p1y < p0y { fy } else { fy + fh };
+                        } else if p1y == p0y {
+                            y1 = p1y.clamp(fy, fy + fh);
+                            x1 = if p1x < p0x { fx } else { fx + fw };
+                        }
                     }
-                }
-                let n = orth_pts.len();
-                let (pnx, pny) = orth_pts[n - 1];
-                let (pmx, pmy) = orth_pts[n - 2];
-                if !interface_nodes.contains(&to_name) {
-                    if pmx == pnx {
-                        x2 = pmx.clamp(tx, tx + tw);
-                        y2 = if pmy < pny { ty } else { ty + th };
-                    } else if pmy == pny {
-                        y2 = pmy.clamp(ty, ty + th);
-                        x2 = if pmx < pnx { tx } else { tx + tw };
+                    let n = orth_pts.len();
+                    let (pnx, pny) = orth_pts[n - 1];
+                    let (pmx, pmy) = orth_pts[n - 2];
+                    if !interface_nodes.contains(&to_name) {
+                        if pmx == pnx {
+                            x2 = pmx.clamp(tx, tx + tw);
+                            y2 = if pmy < pny { ty } else { ty + th };
+                        } else if pmy == pny {
+                            y2 = pmy.clamp(ty, ty + th);
+                            x2 = if pmx < pnx { tx } else { tx + tw };
+                        }
                     }
                 }
             }
