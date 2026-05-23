@@ -102,9 +102,9 @@ These themes recur across many chapters. Fixing any one of them lifts the suppor
 
 No `sprite $name [w*h] {...}` definition, no `<$name>` reference, no `listsprites`, no `-encodesprite`. Only Salt-internal placeholder stubs. **Knock-on effect:** every stdlib icon library (AWS, Azure, GCP, Material, Office, tupadr3) parses cleanly but renders as plain stereotyped boxes — so chapter 27 looks much worse than it ought to.
 
-### 2. `<style>` blocks unwired
+### 2. `<style>` blocks partially wired
 
-PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) is ignored across every chapter that mentions it (component, activity, state, timing, common, deployment).
+PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) now has narrow sequence and componentDiagram component-color slices that lower to existing skinparam plumbing. It remains mostly unwired across title/header/footer selectors, class, activity, state, timing, and deployment.
 
 ### 3. Stereotype-scoped skinparam `<<X>>` overrides
 
@@ -153,7 +153,7 @@ themes, but recent merged work may have narrowed some rows; verify the relevant
 chapter audit before treating an item as still open.
 
 1. **Sprite system** (ch23) — biggest single unlock. Enables 5+ stdlib libraries.
-2. **`<style>` block parser + selector engine** (ch21, ch24) — unlocks modern theming across all families.
+2. **`<style>` block parser + selector engine** (ch21, ch24) — expand beyond the current narrow sequence and component color slices to unlock modern theming across all families.
 3. **Class diagram generics + `extends`/`implements` keywords + member-qualified refs `Foo::field`** (ch03) — class is currently the weakest big-family chapter.
 4. **Activity (new) `ActivityStep` enrichment** (ch06) — adding color/arrow-style/connector slots to the AST is shallow and unlocks ~14 features.
 5. **IE `entity` routing fix + crow's-foot arrowheads** (ch20) — one-line classification change + arrow-table additions makes IE diagrams functional.
