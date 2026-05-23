@@ -147,6 +147,21 @@ fn html_output_writes_self_contained_document_to_stdout() {
 }
 
 #[test]
+fn htmlcss_compat_flag_keeps_self_contained_html_output() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--htmlcss", "--format", "html", "-"])
+        .write_stdin("@startuml\nAlice -> Bob: hi\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .stdout(predicate::str::starts_with("<!doctype html>"))
+        .stdout(predicate::str::contains("<style>"))
+        .stdout(predicate::str::contains("<svg"))
+        .stdout(predicate::str::contains("Alice"));
+}
+
+#[test]
 fn html_file_input_defaults_to_html_extension() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("single_valid.puml");
