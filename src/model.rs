@@ -634,6 +634,8 @@ pub struct FamilyDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    /// Optional mainframe title (`mainframe <text>` common command).
+    pub mainframe: Option<String>,
     pub orientation: FamilyOrientation,
     pub style: SequenceStyle,
     /// Family-specific style overrides (class/component/activity/tree families).

@@ -48,5 +48,67 @@ pub use timing::render_timing_svg;
 
 pub(crate) use family::family_node_label;
 pub(crate) use geometry::compute_edge_anchors_for_direction;
+
+pub(crate) fn append_mainframe_svg(svg: &mut String, title: &str) {
+    let Some(width) = svg_numeric_attr(svg, "width") else {
+        return;
+    };
+    let Some(height) = svg_numeric_attr(svg, "height") else {
+        return;
+    };
+    let Some(insert_at) = svg.rfind("</svg>") else {
+        return;
+    };
+    if width <= 8 || height <= 8 {
+        return;
+    }
+
+    const INSET: i32 = 4;
+    const NOTCH_H: i32 = 20;
+    const NOTCH_CUT: i32 = 6;
+    let notch_w = ((title.chars().count() as i32 * 7) + 16).clamp(32, width - 2 * INSET);
+    let stroke = "#1e293b";
+    let fill = "#ffffff";
+    let x = INSET;
+    let y = INSET;
+    let w = width - 2 * INSET;
+    let h = height - 2 * INSET;
+
+    let mut frame = format!(
+        "<rect class=\"uml-mainframe\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    );
+    frame.push_str(&format!(
+        "<polygon class=\"uml-mainframe-title\" points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        x,
+        y,
+        x + notch_w,
+        y,
+        x + notch_w,
+        y + NOTCH_H - NOTCH_CUT,
+        x + notch_w - NOTCH_CUT,
+        y + NOTCH_H,
+        x,
+        y + NOTCH_H,
+        fill,
+        stroke
+    ));
+    if !title.is_empty() {
+        frame.push_str(&creole_text(
+            x + 8,
+            y + 14,
+            "font-family=\"monospace\" font-size=\"12\" font-weight=\"600\"",
+            title,
+            stroke,
+        ));
+    }
+    svg.insert_str(insert_at, &frame);
+}
+
+fn svg_numeric_attr(svg: &str, attr: &str) -> Option<i32> {
+    let needle = format!("{attr}=\"");
+    let start = svg.find(&needle)? + needle.len();
+    let value = svg[start..].split('"').next()?;
+    value.parse::<f64>().ok().map(|v| v.round() as i32)
+}
 pub(crate) use relation::render_relation_marker_defs;
 pub(crate) use svg::{creole_text, escape_text, render_sprite_sheet, with_sprite_registry};
