@@ -194,6 +194,45 @@ deactivate Bob
     );
 }
 
+/// Explicit `activate` bars should be visible: messages attach to the bar edge,
+/// not through the participant centerline where they visually erase the bar.
+#[test]
+fn explicit_activation_messages_attach_to_activation_edges() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: call
+activate Bob
+Bob -> Carol: sub-call
+activate Carol
+Carol --> Bob: result
+deactivate Carol
+Bob --> Alice: response
+deactivate Bob
+@enduml"#,
+    );
+
+    assert!(
+        svg.contains("class=\"sequence-activation\" data-participant=\"Bob\" x=\"239\""),
+        "Bob activation bar should render around the lifeline"
+    );
+    assert!(
+        svg.contains("x1=\"84\" y1=\"80\" x2=\"239\" y2=\"80\""),
+        "incoming call should stop at Bob's left activation edge"
+    );
+    assert!(
+        svg.contains("x1=\"249\" y1=\"120\" x2=\"399\" y2=\"120\""),
+        "active Bob should send from its right activation edge"
+    );
+    assert!(
+        svg.contains("x1=\"399\" y1=\"160\" x2=\"249\" y2=\"160\""),
+        "return to active Bob should land on its right activation edge"
+    );
+    assert!(
+        svg.contains("x1=\"239\" y1=\"200\" x2=\"84\" y2=\"200\""),
+        "active Bob should reply from its left activation edge"
+    );
+}
+
 /// `skinparam lifelineStrategy solid` is accepted as the default (noop) value.
 #[test]
 fn lifeline_strategy_solid_accepted_as_noop() {
