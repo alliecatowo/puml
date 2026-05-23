@@ -1,0 +1,6 @@
+@startuml
+backgroundColor #e0f2fe
+title Top-level backgroundColor
+Alice -> Bob : common command
+Bob --> Alice : rendered on blue canvas
+@enduml
