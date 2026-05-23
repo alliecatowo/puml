@@ -657,58 +657,71 @@ fn assign_coordinates(
 
     let max_rank = ranks.values().copied().max().unwrap_or(0);
 
-    // Compute per-rank y positions (top of rank = y of tallest node in rank)
-    let mut rank_y: Vec<f64> = vec![0.0; max_rank + 1];
+    let rank_width = |ids: &[String]| -> f64 {
+        let n_nodes = ids.len() as f64;
+        let total_node_w: f64 = ids
+            .iter()
+            .filter_map(|id| node_by_id.get(id.as_str()))
+            .map(|n| n.width)
+            .sum();
+        total_node_w + (n_nodes - 1.0).max(0.0) * options.node_separation
+    };
+
+    let has_groups = nodes.iter().any(|n| n.parent.is_some());
+    let wrap_rank_width = 2200.0;
+    let min_wrapped_rank_nodes = 8;
+    let mut visual_rows: Vec<Vec<String>> = Vec::new();
+    for r in 0..=max_rank {
+        let Some(ids) = rank_order.get(&r) else {
+            continue;
+        };
+        if has_groups && ids.len() >= min_wrapped_rank_nodes && rank_width(ids) > wrap_rank_width {
+            let mut row: Vec<String> = Vec::new();
+            for id in ids {
+                let mut candidate = row.clone();
+                candidate.push(id.clone());
+                if !row.is_empty() && rank_width(&candidate) > wrap_rank_width {
+                    visual_rows.push(std::mem::take(&mut row));
+                }
+                row.push(id.clone());
+            }
+            if !row.is_empty() {
+                visual_rows.push(row);
+            }
+        } else {
+            visual_rows.push(ids.clone());
+        }
+    }
+
+    // Compute per-visual-row y positions.  Very wide grouped ranks are split
+    // into wrapped rows, giving the router real vertical channels instead of
+    // one pathological all-in-one-row canvas.
+    let mut row_y: Vec<f64> = Vec::with_capacity(visual_rows.len());
     {
         let mut y = options.canvas_margin;
-        for (r, ry) in rank_y.iter_mut().enumerate().take(max_rank + 1) {
-            *ry = y;
-            let max_h = rank_order
-                .get(&r)
-                .map(|ids| {
-                    ids.iter()
-                        .filter_map(|id| node_by_id.get(id.as_str()))
-                        .map(|n| n.height)
-                        .fold(0.0_f64, f64::max)
-                })
-                .unwrap_or(0.0);
+        for ids in &visual_rows {
+            row_y.push(y);
+            let max_h = ids
+                .iter()
+                .filter_map(|id| node_by_id.get(id.as_str()))
+                .map(|n| n.height)
+                .fold(0.0_f64, f64::max);
             y += max_h + options.rank_separation;
         }
     }
 
-    // For each rank, compute x positions centred around the widest rank
-    // First, compute total width of each rank
-    let rank_widths: Vec<f64> = (0..=max_rank)
-        .map(|r| {
-            rank_order
-                .get(&r)
-                .map(|ids| {
-                    let n_nodes = ids.len() as f64;
-                    let total_node_w: f64 = ids
-                        .iter()
-                        .filter_map(|id| node_by_id.get(id.as_str()))
-                        .map(|n| n.width)
-                        .sum();
-                    total_node_w + (n_nodes - 1.0).max(0.0) * options.node_separation
-                })
-                .unwrap_or(0.0)
-        })
-        .collect();
-
-    let max_rank_width = rank_widths.iter().cloned().fold(0.0_f64, f64::max);
+    let row_widths: Vec<f64> = visual_rows.iter().map(|ids| rank_width(ids)).collect();
+    let max_rank_width = row_widths.iter().cloned().fold(0.0_f64, f64::max);
     // Note: canvas_content_width is recomputed at the bottom after the
     // post-layout group-collision shift, which may extend the canvas right.
 
     let mut positions: BTreeMap<String, (f64, f64)> = BTreeMap::new();
 
-    for r in 0..=max_rank {
-        let Some(ids) = rank_order.get(&r) else {
-            continue;
-        };
-        let rw = rank_widths[r];
-        // Centre this rank horizontally
+    for (row_idx, ids) in visual_rows.iter().enumerate() {
+        let rw = row_widths[row_idx];
+        // Centre this visual row horizontally
         let rank_start_x = options.canvas_margin + (max_rank_width - rw) / 2.0;
-        let ry = rank_y[r];
+        let ry = row_y[row_idx];
 
         let mut x = rank_start_x;
         for id in ids {
@@ -775,8 +788,21 @@ fn assign_coordinates(
         // Iterate up to GROUP_COLLISION_MAX_PASSES; in practice 1–2 are enough.
         for _ in 0..GROUP_COLLISION_MAX_PASSES {
             let bb = compute_bounds(&positions);
+            let grouped_span_width = {
+                let min_x = bb.values().map(|(x, _, _, _)| *x).fold(f64::MAX, f64::min);
+                let max_x = bb
+                    .values()
+                    .map(|(x, _, w, _)| x + w)
+                    .fold(f64::MIN, f64::max);
+                if min_x == f64::MAX {
+                    0.0
+                } else {
+                    max_x - min_x
+                }
+            };
+            let prefer_vertical_shift = grouped_span_width > wrap_rank_width;
             // Find first overlapping pair (sorted by group id for determinism).
-            let mut overlap: Option<(String, f64)> = None;
+            let mut overlap: Option<(String, f64, bool)> = None;
             #[allow(clippy::type_complexity)] // simple (id, bbox) pairs; tuple is fine here
             let groups: Vec<(&String, &(f64, f64, f64, f64))> = bb.iter().collect();
             'outer: for (i, (ga, &(ax, ay, aw, ah))) in groups.iter().enumerate() {
@@ -788,25 +814,38 @@ fn assign_coordinates(
                     let x_overlap = a_right > bx && b_right > ax;
                     let y_overlap = a_bottom > by && b_bottom > ay;
                     if x_overlap && y_overlap {
-                        // Shift the right-side group rightward.
-                        let (shift_target, shift_amount) = if ax <= bx {
-                            (gb.to_string(), a_right - bx + min_gap)
+                        let (shift_target, shift_amount, shift_down) = if prefer_vertical_shift {
+                            // Wide grouped diagrams are more readable when
+                            // colliding frames stack into rows instead of
+                            // stretching into one extremely long row.
+                            if ay <= by {
+                                (gb.to_string(), a_bottom - by + min_gap, true)
+                            } else {
+                                (ga.to_string(), b_bottom - ay + min_gap, true)
+                            }
+                        } else if ax <= bx {
+                            // Shift the right-side group rightward.
+                            (gb.to_string(), a_right - bx + min_gap, false)
                         } else {
-                            (ga.to_string(), b_right - ax + min_gap)
+                            (ga.to_string(), b_right - ax + min_gap, false)
                         };
-                        overlap = Some((shift_target, shift_amount));
+                        overlap = Some((shift_target, shift_amount, shift_down));
                         break 'outer;
                     }
                 }
             }
             match overlap {
                 None => break,
-                Some((g, dx)) => {
-                    // Shift all members of group `g` rightward by dx.
+                Some((g, delta, shift_down)) => {
+                    // Shift all members of group `g` along the selected axis.
                     for n in nodes {
                         if n.parent.as_deref() == Some(g.as_str()) {
                             if let Some(p) = positions.get_mut(n.id.as_str()) {
-                                p.0 += dx;
+                                if shift_down {
+                                    p.1 += delta;
+                                } else {
+                                    p.0 += delta;
+                                }
                             }
                         }
                     }
@@ -834,16 +873,17 @@ fn assign_coordinates(
         max_right + right_margin
     };
     let canvas_height = {
-        let bottom = rank_y[max_rank]
-            + rank_order
-                .get(&max_rank)
-                .map(|ids| {
-                    ids.iter()
-                        .filter_map(|id| node_by_id.get(id.as_str()))
-                        .map(|n| n.height)
-                        .fold(0.0_f64, f64::max)
-                })
-                .unwrap_or(0.0);
+        let bottom = visual_rows
+            .last()
+            .zip(row_y.last())
+            .map(|(ids, y)| {
+                y + ids
+                    .iter()
+                    .filter_map(|id| node_by_id.get(id.as_str()))
+                    .map(|n| n.height)
+                    .fold(0.0_f64, f64::max)
+            })
+            .unwrap_or(options.canvas_margin);
         bottom + options.canvas_margin
     };
 

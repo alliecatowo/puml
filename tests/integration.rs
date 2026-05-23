@@ -5909,6 +5909,55 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 }
 
 #[test]
+fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
+    for (example_path, max_width, max_aspect) in [
+        ("deployment/07_ch08_keyword_parity.puml", 2600, 1.2),
+        ("usecase/06_multi_system_boundary.puml", 2700, 1.8),
+    ] {
+        let svg = render_source_to_svg(&fs::read_to_string(example(example_path)).unwrap())
+            .expect("grouped hierarchy example should render");
+        let width = extract_svg_width_attr(&svg).expect("svg width");
+        let height = extract_svg_height_attr(&svg).expect("svg height");
+        assert!(
+            width <= max_width,
+            "{example_path} should wrap very wide grouped ranks, got width={width}"
+        );
+        assert!(
+            (width as f64 / height as f64) <= max_aspect,
+            "{example_path} should avoid a one-row whitespace aspect, got {width}x{height}"
+        );
+    }
+}
+
+#[test]
+fn component_grouped_lollipop_routes_use_shared_layout_edges() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("component/07_ports_lollipop_interfaces.puml")).unwrap(),
+    )
+    .expect("component grouped lollipop example should render");
+    let width = extract_svg_width_attr(&svg).expect("svg width");
+    let height = extract_svg_height_attr(&svg).expect("svg height");
+    assert!(
+        (width as f64 / height as f64) < 3.0,
+        "component grouped lollipop layout should not regress to an extreme one-row canvas"
+    );
+
+    let order_service = svg_elements_with_attr(&svg, "data-uml-group", "Order Service")
+        .into_iter()
+        .find(|element| element.contains("class=\"uml-group-frame\""))
+        .expect("Order Service frame");
+    let header_bottom = svg_attr_i32_required(order_service, "y") + 40;
+    let order_domain = svg_text_positions(&svg, "OrderDomain")
+        .into_iter()
+        .next()
+        .expect("OrderDomain label");
+    assert!(
+        order_domain.1 > header_bottom + 24,
+        "OrderDomain should sit in the package body, below the reserved header"
+    );
+}
+
+#[test]
 fn class_package_headers_clear_inner_class_labels() {
     let svg = render_source_to_svg(
         &fs::read_to_string(example("class/14_nested_packages.puml")).unwrap(),
@@ -8397,6 +8446,14 @@ token = ? unicode category ? | 4 * \"x\" | [ name ];\n\
 
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     let key = "width=\"";
+    let start = svg.find(key)? + key.len();
+    let rest = &svg[start..];
+    let end = rest.find('"')?;
+    rest[..end].parse::<i32>().ok()
+}
+
+fn extract_svg_height_attr(svg: &str) -> Option<i32> {
+    let key = "height=\"";
     let start = svg.find(key)? + key.len();
     let rest = &svg[start..];
     let end = rest.find('"')?;
