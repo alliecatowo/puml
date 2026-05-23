@@ -1926,7 +1926,8 @@ mod tests {
 
         let (x, width) = group_horizontal_bounds("alt", Some("branch"), &bounds, &options);
         let right = x + width;
-        let participant_right = options.margin + (options.participant_spacing * 2) + options.participant_width;
+        let participant_right =
+            options.margin + (options.participant_spacing * 2) + options.participant_width;
         assert_eq!(x, options.margin);
         assert_eq!(
             right, participant_right,
