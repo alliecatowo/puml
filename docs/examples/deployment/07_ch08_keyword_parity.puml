@@ -17,6 +17,7 @@ node "K8s Cluster" as k8s {
   Worker --> app
 }
 
+node StandaloneNode
 cloud Edge
 database Store
 agent AgentA

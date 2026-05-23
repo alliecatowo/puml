@@ -8,64 +8,69 @@ Audited against `src/parser/component.rs`, `src/parser/component_groups.rs`,
 Legend: ✅ supported · 🟡 partial · ❌ missing
 
 The deployment diagram in PlantUML reuses the component family with an expanded set of
-node shape keywords. The single biggest gap in puml is the set of shape keywords that
-parse to `ComponentNodeKind` — only **15** kinds exist (`src/ast.rs:273-290`), but the
-PlantUML spec lists **~28** declarable keywords.
+node shape keywords. puml now carries the deployment shape set through
+`ComponentNodeKind`, `FamilyNodeKind`, normalization, and SVG `data-uml-kind` output for
+nearly all declarable keyword forms.
 
 ---
 
 ### 8.1 Declaring element — keyword inventory — 🟡
 
-Per-keyword status. Evidence is `src/parser/component.rs:3-21` keyword table and
-`src/ast.rs:273-290` `ComponentNodeKind` enum unless otherwise noted.
+Per-keyword status. Evidence is `src/parser/component.rs:113-149` keyword table,
+`src/ast.rs:307-337` `ComponentNodeKind`, `src/normalize/family.rs:3009-3040`
+`FamilyNodeKind` mapping, `src/render/family.rs:6124-6150` deployment-shape dispatch,
+and `tests/integration.rs:6147-6221` unless otherwise noted.
 
 | Keyword | Status | Evidence |
 |---|---|---|
-| action | ❌ | not in `ComponentNodeKind`; activity-only |
-| actor | ✅ | `component.rs:20`, `ComponentNodeKind::Actor` |
-| actor/ (alt actor) | ❌ | no `actor/` variant token recognized |
-| agent | ❌ | absent from keyword table |
-| artifact | ✅ | `component.rs:19`, `Artifact` |
-| boundary | ❌ | only as sequence `ParticipantRole::Boundary` (`parser/sequence.rs:5`); no deployment declaration |
-| card | ✅ | `component.rs:18`, `Card` |
-| circle | ❌ | no shape kind |
-| cloud | ✅ | `component.rs:11`, `Cloud` |
-| collections | ❌ | sequence-only role |
-| component | ✅ | `component.rs:4`, `Component` |
-| control | ❌ | sequence-only role |
-| database | ✅ | `component.rs:10`, `Database` |
-| entity | ❌ | sequence-only role |
-| file | ✅ | `component.rs:17`, `File` |
-| folder | ✅ | `component.rs:16`, `Folder` |
-| frame | ✅ | `component.rs:12`, `Frame` |
-| hexagon | ❌ | not in keyword table |
-| interface | ✅ | `component.rs:5`, `Interface` |
-| label | ❌ | not in keyword table |
-| node | ✅ | `component.rs:9`, `Node` |
-| package | ✅ | `component.rs:14`, `Package`; also scoping block (`component_groups.rs:9-15`) |
-| person | ❌ | exists as `C4Person` only (`render/family.rs:2185`) |
-| process | ❌ | not in keyword table |
-| queue | ❌ | sequence-only `ParticipantRole::Queue`; no component kind |
-| rectangle | ✅ | `component.rs:15`, `Rectangle` |
-| stack | ❌ | not in keyword table |
-| storage | ✅ | `component.rs:13`, `Storage` |
+| action | ✅ | `ComponentNodeKind::Action`; rendered as `data-uml-kind="action"` |
+| actor | ✅ | `ComponentNodeKind::Actor`; rendered as stick figure |
+| actor/ (alt actor) | ✅ | `component.rs:132`; marker preserved as `<<actor/>>` |
+| agent | ✅ | `ComponentNodeKind::Agent`; rendered as `data-uml-kind="agent"` |
+| artifact | ✅ | `ComponentNodeKind::Artifact`; folded-corner shape |
+| boundary | ✅ | `ComponentNodeKind::Boundary`; deployment ellipse variant |
+| card | ✅ | `ComponentNodeKind::Card` |
+| circle | ✅ | `ComponentNodeKind::Circle`; ellipse shape |
+| cloud | ✅ | `ComponentNodeKind::Cloud`; cloud path |
+| collections | ✅ | `ComponentNodeKind::Collections`; stacked-card shape |
+| component | ✅ | `ComponentNodeKind::Component` |
+| control | ✅ | `ComponentNodeKind::Control`; control glyph variant |
+| database | ✅ | `ComponentNodeKind::Database`; cylinder shape |
+| entity | ✅ | `ComponentNodeKind::Entity`; entity glyph variant |
+| file | ✅ | `ComponentNodeKind::File`; folded-corner shape |
+| folder | ✅ | `ComponentNodeKind::Folder`; tabbed-folder shape |
+| frame | ✅ | `ComponentNodeKind::Frame`; 3D node/frame shape |
+| hexagon | ✅ | `ComponentNodeKind::Hexagon`; hexagon polygon |
+| interface | ✅ | `ComponentNodeKind::Interface`; lollipop/circle interface |
+| label | ✅ | `ComponentNodeKind::Label` |
+| node | ✅ | `ComponentNodeKind::Node`; 3D node shape |
+| package | ✅ | `ComponentNodeKind::Package`; also scoping block |
+| person | ✅ | `ComponentNodeKind::Person`; stick-figure variant |
+| process | ✅ | `ComponentNodeKind::Process` |
+| queue | ✅ | `ComponentNodeKind::Queue`; queue cylinder/rounded stack shape |
+| rectangle | ✅ | `ComponentNodeKind::Rectangle` |
+| stack | ✅ | `ComponentNodeKind::Stack`; stacked-card shape |
+| storage | ✅ | `ComponentNodeKind::Storage`; cylinder shape |
 | usecase | 🟡 | parsed via `parser/family.rs:139` (`usecase` keyword in family decls) but not as a `ComponentNodeKind` |
-| usecase/ | ❌ | no alt-syntax variant |
+| usecase/ | ✅ | `component.rs:148`; rendered as deployment usecase ellipse |
 
-**Tally for §8.1: 14 ✅, 1 🟡, 15 ❌ out of 30 keyword forms.**
+**Tally for §8.1: 29 ✅, 1 🟡, 0 ❌ out of 30 keyword forms.**
 
-### 8.1 Long bracketed body (`folder folder [ ... multi-line ... ]`) — ❌
+### 8.1 Long bracketed body (`folder folder [ ... multi-line ... ]`) — 🟡
 **Feature:** Multi-line `[ ... ]` body with `----`, `====`, `....` separators.
-**Status:** ❌
-**Evidence:** `parse_component_decl` (`src/parser/component.rs:64-77`) reads `[label]` as single-line only; no multi-line block scanning.
-
-### 8.2 Short forms — 🟡
-**Feature:** `:actor:`, `[component]`, `() interface`, `(usecase)`.
 **Status:** 🟡
-- `[component]` ✅ — `component.rs:116-146`
-- `() interface` ✅ — `component.rs:149-186`, `:204-214`
-- `:actor:` ❌ — no parser path for the `:Name:` shorthand
-- `(usecase)` ❌ — no parser path for the `(Name)` shorthand in component diagrams
+**Evidence:** `parse_component_multiline_decl` (`src/parser/component.rs:363-399`) parses
+multi-line bracket bodies; `collect_scoped_component_group_content` now preserves the
+same declarations inside deployment scoping blocks. Separator lines currently render as
+literal text, not PlantUML divider rules.
+
+### 8.2 Short forms — ✅
+**Feature:** `:actor:`, `[component]`, `() interface`, `(usecase)`.
+**Status:** ✅
+- `[component]` ✅ — `parse_component_bracketed_shorthand`
+- `() interface` ✅ — `parse_component_interface_shorthand`
+- `:actor:` ✅ — `parse_actor_colon_shorthand`
+- `(usecase)` ✅ — `parse_component_parenthesized_usecase_shorthand`
 
 ### 8.3 Linking (`--`, `..`, `~~`, `==`) and arrowheads (`*`, `o`, `+`, `#`, `>>`, `^`, `0`, `(0`, etc.) — 🟡
 **Feature:** All deployment arrow heads / line styles, including circle-arrows `0--0`, `)--(`, `0)--(0`, `-(0)-`, etc.
@@ -85,13 +90,18 @@ Per-keyword status. Evidence is `src/parser/component.rs:3-21` keyword table and
 **Status:** 🟡
 **Evidence:** `split_declaration_inline_fill` + `append_inline_fill_member` (`src/parser/component.rs:60,107`) capture `#color`. Full `#fill;line:color;line.dashed;text:color` is not parsed end-to-end.
 
-### 8.7 Nestable elements (action/artifact/card/cloud/component/database/file/folder/frame/hexagon/node/package/process/queue/rectangle/stack/storage) — 🟡
-**Status:** 🟡
-**Evidence:** Of 17 nestable keywords, puml supports `artifact, card, cloud, component, database, file, folder, frame, node, package, rectangle, storage` (12). Missing: `action`, `hexagon`, `process`, `queue`, `stack`. Explicit scoping-block list at `src/parser/component_groups.rs:113-127` only enumerates `package|namespace|node|frame|cloud|rectangle`; other containers depend on the generic `{`-fallthrough in `find_family_decl_end`.
+### 8.7 Nestable elements (action/artifact/card/cloud/component/database/file/folder/frame/hexagon/node/package/process/queue/rectangle/stack/storage) — ✅
+**Status:** ✅
+**Evidence:** `is_component_container_keyword` (`src/parser/component.rs:176-199`) lists all
+17 nestable deployment keywords, and `component_scoping_block_head`
+(`src/parser/component_groups.rs:226-248`) routes them through scoped component group
+collection.
 
-### 8.8 Packages and nested elements — 🟡
-**Status:** 🟡
-**Evidence:** Nested scoping recursively handled in `collect_scoped_component_group_content` (`src/parser/component_groups.rs:91-203`). Deep alphabetical / reverse-alphabetical full nesting (§8.8.3) is gated by which keywords parse as containers — only the 12 listed in §8.7 work.
+### 8.8 Packages and nested elements — ✅
+**Status:** ✅
+**Evidence:** Nested scoping recursively handled in `collect_scoped_component_group_content`
+(`src/parser/component_groups.rs:52-136`), and the container keyword set now covers all
+17 deployment nesting keywords from §8.7.
 
 ### 8.9 Alias (`as`, `[ ... ]` multi-line, long aliases) — 🟡
 **Feature:** `node Node1 as n1`, `node "Node 2" as n2`, `cloud c1 [ multi\nline\ndescr ]`.
@@ -120,7 +130,7 @@ See 8.6. Works for keywords that parse; no-ops for missing keywords.
 
 ### Stereotypes `<<...>>` on declarations — ✅
 **Status:** ✅
-**Evidence:** `strip_declaration_stereotypes` called at `src/parser/component.rs:62`; stereotypes flow into member labels and `append_component_declaration_metadata` (`component_groups.rs:225-243`).
+**Evidence:** `strip_declaration_stereotypes` called at `src/parser/component.rs:62`; stereotypes flow into member labels and `append_component_declaration_metadata` (`component_groups.rs:250-268`).
 
 ### Sprite icons (`sprite $name { ... }` and `<<$name>>` usage) — ❌
 **Status:** ❌
@@ -132,13 +142,13 @@ See 8.6. Works for keywords that parse; no-ops for missing keywords.
 
 | Status | Count |
 |---|---|
-| ✅ Supported | 3 (§8.4, stereotypes, +12 of 30 keywords in §8.1) |
-| 🟡 Partial | 10 (§8.2, 8.3, 8.5, 8.6, 8.7, 8.8, 8.9, 8.12/8.13, 8.14, 8.15) |
-| ❌ Missing | 5 sections + ~15 keywords (§8.1 long-bracket body, 8.10, 8.11, sprites; keywords: action, actor/, agent, boundary, circle, collections, control, entity, hexagon, label, person, process, queue, stack, usecase/) |
+| ✅ Supported | 6 (§8.2, §8.4, §8.7, §8.8, stereotypes, +29 of 30 keywords in §8.1) |
+| 🟡 Partial | 8 (§8.1 long-bracket body, §8.3, §8.5, §8.6, §8.9, §8.12/8.13, §8.14, §8.15) |
+| ❌ Missing | 3 sections (§8.10, §8.11, sprites) |
 
 **Headline gaps:**
-1. **15 shape keywords missing** — `agent, hexagon, queue, stack, process, action, person, label, circle, boundary, control, entity, collections, actor/, usecase/`. `ComponentNodeKind` needs ~15 new variants and matching render shapes.
-2. **Multi-line bracketed bodies** (`folder f [\n line1\nline2\n]`) — single-line only.
+1. **Plain `usecase` deployment keyword remains partial** — `usecase/` and `(Usecase)` work in deployment context, but the bare `usecase Foo` keyword still routes through the usecase family path instead of `ComponentNodeKind::UseCase`.
+2. **Multi-line bracketed body separators** (`----`, `====`, `....`) parse as body text but do not render as divider rules.
 3. **Exotic arrow heads** — `--0`, `--@`, `-->>`, `0)--(0`, `-(0)-`, `--(0` are mostly fall-through plain arrows.
 4. **`<style>` block** with per-element CSS-like selectors not parsed.
 5. **`skinparam rectangle { roundCorner<<stereo>> N }`** not honored.

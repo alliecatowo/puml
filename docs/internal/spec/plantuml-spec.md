@@ -78,7 +78,7 @@ closing implementation work from these notes.
 9. **Sequence** — 28✅/48 (58%). Strong on participants/arrows/notes/groups/activations/mainframe/aligned-notes/short-arrows/lifeline-strategy; partial on theming and exotic arrows.
 10. **Common Commands** — 9✅/21 (43%).
 11. **Salt (Wireframe)** — 10✅/24 (42%). Wide widget coverage, weakest at Creole-in-cells.
-12. **Deployment** — ~19✅/47 (40%). Most node-shape keywords missing.
+12. **Deployment** — ~25✅/47 (53%). Node-shape keyword parity is broad; style blocks, roundCorner, sprites, and exotic arrows remain the largest gaps.
 13. **Gantt** — 15✅/39 (38%). Solid core; many verbal-form date constructs missing.
 14. **Object** — 3✅/8 (38%).
 15. **YAML** — 3✅/8 (38%).
@@ -157,7 +157,7 @@ chapter audit before treating an item as still open.
 3. **Class diagram generics + `extends`/`implements` keywords + member-qualified refs `Foo::field`** (ch03) — class is currently the weakest big-family chapter.
 4. **Activity (new) `ActivityStep` enrichment** (ch06) — adding color/arrow-style/connector slots to the AST is shallow and unlocks ~14 features.
 5. **IE `entity` routing fix + crow's-foot arrowheads** (ch20) — one-line classification change + arrow-table additions makes IE diagrams functional.
-6. **Deployment node-shape variants** (ch08) — 15 missing `FamilyNodeKind` variants (actor/agent/queue/stack/etc.). Mostly mechanical.
+6. **Deployment follow-through** (ch08) — bare `usecase` routing, bracket-body divider rendering, exotic arrowheads, and per-shape style support remain after the node-shape keyword slice.
 7. **State pseudo-state/composite layout and inline styling** (ch09) — notes/data projections landed, but history/parallel-region/pin snapping and inline color/style remain high-value state work.
 8. **Timing `analog` lifecycle + cross-lane arrows + date/anchor tick parsing** (ch10) — timing is currently the weakest family overall.
 9. **Stereotype-scoped skinparam dispatch** (cross-cutting #3) — extends theme table.

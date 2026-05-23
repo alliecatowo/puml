@@ -35,7 +35,7 @@ fn parse_component_scoping_block(
     if kind == "namespace" && !group_body_contains_component_family(lines, start, end_idx) {
         return Ok(None);
     }
-    let label = clean_ident(label_raw.trim_end_matches('{').trim().trim_matches('"'));
+    let label = clean_component_group_label(label_raw);
     let content =
         collect_scoped_component_group_content(lines, start, end_idx, std::slice::from_ref(&label));
     Ok(Some((
@@ -73,27 +73,40 @@ fn collect_scoped_component_group_content(
         }
         if line.trim_end().ends_with('{') {
             if let Some((keyword, _)) = component_scoping_block_head(line, &lower) {
-            let label = clean_ident(
-                line[keyword.len()..]
-                    .trim()
-                    .trim_end_matches('{')
-                    .trim()
-                    .trim_matches('"'),
-            );
-            let nested_end = find_scoping_block_end(lines, idx);
-            if nested_end > idx {
-                let mut nested_scope = scope.to_vec();
-                if !label.is_empty() {
-                    nested_scope.push(label);
+                let label = clean_component_group_label(&line[keyword.len()..]);
+                let nested_end = find_scoping_block_end(lines, idx);
+                if nested_end > idx {
+                    let mut nested_scope = scope.to_vec();
+                    if !label.is_empty() {
+                        nested_scope.push(label);
+                    }
+                    let nested = collect_scoped_component_group_content(
+                        lines,
+                        idx,
+                        nested_end,
+                        &nested_scope,
+                    );
+                    content.members.extend(nested.members);
+                    content.relations.extend(nested.relations);
+                    idx = nested_end + 1;
+                    continue;
                 }
-                let nested =
-                    collect_scoped_component_group_content(lines, idx, nested_end, &nested_scope);
-                content.members.extend(nested.members);
-                content.relations.extend(nested.relations);
-                idx = nested_end + 1;
-                continue;
             }
-            }
+        }
+        if let Some((StatementKind::ComponentDecl {
+            kind,
+            name,
+            alias,
+            label,
+            members,
+            ..
+        }, decl_end)) = parse_component_multiline_decl(lines, idx, line)
+            .ok()
+            .flatten()
+        {
+            push_scoped_component_decl(&mut content, scope, kind, name, alias, label, members);
+            idx = decl_end + 1;
+            continue;
         }
         if let Some(StatementKind::ComponentDecl {
             kind,
@@ -104,31 +117,7 @@ fn collect_scoped_component_group_content(
             ..
         }) = parse_component_decl(line)
         {
-            let fill_color = members.iter().find_map(|member| {
-                member
-                    .text
-                    .strip_prefix("\x1fstyle:fill:")
-                    .map(str::to_string)
-            });
-            let local_id = alias.clone().unwrap_or_else(|| name.clone());
-            let scoped_id = qualify_scoped_identifier(local_id, scope);
-            let display = label
-                .or_else(|| alias.as_ref().map(|_| name.clone()))
-                .or_else(|| (scoped_id != name).then(|| name.clone()))
-                .filter(|value| value != &scoped_id);
-            let display = append_component_declaration_metadata(display, &members);
-            let mut encoded = scoped_id;
-            if let Some(display) = display {
-                encoded.push('\t');
-                encoded.push_str(&display);
-            }
-            encoded.push('\t');
-            encoded.push_str(component_decl_kind_name(kind));
-            if let Some(fill_color) = fill_color {
-                encoded.push('\t');
-                encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
-            }
-            content.members.push(encoded);
+            push_scoped_component_decl(&mut content, scope, kind, name, alias, label, members);
         } else {
             let name = extract_component_group_member_name(line);
             if !name.is_empty() {
@@ -145,6 +134,58 @@ fn collect_scoped_component_group_content(
         idx += 1;
     }
     content
+}
+
+fn push_scoped_component_decl(
+    content: &mut ScopedGroupContent,
+    scope: &[String],
+    kind: ComponentNodeKind,
+    name: String,
+    alias: Option<String>,
+    label: Option<String>,
+    members: Vec<ClassMember>,
+) {
+    let fill_color = members.iter().find_map(|member| {
+        member
+            .text
+            .strip_prefix("\x1fstyle:fill:")
+            .map(str::to_string)
+    });
+    let local_id = alias.clone().unwrap_or_else(|| name.clone());
+    let scoped_id = qualify_scoped_identifier(local_id, scope);
+    let display = label
+        .or_else(|| alias.as_ref().map(|_| name.clone()))
+        .or_else(|| (scoped_id != name).then(|| name.clone()))
+        .filter(|value| value != &scoped_id);
+    let display = append_component_declaration_metadata(display, &members);
+    let mut encoded = scoped_id;
+    if let Some(display) = display {
+        encoded.push('\t');
+        encoded.push_str(&display);
+    }
+    encoded.push('\t');
+    encoded.push_str(component_decl_kind_name(kind));
+    if let Some(fill_color) = fill_color {
+        encoded.push('\t');
+        encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+    }
+    content.members.push(encoded);
+}
+
+fn clean_component_group_label(raw: &str) -> String {
+    let trimmed = raw.trim_end_matches('{').trim();
+    if let Some(stripped) = trimmed.strip_prefix('"') {
+        if let Some(end) = stripped.find('"') {
+            let suffix = stripped[end + 1..].trim();
+            if suffix.starts_with("as ") {
+                return clean_ident(&stripped[..end]);
+            }
+        }
+    }
+    if let Some((lhs, _)) = trimmed.split_once(" as ") {
+        return clean_ident(lhs);
+    }
+    clean_ident(trimmed.trim_matches('"'))
 }
 
 fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
