@@ -1737,6 +1737,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_gantt_task_hyperlink_forms() {
+        let doc = parse_with_options(
+            "@startgantt\n[Build] links to [[https://example.com/build]]\n[Test] requires 3 days and links to [[https://example.com/test Test docs]]\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttCompound {
+                ref name,
+                ref clauses,
+                ..
+            } if name == "Build" && clauses == "links to [[https://example.com/build]]"
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttCompound {
+                ref name,
+                ref clauses,
+                ..
+            } if name == "Test" && clauses == "requires 3 days and links to [[https://example.com/test Test docs]]"
+        ));
+    }
+
+    #[test]
     fn parses_gantt_closed_weekday_calendar_statements() {
         let doc = parse_with_options(
             "@startgantt\nProject starts 2026-05-01\nsaturday are closed\nsundays are closed\n[Build] lasts 2 days\n@endgantt\n",

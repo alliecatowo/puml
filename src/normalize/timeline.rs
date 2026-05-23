@@ -396,6 +396,7 @@ fn upsert_gantt_task(
         fill_color: None,
         stroke_color: None,
         completion_percent: None,
+        hyperlink: None,
         is_deleted: false,
     });
 }
@@ -483,6 +484,14 @@ fn apply_gantt_compound_clauses(
             });
             continue;
         }
+        if let Some(url) = parse_gantt_link_target(clause) {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "link".to_string(),
+                target: url,
+            });
+            continue;
+        }
         if let Some(target) = lower
             .strip_prefix("baseline ")
             .and_then(|_| clause.get("baseline ".len()..))
@@ -531,6 +540,18 @@ fn parse_gantt_completion_percent(clause: &str) -> Option<u32> {
     matches!(suffix, "complete" | "completed")
         .then(|| value.parse::<u32>().ok().map(|n| n.min(100)))
         .flatten()
+}
+
+fn parse_gantt_link_target(clause: &str) -> Option<String> {
+    let trimmed = clause.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let target = lower
+        .strip_prefix("links to ")
+        .and_then(|_| trimmed.get("links to ".len()..))?
+        .trim();
+    let inner = target.strip_prefix("[[")?.strip_suffix("]]")?.trim();
+    let url = inner.split_whitespace().next().unwrap_or(inner).trim();
+    (!url.is_empty()).then(|| url.to_string())
 }
 
 fn split_gantt_scale_target(target: &str) -> (String, Vec<String>) {
@@ -1044,6 +1065,14 @@ fn apply_gantt_task_metadata(
                 .find(|task| gantt_task_matches(task, &constraint.subject))
             {
                 task.completion_percent = constraint.target.parse::<u32>().ok().map(|n| n.min(100));
+            }
+        }
+        if constraint.kind.eq_ignore_ascii_case("link") {
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| gantt_task_matches(task, &constraint.subject))
+            {
+                task.hyperlink = Some(constraint.target.clone());
             }
         }
         if constraint.kind.eq_ignore_ascii_case("deleted") {

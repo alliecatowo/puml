@@ -17,6 +17,7 @@ end note
 then [SameTaskName] as [T2] on {Bob:50%} requires 2 days and is 40% completed
 [T2] starts 2 working days after [T1]'s end
 [T2] is colored in Coral/Green
+[T2] links to [[https://plantuml.com/gantt-diagram]]
 {Bob} is off on 2020/09/25
 [Launch] happens at [T2]'s end
 [T1] -> [T2]

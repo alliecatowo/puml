@@ -519,6 +519,7 @@ pub struct TimelineTask {
     pub fill_color: Option<String>,
     pub stroke_color: Option<String>,
     pub completion_percent: Option<u32>,
+    pub hyperlink: Option<String>,
     pub is_deleted: bool,
 }
 
