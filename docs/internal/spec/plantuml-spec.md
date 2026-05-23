@@ -54,7 +54,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
 | 21 | Common Commands | 14 | 7 | 1 | [ch21-common.md](audit/ch21-common.md) |
 | 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
-| 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
+| 23 | Sprites | 7 | 0 | 1 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
 | 25 | Preprocessing | 18 | 8 | 2 | [ch25-preproc.md](audit/ch25-preproc.md) |
 | 26 | Unicode | 3 | 2 | 0 | [ch26-unicode.md](audit/ch26-unicode.md) |
@@ -92,15 +92,15 @@ closing implementation work from these notes.
 23. **Activity (new)** — 6✅/30 (20%). SDL terminators (6.21.2), kill/detach shapes (6.5, 6.20) added 2026-05-21.
 24. **Timing** — 1✅/29 (3%). MVP-only.
 25. **Activity (legacy)** — 0✅/12 (0%). Effectively unsupported — migrate to new syntax.
-26. **Sprites** — 0✅/8 (0%). Cascades into stdlib icons (see cross-cutting #1 below).
+26. **Sprites** — 7✅/8 (88%). Renderer and CLI sprite support have landed; only the GUI import helper is intentionally out of scope.
 
 ## Cross-cutting findings — the patterns that explain everything
 
 These themes recur across many chapters. Fixing any one of them lifts the support number in several diagram families at once.
 
-### 1. Sprites are completely absent
+### 1. Sprites have recently landed
 
-No `sprite $name [w*h] {...}` definition, no `<$name>` reference, no `listsprites`, no `-encodesprite`. Only Salt-internal placeholder stubs. **Knock-on effect:** every stdlib icon library (AWS, Azure, GCP, Material, Office, tupadr3) parses cleanly but renders as plain stereotyped boxes — so chapter 27 looks much worse than it ought to.
+The initial audit found no general sprite system, but current code supports sprite definitions, `<$name>` references, `listsprites`, stdlib sprite includes, and `-encodesprite`. Treat chapter 23 as mostly implemented and check `audit/ch23-sprites.md` before opening new sprite work; remaining follow-up should focus on family-specific layout polish and macro-library behavior rather than rebuilding the core sprite parser.
 
 ### 2. `<style>` blocks partially wired
 
@@ -152,7 +152,7 @@ Ranked by cross-cutting leverage from the audit baseline. These remain useful
 themes, but recent merged work may have narrowed some rows; verify the relevant
 chapter audit before treating an item as still open.
 
-1. **Sprite system** (ch23) — biggest single unlock. Enables 5+ stdlib libraries.
+1. **Sprite follow-through** (ch23) — core support has landed; verify family-specific label layout and stdlib macro behavior before adding more broad sprite infrastructure.
 2. **`<style>` block parser + selector engine** (ch21, ch24) — expand beyond the current narrow sequence and component color slices to unlock modern theming across all families.
 3. **Class diagram generics + `extends`/`implements` keywords + member-qualified refs `Foo::field`** (ch03) — class is currently the weakest big-family chapter.
 4. **Activity (new) `ActivityStep` enrichment** (ch06) — adding color/arrow-style/connector slots to the AST is shallow and unlocks ~14 features.
