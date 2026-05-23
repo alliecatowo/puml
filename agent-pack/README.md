@@ -51,10 +51,15 @@ Pass `output_path` to also save the file to a workspace path.
 
 ## Codex/Claude Harness Runbook
 ```bash
+python3 ./scripts/validate_agent_pack.py
 ./scripts/harness-check.sh --dry
 ./scripts/harness-check.sh --quick
 ./scripts/harness-check.sh
 ```
+
+`validate_agent_pack.py` checks plugin manifests, marketplace metadata, MCP
+runtime/spec parity, and the `.lsp.json` language-server manifest before a
+package is shipped.
 
 ## Agent pre-PR checklist
 
