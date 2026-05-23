@@ -1193,6 +1193,187 @@ mod tests {
     }
 
     #[test]
+    fn workspace_config_and_symbols_cover_query_helpers() {
+        let config = json!({
+            "puml": {
+                "server": {
+                    "trace": "messages"
+                }
+            }
+        });
+        assert_eq!(
+            get_config_section(&config, "puml.server.trace"),
+            Value::String("messages".to_string())
+        );
+        assert_eq!(get_config_section(&config, "puml.missing"), Value::Null);
+        assert_eq!(get_config_section(&config, "puml..trace"), Value::Null);
+
+        let src =
+            "@startuml\nparticipant Alice\nparticipant ApiGateway\nAlice -> ApiGateway\n@enduml\n";
+        let mut docs = HashMap::new();
+        docs.insert(
+            "file:///flow.puml".to_string(),
+            Doc {
+                text: src.to_string(),
+                version: 1,
+                parsed: lsp_parse(src).ok(),
+            },
+        );
+
+        let out = workspace_symbols(&docs, "api");
+        let arr = out.as_array().expect("symbols");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["name"], "ApiGateway");
+        assert_eq!(arr[0]["location"]["uri"], "file:///flow.puml");
+    }
+
+    #[test]
+    fn folding_selection_colors_and_presentations_cover_lsp_shape_helpers() {
+        let src = "@startuml\nAlice -> Bob: hi\nalt ok\nBob -> Alice: yes\nend\n@enduml\n";
+        let doc = Doc {
+            text: src.to_string(),
+            version: 1,
+            parsed: lsp_parse(src).ok(),
+        };
+
+        let folds = folding_ranges(&doc);
+        assert!(folds.as_array().expect("fold ranges").len() <= 1);
+
+        let selections = selection_ranges(
+            &doc,
+            &json!({
+                "params": {
+                    "positions": [
+                        {"line": 1, "character": 6},
+                        {"line": 0, "character": 0}
+                    ]
+                }
+            }),
+        );
+        assert_eq!(selections.as_array().expect("selection ranges").len(), 2);
+
+        let color_doc = Doc {
+            text:
+                "@startuml\nskinparam backgroundColor #abc\nAlice -> Bob #11223344: hi\n@enduml\n"
+                    .to_string(),
+            version: 1,
+            parsed: None,
+        };
+        let colors = document_colors(&color_doc);
+        let arr = colors.as_array().expect("document colors");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["color"]["alpha"], 1.0);
+        assert!(arr[1]["color"]["alpha"].as_f64().expect("alpha") < 1.0);
+
+        let opaque = color_presentation(&json!({
+            "params": {"color": {"red": 1.0, "green": 0.5, "blue": 0.0, "alpha": 1.0}}
+        }));
+        assert_eq!(opaque[0]["label"], "#FF7F00");
+
+        let translucent = color_presentation(&json!({
+            "params": {"color": {"red": 0.0, "green": 0.0, "blue": 1.0, "alpha": 0.5}}
+        }));
+        assert_eq!(translucent[0]["label"], "#0000FF7F");
+    }
+
+    #[test]
+    fn code_actions_and_execute_command_cover_success_error_and_missing_doc_paths() {
+        let valid_src = "@startuml\nAlice -> Bob: hi\n@enduml\n";
+        let invalid_src = "@startuml\nAlice ->\n@enduml\n";
+        let valid_doc = Doc {
+            text: valid_src.to_string(),
+            version: 1,
+            parsed: lsp_parse(valid_src).ok(),
+        };
+        let invalid_doc = Doc {
+            text: invalid_src.to_string(),
+            version: 1,
+            parsed: lsp_parse(invalid_src).ok(),
+        };
+
+        let valid_actions = code_actions(
+            "file:///valid.puml",
+            &valid_doc,
+            &json!({"params": {"context": {"diagnostics": []}}}),
+        );
+        let valid_titles = valid_actions
+            .as_array()
+            .expect("actions")
+            .iter()
+            .map(|item| item["title"].as_str().expect("title"))
+            .collect::<Vec<_>>();
+        assert!(valid_titles.contains(&"Format document"));
+        assert!(valid_titles.contains(&"Render SVG preview"));
+
+        let invalid_actions = code_actions(
+            "file:///invalid.puml",
+            &invalid_doc,
+            &json!({"params": {"context": {"diagnostics": [{"severity": 1}]}}}),
+        );
+        let invalid_titles = invalid_actions
+            .as_array()
+            .expect("actions")
+            .iter()
+            .map(|item| item["title"].as_str().expect("title"))
+            .collect::<Vec<_>>();
+        assert!(invalid_titles.contains(&"Fix formatting and retry"));
+        assert!(!invalid_titles.contains(&"Render SVG preview"));
+
+        let mut docs = HashMap::new();
+        docs.insert("file:///valid.puml".to_string(), valid_doc);
+
+        let rendered = execute_command(
+            &json!({"params": {"command": "puml.renderSvg", "arguments": ["file:///valid.puml"]}}),
+            &docs,
+        );
+        assert!(rendered["svg"].as_str().expect("svg").contains("<svg"));
+
+        let missing = execute_command(
+            &json!({"params": {"command": "puml.renderSvg", "arguments": ["file:///missing.puml"]}}),
+            &docs,
+        );
+        assert_eq!(missing["diagnostics"][0]["message"], "document not open");
+
+        let unknown = execute_command(
+            &json!({"params": {"command": "puml.nope", "arguments": ["file:///valid.puml"]}}),
+            &docs,
+        );
+        assert_eq!(unknown["error"], "unknown command: puml.nope");
+    }
+
+    #[test]
+    fn change_and_word_reference_helpers_cover_empty_invalid_and_boundary_paths() {
+        let empty_change = json!({
+            "params": {
+                "textDocument": {"uri": "file:///d.puml", "version": 2},
+                "contentChanges": []
+            }
+        });
+        assert!(change(&empty_change, Some("@startuml\n@enduml\n")).is_none());
+
+        let full_replace = json!({
+            "params": {
+                "textDocument": {"uri": "file:///d.puml", "version": 3},
+                "contentChanges": [{"text": "@startuml\nBob -> Alice\n@enduml\n"}]
+            }
+        });
+        let (_, version, updated) = change(&full_replace, None).expect("full replace");
+        assert_eq!(version, 3);
+        assert!(updated.contains("Bob -> Alice"));
+
+        let mut original = "abc".to_string();
+        let bad_range = json!({
+            "start": {"line": 0, "character": 3},
+            "end": {"line": 0, "character": 1}
+        });
+        assert!(apply_incremental_change(&mut original, &bad_range, "x").is_none());
+
+        assert_eq!(find_word_refs("Alice Alice_Bob Bob", "Alice").len(), 1);
+        assert!(word_range_at_pos("Alice -> Bob", (0, 5)).is_none());
+        assert_eq!(lc_to_offset("a\nβ", 1, 1), "a\nβ".len());
+    }
+
+    #[test]
     fn publish_diagnostics_includes_diagnostic_code_when_present() {
         let mut out = Vec::new();
         let src = "@startuml\nA ->\n@enduml\n";

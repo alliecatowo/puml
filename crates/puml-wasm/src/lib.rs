@@ -3,9 +3,8 @@
 
 use puml::ast::DiagramKind;
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_family_document_svg,
-    render_svg_pages_from_model, Diagnostic, FrontendSelection, NormalizedDocument,
-    ParsePipelineOptions,
+    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Diagnostic,
+    FrontendSelection, ParsePipelineOptions,
 };
 use wasm_bindgen::prelude::*;
 
@@ -215,5 +214,49 @@ mod tests {
         ))
         .expect("json");
         assert_eq!(parsed["error"]["code"], "E_FRONTEND_UNKNOWN");
+    }
+
+    #[test]
+    fn internal_render_frontend_returns_all_pages_without_js_values() {
+        let source = "@startuml\nAlice -> Bob: one\nnewpage two\nBob -> Alice: two\n@enduml\n";
+
+        let pages =
+            render_svgs_for_frontend(source, FrontendSelection::Auto).expect("multi-page render");
+        assert_eq!(pages.len(), 2);
+        assert!(pages[0].contains("one"));
+        assert!(pages[1].contains("two"));
+    }
+
+    #[test]
+    fn detect_family_covers_frontend_hints_and_errors() {
+        assert_eq!(
+            detect_family_for_frontend("@startuml\nstate Idle\n@enduml\n", FrontendSelection::Auto)
+                .expect("detect state family"),
+            puml::DiagramFamily::State
+        );
+        assert_eq!(
+            detect_family_for_frontend("classDiagram\nclass User\n", FrontendSelection::Mermaid)
+                .expect("detect mermaid class"),
+            puml::DiagramFamily::Class
+        );
+
+        let err = frontend_selection_from_hint("unknown").expect_err("unknown frontend hint");
+        assert!(err
+            .message
+            .contains("unknown frontend/dialect hint `unknown`"));
+    }
+
+    #[test]
+    fn render_json_auto_routes_specialized_families_and_reports_parse_errors() {
+        let specialized = ok_pages(&render_svgs_json("@startregex\n[A-Z]+\\d?\n@endregex\n"));
+        assert_eq!(specialized.len(), 1);
+        assert!(specialized[0].contains("<svg"));
+        assert!(specialized[0].contains("[A-Z]"));
+
+        let parsed: Value =
+            serde_json::from_str(&render_svgs_json("@startuml\nAlice ->\n@enduml\n"))
+                .expect("json");
+        assert_eq!(parsed["error"]["code"], "E_ARROW_INVALID");
+        assert!(parsed["error"]["message"].as_str().expect("message").len() > 8);
     }
 }
