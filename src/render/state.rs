@@ -332,7 +332,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     let (lx1, ly1, lx2, ly2) = if has_reverse {
                         offset_parallel_edge(x1, y1, x2, y2, 10)
                     } else {
-                        (x1, y1, x2, y2)
+                        state_orthogonal_label_segment(x1, y1, x2, y2)
                     };
                     let layout = place_state_transition_label(
                         label,
@@ -435,7 +435,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     let (lx1, ly1, lx2, ly2) = if has_reverse {
                         offset_parallel_edge(x1, y1, x2, y2, 10)
                     } else {
-                        (x1, y1, x2, y2)
+                        state_orthogonal_label_segment(x1, y1, x2, y2)
                     };
                     let layout = place_state_transition_label(
                         label,
@@ -682,12 +682,13 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
 
             if let Some(label) = &t.label {
+                let (lx1, ly1, lx2, ly2) = state_orthogonal_label_segment(x1, y1, x2, y2);
                 let layout = place_state_transition_label(
                     label,
-                    x1,
-                    y1,
-                    x2,
-                    y2,
+                    lx1,
+                    ly1,
+                    lx2,
+                    ly2,
                     &placed,
                     &occupied_label_bounds,
                 );
@@ -1286,12 +1287,7 @@ fn emit_state_orthogonal_path(
     y2: i32,
     style: &StateEdgeStyle<'_>,
 ) {
-    let d = if x1 == x2 || y1 == y2 {
-        format!("M {x1} {y1} L {x2} {y2}")
-    } else {
-        let mid_y = y1 + (y2 - y1) / 2;
-        format!("M {x1} {y1} L {x1} {mid_y} L {x2} {mid_y} L {x2} {y2}")
-    };
+    let d = state_orthogonal_path_data(x1, y1, x2, y2);
     out.push_str(&format!(
         "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
         escape_text(from_name),
@@ -1303,6 +1299,57 @@ fn emit_state_orthogonal_path(
         style.hidden,
         style.dir
     ));
+}
+
+fn state_orthogonal_path_data(x1: i32, y1: i32, x2: i32, y2: i32) -> String {
+    if x1 == x2 || y1 == y2 {
+        return format!("M {x1} {y1} L {x2} {y2}");
+    }
+
+    if y2 < y1 {
+        let mid_x = state_upward_elbow_x(x1, x2);
+        format!("M {x1} {y1} L {mid_x} {y1} L {mid_x} {y2} L {x2} {y2}")
+    } else {
+        let mid_y = y1 + (y2 - y1) / 2;
+        format!("M {x1} {y1} L {x1} {mid_y} L {x2} {mid_y} L {x2} {y2}")
+    }
+}
+
+fn state_orthogonal_label_segment(x1: i32, y1: i32, x2: i32, y2: i32) -> (i32, i32, i32, i32) {
+    if x1 == x2 || y1 == y2 {
+        return (x1, y1, x2, y2);
+    }
+
+    if y2 < y1 {
+        let mid_x = state_upward_elbow_x(x1, x2);
+        longest_state_path_segment(&[(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)])
+    } else {
+        let mid_y = y1 + (y2 - y1) / 2;
+        longest_state_path_segment(&[(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)])
+    }
+}
+
+fn state_upward_elbow_x(x1: i32, x2: i32) -> i32 {
+    let dx = x2 - x1;
+    if dx.abs() <= 24 {
+        x1 + dx / 2
+    } else {
+        x2 - dx.signum() * 12
+    }
+}
+
+fn longest_state_path_segment(points: &[(i32, i32); 4]) -> (i32, i32, i32, i32) {
+    points
+        .windows(2)
+        .map(|segment| {
+            let (sx, sy) = segment[0];
+            let (ex, ey) = segment[1];
+            let len_sq = (ex - sx).pow(2) + (ey - sy).pow(2);
+            (len_sq, sx, sy, ex, ey)
+        })
+        .max_by_key(|(len_sq, _, _, _, _)| *len_sq)
+        .map(|(_, sx, sy, ex, ey)| (sx, sy, ex, ey))
+        .unwrap_or((points[0].0, points[0].1, points[3].0, points[3].1))
 }
 
 fn parse_state_note_on_link_direction(direction: Option<&str>) -> Option<(&str, &str)> {
@@ -1497,7 +1544,19 @@ fn place_state_transition_label(
     let along_offsets = [
         0.0, -18.0, 18.0, -36.0, 36.0, -56.0, 56.0, -76.0, 76.0, -96.0, 96.0, -120.0, 120.0,
     ];
-    let normal_offsets = [18.0, 30.0, 42.0, 56.0, 72.0, 92.0, 116.0, 140.0, 168.0];
+    let label_half_extent_on_normal = nx.abs() * (w as f64 / 2.0) + ny.abs() * (h as f64 / 2.0);
+    let min_normal_offset = (label_half_extent_on_normal + 8.0).max(18.0);
+    let normal_offsets = [
+        min_normal_offset,
+        min_normal_offset + 12.0,
+        min_normal_offset + 24.0,
+        min_normal_offset + 38.0,
+        min_normal_offset + 54.0,
+        min_normal_offset + 74.0,
+        min_normal_offset + 98.0,
+        min_normal_offset + 122.0,
+        min_normal_offset + 150.0,
+    ];
 
     for t in t_positions {
         let base_x = x1 as f64 + dx * t;
@@ -2578,12 +2637,14 @@ fn render_node<'a>(
                             );
                         }
                         if let Some(label) = &t.label {
+                            let (lx1, ly1, lx2, ly2) =
+                                state_orthogonal_label_segment(x1, y1, x2, y2);
                             let layout = place_state_transition_label(
                                 label,
-                                x1,
-                                y1,
-                                x2,
-                                y2,
+                                lx1,
+                                ly1,
+                                lx2,
+                                ly2,
                                 &inner_placed,
                                 occupied_label_bounds,
                             );
