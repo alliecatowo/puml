@@ -1,4 +1,5 @@
 use puml::model::{NormalizedDocument, StateNodeKind};
+use std::fs;
 
 const CH09_STATE_SRC: &str = r##"@startuml
 title State ch09 parity slice
@@ -205,6 +206,80 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains("stroke-dasharray=\"5 3\""));
     assert!(svg.contains("stroke=\"#dd00aa\""));
     assert!(svg.contains(">colored<"));
+}
+
+#[test]
+fn state_transition_labels_clear_crossing_arrow_lanes_issue_483() {
+    let src = fs::read_to_string("docs/examples/state/02_transitions.puml")
+        .expect("state transition example");
+    let svg = puml::render_source_to_svg(&src).expect("render state transition example");
+    let doc = roxmltree::Document::parse(&svg).expect("state transition SVG should parse");
+
+    let revise_edge = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("path")
+                && node.attribute("data-state-from") == Some("Rejected")
+                && node.attribute("data-state-to") == Some("Draft")
+        })
+        .expect("Rejected -> Draft edge should render");
+    let revise_path = revise_edge
+        .attribute("d")
+        .expect("Rejected -> Draft edge should have path data");
+    assert!(
+        revise_path.contains("L 298 100"),
+        "upward diagonal transition should use the target-side lane; d={revise_path:?}"
+    );
+    assert!(
+        !revise_path.contains("L 170 193 L 310 193"),
+        "Rejected -> Draft must not reuse the Submitted -> Approved horizontal lane"
+    );
+
+    let submit_label = state_label_node(&doc, "submit()");
+    let revise_label = state_label_node(&doc, "revise()");
+    let approve_label = state_label_node(&doc, "approve()");
+
+    let submit_right = state_label_center_x(submit_label) + state_label_half_width("submit()");
+    let revise_left = state_label_center_x(revise_label) - state_label_half_width("revise()");
+    assert!(
+        submit_right < 298,
+        "submit() label should stay left of the upward revise lane"
+    );
+    assert!(
+        revise_left > 298,
+        "revise() label should be offset clear of its own vertical shaft"
+    );
+    assert!(
+        state_label_center_y(approve_label) > state_label_center_y(revise_label),
+        "approve() and revise() labels should not stack in the crossing corridor"
+    );
+}
+
+fn state_label_node<'a, 'input>(
+    doc: &'a roxmltree::Document<'input>,
+    label: &str,
+) -> roxmltree::Node<'a, 'input> {
+    doc.descendants()
+        .find(|node| node.has_tag_name("text") && node.attribute("data-state-label") == Some(label))
+        .unwrap_or_else(|| panic!("missing state transition label {label}"))
+}
+
+fn state_label_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
+    node.attribute("x")
+        .expect("state transition label should have x")
+        .parse()
+        .expect("state transition label x should be numeric")
+}
+
+fn state_label_center_y(node: roxmltree::Node<'_, '_>) -> i32 {
+    node.attribute("y")
+        .expect("state transition label should have y")
+        .parse()
+        .expect("state transition label y should be numeric")
+}
+
+fn state_label_half_width(label: &str) -> i32 {
+    (label.chars().count() as i32 * 6) / 2
 }
 
 #[test]

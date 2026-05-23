@@ -120,6 +120,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     // Track the y-coordinate of the last message that arrived at each participant
     // so that explicit `activate X` can pin the bar start to the arriving message row.
     let mut last_arrival_y: BTreeMap<String, i32> = BTreeMap::new();
+    let mut last_arrival_message_ix: BTreeMap<String, usize> = BTreeMap::new();
 
     for event in &document.events {
         match &event.kind {
@@ -141,7 +142,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 } else {
                     events_top + (event_rows * options.message_row_height)
                 };
-                let (x1, x2) = message_x_bounds(
+                let (mut x1, mut x2) = message_x_bounds(
                     from,
                     to,
                     *from_virtual,
@@ -149,6 +150,19 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     &centers_by_id,
                     &options,
                 );
+                if from != to || from_virtual.is_some() || to_virtual.is_some() {
+                    (x1, x2) = activation_message_x_bounds(
+                        from,
+                        to,
+                        x1,
+                        x2,
+                        *from_virtual,
+                        *to_virtual,
+                        &centers_by_id,
+                        &activation_stack,
+                        &options,
+                    );
+                }
                 let route_lane = if document.teoz && is_parallel {
                     let lane = teoz_route_lanes_by_row.entry(y).or_insert(0);
                     *lane += 1;
@@ -185,6 +199,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 // following explicit `activate` can pin its bar to this row.
                 if to_virtual.is_none() && !to.is_empty() {
                     last_arrival_y.insert(to.clone(), y);
+                    last_arrival_message_ix.insert(to.clone(), messages.len());
                 }
                 messages.push(MessageLine {
                     from_id: from.clone(),
@@ -268,6 +283,21 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     .iter()
                     .filter(|open| open.participant_id == *id)
                     .count();
+                if let Some(message_ix) = last_arrival_message_ix.get(id.as_str()).copied() {
+                    if let Some(message) = messages.get_mut(message_ix) {
+                        if message.to_id == *id && message.to_virtual.is_none() {
+                            let left_to_right = message.x2 >= message.x1;
+                            let target_edge_right = !left_to_right;
+                            message.x2 = activation_edge_for_depth(
+                                id,
+                                depth,
+                                target_edge_right,
+                                &centers_by_id,
+                                &options,
+                            );
+                        }
+                    }
+                }
                 activation_stack.push(OpenActivation {
                     participant_id: id.clone(),
                     y1,
@@ -1368,6 +1398,68 @@ fn message_x_bounds(
         return (source_center, x2);
     }
     (from_center, to_center)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn activation_message_x_bounds(
+    from: &str,
+    to: &str,
+    x1: i32,
+    x2: i32,
+    from_virtual: Option<VirtualEndpoint>,
+    to_virtual: Option<VirtualEndpoint>,
+    centers_by_id: &BTreeMap<String, i32>,
+    activation_stack: &[OpenActivation],
+    options: &LayoutOptions,
+) -> (i32, i32) {
+    let left_to_right = x2 >= x1;
+    let adjusted_x1 = if from_virtual.is_none() {
+        active_activation_edge(
+            from,
+            left_to_right,
+            centers_by_id,
+            activation_stack,
+            options,
+        )
+        .unwrap_or(x1)
+    } else {
+        x1
+    };
+    let adjusted_x2 = if to_virtual.is_none() {
+        active_activation_edge(to, !left_to_right, centers_by_id, activation_stack, options)
+            .unwrap_or(x2)
+    } else {
+        x2
+    };
+    (adjusted_x1, adjusted_x2)
+}
+
+fn active_activation_edge(
+    id: &str,
+    right_edge: bool,
+    centers_by_id: &BTreeMap<String, i32>,
+    activation_stack: &[OpenActivation],
+    options: &LayoutOptions,
+) -> Option<i32> {
+    activation_stack
+        .iter()
+        .rfind(|open| open.participant_id == id)
+        .map(|open| activation_edge_for_depth(id, open.depth, right_edge, centers_by_id, options))
+}
+
+fn activation_edge_for_depth(
+    id: &str,
+    depth: usize,
+    right_edge: bool,
+    centers_by_id: &BTreeMap<String, i32>,
+    options: &LayoutOptions,
+) -> i32 {
+    let center = centers_by_id
+        .get(id)
+        .copied()
+        .unwrap_or_else(|| default_center(options));
+    let offset = (depth as i32) * 6;
+    center + offset + if right_edge { 5 } else { -5 }
 }
 
 fn message_label_lines(

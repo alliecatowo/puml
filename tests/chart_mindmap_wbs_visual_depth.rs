@@ -467,10 +467,17 @@ fn wbs_deep_top_to_bottom_layout_is_compact_and_keeps_padding() {
     let svg_width = svg_attr(&svg, "width")
         .parse::<i32>()
         .expect("svg width should be numeric");
+    let svg_height = svg_attr(&svg, "height")
+        .parse::<i32>()
+        .expect("svg height should be numeric");
 
     assert!(
-        svg_width < 4448,
-        "deep WBS should avoid the old fixed-slot width stretch: {svg_width}"
+        svg_width <= 1200,
+        "deep WBS should use compact outline layout instead of the old 3821px strip: {svg_width}"
+    );
+    assert!(
+        svg_height > svg_width,
+        "deep WBS should trade width for vertical depth readability: {svg_width}x{svg_height}"
     );
 
     let wbs_nodes = rects(&svg)
@@ -479,7 +486,7 @@ fn wbs_deep_top_to_bottom_layout_is_compact_and_keeps_padding() {
         .collect::<Vec<_>>();
     assert!(!wbs_nodes.is_empty(), "deep WBS should render nodes");
 
-    for rect in wbs_nodes {
+    for rect in &wbs_nodes {
         assert!(
             rect.attr_i32("x") >= 8,
             "WBS node should keep at least 8px left padding: {rect:?}"
@@ -489,4 +496,42 @@ fn wbs_deep_top_to_bottom_layout_is_compact_and_keeps_padding() {
             "WBS node should keep at least 8px right padding: {rect:?}"
         );
     }
+
+    for (left_idx, left) in wbs_nodes.iter().enumerate() {
+        for right in wbs_nodes.iter().skip(left_idx + 1) {
+            let separated = left.attr_i32("x") + left.attr_i32("width") <= right.attr_i32("x")
+                || right.attr_i32("x") + right.attr_i32("width") <= left.attr_i32("x")
+                || left.attr_i32("y") + left.attr_i32("height") <= right.attr_i32("y")
+                || right.attr_i32("y") + right.attr_i32("height") <= left.attr_i32("y");
+            assert!(
+                separated,
+                "compact WBS nodes should not overlap: {left:?} vs {right:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn mindmap_deep_asymmetric_layout_uses_tighter_horizontal_spacing() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/mindmap/05_four_levels_asymmetric.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("asymmetric mindmap doc example should be readable");
+    let svg = render_source_to_svg(&src).expect("asymmetric mindmap doc example should render");
+    let svg_width = svg_attr(&svg, "width")
+        .parse::<i32>()
+        .expect("svg width should be numeric");
+    let svg_height = svg_attr(&svg, "height")
+        .parse::<i32>()
+        .expect("svg height should be numeric");
+
+    assert!(
+        svg_width <= 1800,
+        "deep asymmetric mindmap should avoid the old 1979px horizontal spread: {svg_width}"
+    );
+    assert!(
+        svg_width < svg_height * 3,
+        "deep asymmetric mindmap should keep a readable global aspect ratio: {svg_width}x{svg_height}"
+    );
 }
