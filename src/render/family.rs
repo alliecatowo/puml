@@ -1412,7 +1412,9 @@ fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
         matches!(
             node.kind,
             FamilyNodeKind::UseCase
+                | FamilyNodeKind::BusinessUseCase
                 | FamilyNodeKind::Actor
+                | FamilyNodeKind::BusinessActor
                 | FamilyNodeKind::Person
                 | FamilyNodeKind::Note
         ) && node.members.is_empty()
@@ -2565,6 +2567,8 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
         FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::BusinessActor => "business-actor",
+        FamilyNodeKind::BusinessUseCase => "business-usecase",
         FamilyNodeKind::Hexagon => "hexagon",
         FamilyNodeKind::Label => "label",
         FamilyNodeKind::Person => "person",
@@ -2938,7 +2942,7 @@ fn render_class_node(
         },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::Map => "#fef3c7",
-        FamilyNodeKind::UseCase => "#dcfce7",
+        FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
 
@@ -2963,9 +2967,19 @@ fn render_class_node(
         return;
     }
 
-    if matches!(node.kind, FamilyNodeKind::Actor) {
+    if matches!(
+        node.kind,
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor
+    ) {
         let cx = x + w / 2;
         let fig_cy = y + 21;
+        if matches!(node.kind, FamilyNodeKind::BusinessActor) {
+            out.push_str(&format!(
+                "<rect class=\"uml-business-actor\" data-uml-kind=\"business-actor\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"10\" ry=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                fill,
+                stroke
+            ));
+        }
         match class_style.actor_style {
             ActorStyle::Stick => {
                 // Canonical stick-figure rendering for actors (issue #715).
@@ -3006,15 +3020,23 @@ fn render_class_node(
         return;
     }
 
-    if matches!(node.kind, FamilyNodeKind::UseCase) {
-        // Ellipse rendering for use cases
+    if matches!(
+        node.kind,
+        FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
+    ) {
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;
         let ry = h / 2;
-        out.push_str(&format!(
-            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        ));
+        if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
+            out.push_str(&format!(
+                "<rect class=\"uml-business-usecase\" data-uml-kind=\"business-usecase\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        } else {
+            out.push_str(&format!(
+                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        }
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
         // the human-readable label as members[0] when the parser embeds `as DisplayName`
         // inside a group. Detect this by checking that members[0] is plain text (not a
@@ -3385,7 +3407,9 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         // All other C4 nodes need at least 60px for the label + type label
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
-        FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor | FamilyNodeKind::Person => {
+            computed.max(64)
+        }
         FamilyNodeKind::Diamond => 44,
         _ => computed,
     }

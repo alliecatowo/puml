@@ -103,12 +103,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** `usecase_dependency_label` helper in `src/render/relation.rs:112` translates `include`/`extends` to dependency markers; consumed by `src/render/family.rs:520-522,726,2064`.
 **Notes:** Renders as labeled dotted arrow with stereotype-aware label.
 
-### 2.15 Business Use Case (`/` suffix — Business Usecase / Business Actor) — ❌
+### 2.15 Business Use Case (`/` suffix — Business Usecase / Business Actor) — ✅
 **Feature:** Trailing `/` on `(usecase)/`, `:Actor:/`, `usecase/`, `actor/` to mark business variant.
 **Syntax example:** `(First usecase)/`, `actor/ :Last actor: as Person1`
-**Status:** ❌ Missing
-**Evidence:** No matches for `usecase/`, `actor/`, or business-usecase handling in `src/parser/family.rs` or `src/normalize/family.rs`. The keyword lists at `:139,1326-1329,1398-1401` do not include `actor/` or `usecase/`.
-**Notes:** Trailing `/` likely causes a parse error or is treated as part of the alias.
+**Status:** ✅ Supported
+**Evidence:** `src/parser/family.rs` accepts parenthesized trailing `/`, colon actor trailing `/`, and `usecase/` / `actor/` keyword forms. `src/normalize/family.rs` promotes the hidden business marker to `FamilyNodeKind::BusinessUseCase` / `BusinessActor`. `src/render/family.rs` renders business use cases as rounded rectangles and business actors as boxed actor glyphs. Covered by `tests/ch02_usecase_parity.rs` and `docs/examples/usecase/07_business_variants.puml`.
+**Notes:** Explicit `<<business>>` is also normalized as the business shape marker for use-case nodes instead of being displayed as ordinary stereotype text.
 
 ### 2.16 Change arrow color and style (inline) — ✅
 **Feature:** `--> (X) #color;line.[bold|dashed|dotted];text:color : label`
@@ -134,6 +134,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 2
-- ✅ Supported: **13** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.16)
+- ✅ Supported: **14** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.15, 2.16)
 - 🟡 Partial: **3** (2.4, 2.13, 2.17)
-- ❌ Missing: **2** (2.15, 2.18)
+- ❌ Missing: **1** (2.18)

@@ -3250,6 +3250,17 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/usecase/07_business_variants.puml",
+      "artifact_svg": "docs/examples/usecase/07_business_variants.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/wbs/01_basic.puml",
       "artifact_svg": "docs/examples/wbs/01_basic.svg",
       "artifact_exists": true,

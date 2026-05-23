@@ -184,6 +184,8 @@ fn family_node_kind_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
         FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::BusinessActor => "business-actor",
+        FamilyNodeKind::BusinessUseCase => "business-use-case",
         FamilyNodeKind::Hexagon => "hexagon",
         FamilyNodeKind::Label => "label",
         FamilyNodeKind::Person => "person",

@@ -2,7 +2,9 @@
 //!
 //! Covers the focused slice implemented here:
 //! - `skinparam actorStyle awesome|hollow` changes use-case actor glyphs (2.3).
+//! - Business use-case and actor variants parse/normalize/render distinctly (2.15).
 
+use puml::model::FamilyNodeKind;
 use puml::model::{FamilyStyle, NormalizedDocument};
 use puml::theme::ActorStyle;
 
@@ -19,6 +21,17 @@ skinparam actorStyle hollow
 (Login)
 actor User
 User --> (Login)
+@enduml
+"##;
+
+const BUSINESS_VARIANTS_SRC: &str = r##"@startuml
+left to right direction
+(Checkout)/ as UC1
+usecase/ "Approve refund" as UC2 #AliceBlue
+:Customer:/ as Customer
+actor/ :Sales Manager: as Manager
+Customer --> UC1
+Manager --> UC2
 @enduml
 "##;
 
@@ -94,5 +107,56 @@ actor User
             .any(|warning| warning.message.contains("W_SKINPARAM_UNSUPPORTED_VALUE")),
         "invalid actorStyle value should produce unsupported-value warning: {:?}",
         model.warnings
+    );
+}
+
+#[test]
+fn business_variants_are_normalized_to_distinct_kinds() {
+    let document = puml::parser::parse(BUSINESS_VARIANTS_SRC).expect("parse business variants");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize business variants")
+    else {
+        panic!("business usecase diagram should normalize as Family");
+    };
+
+    assert!(
+        model
+            .nodes
+            .iter()
+            .any(|node| node.name == "Checkout" && node.kind == FamilyNodeKind::BusinessUseCase),
+        "trailing slash usecase should normalize as BusinessUseCase: {:?}",
+        model.nodes
+    );
+    assert!(
+        model.nodes.iter().any(|node| {
+            node.alias.as_deref() == Some("Manager") && node.kind == FamilyNodeKind::BusinessActor
+        }),
+        "actor/ declaration should normalize as BusinessActor: {:?}",
+        model.nodes
+    );
+    assert!(
+        model.nodes.iter().any(|node| {
+            node.alias.as_deref() == Some("Customer") && node.kind == FamilyNodeKind::BusinessActor
+        }),
+        "colon actor trailing slash should normalize as BusinessActor: {:?}",
+        model.nodes
+    );
+}
+
+#[test]
+fn business_variants_render_business_shapes() {
+    let svg = puml::render_source_to_svg(BUSINESS_VARIANTS_SRC).expect("render business variants");
+
+    assert!(
+        svg.contains("class=\"uml-business-usecase\""),
+        "business usecases should render as rounded rectangles; svg={svg}"
+    );
+    assert!(
+        svg.contains("class=\"uml-business-actor\""),
+        "business actors should render a distinct boxed actor glyph; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#f0f8ff\""),
+        "business usecase should preserve inline fill color; svg={svg}"
     );
 }
