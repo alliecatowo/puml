@@ -510,6 +510,28 @@ fn check_mode_passes_for_valid_input() {
 }
 
 #[test]
+fn check_syntax_alias_passes_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check-syntax", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn check_syntax_alias_reports_invalid_input_like_check_mode() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check-syntax", &fixture("invalid_single.puml")])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("[E_FAMILY_UNKNOWN]"));
+}
+
+#[test]
 fn default_frontend_matches_explicit_plantuml() {
     let default = Command::cargo_bin("puml")
         .expect("binary")
@@ -4334,6 +4356,23 @@ fn lint_mode_requires_check_flag() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("--check"));
+}
+
+#[test]
+fn lint_mode_accepts_check_syntax_alias() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check-syntax",
+            "--lint-input",
+            &fixture("single_valid.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "lint summary: files=1 passed=1 failed=0",
+        ))
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]

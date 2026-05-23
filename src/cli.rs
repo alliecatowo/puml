@@ -1,4 +1,4 @@
-use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 // Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
@@ -31,6 +31,11 @@ pub fn parse_define(raw: &str) -> Result<(String, String), String> {
     version,
     about = "Rust-native PlantUML-compatible diagram renderer with PicoUML and Mermaid adapter frontends"
 )]
+#[command(group(
+    ArgGroup::new("check_mode")
+        .args(["check", "check_syntax"])
+        .multiple(true)
+))]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -66,16 +71,34 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check: bool,
 
+    /// PlantUML-compatible alias for `--check`.
+    #[arg(long = "check-syntax", action = ArgAction::SetTrue, conflicts_with = "dump")]
+    pub check_syntax: bool,
+
     /// Emit structured JSON metadata after parse and normalization.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with_all = ["check", "dump"])]
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        conflicts_with_all = ["check", "check_syntax", "dump"]
+    )]
     pub metadata: bool,
 
     /// Lint/check mode inputs (repeatable file paths).
-    #[arg(long, action = ArgAction::Append, value_name = "INPUT", requires = "check")]
+    #[arg(
+        long,
+        action = ArgAction::Append,
+        value_name = "INPUT",
+        requires = "check_mode"
+    )]
     pub lint_input: Vec<PathBuf>,
 
     /// Lint/check mode glob patterns (repeatable).
-    #[arg(long, action = ArgAction::Append, value_name = "GLOB", requires = "check")]
+    #[arg(
+        long,
+        action = ArgAction::Append,
+        value_name = "GLOB",
+        requires = "check_mode"
+    )]
     pub lint_glob: Vec<String>,
 
     /// Lint/check summary report format.
@@ -400,6 +423,7 @@ mod tests {
         assert_eq!(cli.charset, "UTF-8");
         assert!(cli.encodesprite.is_empty());
         assert!(!cli.htmlcss);
+        assert!(!cli.check_syntax);
     }
 
     #[test]
@@ -426,6 +450,13 @@ mod tests {
         let check_err = Cli::try_parse_from(["puml", "--metadata", "--check"])
             .expect_err("metadata + check should conflict");
         assert_eq!(check_err.kind(), clap::error::ErrorKind::ArgumentConflict);
+
+        let check_syntax_err = Cli::try_parse_from(["puml", "--metadata", "--check-syntax"])
+            .expect_err("metadata + check-syntax should conflict");
+        assert_eq!(
+            check_syntax_err.kind(),
+            clap::error::ErrorKind::ArgumentConflict
+        );
 
         let dump_err = Cli::try_parse_from(["puml", "--metadata", "--dump", "scene"])
             .expect_err("metadata + dump should conflict");
@@ -584,6 +615,24 @@ mod tests {
             vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
         );
         assert_eq!(cli.lint_glob, vec!["tests/**/*.puml".to_string()]);
+        assert_eq!(cli.lint_report, LintReportFormat::Json);
+    }
+
+    #[test]
+    fn check_syntax_alias_enables_check_mode() {
+        let cli = Cli::try_parse_from([
+            "puml",
+            "--check-syntax",
+            "--lint-input",
+            "a.puml",
+            "--lint-report",
+            "json",
+        ])
+        .expect("--check-syntax should satisfy check-mode lint flags");
+
+        assert!(!cli.check);
+        assert!(cli.check_syntax);
+        assert_eq!(cli.lint_input, vec![PathBuf::from("a.puml")]);
         assert_eq!(cli.lint_report, LintReportFormat::Json);
     }
 
