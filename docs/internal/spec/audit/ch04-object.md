@@ -6,11 +6,11 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ### 4.1 Definition of objects — ✅
-**Feature:** Declare object instances with the `object` keyword and optional alias.
-**Syntax example:** `object firstObject`, `object "My Second Object" as o2`
+**Feature:** Declare object instances with the `object` keyword, optional alias, and optional instance type annotation.
+**Syntax example:** `object firstObject`, `object "My Second Object" as o2`, `object alice : Person`
 **Status:** ✅ Supported
-**Evidence:** `src/parser/family.rs:65` (keyword table `("object", None)`), `:736` (`StatementKind::ObjectDecl`). Normalized to `FamilyNodeKind::Object` at `src/normalize/family.rs:7`. Rendered at `src/render/family.rs:2146`.
-**Notes:** Quoted labels and alias-via-`as` handled by the shared family decl parser.
+**Evidence:** `src/parser/family.rs:65` (keyword table `("object", None)`), `:736` (`StatementKind::ObjectDecl`). Normalized to `FamilyNodeKind::Object` at `src/normalize/family.rs:7`; typed `name : Class` instances keep `name` as the relation id and carry the typed header label through `FamilyNode::label`. Rendered at `src/render/family.rs:2146`. Covered by `tests/ch04_object_parity.rs`.
+**Notes:** Quoted labels and alias-via-`as` handled by the shared family decl parser. Object headers are underlined per UML, including typed instance labels.
 
 ### 4.2 Relations between objects (`<|--`, `<|..`, `*--`, `o--`, `-->`, `..>`, cardinality, label) — ✅
 **Feature:** Inheritance/realization/composition/aggregation/dependency arrows; dotted variants; `"N"` cardinality strings; `: label`.

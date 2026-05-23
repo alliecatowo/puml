@@ -1404,6 +1404,14 @@ fn class_node_width(kind: FamilyNodeKind, default_width: i32) -> i32 {
     }
 }
 
+fn class_node_display_name(node: &FamilyNode, namespace_separator: Option<&str>) -> String {
+    let raw_name = node.label.as_deref().unwrap_or(&node.name);
+    namespace_separator
+        .filter(|sep| !sep.is_empty())
+        .map(|sep| raw_name.replace("::", sep))
+        .unwrap_or_else(|| raw_name.to_string())
+}
+
 fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
     if !matches!(document.kind, crate::ast::DiagramKind::UseCase) {
         return false;
@@ -1449,7 +1457,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let name_px = document
             .nodes
             .iter()
-            .map(|n| n.name.chars().count() as i32 * 8 + 32)
+            .map(|n| {
+                class_node_display_name(n, document.namespace_separator.as_deref())
+                    .chars()
+                    .count() as i32
+                    * 8
+                    + 32
+            })
             .max()
             .unwrap_or(200);
         let member_px = document
@@ -3138,14 +3152,8 @@ fn render_class_node(
         ));
     }
 
-    // Header text: class name (fix #486 — Object shows `Name : Type` underlined)
-    let display_name = namespace_separator
-        .filter(|sep| !sep.is_empty())
-        .map(|sep| node.name.replace("::", sep))
-        .unwrap_or_else(|| node.name.clone());
-    // For objects: if the name contains " : " it's already in `name : Type` form;
-    // otherwise we show just the name.  Either way we underline per UML.
-    let header_text = display_name.clone();
+    // Header text: class name or object instance label (`name : Type`).
+    let header_text = class_node_display_name(node, namespace_separator);
     // Underline for objects (PlantUML convention — fix #486)
     let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
         " text-decoration=\"underline\" text-decoration-thickness=\"1\""

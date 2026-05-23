@@ -37,6 +37,13 @@ Audit --> Account::id
 @enduml
 "##;
 
+const TYPED_OBJECT_SRC: &str = r##"@startuml
+object Alice : Person
+object Bob : Person
+Alice --> Bob : knows
+@enduml
+"##;
+
 #[test]
 fn object_ch04_normalizes_diamond_map_and_qualified_relation() {
     let document = puml::parser::parse(DIAMOND_HUB_SRC).expect("parse ch04 diamond hub");
@@ -89,6 +96,29 @@ fn object_ch04_normalizes_diamond_map_and_qualified_relation() {
 }
 
 #[test]
+fn object_ch04_normalizes_typed_instance_label_without_losing_identity() {
+    let document = puml::parser::parse(TYPED_OBJECT_SRC).expect("parse typed object instances");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize typed object instances")
+    else {
+        panic!("object diagram should normalize as Family");
+    };
+
+    assert!(
+        model.nodes.iter().any(|node| {
+            node.name == "Alice" && node.label.as_deref() == Some("Alice : Person")
+        }),
+        "typed object should keep `Alice` as the relation id and use the typed label"
+    );
+    assert!(
+        model.relations.iter().any(|rel| rel.from == "Alice"
+            && rel.to == "Bob"
+            && rel.label.as_deref() == Some("knows")),
+        "relation endpoints should still resolve by instance name"
+    );
+}
+
+#[test]
 fn object_ch04_renders_diamond_and_two_column_map_rows() {
     let svg = puml::render_source_to_svg(DIAMOND_HUB_SRC).expect("render ch04 diamond hub");
     assert!(
@@ -108,6 +138,23 @@ fn object_ch04_renders_diamond_and_two_column_map_rows() {
     assert!(
         svg.contains("class=\"uml-map-value\"") && svg.contains(">Washington<"),
         "map row relation syntax should render its target in the value column: {svg}"
+    );
+}
+
+#[test]
+fn object_ch04_renders_typed_instances_underlined_with_relation() {
+    let svg = puml::render_source_to_svg(TYPED_OBJECT_SRC).expect("render typed object instances");
+    assert!(
+        svg.contains(">Alice : Person</text>") && svg.contains(">Bob : Person</text>"),
+        "typed object labels should render in the object header: {svg}"
+    );
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "typed object headers should be underlined: {svg}"
+    );
+    assert!(
+        svg.contains("data-uml-from=\"Alice\" data-uml-to=\"Bob\""),
+        "typed object relation should render between instance ids: {svg}"
     );
 }
 
