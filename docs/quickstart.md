@@ -1,16 +1,8 @@
-# Quickstart: your first diagram in 5 minutes
+# Quickstart
 
-This guide walks you from zero to a rendered, embedded diagram. No Java. No Node. One
-binary.
-
----
-
-## Prerequisites
-
-- `puml` installed — see [install.md](install.md) if you haven't done that yet.
-- A terminal and a text editor.
-
-Verify your install:
+This page gets you from an empty directory to a rendered diagram, a CI check, and a
+Markdown embed. It assumes `puml` is installed; see [install.md](install.md) first if
+`puml --version` does not work.
 
 ```bash
 puml --version
@@ -18,227 +10,137 @@ puml --version
 
 ---
 
-## Step 1: Write a sequence diagram
+## 1. Write a diagram
 
-Create a file called `hello.puml`:
+Create `hello.puml`:
 
 ```bash
-cat > hello.puml <<'EOF'
+cat > hello.puml <<'EOF_DIAGRAM'
 @startuml
-title Hello from puml
+title First puml diagram
 
 Alice -> Bob: Hello
 Bob --> Alice: Ack
 
 note right of Bob
-  This is a note.
+  Rendered locally by puml.
 end note
 @enduml
-EOF
+EOF_DIAGRAM
 ```
 
-Or open it in your editor and paste this content. The `@startuml` / `@enduml` markers
-are required — they delimit the diagram block.
+`@startuml` and `@enduml` delimit the diagram block. The default dialect is `auto`, so
+PlantUML-compatible files, PicoUML files, supported Mermaid fences, and Markdown fence
+labels can select the frontend automatically.
 
 ---
 
-## Step 2: Render to SVG
+## 2. Render SVG
 
 ```bash
 puml hello.puml
 ```
 
-This writes `hello.svg` next to the source file. Open it in any browser or SVG viewer:
+By default, `puml` writes `hello.svg` next to `hello.puml`. SVG is the best default for
+documentation because it is vector, deterministic, easy to diff, and renders inline in
+most Markdown and static-site workflows.
+
+To choose the output path:
 
 ```bash
-# Linux
-xdg-open hello.svg
-
-# macOS
-open hello.svg
-
-# Or just drag it into a browser tab
+puml hello.puml -o diagrams/login.svg
 ```
 
-SVG is the default format because it's vector (scales to any size), text-based (diffs
-cleanly in git), and renders inline in GitHub Markdown and most static site generators.
-
-### Output to a specific file
+To write SVG to stdout:
 
 ```bash
-puml hello.puml -o /tmp/my-diagram.svg
+puml hello.puml -o - > hello.svg
 ```
 
-Use `-o -` to write to stdout (useful for piping into another tool):
-
-```bash
-puml hello.puml -o - | rsvg-convert --format pdf > hello.pdf
-```
-
-For PlantUML-compatible stdin/stdout rendering, use `--pipe`:
+For PlantUML-compatible stdin-to-stdout mode, use `--pipe`:
 
 ```bash
 cat hello.puml | puml --pipe > hello.svg
 ```
 
+`--pipe` does not accept a positional input file or `-o`; it always reads stdin and
+writes stdout.
+
 ---
 
-## Step 3: Render to PNG
+## 3. Render other formats
 
 ```bash
-puml --format png hello.puml
+puml --format png hello.puml     # writes hello.png
+puml --format jpg hello.puml     # writes hello.jpg
+puml --format webp hello.puml    # writes hello.webp
+puml --format pdf hello.puml     # writes hello.pdf
+puml --format html hello.puml    # writes hello.html
+puml --format txt hello.puml     # writes hello.txt
+puml --format utxt hello.puml    # writes hello.utxt
 ```
 
-Writes `hello.png` at 96 DPI by default. For high-DPI screens (retina, 4K):
+PNG defaults to 96 DPI. Increase it for high-DPI screenshots or docs uploads:
 
 ```bash
 puml --format png --dpi 192 hello.puml
 ```
 
-Other raster formats:
-
-```bash
-puml --format jpg hello.puml    # JPEG
-puml --format webp hello.puml   # WebP
-```
+HTML output is self-contained and embeds the SVG inline.
 
 ---
 
-## Step 4: Embed in Markdown
+## 4. Validate without writing files
 
-Drop the rendered SVG into any Markdown file:
-
-```markdown
-## System architecture
-
-![Login sequence](hello.svg)
-```
-
-GitHub renders SVG inline in Markdown. Commit both `hello.puml` and `hello.svg` to
-your repo — reviewers see the diagram rendered in the PR diff view, and the source
-`.puml` file is what you edit.
-
-For HTML output (self-contained, embeddable anywhere):
-
-```bash
-puml --format html hello.puml
-# → hello.html, SVG embedded inline, no external dependencies
-```
-
----
-
-## Step 5: Validate without rendering
-
-Use `--check` to lint a diagram without writing any output:
+Use `--check` when you only want parsing and normalization:
 
 ```bash
 puml --check hello.puml
 ```
 
-Exit code 0 = valid. Exit code 1 = parse or validation error, with a diagnostic on
-stderr. This is the mode to use in CI and pre-commit hooks.
+Exit code `0` means the diagram is valid. Exit code `1` means `puml` found a syntax or
+semantic diagnostic. Exit code `2` is an I/O problem, and exit code `3` means an internal
+error that should be reported.
 
-Check all diagrams in a directory at once:
+Check many files at once:
 
 ```bash
-find . -name '*.puml' | xargs puml --check
+find . -name '*.puml' -not -path './target/*' -exec puml --check {} +
+```
+
+You can also use explicit lint inputs and globs:
+
+```bash
+puml --check --lint-input docs/architecture.puml
+puml --check --lint-glob 'docs/**/*.puml' --lint-report json
 ```
 
 ---
 
-## A richer example: class diagram
+## 5. Embed in Markdown
 
-```bash
-cat > library.puml <<'EOF'
-@startuml
-title Library system
+Render the SVG and reference it from Markdown:
 
-class Book {
-  +String title
-  +String author
-  +String isbn
-  +borrow(patron: Patron): Receipt
-}
+```markdown
+## Login flow
 
-class Patron {
-  +String name
-  +String cardNumber
-  +List<Book> borrowed
-}
-
-class Receipt {
-  +Date dueDate
-  +Book book
-  +Patron patron
-}
-
-Book "1" <-- "many" Receipt
-Patron "1" <-- "many" Receipt
-@enduml
-EOF
-
-puml library.puml
+![Login flow](hello.svg)
 ```
 
----
-
-## A richer example: activity diagram
+Commit both files:
 
 ```bash
-cat > checkout.puml <<'EOF'
-@startuml
-title Book checkout flow
-
-start
-:Scan library card;
-if (Card valid?) then (yes)
-  :Scan book barcode;
-  if (Book available?) then (yes)
-    :Issue receipt;
-    :Update inventory;
-    stop
-  else (no)
-    :Offer hold;
-  endif
-else (no)
-  :Alert: invalid card;
-endif
-stop
-@enduml
-EOF
-
-puml checkout.puml
+git add hello.puml hello.svg
 ```
 
----
-
-## Using the VS Code extension
-
-If you installed the VS Code extension from `extensions/vscode/`:
-
-1. Open any `.puml` file.
-2. A preview panel opens automatically (or press `Ctrl+Shift+P` → "puml: Preview").
-3. Edits to the source update the preview live.
-4. Hover over any keyword for documentation.
-5. The status bar shows diagnostic counts; click to see errors in the Problems panel.
+The `.puml` source is what humans edit. The SVG is the reviewable artifact that GitHub
+and most static sites can display without running a renderer.
 
 ---
 
-## Using the browser editor
+## 6. Check Markdown fences
 
-The live browser editor runs entirely client-side via WebAssembly — no install needed,
-no server calls.
-
-Visit: [alliecatowo.github.io/puml/editor](https://alliecatowo.github.io/puml/editor)
-
-Paste any PlantUML or PicoUML source into the left pane. The diagram renders in the
-right pane as you type. Use the format selector to download SVG or PNG directly.
-
----
-
-## Lint diagrams embedded in Markdown
-
-If you write diagrams inside Markdown files using fenced code blocks:
+If your diagrams live inside Markdown, use fenced blocks:
 
 ````markdown
 ```puml
@@ -248,34 +150,61 @@ Alice -> Bob: Hello
 ```
 ````
 
-You can validate them without extracting to separate files:
+Validate every supported diagram fence in a Markdown file:
 
 ```bash
-puml --from-markdown --check notes.md
+puml --from-markdown --check README.md
+```
+
+Supported fence labels include `puml`, `plantuml`, `uml`, `picouml`, and selected
+Mermaid labels.
+
+---
+
+## 7. Use includes safely
+
+Local file includes work for file inputs. For stdin input, tell `puml` where includes
+should resolve from:
+
+```bash
+cat hello.puml | puml --include-root . -o - > hello.svg
+```
+
+URL includes are disabled by default so a render does not unexpectedly read the network
+or local `file://` URLs. Opt in only when your workflow needs it:
+
+```bash
+puml --allow-url-includes diagram-with-remote-include.puml
 ```
 
 ---
 
-## Pipeline inspection (advanced)
+## 8. Inspect what puml sees
 
-`puml` can dump its internal representations for debugging or tooling integration:
+These commands are useful when a diagram does not render the way you expect:
 
 ```bash
-puml --dump ast hello.puml     # span-annotated parse tree (JSON)
-puml --dump model hello.puml   # normalized diagram model (JSON)
-puml --dump scene hello.puml   # render scene graph (JSON)
+puml --dump ast hello.puml
+puml --dump model hello.puml
+puml --dump scene hello.puml
+puml stats hello.puml
+puml stats --format json hello.puml
+puml count --by-kind hello.puml
 ```
 
-These are useful for understanding how a diagram is parsed, for writing tests, or for
-building integrations on top of `puml`.
+For CI and support reports, capture environment information:
+
+```bash
+puml env
+puml env --format json
+```
 
 ---
 
-## What's next
+## Next steps
 
-- [install.md](install.md) — other install methods (Docker, pre-built binaries, npm)
-- [CI integration](ci-integration.md) — GitHub Actions, GitLab CI, pre-commit hooks
-- [comparison.md](comparison.md) — how puml compares to PlantUML and Mermaid
-- [FAQ](faq.md) — common questions
-- [Examples gallery](examples/GALLERY.md) — what renders today across all families
-- [CLI reference](https://alliecatowo.github.io/puml/guide/cli/) — all flags and options
+- [CI integration](ci-integration.md) for GitHub Actions, GitLab CI, and pre-commit.
+- [Comparison](comparison.md) for PlantUML and Mermaid tradeoffs.
+- [FAQ](faq.md) for compatibility, PDF, includes, and bug reports.
+- [Examples gallery](examples/GALLERY.md) for the current rendered corpus.
+- [CLI reference](https://alliecatowo.github.io/puml/guide/cli/) for the full flag list.
