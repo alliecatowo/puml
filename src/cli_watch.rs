@@ -335,4 +335,38 @@ mod tests {
         assert!(webp.starts_with(b"RIFF"));
         assert_eq!(&webp[8..12], b"WEBP");
     }
+
+    #[test]
+    fn render_once_reports_read_errors_without_panicking() {
+        let tmp = tempdir().unwrap();
+        let missing = tmp.path().join("missing.puml");
+        let cli = Cli::try_parse_from(["puml", "--watch", missing.to_str().unwrap()])
+            .expect("watch input should parse");
+
+        let err = render_once(&cli, missing.to_str().unwrap()).expect_err("missing file");
+
+        assert!(err.contains("failed to read"));
+        assert!(err.contains("missing.puml"));
+    }
+
+    #[test]
+    fn rasterize_rejects_degenerate_svg_dimensions() {
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="6">
+  <rect x="0" y="0" width="8" height="6" fill="#fff"/>
+</svg>"##;
+
+        let err = rasterize(svg, OutputFormat::Png, 0.0).expect_err("degenerate output");
+
+        assert!(err.contains("degenerate SVG dimensions"));
+    }
+
+    #[test]
+    fn chrono_hms_uses_fixed_width_time_fields() {
+        let value = chrono_hms();
+
+        assert_eq!(value.len(), 8);
+        assert_eq!(value.as_bytes()[2], b':');
+        assert_eq!(value.as_bytes()[5], b':');
+        assert_eq!(value.chars().filter(|ch| ch.is_ascii_digit()).count(), 6);
+    }
 }
