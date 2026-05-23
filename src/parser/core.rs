@@ -842,9 +842,23 @@ fn parse_style_block(
         return Ok(None);
     }
     if !is_sequence_style_block(lines, start_idx) {
-        // Leave non-sequence style blocks untouched so existing family-specific
-        // style handling (e.g. mindmap depth styles) keeps working.
-        return Ok(None);
+        // Preserve non-sequence style blocks as raw lines so family-specific
+        // style handling (e.g. mindmap depth styles) can consume them without
+        // generic top-level keyword parsing rewriting inner declarations.
+        let mut kinds = vec![StatementKind::Unknown(line.to_string())];
+        for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+            kinds.push(StatementKind::Unknown((*raw).to_string()));
+            if strip_inline_plantuml_comment(raw)
+                .trim()
+                .eq_ignore_ascii_case("</style>")
+            {
+                return Ok(Some((kinds, idx)));
+            }
+        }
+        return Err(Diagnostic::error(
+            "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
+        )
+        .with_span(lines[start_idx].1));
     }
 
     let mut kinds: Vec<StatementKind> = Vec::new();

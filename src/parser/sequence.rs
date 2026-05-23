@@ -261,6 +261,12 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             value: value.trim().to_string(),
         });
     }
+    if lower.starts_with("backgroundcolor ") {
+        return Some(StatementKind::SkinParam {
+            key: "backgroundColor".to_string(),
+            value: line["backgroundColor".len()..].trim().to_string(),
+        });
+    }
     if lower.starts_with("!theme") {
         return Some(StatementKind::Theme(line[6..].trim().to_string()));
     }

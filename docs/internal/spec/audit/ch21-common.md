@@ -117,9 +117,10 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Status:** ✅ sepia; 🟡 monochrome
 **Evidence:** `src/normalize/family.rs` and `src/normalize/sequence.rs` handle `skinparam sepia true/false` via `classify_sequence_skinparam`. SVG CSS filter `filter:sepia(1)` added to root element when enabled. `monochrome` skinparam parsed and stored in `SequenceStyle` but grayscale CSS filter not yet emitted. Tests: `tests/ch21_common_parity.rs` (`skinparam_sepia_true_adds_css_filter_on_class_diagram`, `skinparam_sepia_true_adds_css_filter_on_sequence`, `skinparam_sepia_false_does_not_add_css_filter_on_sequence`).
 
-### 21.x backgroundColor (top-level skinparam) — 🟡
-**Status:** 🟡
-**Evidence:** Many family-specific `BackgroundColor` skinparams (e.g. `src/theme.rs:1199`, `src/normalize/chart.rs:376`). Standalone top-level `backgroundColor` as a directive (not via skinparam) not located.
+### 21.x backgroundColor (top-level skinparam) — ✅
+**Status:** ✅
+**Evidence:** Top-level `backgroundColor <color>` is parsed as the common `SkinParam { key: "backgroundColor", value }` path at `src/parser/sequence.rs`, so it is accepted before/after family detection and reused by existing family normalizers/renderers. Tests: `tests/ch21_common_parity.rs` (`top_level_background_color_applies_to_sequence`, `top_level_background_color_before_family_detection_applies_to_class`, `top_level_background_color_after_family_detection_applies_to_component`). Example: `docs/examples/skinparams/20_top_level_background_color.puml`.
+**Notes:** This intentionally reuses the existing `skinparam backgroundColor` machinery rather than adding a parallel renderer-specific directive.
 
 ### 21.x hide stereotype — ❌ (not located)
 **Evidence:** No matches in greps.
@@ -127,6 +128,6 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ---
 
 ## Tally — Chapter 21
-- ✅ Supported: 13 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia)
+- ✅ Supported: 14 (`'` comment, `/' '/` block comments, title, caption, header/footer base + alignment qualifier, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia, top-level backgroundColor)
 - 🟡 Partial: 5 (scale, per-family render coverage, skinparam breadth, !theme remote, monochrome)
-- ❌ Missing: 4 (`<style>` blocks, mainframe, hide stereotype, top-level backgroundColor)
+- ❌ Missing: 3 (`<style>` blocks, mainframe, hide stereotype)
