@@ -17,10 +17,6 @@ fn mindmap_node_fill(depth: usize) -> &'static str {
     MINDMAP_PALETTE[depth % MINDMAP_PALETTE.len()]
 }
 
-fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -> &'a str {
-    node.fill_color.as_deref().unwrap_or(fallback)
-}
-
 fn mindmap_style(doc: &FamilyDocument) -> Option<&crate::theme::MindMapStyle> {
     match &doc.family_style {
         Some(crate::model::FamilyStyle::MindMap(style)) => Some(style),
@@ -32,6 +28,14 @@ fn mindmap_node_fill_resolved(
     node: &crate::model::FamilyNode,
     style: Option<&crate::theme::MindMapStyle>,
 ) -> String {
+    tree_node_fill_resolved(node, style, mindmap_node_fill(node.depth))
+}
+
+fn tree_node_fill_resolved(
+    node: &crate::model::FamilyNode,
+    style: Option<&crate::theme::MindMapStyle>,
+    fallback: &str,
+) -> String {
     node.fill_color
         .clone()
         .or_else(|| {
@@ -39,7 +43,7 @@ fn mindmap_node_fill_resolved(
                 .and_then(|s| s.depth_styles.get(&node.depth))
                 .and_then(|s| s.background_color.clone())
         })
-        .unwrap_or_else(|| mindmap_node_fill(node.depth).to_string())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 fn mindmap_node_font_color<'a>(
@@ -797,6 +801,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     if nodes.is_empty() {
         return wbs_empty_svg(doc);
     }
+    let style = mindmap_style(doc);
 
     let n = nodes.len();
 
@@ -1183,12 +1188,13 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         } else {
             "#f1f5f9"
         };
-        let fill = family_node_fill(node, default_fill);
-        let stroke = if node.depth == 0 {
+        let fill = tree_node_fill_resolved(node, style, default_fill);
+        let default_stroke = if node.depth == 0 {
             "#92400e"
         } else {
             "#64748b"
         };
+        let stroke = mindmap_node_border_color(node.depth, style, default_stroke);
         let (checkbox_class, checkbox_attr) = match &node.wbs_checkbox {
             Some(WbsCheckbox::Checked) => {
                 (" wbs-checked", " data-wbs-checkbox=\"checked\"".to_string())
@@ -1221,7 +1227,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
             ny = ny,
             nw = nw,
             nh = NODE_H,
-            fill = escape_text(fill),
+            fill = escape_text(&fill),
             stroke = stroke
         ));
 
