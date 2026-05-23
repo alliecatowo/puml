@@ -249,3 +249,90 @@ fn format_extension(fmt: OutputFormat) -> &'static str {
         OutputFormat::Utxt => "utxt",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Cli;
+    use clap::Parser;
+    use tempfile::tempdir;
+
+    #[test]
+    fn watch_mode_requires_positional_input_before_looping() {
+        let cli = Cli::try_parse_from(["puml", "--watch"]).expect("watch flag should parse");
+        let err = run_watch(&cli).expect_err("missing input should fail before polling");
+
+        assert_eq!(err, "--watch requires an input file path");
+    }
+
+    #[test]
+    fn render_once_writes_default_svg_and_explicit_html_outputs() {
+        let tmp = tempdir().unwrap();
+        let input = tmp.path().join("watch-me.puml");
+        fs::write(&input, "@startuml\nAlice -> Bob : hello\n@enduml\n").unwrap();
+
+        let cli = Cli::try_parse_from(["puml", "--watch", input.to_str().unwrap()])
+            .expect("watch input should parse");
+        render_once(&cli, input.to_str().unwrap()).expect("svg render should succeed");
+        let svg = fs::read_to_string(tmp.path().join("watch-me.svg")).unwrap();
+        assert!(svg.contains("<svg"));
+
+        let html = tmp.path().join("watch-me.html");
+        let cli = Cli::try_parse_from([
+            "puml",
+            "--watch",
+            "--format",
+            "html",
+            "--output",
+            html.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .expect("watch html output should parse");
+        render_once(&cli, input.to_str().unwrap()).expect("html render should succeed");
+        let html = fs::read_to_string(html).unwrap();
+        assert!(html.contains("<svg"));
+    }
+
+    #[test]
+    fn watch_output_format_helpers_report_supported_extensions_and_errors() {
+        assert_eq!(format_extension(OutputFormat::Svg), "svg");
+        assert_eq!(format_extension(OutputFormat::Html), "html");
+        assert_eq!(format_extension(OutputFormat::Png), "png");
+        assert_eq!(format_extension(OutputFormat::Jpg), "jpg");
+        assert_eq!(format_extension(OutputFormat::Webp), "webp");
+        assert_eq!(format_extension(OutputFormat::Pdf), "pdf");
+        assert_eq!(format_extension(OutputFormat::Txt), "txt");
+        assert_eq!(format_extension(OutputFormat::Atxt), "atxt");
+        assert_eq!(format_extension(OutputFormat::Utxt), "utxt");
+
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>";
+        assert_eq!(
+            svg_to_output_bytes(svg, OutputFormat::Svg, 96.0).unwrap(),
+            svg.as_bytes()
+        );
+        assert!(svg_to_output_bytes(svg, OutputFormat::Pdf, 96.0)
+            .unwrap_err()
+            .contains("--watch does not yet support --format pdf"));
+        assert!(svg_to_output_bytes(svg, OutputFormat::Txt, 96.0)
+            .unwrap_err()
+            .contains("--watch does not support text output"));
+    }
+
+    #[test]
+    fn watch_raster_output_helpers_encode_supported_image_formats() {
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2">
+  <rect width="2" height="2" fill="#ffffff"/>
+  <rect width="1" height="1" fill="#000000"/>
+</svg>"##;
+
+        let png = svg_to_output_bytes(svg, OutputFormat::Png, 96.0).expect("png bytes");
+        assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
+
+        let jpg = svg_to_output_bytes(svg, OutputFormat::Jpg, 96.0).expect("jpg bytes");
+        assert!(jpg.starts_with(&[0xff, 0xd8]));
+
+        let webp = svg_to_output_bytes(svg, OutputFormat::Webp, 96.0).expect("webp bytes");
+        assert!(webp.starts_with(b"RIFF"));
+        assert_eq!(&webp[8..12], b"WEBP");
+    }
+}
