@@ -2760,6 +2760,27 @@ fn diagnostics_default_mode_remains_human_readable() {
 }
 
 #[test]
+fn human_file_diagnostics_include_path_line_column_and_code() {
+    let dir = tempdir().unwrap();
+    let input = dir.path().join("broken.puml");
+    fs::write(&input, "@startuml\nA -x B: bad\n@enduml\n").unwrap();
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .current_dir(dir.path())
+        .args(["--check", "broken.puml"])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("broken.puml:2:1: error[E_ARROW_INVALID]:"));
+    assert!(stderr.contains("A -x B: bad\n^^^^^^"));
+}
+
+#[test]
 fn from_markdown_ingests_mixed_fence_edge_cases_deterministically() {
     let input = fs::read_to_string(fixture("markdown/edge_cases.md")).unwrap();
     let out = Command::cargo_bin("puml")

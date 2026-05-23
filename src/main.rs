@@ -341,6 +341,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     }
 
     if let Some(path) = &cli.check_fixture {
+        let fixture_label = path.display().to_string();
         let src = fs::read_to_string(path).map_err(|e| {
             (
                 EXIT_IO,
@@ -358,10 +359,13 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.allow_url_includes,
             inject_vars.clone(),
         )
-        .map_err(|d| diag_err_with_source(&src, d, diagnostics_output))?;
-        let model =
-            normalize_family(doc).map_err(|d| diag_err_with_source(&src, d, diagnostics_output))?;
-        emit_warnings_for_model(&model, &src, None, diagnostics_output);
+        .map_err(|d| {
+            diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
+        })?;
+        let model = normalize_family(doc).map_err(|d| {
+            diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
+        })?;
+        emit_warnings_for_model_label(&model, &src, None, diagnostics_output, Some(&fixture_label));
         return Ok(());
     }
 
@@ -371,6 +375,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
 
     let input_arg = if cli.pipe { None } else { cli.input.as_deref() };
     let (_input_name, raw, input_path) = read_input(input_arg)?;
+    let input_label = input_path.map(|path| path.display().to_string());
     let include_root = cli
         .include_root
         .clone()
@@ -387,7 +392,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         markdown_name_prefix.as_deref(),
         file_frontend_hint,
     )
-    .map_err(|d| diag_err_with_source(&raw, d, diagnostics_output))?;
+    .map_err(|d| diag_err_with_source_label(&raw, d, diagnostics_output, input_label.as_deref()))?;
 
     if diagrams.is_empty() {
         if from_markdown {
@@ -455,10 +460,24 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     cli.allow_url_includes,
                     inject_vars.clone(),
                 )
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
+                .map_err(|d| {
+                    diag_err_mapped_label(
+                        &raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    )
+                })?;
                 let ast = doc.clone();
                 let model = normalize_family(doc).map_err(|d| {
-                    diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                    diag_err_mapped_label(
+                        &raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    )
                 })?;
                 Ok(extract_metadata(&ast, &model))
             })
@@ -500,13 +519,34 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.allow_url_includes,
                 inject_vars.clone(),
             )
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
-            let model = normalize_family(doc)
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
+            .map_err(|d| {
+                diag_err_mapped_label(
+                    &raw,
+                    source.source_span,
+                    d,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                )
+            })?;
+            let model = normalize_family(doc).map_err(|d| {
+                diag_err_mapped_label(
+                    &raw,
+                    source.source_span,
+                    d,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                )
+            })?;
             let warnings = normalized_warnings(&model);
             had_warnings |= !warnings.is_empty();
             if !cli.quiet {
-                emit_warnings_for_model(&model, &raw, source.source_span, diagnostics_output);
+                emit_warnings_for_model_label(
+                    &model,
+                    &raw,
+                    source.source_span,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                );
             }
         }
         if cli.duration {
@@ -537,7 +577,13 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         inject_vars.clone(),
                     )
                     .map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                        diag_err_mapped_label(
+                            &raw,
+                            source.source_span,
+                            d,
+                            diagnostics_output,
+                            input_label.as_deref(),
+                        )
                     })?;
                     Ok(ast_to_json(&doc))
                 }
@@ -553,12 +599,30 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         inject_vars.clone(),
                     )
                     .map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                        diag_err_mapped_label(
+                            &raw,
+                            source.source_span,
+                            d,
+                            diagnostics_output,
+                            input_label.as_deref(),
+                        )
                     })?;
                     let model = normalize_family(doc).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                        diag_err_mapped_label(
+                            &raw,
+                            source.source_span,
+                            d,
+                            diagnostics_output,
+                            input_label.as_deref(),
+                        )
                     })?;
-                    emit_warnings_for_model(&model, &raw, source.source_span, diagnostics_output);
+                    emit_warnings_for_model_label(
+                        &model,
+                        &raw,
+                        source.source_span,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    );
                     Ok(normalized_model_to_json(&model))
                 }
                 DumpKind::Scene => {
@@ -573,12 +637,30 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         inject_vars.clone(),
                     )
                     .map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                        diag_err_mapped_label(
+                            &raw,
+                            source.source_span,
+                            d,
+                            diagnostics_output,
+                            input_label.as_deref(),
+                        )
                     })?;
                     let model = normalize_family(doc).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
+                        diag_err_mapped_label(
+                            &raw,
+                            source.source_span,
+                            d,
+                            diagnostics_output,
+                            input_label.as_deref(),
+                        )
                     })?;
-                    emit_warnings_for_model(&model, &raw, source.source_span, diagnostics_output);
+                    emit_warnings_for_model_label(
+                        &model,
+                        &raw,
+                        source.source_span,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    );
                     Ok(normalized_scene_to_json(&model))
                 }
             })
@@ -619,7 +701,15 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.allow_url_includes,
                 inject_vars.clone(),
             )
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
+            .map_err(|d| {
+                diag_err_mapped_label(
+                    &raw,
+                    source.source_span,
+                    d,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                )
+            })?;
             let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
                 (
                     EXIT_VALIDATION,
@@ -627,8 +717,15 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         .to_string(),
                 )
             })?;
-            let svg = result
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
+            let svg = result.map_err(|d| {
+                diag_err_mapped_label(
+                    &raw,
+                    source.source_span,
+                    d,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                )
+            })?;
             let name_hint = source
                 .output_name_hint
                 .as_ref()
@@ -649,10 +746,31 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.allow_url_includes,
             inject_vars.clone(),
         )
-        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
-        let model = normalize_family(doc)
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
-        emit_warnings_for_model(&model, &raw, source.source_span, diagnostics_output);
+        .map_err(|d| {
+            diag_err_mapped_label(
+                &raw,
+                source.source_span,
+                d,
+                diagnostics_output,
+                input_label.as_deref(),
+            )
+        })?;
+        let model = normalize_family(doc).map_err(|d| {
+            diag_err_mapped_label(
+                &raw,
+                source.source_span,
+                d,
+                diagnostics_output,
+                input_label.as_deref(),
+            )
+        })?;
+        emit_warnings_for_model_label(
+            &model,
+            &raw,
+            source.source_span,
+            diagnostics_output,
+            input_label.as_deref(),
+        );
         let pages = render_pages_from_model(&model, cli.format);
         let page_count = pages.len();
         for (page_idx, content) in pages.into_iter().enumerate() {
@@ -1533,11 +1651,16 @@ fn lsp_capabilities_manifest() -> Value {
     puml::lsp_capabilities()
 }
 
-fn diag_err_with_source(source: &str, d: Diagnostic, output: DiagnosticOutput) -> (u8, String) {
+fn diag_err_with_source_label(
+    source: &str,
+    d: Diagnostic,
+    output: DiagnosticOutput,
+    file_label: Option<&str>,
+) -> (u8, String) {
     match output.format {
         DiagnosticsFormat::Human => (
             EXIT_VALIDATION,
-            render_human_diagnostic(&d, source, output.color_enabled),
+            render_human_diagnostic_label(&d, source, output.color_enabled, file_label),
         ),
         DiagnosticsFormat::Json => (EXIT_VALIDATION, diagnostics_json_payload(vec![d], source)),
         DiagnosticsFormat::Stdrpt => (EXIT_VALIDATION, diagnostic_stdrpt(&d, source)),
@@ -1555,6 +1678,19 @@ fn diagnostic_stdrpt(d: &Diagnostic, source: &str) -> String {
 }
 
 fn render_human_diagnostic(d: &Diagnostic, source: &str, color_enabled: bool) -> String {
+    render_human_diagnostic_label(d, source, color_enabled, None)
+}
+
+fn render_human_diagnostic_label(
+    d: &Diagnostic,
+    source: &str,
+    color_enabled: bool,
+    file_label: Option<&str>,
+) -> String {
+    if let Some(label) = file_label {
+        return render_human_diagnostic_with_file_label(d, source, color_enabled, label);
+    }
+
     let rendered = d.render_with_source(source);
     if !color_enabled {
         return rendered;
@@ -1582,18 +1718,76 @@ fn render_human_diagnostic(d: &Diagnostic, source: &str, color_enabled: bool) ->
     out
 }
 
+fn render_human_diagnostic_with_file_label(
+    d: &Diagnostic,
+    source: &str,
+    color_enabled: bool,
+    file_label: &str,
+) -> String {
+    let (message, code) = human_message_and_code(&d.message);
+    let severity = match d.severity {
+        puml::diagnostic::Severity::Error => "error",
+        puml::diagnostic::Severity::Warning => "warning",
+    };
+    let severity_with_code = code
+        .map(|code| format!("{severity}[{code}]"))
+        .unwrap_or_else(|| severity.to_string());
+    let location = d
+        .line_col(source)
+        .map(|(line, col)| format!("{file_label}:{line}:{col}"))
+        .unwrap_or_else(|| file_label.to_string());
+    let header = format!("{location}: {severity_with_code}: {message}");
+    let header = if color_enabled {
+        match d.severity {
+            puml::diagnostic::Severity::Error => ansi(&header, "1;31"),
+            puml::diagnostic::Severity::Warning => ansi(&header, "1;33"),
+        }
+    } else {
+        header
+    };
+
+    let Some(span) = d.span else {
+        return header;
+    };
+    let caret = puml::diagnostic::render_caret_line(source, span);
+    let mut out = header;
+    for line in caret.lines() {
+        out.push('\n');
+        if color_enabled && line.trim_start().starts_with('^') {
+            out.push_str(&ansi(line, "1;36"));
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+fn human_message_and_code(message: &str) -> (&str, Option<&str>) {
+    let Some(rest) = message.strip_prefix('[') else {
+        return (message, None);
+    };
+    let Some((code, message_tail)) = rest.split_once("] ") else {
+        return (message, None);
+    };
+    if code.is_empty() {
+        return (message, None);
+    }
+    (message_tail, Some(code))
+}
+
 fn ansi(text: &str, code: &str) -> String {
     format!("\x1b[{code}m{text}\x1b[0m")
 }
 
-fn diag_err_mapped(
+fn diag_err_mapped_label(
     raw_source: &str,
     mapping: Option<Span>,
     d: Diagnostic,
     output: DiagnosticOutput,
+    file_label: Option<&str>,
 ) -> (u8, String) {
     let mapped = map_diagnostic_span(d, mapping);
-    diag_err_with_source(raw_source, mapped, output)
+    diag_err_with_source_label(raw_source, mapped, output, file_label)
 }
 
 fn emit_warnings_for_model(
@@ -1602,12 +1796,22 @@ fn emit_warnings_for_model(
     mapping: Option<Span>,
     output: DiagnosticOutput,
 ) {
+    emit_warnings_for_model_label(model, source, mapping, output, None);
+}
+
+fn emit_warnings_for_model_label(
+    model: &NormalizedDocument,
+    source: &str,
+    mapping: Option<Span>,
+    output: DiagnosticOutput,
+    file_label: Option<&str>,
+) {
     for warning in normalized_warnings(model) {
         let warning = map_diagnostic_span(warning.clone(), mapping);
         match output.format {
             DiagnosticsFormat::Human => eprintln!(
                 "{}",
-                render_human_diagnostic(&warning, source, output.color_enabled)
+                render_human_diagnostic_label(&warning, source, output.color_enabled, file_label)
             ),
             DiagnosticsFormat::Json => {
                 eprintln!("{}", diagnostics_json_payload(vec![warning], source));
