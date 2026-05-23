@@ -902,6 +902,7 @@ fn place_node(
                         .copied()
                         .unwrap_or((STATE_NODE_W, STATE_NODE_H));
                     let cx = region_x + (column_w - cw) / 2;
+                    let cx = boundary_point_x(child, x, w, cx, cw);
                     place_node(child, cx, child_y, cw, ch, sizes, placed);
                     child_y += ch;
                     if ci + 1 < region.len() {
@@ -922,6 +923,7 @@ fn place_node(
                         .unwrap_or((STATE_NODE_W, STATE_NODE_H));
                     let cx = x + COMPOSITE_PAD_X + (avail_w - cw) / 2;
                     let cx = cx.max(region_x);
+                    let cx = boundary_point_x(child, x, w, cx, cw);
                     place_node(child, cx, child_y, cw, ch, sizes, placed);
                     child_y += ch;
                     if ci + 1 < region.len() {
@@ -930,6 +932,20 @@ fn place_node(
                 }
             }
         }
+    }
+}
+
+fn boundary_point_x(
+    child: &StateNode,
+    parent_x: i32,
+    parent_w: i32,
+    fallback_x: i32,
+    child_w: i32,
+) -> i32 {
+    match child.kind {
+        StateNodeKind::EntryPoint => parent_x - child_w / 2,
+        StateNodeKind::ExitPoint => parent_x + parent_w - child_w / 2,
+        _ => fallback_x,
     }
 }
 
