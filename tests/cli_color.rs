@@ -44,6 +44,85 @@ fn color_always_enables_human_diagnostic_ansi() {
 }
 
 #[test]
+fn no_color_disables_auto_human_diagnostic_ansi() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .env("NO_COLOR", "1")
+        .args(["--color", "auto", "--from-markdown", "--check", "-"])
+        .write_stdin(INVALID_MARKDOWN)
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("line 4, column 1"));
+    assert!(
+        !stderr.contains("\x1b["),
+        "expected NO_COLOR to suppress ANSI escapes in auto mode: {stderr:?}"
+    );
+}
+
+#[test]
+fn color_never_disables_clap_error_ansi() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--color", "never", "--definitely-not-a-puml-flag"])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("unexpected argument"));
+    assert!(
+        !stderr.contains("\x1b["),
+        "expected --color never to suppress Clap ANSI escapes: {stderr:?}"
+    );
+}
+
+#[test]
+fn no_color_disables_clap_error_ansi_without_explicit_color() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .env("NO_COLOR", "1")
+        .arg("--definitely-not-a-puml-flag")
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("unexpected argument"));
+    assert!(
+        !stderr.contains("\x1b["),
+        "expected NO_COLOR to suppress Clap ANSI escapes: {stderr:?}"
+    );
+}
+
+#[test]
+fn color_always_enables_clap_error_ansi() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--color", "always", "--definitely-not-a-puml-flag"])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("unexpected argument"));
+    assert!(
+        stderr.contains("\x1b["),
+        "expected --color always to emit Clap ANSI escapes: {stderr:?}"
+    );
+}
+
+#[test]
 fn color_always_does_not_color_json_or_stdrpt_diagnostics() {
     let json = Command::cargo_bin("puml")
         .expect("binary")

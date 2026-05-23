@@ -218,31 +218,38 @@ where
 }
 
 fn clap_color_choice_from_args(args: &[OsString]) -> clap::ColorChoice {
-    match color_choice_from_args(args) {
+    match color_choice_from_args(args).unwrap_or_else(default_color_choice_from_env) {
         CliColorChoice::Always => clap::ColorChoice::Always,
         CliColorChoice::Never => clap::ColorChoice::Never,
         CliColorChoice::Auto => clap::ColorChoice::Auto,
     }
 }
 
-fn color_choice_from_args(args: &[OsString]) -> CliColorChoice {
+fn default_color_choice_from_env() -> CliColorChoice {
+    if std::env::var_os("NO_COLOR").is_some() {
+        CliColorChoice::Never
+    } else {
+        CliColorChoice::Auto
+    }
+}
+
+fn color_choice_from_args(args: &[OsString]) -> Option<CliColorChoice> {
     let mut iter = args.iter().skip(1);
     while let Some(arg) = iter.next() {
         let Some(raw) = arg.to_str() else {
             continue;
         };
         if let Some(value) = raw.strip_prefix("--color=") {
-            return parse_color_choice(value).unwrap_or(CliColorChoice::Auto);
+            return parse_color_choice(value);
         }
         if raw == "--color" {
             return iter
                 .next()
                 .and_then(|value| value.to_str())
-                .and_then(parse_color_choice)
-                .unwrap_or(CliColorChoice::Auto);
+                .and_then(parse_color_choice);
         }
     }
-    CliColorChoice::Auto
+    None
 }
 
 fn parse_color_choice(raw: &str) -> Option<CliColorChoice> {
