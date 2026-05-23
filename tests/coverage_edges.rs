@@ -1750,6 +1750,25 @@ fn new_skinparams_round_shadow_font_background_alignment_are_accepted() {
 }
 
 #[test]
+fn style_block_sequence_min_slice_maps_to_skinparams() {
+    let src = "@startuml\n<style>\nsequenceDiagram {\n  ArrowColor: red;\n  participant {\n    BackgroundColor #ddeeff\n    BorderColor #223344\n  }\n  note {\n    BackgroundColor: #fff8c4;\n  }\n}\n</style>\nAlice -> Bob : hi\nnote right of Bob: styled note\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert_eq!(model.style.arrow_color, "#ff0000");
+    assert_eq!(model.style.participant_background_color, "#ddeeff");
+    assert_eq!(model.style.participant_border_color, "#223344");
+    assert_eq!(model.style.note_background_color, "#fff8c4");
+}
+
+#[test]
+fn parser_reports_unclosed_style_block() {
+    let src = "@startuml\n<style>\nsequenceDiagram {\n  ArrowColor: red;\n}\nAlice -> Bob : hi\n@enduml\n";
+    let err = parse(src).expect_err("expected unclosed style block diagnostic");
+    assert!(err.message.contains("E_STYLE_BLOCK_UNCLOSED"));
+}
+
+#[test]
 fn scale_directive_factor_is_parsed_and_stored() {
     let src = fs::read_to_string(fixture("styling/valid_scale_directive.puml"))
         .expect("fixture should load");
