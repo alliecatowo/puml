@@ -1768,7 +1768,8 @@ fn theme_hacker_renders_participant_text_in_high_contrast_green() {
     let src = fs::read_to_string(fixture("styling/valid_theme_hacker.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("hacker theme svg should render");
     assert!(
-        svg.contains("fill=\"#00ff00\">Alice</text>") && svg.contains("fill=\"#00ff00\">Bob</text>"),
+        svg.contains("fill=\"#00ff00\">Alice</text>")
+            && svg.contains("fill=\"#00ff00\">Bob</text>"),
         "expected hacker participant text to render in bright green; svg={svg}"
     );
 }
