@@ -16,6 +16,10 @@ pub(super) fn normalize_timeline_baseline(
     let mut named_dates: Vec<TimelineNamedDate> = Vec::new();
     let mut scale = None;
     let mut scale_options = Vec::new();
+    let mut print_start = None;
+    let mut print_end = None;
+    let mut print_start_day = None;
+    let mut print_end_day = None;
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -107,6 +111,26 @@ pub(super) fn normalize_timeline_baseline(
                     let (value, options) = split_gantt_scale_target(&target);
                     scale = Some(value);
                     scale_options.extend(options);
+                } else if subject.eq_ignore_ascii_case("Project")
+                    && kind.eq_ignore_ascii_case("print_between")
+                {
+                    if let Some((start_date, end_date)) = parse_gantt_target_range(&target) {
+                        if let (Some(start_day), Some(end_day)) = (
+                            parse_iso_date_day(&start_date),
+                            parse_iso_date_day(&end_date),
+                        ) {
+                            let (start_date, end_date, start_day, end_day) = if start_day <= end_day
+                            {
+                                (start_date, end_date, start_day, end_day)
+                            } else {
+                                (end_date, start_date, end_day, start_day)
+                            };
+                            print_start = Some(start_date);
+                            print_end = Some(end_date);
+                            print_start_day = Some(start_day);
+                            print_end_day = Some(end_day);
+                        }
+                    }
                 } else if kind.eq_ignore_ascii_case("separator") {
                     separators.push(TimelineSeparator {
                         label: subject
@@ -321,6 +345,10 @@ pub(super) fn normalize_timeline_baseline(
         named_dates,
         scale,
         scale_options,
+        print_start,
+        print_end,
+        print_start_day,
+        print_end_day,
         project_start,
         project_start_day,
         title,

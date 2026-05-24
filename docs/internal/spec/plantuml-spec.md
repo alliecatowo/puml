@@ -47,7 +47,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 13 | nwdiag | 12 | 3 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
 | 14 | Salt (Wireframe) | 12 | 9 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
 | 15 | ArchiMate | 6 | 2 | 1 | [ch15-archimate.md](audit/ch15-archimate.md) |
-| 16 | Gantt | 18 | 11 | 10 | [ch16-gantt.md](audit/ch16-gantt.md) |
+| 16 | Gantt | 22 | 10 | 7 | [ch16-gantt.md](audit/ch16-gantt.md) |
 | 17 | MindMap | 11 | 2 | 0 | [ch17-mindmap.md](audit/ch17-mindmap.md) |
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
@@ -79,7 +79,7 @@ closing implementation work from these notes.
 10. **Common Commands** — 9✅/21 (43%).
 11. **Salt (Wireframe)** — 10✅/24 (42%). Wide widget coverage, weakest at Creole-in-cells.
 12. **Deployment** — ~25✅/47 (53%). Node-shape keyword parity is broad; style blocks, roundCorner, sprites, and exotic arrows remain the largest gaps.
-13. **Gantt** — 18✅/39 (46%). Solid core; many verbal-form date constructs missing.
+13. **Gantt** — 22✅/39 (56%). Solid core; many verbal-form date constructs missing.
 14. **Object** — 3✅/8 (38%).
 15. **YAML** — 3✅/8 (38%).
 16. **Skinparam** — 5✅/14 (36%).

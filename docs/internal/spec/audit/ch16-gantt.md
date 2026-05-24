@@ -89,26 +89,26 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Evidence:** Named date/range markers render via `GanttNamedDate` support covered by `gantt_issue_779_named_date_marker_and_task_color_render` and `docs/examples/gantt/09_ch16_parity.puml`.
 **Notes:** Named ranges are supported; single-day color bands remain less complete than PlantUML's full calendar-color semantics.
 
-### 16.12 Scale (printscale/projectscale/ganttscale + daily/weekly/monthly/quarterly/yearly) — 🟡
+### 16.12 Scale (printscale/projectscale/ganttscale + daily/weekly/monthly/quarterly/yearly) — ✅
 **Feature:** `printscale weekly`, `projectscale monthly`, scale values
-**Status:** 🟡
-**Evidence:** gantt.rs:273-289 parse_gantt_scale_directive handles `printscale` + `scale`; `projectscale` and `ganttscale` aliases NOT parsed
-**Notes:** Values daily/weekly/monthly/quarterly/yearly all map correctly.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs:419-441` accepts `printscale`, `projectscale`, `ganttscale`, and `scale` with daily/weekly/monthly/quarterly/yearly units; `src/normalize/timeline.rs:106-109` stores normalized scale/options; `src/render/timeline.rs:69-77` emits scale metadata and `src/render/timeline.rs:1000-1016` applies scale tick stride. Covered by `gantt_scale_single_day_calendar_and_multi_resource_semantics_render`, `gantt_separator_relative_constraints_resource_metadata_and_month_scale_render`, and `gantt_weekly_scale_display_options_affect_tick_labels` in `tests/parity_wave_csv_timeline_activity.rs`.
+**Notes:** Display modifiers are tracked in 16.13/16.14.
 
-### 16.12.6/8 Print between date range — ❌
+### 16.12.6/8 Print between date range — ✅
 **Feature:** `Print between 2021-01-12 and 2021-01-22`
-**Status:** ❌
-**Evidence:** No `print between` parser
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs:443-459` parses `Print between <date> and <date>` into a project print-window constraint; `src/normalize/timeline.rs:115-131` normalizes ordered start/end dates onto `TimelineDocument`; `src/render/timeline.rs:80-86` emits print-window metadata and `src/render/timeline.rs:345-350,401-405,557-580` limits the rendered axis and clips task/baseline bars to the requested window. Covered by `gantt_print_between_clips_axis_and_zoom_widens_chart` in `tests/parity_wave_csv_timeline_activity.rs` and `docs/examples/gantt/09_ch16_parity.puml`.
 
-### 16.13 Zoom — ❌
+### 16.13 Zoom — ✅
 **Feature:** `printscale daily zoom 2`
-**Status:** ❌
-**Evidence:** Scale parser at gantt.rs:280-286 returns None for any trailing token after value (e.g. "daily zoom 2" fails match).
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs:419-441` preserves trailing scale options, and `src/render/timeline.rs:21-31,1021-1052` parses `zoom N`, widens the Gantt chart area, and exposes `data-gantt-zoom`. Covered by `gantt_print_between_clips_axis_and_zoom_widens_chart` in `tests/parity_wave_csv_timeline_activity.rs`.
 
-### 16.14 Week numbering / calendar date display — ❌
+### 16.14 Week numbering / calendar date display — ✅
 **Feature:** `printscale weekly with week numbering from 1`, `with calendar date`
-**Status:** ❌
-**Evidence:** No `with week numbering` / `with calendar date` branch.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs:419-441` preserves weekly display modifiers; `src/render/timeline.rs:1021-1052` recognizes `with week numbering from N` and `with calendar date`; `src/render/timeline.rs:1112-1135` renders weekly tick labels as `Week N`, raw calendar dates, or the default `Wk <date>`. Covered by `gantt_weekly_scale_display_options_affect_tick_labels` in `tests/parity_wave_csv_timeline_activity.rs`.
 
 ### 16.15 Close day (weekday + date ranges + open) — ✅
 **Feature:** `saturday are closed` / `2018/05/01 is closed` / `2018/04/17 to 2018/04/19 is closed` / `2020-07-13 is open`
