@@ -52,16 +52,38 @@ pub(in crate::preproc) fn process_include_many_directive(
 }
 
 #[cfg(target_arch = "wasm32")]
-#[allow(clippy::too_many_arguments)]
+pub(in crate::preproc) struct ImportDirectiveContext<'a> {
+    pub(in crate::preproc) options: &'a ParseOptions,
+    pub(in crate::preproc) state: &'a mut PreprocState,
+    pub(in crate::preproc) include_stack: &'a mut Vec<PathBuf>,
+    pub(in crate::preproc) include_once_seen: &'a mut BTreeSet<PathBuf>,
+    pub(in crate::preproc) depth: usize,
+    pub(in crate::preproc) call_depth: usize,
+    pub(in crate::preproc) out: &'a mut String,
+}
+
+#[cfg(target_arch = "wasm32")]
 pub(in crate::preproc) fn process_import_directive(
     _raw_target: &str,
-    _options: &ParseOptions,
-    _state: &mut PreprocState,
-    _include_stack: &mut Vec<PathBuf>,
-    _include_once_seen: &mut BTreeSet<PathBuf>,
-    _depth: usize,
-    _call_depth: usize,
-    _out: &mut String,
+    ctx: ImportDirectiveContext<'_>,
 ) -> Result<(), Diagnostic> {
+    let ImportDirectiveContext {
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth,
+        call_depth,
+        out,
+    } = ctx;
+    let _ = (
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth,
+        call_depth,
+        out,
+    );
     Err(include_not_supported_in_wasm("!import"))
 }
