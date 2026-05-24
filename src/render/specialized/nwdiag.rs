@@ -519,7 +519,7 @@ fn node_width(node: &NwdiagNode) -> i32 {
         })
         .max()
         .unwrap_or(140);
-    label_width.clamp(120, 260)
+    label_width.clamp(120, 240)
 }
 
 fn node_height(node: &NwdiagNode) -> i32 {
