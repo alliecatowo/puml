@@ -18,7 +18,7 @@ use puml::{
     extract_markdown_diagrams, extract_metadata, normalize_family,
     preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized, CompatMode,
     DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
-    NormalizedDocument, ParsePipelineOptions,
+    NormalizedDocument, ParsePipelineOptions, ParsePipelineResult,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -208,7 +208,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             )
         })?;
         let include_root = path.parent().map(|p| p.to_path_buf());
-        let doc = parse_for_cli(
+        let parse_result = parse_for_cli_with_diagnostics(
             &src,
             include_root,
             cli.dialect,
@@ -221,9 +221,16 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         .map_err(|d| {
             diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
         })?;
-        let model = normalize_family(doc).map_err(|d| {
+        let model = normalize_family(parse_result.document).map_err(|d| {
             diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
         })?;
+        emit_diagnostics_label(
+            &parse_result.diagnostics,
+            &src,
+            None,
+            diagnostics_output,
+            Some(&fixture_label),
+        );
         emit_warnings_for_model_label(&model, &src, None, diagnostics_output, Some(&fixture_label));
         return Ok(());
     }
@@ -376,7 +383,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             if cli.verbose {
                 eprintln!("[verbose] parse");
             }
-            let doc = parse_for_cli(
+            let parse_result = parse_for_cli_with_diagnostics(
                 &source.source,
                 include_root.clone(),
                 cli.dialect,
@@ -395,7 +402,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     input_label.as_deref(),
                 )
             })?;
-            let model = normalize_family(doc).map_err(|d| {
+            let model = normalize_family(parse_result.document).map_err(|d| {
                 diag_err_mapped_label(
                     &raw,
                     source.source_span,
@@ -404,9 +411,17 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     input_label.as_deref(),
                 )
             })?;
+            had_warnings |= !parse_result.diagnostics.is_empty();
             let warnings = normalized_warnings(&model);
             had_warnings |= !warnings.is_empty();
             if !cli.quiet {
+                emit_diagnostics_label(
+                    &parse_result.diagnostics,
+                    &raw,
+                    source.source_span,
+                    diagnostics_output,
+                    input_label.as_deref(),
+                );
                 emit_warnings_for_model_label(
                     &model,
                     &raw,
@@ -603,7 +618,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             });
             return Ok(all);
         }
-        let doc = parse_for_cli(
+        let parse_result = parse_for_cli_with_diagnostics(
             &source.source,
             include_root.clone(),
             cli.dialect,
@@ -622,7 +637,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 input_label.as_deref(),
             )
         })?;
-        let model = normalize_family(doc).map_err(|d| {
+        let model = normalize_family(parse_result.document).map_err(|d| {
             diag_err_mapped_label(
                 &raw,
                 source.source_span,
@@ -631,6 +646,13 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 input_label.as_deref(),
             )
         })?;
+        emit_diagnostics_label(
+            &parse_result.diagnostics,
+            &raw,
+            source.source_span,
+            diagnostics_output,
+            input_label.as_deref(),
+        );
         emit_warnings_for_model_label(
             &model,
             &raw,
@@ -1638,6 +1660,33 @@ fn emit_warnings_for_model(
     emit_warnings_for_model_label(model, source, mapping, output, None);
 }
 
+fn emit_diagnostics_label(
+    diagnostics: &[Diagnostic],
+    source: &str,
+    mapping: Option<Span>,
+    output: DiagnosticOutput,
+    file_label: Option<&str>,
+) {
+    for diagnostic in diagnostics {
+        let diagnostic = map_diagnostic_span(diagnostic.clone(), mapping);
+        match output.format {
+            DiagnosticsFormat::Human => eprintln!(
+                "{}",
+                render_human_diagnostic_label(
+                    &diagnostic,
+                    source,
+                    output.color_enabled,
+                    file_label
+                )
+            ),
+            DiagnosticsFormat::Json => {
+                eprintln!("{}", diagnostics_json_payload(vec![diagnostic], source));
+            }
+            DiagnosticsFormat::Stdrpt => eprintln!("{}", diagnostic_stdrpt(&diagnostic, source)),
+        }
+    }
+}
+
 fn emit_warnings_for_model_label(
     model: &NormalizedDocument,
     source: &str,
@@ -1692,6 +1741,32 @@ fn parse_for_cli(
     allow_url_includes: bool,
     inject_vars: BTreeMap<String, String>,
 ) -> Result<Document, Diagnostic> {
+    parse_for_cli_with_diagnostics(
+        source,
+        include_root,
+        cli_dialect,
+        cli_compat,
+        cli_determinism,
+        frontend_hint,
+        allow_url_includes,
+        inject_vars,
+    )
+    .map(|result| result.document)
+}
+
+// All CLI pipeline parameters are required at call sites; grouping them into a
+// struct would not reduce complexity here — the lint is a false positive.
+#[allow(clippy::too_many_arguments)]
+fn parse_for_cli_with_diagnostics(
+    source: &str,
+    include_root: Option<PathBuf>,
+    cli_dialect: CliDialect,
+    cli_compat: CliCompatMode,
+    cli_determinism: CliDeterminismMode,
+    frontend_hint: Option<FrontendSelection>,
+    allow_url_includes: bool,
+    inject_vars: BTreeMap<String, String>,
+) -> Result<ParsePipelineResult, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
         CliCompatMode::Extended => std::env::current_dir().ok(),
@@ -1704,7 +1779,7 @@ fn parse_for_cli(
         allow_url_includes,
         inject_vars,
     };
-    puml::parse_with_pipeline_options(source, &options)
+    puml::parse_with_pipeline_result_options(source, &options)
 }
 
 // Same rationale as parse_for_cli above — all args are required.

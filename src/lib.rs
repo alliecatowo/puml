@@ -158,6 +158,12 @@ impl Default for ParsePipelineOptions {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ParsePipelineResult {
+    pub document: Document,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {
     parser::parse(source)
 }
@@ -166,12 +172,24 @@ pub fn parse_with_pipeline_options(
     source: &str,
     options: &ParsePipelineOptions,
 ) -> Result<Document, Diagnostic> {
+    parse_with_pipeline_result_options(source, options).map(|result| result.document)
+}
+
+pub fn parse_with_pipeline_result_options(
+    source: &str,
+    options: &ParsePipelineOptions,
+) -> Result<ParsePipelineResult, Diagnostic> {
     let parser_options = interpret_parser_contract(options)?;
     interpret_determinism_contract(options.determinism);
 
     match options.frontend {
         FrontendSelection::Auto | FrontendSelection::Plantuml => {
-            parser::parse_with_options(source, &parser_options)
+            parser::parse_with_options(source, &parser_options).map(|document| {
+                ParsePipelineResult {
+                    document,
+                    diagnostics: Vec::new(),
+                }
+            })
         }
         FrontendSelection::Mermaid => {
             let adapted = frontend::mermaid::adapt(source)?;
@@ -180,9 +198,12 @@ pub fn parse_with_pipeline_options(
                 source_map,
                 diagnostics,
             } = adapted;
-            let _ = diagnostics;
             parser::parse_with_options(&adapted_source, &parser_options)
                 .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
+                .map(|document| ParsePipelineResult {
+                    document,
+                    diagnostics,
+                })
         }
         FrontendSelection::Picouml => {
             let adapted = frontend::picouml::adapt(source)?;
@@ -191,9 +212,12 @@ pub fn parse_with_pipeline_options(
                 source_map,
                 diagnostics,
             } = adapted;
-            let _ = diagnostics;
             parser::parse_with_options(&adapted_source, &parser_options)
                 .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
+                .map(|document| ParsePipelineResult {
+                    document,
+                    diagnostics,
+                })
         }
     }
 }

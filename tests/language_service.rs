@@ -1,9 +1,10 @@
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics, document_symbols, hover, resolve_completion_item,
-    CompletionItemKind, DocumentSymbolKind,
+    completion_items, diagnostics, diagnostics_with_options, document_symbols, hover,
+    resolve_completion_item, CompletionItemKind, DocumentSymbolKind,
 };
 use puml::source::Span;
+use puml::{CompatMode, DeterminismMode, FrontendSelection, ParsePipelineOptions};
 
 #[test]
 fn document_symbols_are_available_without_lsp_transport() {
@@ -115,6 +116,28 @@ fn diagnostics_reports_normalization_warnings_without_lsp_transport() {
     assert_eq!(diagnostic.code.as_deref(), Some("W_SKINPARAM_UNSUPPORTED"));
     assert_eq!(diagnostic.severity, Severity::Warning);
     assert_eq!(diagnostic.span, Some(Span::new(10, 43)));
+    assert_eq!(diagnostic.range.unwrap().start.line, 2);
+    assert_eq!(diagnostic.range.unwrap().start.column, 1);
+}
+
+#[test]
+fn diagnostics_reports_frontend_adapter_warnings_without_lsp_transport() {
+    let source = "flowchart LR\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot --> B\n";
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+
+    let report = diagnostics_with_options(source, &options);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code.as_deref(), Some("W_MERMAID_STYLE_PARTIAL"));
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.span, Some(Span::new(13, 53)));
     assert_eq!(diagnostic.range.unwrap().start.line, 2);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
 }

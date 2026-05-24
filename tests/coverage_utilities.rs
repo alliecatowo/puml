@@ -7,8 +7,8 @@ use puml::source::{Source, Span};
 use puml::theme::Theme;
 use puml::{
     detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
-    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
-    DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    parse_with_pipeline_result_options, render_source_to_svg, render_source_to_svg_for_family,
+    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
 };
 
 #[test]
@@ -320,6 +320,28 @@ note A,B : shared context
     };
     parse_with_pipeline_options(picouml, &pico_options)
         .expect("picouml multi-target shorthand note should adapt");
+}
+
+#[test]
+fn mermaid_flowchart_style_warnings_survive_parse_pipeline() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "flowchart LR\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot --> B\n";
+
+    let result = parse_with_pipeline_result_options(source, &options)
+        .expect("partial Mermaid style support should remain non-fatal");
+
+    assert_eq!(result.diagnostics.len(), 1);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert!(diagnostic.message.contains("W_MERMAID_STYLE_PARTIAL"));
+    assert_eq!(diagnostic.line_col(source), Some((2, 1)));
+    assert!(!result.document.statements.is_empty());
 }
 
 #[test]
