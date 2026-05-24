@@ -12,9 +12,9 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 C4/  awslib14/  azure/  gcp/  material/  office/  tupadr3/
 ```
 
-Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised in `src/preproc/includes.rs` (`process_stdlib_angle_include`) and resolves against `PUML_STDLIB_ROOT` / `--include-root` / a sibling `stdlib/` directory / the dev/test `CARGO_MANIFEST_DIR/stdlib` fallback. All angle-bracket includes are forced include-once. Import form `!import Lib/Module` resolves through the stdlib root as well.
+Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised in `src/preproc/includes.rs` (`process_stdlib_angle_include`) and resolves against `PUML_STDLIB_ROOT` / `--include-root` / a sibling `stdlib/` directory / the dev/test `CARGO_MANIFEST_DIR/stdlib` fallback. All angle-bracket includes are forced include-once. Import form `!import Lib/Module` resolves through the stdlib root as well. The shared inventory helper in `src/stdlib.rs` scans the same local `stdlib/` tree for deterministic listing surfaces.
 
-Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility directory for both `!include <awslib/...>` and `!import awslib/...` (`src/preproc/includes.rs`, `tests/fixtures/include/valid_awslib_ec2.puml`, `src/parser/tests.rs`). The direct `awslib14/...` path remains supported for existing fixtures.
+Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility directory for `!include <awslib/...>`, `!import awslib/...`, `-stdlib`, and `%get_all_stdlib()` (`src/preproc/includes.rs`, `src/stdlib.rs`, `tests/fixtures/include/valid_awslib_ec2.puml`, `src/parser/tests.rs`, `tests/cli_stdlib.rs`, `tests/coverage_wave23_builtins.rs`). The direct `awslib14/...` path remains supported for existing fixtures.
 
 **Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
 
@@ -28,10 +28,10 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 **Status:** ❌
 **Evidence:** No `stdlib` keyword in parser. Grep returns no diagram-level handler.
 
-### 27.1 `-stdlib` / `-extractstdlib` CLI — ❌
+### 27.1 `-stdlib` / `-extractstdlib` CLI — 🟡
 **Feature:** CLI listing + extraction commands.
-**Status:** ❌
-**Evidence:** No flags in `src/cli.rs`.
+**Status:** 🟡 — `puml -stdlib` and `puml --stdlib` list the reachable local shim include paths, including alias entries such as `awslib/Compute/EC2.puml -> awslib14/Compute/EC2.puml`. Output is sorted and starts with comments documenting the local root, alias mapping, and known missing upstream packs. `-extractstdlib` remains intentionally unsupported; PUML does not bulk-vendor or extract full upstream third-party packs.
+**Evidence:** `Cli::stdlib` (`src/cli.rs`), PlantUML single-dash expansion (`src/main.rs`), formatter/inventory helper (`src/stdlib.rs`), CLI coverage (`tests/cli_stdlib.rs`).
 
 ### 27.2 ArchiMate [archimate] — ❌
 **Feature:** `!include <archimate/Archimate>` macros (`Business_Object(...)`, `Rel_Flow_Left(...)`, sprites).
@@ -111,6 +111,6 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 | gcp | ✅ | ✅ | 🟡 |
 | aws (second variant §27.16) | ❌ | — | — |
 
-**Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI ❌ · `-extractstdlib` CLI ❌ · `listsprites` ✅ (see ch23) · angle-bracket resolver ✅ · `%get_all_stdlib` ❌ (stub).
+**Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI 🟡 local shim listing · `-extractstdlib` CLI ❌ · `listsprites` ✅ (see ch23) · angle-bracket resolver ✅ · `%get_all_stdlib` 🟡 local shim path list.
 
 **Score:** 7 of the locally tracked 16 library rows are at least partially bundled (44%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Bootstrap, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest to full intended UX because it is mostly macro-based; icon libraries are curated deterministic subsets, not full upstream art packs.

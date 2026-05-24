@@ -44,6 +44,30 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub dump_capabilities: bool,
 
+    /// List reachable local stdlib include paths and exit.
+    ///
+    /// PlantUML-compatible `-stdlib` is accepted as an alias.
+    #[arg(
+        long = "stdlib",
+        action = ArgAction::SetTrue,
+        conflicts_with_all = [
+            "input",
+            "output",
+            "pipe",
+            "check_fixture",
+            "lint_input",
+            "lint_glob",
+            "preproc",
+            "metadata",
+            "check",
+            "check_syntax",
+            "dump",
+            "encodesprite",
+            "watch"
+        ]
+    )]
+    pub stdlib: bool,
+
     /// Validate a fixture file with parser+normalizer and print diagnostics.
     #[arg(
         long,

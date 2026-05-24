@@ -56,7 +56,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
 | 23 | Sprites | 8 | 0 | 1 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
-| 25 | Preprocessing | 18 | 8 | 2 | [ch25-preproc.md](audit/ch25-preproc.md) |
+| 25 | Preprocessing | 18 | 9 | 1 | [ch25-preproc.md](audit/ch25-preproc.md) |
 | 26 | Unicode | 3 | 2 | 0 | [ch26-unicode.md](audit/ch26-unicode.md) |
 | 27 | Standard Library | 7/16 bundled | — | 9/16 missing | [ch27-stdlib.md](audit/ch27-stdlib.md) |
 

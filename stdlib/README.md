@@ -4,6 +4,12 @@ Deterministic, text-stub compatibility shims for the most-used PlantUML icon and
 
 All files are resolved via angle-bracket includes (`!include <library/Module>`) when `--include-root` is set to the project root, or when the source file has a sibling `stdlib/` directory.
 
+Run `puml -stdlib` to print the deterministic list of reachable local shim paths.
+The output includes alias paths such as `awslib/... -> awslib14/...` and calls
+out known upstream PlantUML stdlib packs that are not bundled here. This command
+is an inventory/diagnostic surface only; PUML does not bulk-vendor or extract the
+full third-party upstream packs.
+
 ---
 
 ## OpenIconic (`<&name>` / `&name`)

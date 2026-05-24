@@ -18,6 +18,7 @@ pub mod scene;
 pub mod source;
 pub mod specialized;
 pub mod sprites;
+pub mod stdlib;
 pub mod text_truncate;
 pub mod theme;
 

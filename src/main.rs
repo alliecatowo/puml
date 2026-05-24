@@ -211,6 +211,7 @@ where
                 expanded.push(OsString::from("utxt"));
             }
             Some("-encodesprite") => expanded.push(OsString::from("--encodesprite")),
+            Some("-stdlib") => expanded.push(OsString::from("--stdlib")),
             _ => expanded.push(arg),
         }
     }
@@ -337,6 +338,17 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 format!("failed to serialize capability manifest: {e}")
             ))?
         );
+        return Ok(());
+    }
+    if cli.stdlib {
+        let root = puml::stdlib::resolve_local_stdlib_root(cli.include_root.as_deref())
+            .map_err(|msg| (EXIT_IO, format!("[E_STDLIB_ROOT] {msg}")))?;
+        let entries = puml::stdlib::inventory_from_root(&root)
+            .map_err(|msg| (EXIT_IO, format!("[E_STDLIB_INVENTORY] {msg}")))?;
+        print!("{}", puml::stdlib::format_stdlib_listing(&root, &entries));
+        if cli.duration {
+            eprintln!("elapsed: {:?}", started.elapsed());
+        }
         return Ok(());
     }
 

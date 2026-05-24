@@ -456,6 +456,26 @@ A -> B : $f
 }
 
 #[test]
+fn builtin_get_all_stdlib_returns_local_paths_and_awslib_alias() {
+    let src = "@startuml
+!$stdlib = %get_all_stdlib()
+!$has_alias = %list_contains($stdlib, \"awslib/Compute/EC2.puml\")
+!$has_physical = %list_contains($stdlib, \"awslib14/Compute/EC2.puml\")
+!$count = %count($stdlib)
+A -> B : $has_alias
+A -> B : $has_physical
+A -> B : $count
+@enduml";
+    let labels = msg_labels(src);
+    assert_eq!(labels[0], "true");
+    assert_eq!(labels[1], "true");
+    assert!(
+        labels[2].parse::<usize>().unwrap() > 150,
+        "expected bundled stdlib shim inventory plus aliases"
+    );
+}
+
+#[test]
 fn builtin_newline_inserts_literal_newline() {
     // %newline() returns a newline char — verify strlen of result > 0
     let src = "@startuml
