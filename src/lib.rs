@@ -24,6 +24,7 @@ pub mod source;
 pub mod specialized;
 pub mod sprites;
 pub mod stdlib;
+mod text_markup;
 pub mod text_truncate;
 pub mod theme;
 
