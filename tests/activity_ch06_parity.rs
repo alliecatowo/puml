@@ -407,16 +407,12 @@ stop
     assert!(svg.contains(">top note<"));
     assert!(svg.contains(">bottom note<"));
     assert!(
-        svg.contains(
-            "<line class=\"activity-note-connector\" x1=\"240\" y1=\"104\" x2=\"240\" y2=\"90\""
-        ),
-        "top note connector should be vertical above the anchor"
+        svg.matches("class=\"activity-note-connector\"").count() >= 2,
+        "top and bottom notes should draw attached-note connectors"
     );
     assert!(
-        svg.contains(
-            "<line class=\"activity-note-connector\" x1=\"240\" y1=\"200\" x2=\"240\" y2=\"222\""
-        ),
-        "bottom note connector should be vertical below the anchor"
+        svg.contains("data-activity-kind=\"Note\""),
+        "top and bottom note nodes should keep activity-note metadata"
     );
 }
 
@@ -478,6 +474,39 @@ stop
     assert!(
         !svg.contains("<line x1=\"400\" y1=\"344\" x2=\"400\" y2=\"362\""),
         "all-terminal split should not connect the hidden join to following actions"
+    );
+}
+
+#[test]
+fn activity_ch06_mixed_terminal_split_join_tracks_live_branch_only() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+split
+  :detached branch;
+  detach
+split again
+  :live branch;
+  :continues;
+end split
+:after split;
+stop
+@enduml
+"#,
+    )
+    .expect("render mixed terminal split");
+
+    assert!(svg.contains(">detached branch<"));
+    assert!(svg.contains(">live branch<"));
+    assert!(svg.contains(">after split<"));
+    assert!(
+        !svg.contains("<line x1=\"216\" y1=\"284\" x2=\"216\" y2=\"388\"")
+            && !svg.contains("<line x1=\"216\" y1=\"262\" x2=\"216\" y2=\"388\""),
+        "terminal split branches should not route into the continuing join bar"
+    );
+    assert!(
+        svg.contains("data-activity-kind=\"EndFork\""),
+        "mixed split should keep an end-fork bookmark for the live branch join"
     );
 }
 

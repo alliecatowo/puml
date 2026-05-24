@@ -175,6 +175,12 @@ struct ForkBranch {
     end_node_idx: Option<usize>,
 }
 
+fn branch_is_live(branch: &ForkBranch, metas: &[NodeMeta]) -> bool {
+    !branch
+        .end_node_idx
+        .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
+}
+
 struct RepeatFrame {
     body_start_idx: usize,
 }
@@ -466,11 +472,7 @@ pub(super) fn compute_layout(
                 let live_branch_count = frame
                     .branches
                     .iter()
-                    .filter(|branch| {
-                        !branch
-                            .end_node_idx
-                            .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
-                    })
+                    .filter(|branch| branch_is_live(branch, metas))
                     .count();
                 let split_all_terminal = frame.is_split && live_branch_count == 0;
 
@@ -486,6 +488,24 @@ pub(super) fn compute_layout(
                 });
 
                 let effective_col_w = (lane_w / n_branches as i32).max(120).min(fork_col_w);
+                let live_branch_indices = frame
+                    .branches
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, branch)| branch_is_live(branch, metas).then_some(idx))
+                    .collect::<Vec<_>>();
+                let join_cx = if live_branch_indices.is_empty() {
+                    fork_cx
+                } else {
+                    let sum = live_branch_indices
+                        .iter()
+                        .map(|&idx| fork_branch_cx(fork_cx, idx, n_branches, effective_col_w))
+                        .sum::<i32>();
+                    sum / live_branch_indices.len() as i32
+                };
+                if let Some(layout) = node_layouts.get_mut(i) {
+                    layout.cx = join_cx;
+                }
 
                 // Fix up cx positions for all nodes inside branches
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
@@ -513,10 +533,7 @@ pub(super) fn compute_layout(
                         }
                     }
                     // Straight-down arrow from branch last node to the join bar
-                    if !branch
-                        .end_node_idx
-                        .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
-                    {
+                    if branch_is_live(branch, metas) {
                         let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
                         let join_bar_top_y = slot_y + 24;
                         let (y1, y2) = if branch_arrow_out_y <= join_bar_top_y {
@@ -552,8 +569,28 @@ pub(super) fn compute_layout(
                 } else {
                     (lane_w - 24).clamp(60, 110)
                 };
+                let live_bar_span_half = match live_branch_indices.as_slice() {
+                    [] => 0,
+                    [_] => (lane_w - 24).clamp(60, 110),
+                    indices => {
+                        let first = *indices.first().unwrap();
+                        let last = *indices.last().unwrap();
+                        let leftmost = fork_branch_cx(fork_cx, first, n_branches, effective_col_w)
+                            - effective_col_w / 2;
+                        let rightmost = fork_branch_cx(fork_cx, last, n_branches, effective_col_w)
+                            + effective_col_w / 2;
+                        (rightmost - leftmost) / 2
+                    }
+                };
                 fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);
-                fork_bar_half_widths.insert(i, if split_all_terminal { 0 } else { bar_span_half });
+                fork_bar_half_widths.insert(
+                    i,
+                    if split_all_terminal {
+                        0
+                    } else {
+                        live_bar_span_half
+                    },
+                );
 
                 current_slot_y = next_slot_y;
             }
@@ -576,16 +613,18 @@ pub(super) fn compute_layout(
                         doc.nodes[i].label.as_deref().unwrap_or_default(),
                     );
                     let note_offset = (lane_w / 2).max(140) + 32;
+                    let vertical_note_offset = (lane_w / 4).clamp(160, 240);
+                    let vertical_note_cx = anchor_cx + vertical_note_offset;
                     let (note_cx, note_slot_y, next_slot_y) = match meta.note_side.as_deref() {
                         Some("left") => (anchor_cx - note_offset, slot_y, current_slot_y),
                         Some("top") => (
-                            anchor_cx,
+                            vertical_note_cx,
                             (slot_y - note_h - 12).max(header_h),
                             current_slot_y,
                         ),
                         Some("bottom") => {
                             let y = slot_y + step_h;
-                            (anchor_cx, y, current_slot_y.max(y + note_h + 12))
+                            (vertical_note_cx, y, current_slot_y.max(y + note_h + 12))
                         }
                         Some("right") | None => (anchor_cx + note_offset, slot_y, current_slot_y),
                         Some(_) => (anchor_cx + note_offset, slot_y, current_slot_y),
