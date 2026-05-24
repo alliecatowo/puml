@@ -16,6 +16,7 @@ mod openiconic;
 pub mod parser;
 mod preproc;
 pub mod render;
+pub mod render_core;
 pub mod scene;
 pub mod source;
 pub mod specialized;
