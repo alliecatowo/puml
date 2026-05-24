@@ -1,8 +1,9 @@
 use crate::ast::{
-    ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
-    Document, FamilyRelation, Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl,
-    ParticipantDecl, ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition,
-    Statement, StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
+    ActivityStep, ActivityStepKind, ChenAttribute, ChenDecl, ChenDeclKind, ChenInheritance,
+    ChenRelation, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind, Document, FamilyRelation,
+    Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl, ParticipantDecl,
+    ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition, Statement,
+    StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
@@ -33,6 +34,7 @@ include!("parser/shared_ident.rs");
 include!("parser/family.rs");
 include!("parser/family_context.rs");
 include!("parser/family_declarations.rs");
+include!("parser/chen.rs");
 include!("parser/family_members.rs");
 include!("parser/family_relations.rs");
 include!("parser/family_arrows.rs");

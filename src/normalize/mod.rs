@@ -41,6 +41,7 @@ use crate::theme::{
 
 mod archimate;
 mod chart;
+mod chen;
 mod common;
 mod ebnf;
 mod family;
@@ -103,6 +104,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Stdlib => {
             stdlib::normalize_stdlib_catalog(document, options).map(NormalizedDocument::Stdlib)
         }
+        DiagramKind::Chen => chen::normalize_chen(document).map(NormalizedDocument::Chen),
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity

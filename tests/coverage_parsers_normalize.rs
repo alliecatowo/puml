@@ -1,5 +1,5 @@
 use puml::model::{
-    FamilyNodeKind, FamilyOrientation, FamilyStyle, NormalizedDocument, StateNodeKind,
+    ChenNodeKind, FamilyNodeKind, FamilyOrientation, FamilyStyle, NormalizedDocument, StateNodeKind,
 };
 use puml::{ast::StatementKind, extract_metadata};
 
@@ -33,6 +33,77 @@ fn msg_labels(src: &str) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+#[test]
+fn chen_parser_normalizes_entities_attributes_and_cardinality() {
+    let src = r#"@startchen
+left to right direction
+entity "Customer" as CUSTOMER {
+  Number : INTEGER <<key>>
+  Name {
+    First : STRING
+    Last : STRING
+  }
+  Bonus : REAL <<derived>>
+  Email : STRING <<multi>>
+}
+entity MOVIE {
+  Code <<key>>
+}
+relationship "was-rented-to" as RENTED_TO <<identifying>> {
+  Date
+}
+RENTED_TO =1= CUSTOMER
+RENTED_TO -(0,N)- MOVIE
+@endchen
+"#;
+    let document = puml::parse(src).expect("chen diagram should parse");
+    assert_eq!(document.kind, puml::ast::DiagramKind::Chen);
+    assert!(document
+        .statements
+        .iter()
+        .any(|stmt| matches!(stmt.kind, StatementKind::ChenRelation(_))));
+
+    let NormalizedDocument::Chen(model) =
+        puml::normalize_family(document).expect("chen diagram should normalize")
+    else {
+        panic!("expected Chen model");
+    };
+    assert_eq!(model.orientation, FamilyOrientation::LeftToRight);
+    let customer = model
+        .nodes
+        .iter()
+        .find(|node| node.id == "CUSTOMER")
+        .expect("customer entity");
+    assert_eq!(customer.kind, ChenNodeKind::Entity);
+    assert_eq!(customer.label, "Customer");
+    assert!(customer.attributes.iter().any(|attr| attr.key));
+    assert!(customer.attributes.iter().any(|attr| attr.derived));
+    assert!(customer.attributes.iter().any(|attr| attr.multivalued));
+    assert!(customer
+        .attributes
+        .iter()
+        .any(|attr| attr.label == "Name" && attr.children.len() == 2));
+
+    let relationship = model
+        .nodes
+        .iter()
+        .find(|node| node.id == "RENTED_TO")
+        .expect("relationship node");
+    assert_eq!(relationship.kind, ChenNodeKind::Relationship);
+    assert!(relationship.identifying);
+
+    assert!(model.relations.iter().any(|rel| {
+        rel.from == "RENTED_TO"
+            && rel.to == "CUSTOMER"
+            && rel.cardinality == "1"
+            && rel.total_participation
+    }));
+    assert!(model
+        .relations
+        .iter()
+        .any(|rel| { rel.from == "RENTED_TO" && rel.to == "MOVIE" && rel.cardinality == "(0,N)" }));
 }
 
 #[test]

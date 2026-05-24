@@ -22,5 +22,6 @@ pub enum FamilyRenderKind {
     Ditaa,
     Chart,
     Stdlib,
+    Chen,
     Unsupported,
 }

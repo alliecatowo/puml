@@ -1,0 +1,23 @@
+@startchen
+left to right direction
+title Weak Entity and EER
+entity PARENT {
+  Number <<key>>
+  Name
+}
+entity CHILD <<weak>> {
+  Name <<key>>
+  Age
+}
+relationship PARENT_OF <<identifying>> {
+}
+PARENT_OF -1- PARENT
+PARENT_OF =N= CHILD
+entity TODDLER {
+  FavoriteToy
+}
+entity TEEN {
+  Hobby
+}
+CHILD =>= d { TODDLER, TEEN }
+@endchen

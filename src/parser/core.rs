@@ -144,6 +144,22 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind = Some(DiagramKind::Activity);
         }
 
+        if matches!(detected_kind, Some(DiagramKind::Chen)) {
+            if let Some((kind, end_idx)) = parse_chen_declaration(&lines, i, line)? {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_chen_relation(line).or_else(|| parse_chen_inheritance(line)) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if let Some(next_i) = parse_component_or_deployment_core(
             &lines,
             i,

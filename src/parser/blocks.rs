@@ -36,6 +36,7 @@ enum BlockKind {
     Sdl,
     Ditaa,
     Chart,
+    Chen,
 }
 
 /// Like `parse_block_marker_kind`, but also returns the trimmed text that
@@ -56,6 +57,7 @@ fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)
         ("@startmath", BlockKind::Math),
         ("@startditaa", BlockKind::Ditaa),
         ("@startchart", BlockKind::Chart),
+        ("@startchen", BlockKind::Chen),
         ("@startsdl", BlockKind::Sdl),
         ("@startgantt", BlockKind::Gantt),
         ("@startwbs", BlockKind::Wbs),
@@ -94,6 +96,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startmath", BlockKind::Math),
             ("@startditaa", BlockKind::Ditaa),
             ("@startchart", BlockKind::Chart),
+            ("@startchen", BlockKind::Chen),
             ("@startsdl", BlockKind::Sdl),
             ("@startgantt", BlockKind::Gantt),
             ("@startwbs", BlockKind::Wbs),
@@ -114,6 +117,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@endmath", BlockKind::Math),
             ("@endditaa", BlockKind::Ditaa),
             ("@endchart", BlockKind::Chart),
+            ("@endchen", BlockKind::Chen),
             ("@endsdl", BlockKind::Sdl),
             ("@endgantt", BlockKind::Gantt),
             ("@endwbs", BlockKind::Wbs),
@@ -150,6 +154,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Sdl => Some(DiagramKind::Sdl),
         BlockKind::Ditaa => Some(DiagramKind::Ditaa),
         BlockKind::Chart => Some(DiagramKind::Chart),
+        BlockKind::Chen => Some(DiagramKind::Chen),
     }
 }
 
@@ -171,6 +176,7 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Sdl => "sdl",
         BlockKind::Ditaa => "ditaa",
         BlockKind::Chart => "chart",
+        BlockKind::Chen => "chen",
     }
 }
 
@@ -274,6 +280,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Ditaa => "ditaa",
         DiagramKind::Chart => "chart",
         DiagramKind::Stdlib => "stdlib",
+        DiagramKind::Chen => "chen",
         DiagramKind::Unknown => "unknown",
     }
 }

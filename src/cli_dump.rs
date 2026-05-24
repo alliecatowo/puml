@@ -67,6 +67,13 @@ pub(crate) fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
             "missing_packs": doc.missing_packs,
             "warnings": doc.warnings.len()
         }),
+        NormalizedDocument::Chen(doc) => json!({
+            "kind": "Chen",
+            "nodes": doc.nodes.len(),
+            "relations": doc.relations.len(),
+            "inheritances": doc.inheritances.len(),
+            "warnings": doc.warnings.len()
+        }),
     }
 }
 

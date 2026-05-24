@@ -1,0 +1,14 @@
+@startchen
+title Basic Chen ER
+entity Person {
+  Number <<key>>
+  Name
+}
+entity Location {
+  Code <<key>>
+}
+relationship Birthplace {
+}
+Birthplace -N- Person
+Birthplace -1- Location
+@endchen

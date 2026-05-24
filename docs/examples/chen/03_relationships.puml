@@ -1,0 +1,20 @@
+@startchen
+title Chen Relationships
+entity CUSTOMER {
+  Number <<key>>
+  Name
+}
+entity MOVIE {
+  Code <<key>>
+}
+entity INVOICE {
+  Number <<key>>
+  Amount
+}
+relationship RENTED_TO {
+  Date
+}
+RENTED_TO =1= CUSTOMER
+RENTED_TO -N- MOVIE
+RENTED_TO -(0,1)- INVOICE
+@endchen

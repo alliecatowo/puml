@@ -9829,3 +9829,17 @@ fn enum_class_renders_with_enumeration_stereotype_and_lemon_header() {
     // Enum name must appear as the box label.
     assert!(svg.contains(">Color<"), "enum box label must be 'Color'");
 }
+
+#[test]
+fn chen_examples_render_typed_shapes_and_cardinality_labels() {
+    let src = fs::read_to_string(example("chen/04_weak_eer.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("chen svg should render");
+    assert!(svg.contains("data-diagram-family=\"chen\""));
+    assert!(svg.contains("class=\"chen-entity\""));
+    assert!(svg.contains("class=\"chen-relationship\""));
+    assert!(svg.contains("class=\"chen-weak-entity\""));
+    assert!(svg.contains("class=\"chen-identifying\""));
+    assert!(svg.contains(">1<"));
+    assert!(svg.contains(">N<"));
+    assert!(svg.contains(">EER<"));
+}
