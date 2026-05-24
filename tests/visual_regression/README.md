@@ -24,12 +24,14 @@ fixture to SVG via the `puml` binary using stdin/stdout, so tracked
 ### PNG baseline-diff sweeps
 
 On Linux, the default `png_regression_all_fixtures` test compares every fixture
-in `manifest.json` against a reviewed PNG baseline committed under
-`tests/visual_baselines/`. `png_regression_committed_baselines` remains as a
-focused guard for the set of PNGs currently present on disk, but every current
-manifest fixture is expected to have a reviewed PNG. On non-Linux local
-machines, the PNG sweeps skip by default because system font rasterization can
-produce noisy whole-corpus pixel diffs against the Linux-blessed baselines. Set
+that has `png_baseline_required` enabled against a reviewed PNG baseline
+committed under `tests/visual_baselines/`. High-risk visual-audit fixtures may
+temporarily set `"png_baseline_required": false`, but only with
+`png_baseline_issue` and `png_baseline_deferred_reason` explaining the linked
+visual debt. `png_regression_committed_baselines` remains as a focused guard for
+the set of PNGs currently present on disk. On non-Linux local machines, the PNG
+sweeps skip by default because system font rasterization can produce noisy
+whole-corpus pixel diffs against the Linux-blessed baselines. Set
 `PUML_RUN_PNG_BASELINES=1` to force the PNG sweep locally.
 
 For every fixture in `manifest.json`:
@@ -91,6 +93,16 @@ directory as the `pr-visual-smoke-<run_number>` artifact with 14-day retention.
 
    `expected_text` should contain semantic labels reviewers care about. Use a
    non-empty `structural_only_reason` only for true structural-only fixtures.
+   If the PNG is intentionally deferred because the current render has known
+   visual debt, include:
+
+   ```json
+   {
+     "png_baseline_required": false,
+     "png_baseline_issue": 1113,
+     "png_baseline_deferred_reason": "Current route/header crossings are expected until #1113 lands."
+   }
+   ```
 
 2. **Generate the baseline PNG** once the renderer output has been reviewed:
 

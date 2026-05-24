@@ -143,6 +143,132 @@
       "min_text_elements": 13
     },
     {
+      "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+      "family": "component",
+      "expected_text": ["OrderController", "OrderDomain", "IOrderService", "IOrderRepository", "NotificationSender", "PostgreSQL", "RabbitMQ", "provides", "requires", "publish events"],
+      "min_text_elements": 16,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current routing crosses package/header regions and is tracked as visual-gate debt before blessing."
+    },
+    {
+      "path": "docs/examples/deployment/05_three_tier_cloud_onprem.puml",
+      "family": "deployment",
+      "expected_text": ["CDN", "WAF / DDoS Protection", "Load Balancer", "Web Server 1", "Redis Primary", "SQS", "VPN Gateway", "PostgreSQL Primary", "replication"],
+      "min_text_elements": 18,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current route compactness and group ownership need invariant tracking before PNG blessing."
+    },
+    {
+      "path": "docs/examples/deployment/06_kubernetes_pods_containers.puml",
+      "family": "deployment",
+      "expected_text": ["Kubernetes Cluster", "nginx", "sidecar-logger", "Ingress Controller", "api-service", "queue-consumer", "postgres-0", "redis-server", "HTTP", "psql"],
+      "min_text_elements": 20,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current nested group routing has known header and compactness debt."
+    },
+    {
+      "path": "docs/examples/usecase/06_multi_system_boundary.puml",
+      "family": "usecase",
+      "expected_text": ["Customer", "Support Agent", "Customer Portal", "Support Console", "Automation Engine", "Open Ticket", "Auto-tag Ticket", "Route to Agent", "triggers", "<<extend>>"],
+      "min_text_elements": 18,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current long routes and boundary crossings should be measured before blessing."
+    },
+    {
+      "path": "docs/examples/class/31_generic_types_container.puml",
+      "family": "class",
+      "expected_text": ["Collection<T>", "ArrayList<T>", "LinkedList<T>", "Node<T>", "Map<K, V>", "HashMap<K, V>", "Optional<T>"],
+      "min_text_elements": 7,
+      "png_baseline_required": false,
+      "png_baseline_issue": 594,
+      "png_baseline_deferred_reason": "Current output is extremely wide; compactness metrics must gate it before blessing."
+    },
+    {
+      "path": "docs/examples/class/32_association_class_deep_packages.puml",
+      "family": "class",
+      "expected_text": ["com::acme::hr::Employee", "com::acme::hr::Department", "com::acme::hr::Membership", "com::acme::payroll::PaySlip", "com::acme::reporting::Report", "publishes", "has"],
+      "min_text_elements": 24,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current package/header crossings and association-class routing need expected-failure tracking."
+    },
+    {
+      "path": "docs/examples/sequence/48_complex_ref_over_multibox.puml",
+      "family": "sequence",
+      "expected_text": ["Client Tier", "API Tier", "Data Tier", "OAuth2 PKCE handshake", "Token validated", "GET user:profile:{uid}", "cache hit", "cache miss", "dashboard"],
+      "min_text_elements": 30,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Promoted as a high-risk label and frame ownership fixture; baseline deferred pending visual-gate audit."
+    },
+    {
+      "path": "docs/examples/activity/16_nested_swimlanes_parallel_forks.puml",
+      "family": "activity",
+      "expected_text": ["Customer", "Warehouse", "Finance", "Logistics", "Submit order", "Charge payment", "Assign courier", "Update inventory"],
+      "min_text_elements": 15,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current nested lane ownership has visible misalignment; tracked as expected visual debt."
+    },
+    {
+      "path": "docs/examples/activity_new/08_notes_split_partitions.puml",
+      "family": "activity",
+      "expected_text": ["Planner", "Build", "Gather context", "Review evidence", "archive stale worker", "fix live branch", "build log path", "render PNG"],
+      "min_text_elements": 10,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Promoted for lane/note verification; baseline deferred until lane ownership gates harden."
+    },
+    {
+      "path": "docs/examples/state/09_three_level_composite.puml",
+      "family": "state",
+      "expected_text": ["Device", "Off", "On", "Initializing", "LoadingFirmware", "SelfTest", "RamCheck", "StorageCheck", "Running", "Sleeping", "power on", "wake event"],
+      "min_text_elements": 18,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Promoted for nested-frame and transition-label invariants before PNG blessing."
+    },
+    {
+      "path": "docs/examples/timing/05_concurrent_timelines_message_arrows.puml",
+      "family": "timing",
+      "expected_text": ["CPU", "Cache L1", "Memory Bus", "I/O Controller", "System Clock", "ReadReq", "ReadResp", "DmaKick", "DmaAck"],
+      "min_text_elements": 24,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "Timing baselines are incomplete; promoted here for message/label gates before blessing."
+    },
+    {
+      "path": "docs/examples/c4/11_system_landscape.puml",
+      "family": "c4",
+      "expected_text": ["Customer", "Operations Team", "Business Analyst", "E-Commerce Platform", "CRM System", "ERP System", "Analytics Platform", "Notification Service", "Payment Gateway", "Shipping Partner API"],
+      "min_text_elements": 18,
+      "png_baseline_required": false,
+      "png_baseline_issue": 739,
+      "png_baseline_deferred_reason": "C4 baseline coverage is tracked separately; this high-risk case starts as text plus metric coverage."
+    },
+    {
+      "path": "docs/examples/chart/06_multi_series_line.puml",
+      "family": "chart",
+      "expected_text": ["Weekly Active Users", "Desktop", "Mobile", "Tablet", "W1", "W8", "1800", "1100", "610"],
+      "min_text_elements": 20,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Promoted for label bounds and compactness metrics; baseline deferred until chart visual gate review."
+    },
+    {
+      "path": "docs/diagrams/language-service-layers.puml",
+      "family": "class",
+      "expected_text": ["CompletionItem", "CompletionList", "Hover", "DocumentSymbol", "SemanticTokens", "FormatResult", "Diagnostic", "Severity", "LspAdapter", "WasmAdapter", "CliAdapter", "VsCodeExtension"],
+      "min_text_elements": 35,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1113,
+      "png_baseline_deferred_reason": "Current language-service diagram has severe route/header crossings; use metrics before blessing."
+    },
+    {
       "path": "docs/examples/sdl/02_with_transitions.puml",
       "family": "sdl",
       "expected_text": ["Idle", "Processing", "Waiting", "Done", "request", "complete"],

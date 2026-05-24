@@ -38,6 +38,16 @@ struct Fixture {
     min_text_elements: usize,
     #[serde(default)]
     structural_only_reason: Option<String>,
+    #[serde(default = "default_png_baseline_required")]
+    png_baseline_required: bool,
+    #[serde(default)]
+    png_baseline_issue: Option<u32>,
+    #[serde(default)]
+    png_baseline_deferred_reason: Option<String>,
+}
+
+fn default_png_baseline_required() -> bool {
+    true
 }
 
 fn load_manifest() -> Manifest {
@@ -672,6 +682,30 @@ fn manifest_requires_semantic_text_expectations_or_explicit_exception() {
 }
 
 #[test]
+fn manifest_deferred_png_baselines_link_visual_debt() {
+    let manifest = load_manifest();
+    let missing_issue = manifest
+        .fixtures
+        .iter()
+        .filter(|fixture| !fixture.png_baseline_required)
+        .filter(|fixture| {
+            fixture.png_baseline_issue.is_none()
+                || fixture
+                    .png_baseline_deferred_reason
+                    .as_deref()
+                    .is_none_or(|reason| reason.trim().is_empty())
+        })
+        .map(|fixture| fixture.path.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing_issue.is_empty(),
+        "fixtures with deferred PNG baselines must link the owning visual issue \
+         and explain why the current output is not being blessed: {missing_issue:#?}"
+    );
+}
+
+#[test]
 fn pr_gate_uploads_visual_diff_artifacts_from_test_job() {
     let workflow_path = workspace_root().join(".github/workflows/pr-gate.yml");
     let workflow = fs::read_to_string(&workflow_path)
@@ -959,11 +993,12 @@ fn png_regression_all_fixtures() {
     }
 
     let manifest = load_manifest();
-    run_png_sweep(
-        "PNG regression",
-        manifest.fixtures.iter(),
-        manifest.fixtures.len(),
-    );
+    let fixtures = manifest
+        .fixtures
+        .iter()
+        .filter(|fixture| fixture.png_baseline_required)
+        .collect::<Vec<_>>();
+    run_png_sweep("PNG regression", fixtures.iter().copied(), fixtures.len());
 }
 
 // ---------------------------------------------------------------------------
@@ -1006,6 +1041,15 @@ fn bless_baselines() {
     report.push_str(&format!("  DPI: {}\n\n", BASELINE_DPI));
 
     for fixture in &manifest.fixtures {
+        if !fixture.png_baseline_required {
+            report.push_str(&format!(
+                "  SKIP (PNG baseline deferred for #{}): {}\n",
+                fixture.png_baseline_issue.unwrap_or(0),
+                fixture.path
+            ));
+            continue;
+        }
+
         let path = root.join(&fixture.path);
         if !path.exists() {
             report.push_str(&format!("  SKIP (fixture not found): {}\n", fixture.path));

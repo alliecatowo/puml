@@ -253,7 +253,9 @@ fn invariant4_edge_through_package_header_detected() {
     );
     let frames = vec![PackageFrame {
         id: "MyPackage".to_string(),
+        x: 0,
         y: 50,
+        width: 400,
         header_height: 40,
     }];
     let violations = validate::check_package_headers(&svg, &frames);
@@ -280,13 +282,75 @@ fn invariant4_edge_below_header_no_violation() {
     );
     let frames = vec![PackageFrame {
         id: "MyPackage".to_string(),
+        x: 0,
         y: 50,
+        width: 400,
         header_height: 40,
     }];
     let violations = validate::check_package_headers(&svg, &frames);
     assert!(
         violations.is_empty(),
         "edge below package header should not trigger violation"
+    );
+}
+
+#[test]
+fn invariant4_extracts_group_headers_from_svg() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
+        r#"<rect class="uml-group-frame" data-uml-group="Domain" x="40" y="60" width="300" height="180"/>"#,
+        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="20,72 360,72" fill="none" stroke="#333" stroke-width="2"/>"##,
+        r#"</svg>"#
+    );
+    let frames = validate::extract_package_frames(svg);
+    assert_eq!(frames.len(), 1, "expected one extracted group frame");
+    assert_eq!(frames[0].id, "Domain");
+
+    let violations = validate::check_package_headers_from_svg(svg);
+    assert!(
+        !violations.is_empty(),
+        "route through extracted header strip should be reported"
+    );
+}
+
+#[test]
+fn invariant_label_proximity_detects_detached_edge_label() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
+        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="20,220 380,220" fill="none" stroke="#333" stroke-width="2"/>"##,
+        r#"<text class="uml-edge-label" data-uml-label-role="edge" x="200" y="40" text-anchor="middle">detached</text>"#,
+        r#"</svg>"#
+    );
+    let violations = validate::check_edge_label_proximity(svg, 64);
+    assert!(
+        !violations.is_empty(),
+        "edge label far from all route segments should be reported"
+    );
+}
+
+#[test]
+fn quality_metrics_report_compactness_inputs() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
+        r#"<desc data-uml-id="A">A</desc><rect class="uml-node" x="40" y="40" width="80" height="40"/>"#,
+        r#"<desc data-uml-id="B">B</desc><rect class="uml-node" x="260" y="200" width="80" height="40"/>"#,
+        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="120,60 260,220" fill="none" stroke="#333" stroke-width="2"/>"##,
+        r#"<text x="200" y="140" text-anchor="middle">route</text>"#,
+        r#"</svg>"#
+    );
+    let metrics = validate::collect_quality_metrics(svg);
+    assert_eq!(metrics.viewbox_width, 400);
+    assert_eq!(metrics.viewbox_height, 300);
+    assert_eq!(metrics.node_count, 2);
+    assert_eq!(metrics.relation_count, 1);
+    assert_eq!(metrics.text_count, 1);
+    assert!(
+        metrics.route_length_per_node_px > 100.0,
+        "route length per node should be populated"
+    );
+    assert!(
+        metrics.max_empty_gutter_ratio > 0.0,
+        "empty gutter metric should be populated"
     );
 }
 

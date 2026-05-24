@@ -46,6 +46,8 @@ pub enum InvariantKind {
         to: String,
         clearance_px: i32,
     },
+    /// A relation label is too far from any visible relation segment.
+    DetachedEdgeLabel { snippet: String, distance_px: i32 },
     /// An edge segment passes through a package/group header strip.
     EdgeThroughPackageHeader {
         from: String,
@@ -284,6 +286,32 @@ fn parse_attr_i32(tag: &str, attr: &str) -> Option<i32> {
     None
 }
 
+fn parse_attr_f64(tag: &str, attr: &str) -> Option<f64> {
+    let needle = format!("{attr}=\"");
+    let mut search_pos = 0;
+    while let Some(rel) = tag[search_pos..].find(&needle) {
+        let match_pos = search_pos + rel;
+        let ok = match_pos == 0
+            || tag
+                .as_bytes()
+                .get(match_pos - 1)
+                .map(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r')
+                .unwrap_or(false);
+        let value_start = match_pos + needle.len();
+        if ok {
+            let end = value_start + tag[value_start..].find('"')?;
+            return tag[value_start..end].parse().ok();
+        }
+        search_pos = match_pos + needle.len();
+    }
+    None
+}
+
+fn parse_attr_i32_lossy(tag: &str, attr: &str) -> Option<i32> {
+    parse_attr_i32(tag, attr)
+        .or_else(|| parse_attr_f64(tag, attr).map(|value| value.round() as i32))
+}
+
 /// Approximate character-width estimate in pixels at `font-size="12"`.
 const CHAR_WIDTH_PX: i32 = 7;
 /// Approximate descent below the y baseline.
@@ -382,11 +410,10 @@ pub struct NodeBbox {
     pub h: i32,
 }
 
-/// Extract node bounding boxes from `<rect class="uml-node"` elements.
-/// The bounding box is derived from `x`, `y`, `width`, `height` attributes.
+/// Extract node bounding boxes from SVG elements marked `class="uml-node"`.
+/// Supports the shape forms currently emitted by graph-family renderers.
 pub(crate) fn extract_node_bboxes(svg: &str) -> Vec<NodeBbox> {
     let mut result = Vec::new();
-    // Look for elements with class="uml-node" in their tag.
     let mut pos = 0;
     while let Some(rel) = svg[pos..].find("class=\"uml-node") {
         let abs = pos + rel;
@@ -400,13 +427,18 @@ pub(crate) fn extract_node_bboxes(svg: &str) -> Vec<NodeBbox> {
             continue;
         };
         let tag = &svg[tag_start..tag_start + rel_close];
-
-        let x = parse_attr_i32(tag, "x").unwrap_or(0);
-        let y = parse_attr_i32(tag, "y").unwrap_or(0);
-        let w = parse_attr_i32(tag, "width").unwrap_or(0);
-        let h = parse_attr_i32(tag, "height").unwrap_or(0);
+        let tag_name = tag
+            .trim_start_matches('<')
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
+        let Some((x, y, w, h)) = node_bbox_from_tag(tag_name, tag) else {
+            pos = next_pos;
+            continue;
+        };
         let id = extract_attr_str(tag, "data-uml-id")
             .or_else(|| extract_attr_str(tag, "id"))
+            .or_else(|| nearest_preceding_desc_id(svg, tag_start))
             .unwrap_or_else(|| format!("node@{x},{y}"));
 
         if w > 0 && h > 0 {
@@ -415,6 +447,61 @@ pub(crate) fn extract_node_bboxes(svg: &str) -> Vec<NodeBbox> {
         pos = next_pos;
     }
     result
+}
+
+fn node_bbox_from_tag(tag_name: &str, tag: &str) -> Option<(i32, i32, i32, i32)> {
+    match tag_name {
+        "rect" => Some((
+            parse_attr_i32_lossy(tag, "x")?,
+            parse_attr_i32_lossy(tag, "y")?,
+            parse_attr_i32_lossy(tag, "width")?,
+            parse_attr_i32_lossy(tag, "height")?,
+        )),
+        "circle" => {
+            let cx = parse_attr_i32_lossy(tag, "cx")?;
+            let cy = parse_attr_i32_lossy(tag, "cy")?;
+            let r = parse_attr_i32_lossy(tag, "r")?;
+            Some((cx - r, cy - r, r * 2, r * 2))
+        }
+        "ellipse" => {
+            let cx = parse_attr_i32_lossy(tag, "cx")?;
+            let cy = parse_attr_i32_lossy(tag, "cy")?;
+            let rx = parse_attr_i32_lossy(tag, "rx")?;
+            let ry = parse_attr_i32_lossy(tag, "ry")?;
+            Some((cx - rx, cy - ry, rx * 2, ry * 2))
+        }
+        "polygon" => parse_points_bbox(tag),
+        _ => None,
+    }
+}
+
+fn parse_points_bbox(tag: &str) -> Option<(i32, i32, i32, i32)> {
+    let points = extract_attr_str(tag, "points")?;
+    let mut xs = Vec::new();
+    let mut ys = Vec::new();
+    for point in points.split_whitespace() {
+        let Some((x, y)) = point.split_once(',') else {
+            continue;
+        };
+        xs.push(x.parse::<f64>().ok()?.round() as i32);
+        ys.push(y.parse::<f64>().ok()?.round() as i32);
+    }
+    let min_x = xs.iter().copied().min()?;
+    let max_x = xs.iter().copied().max()?;
+    let min_y = ys.iter().copied().min()?;
+    let max_y = ys.iter().copied().max()?;
+    Some((min_x, min_y, max_x - min_x, max_y - min_y))
+}
+
+fn nearest_preceding_desc_id(svg: &str, before_pos: usize) -> Option<String> {
+    let prefix = svg.get(..before_pos)?;
+    let desc_start = prefix.rfind("<desc ")?;
+    let after_desc = &prefix[desc_start..];
+    let desc_end = after_desc.find("</desc>")?;
+    if desc_start + desc_end + "</desc>".len() != prefix.len() {
+        return None;
+    }
+    extract_attr_str(&after_desc[..desc_end], "data-uml-id")
 }
 
 /// Extract a string attribute value from a tag fragment.
@@ -718,6 +805,65 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
     violations
 }
 
+/// Check that marked edge labels remain visually close to their owning route.
+///
+/// Until typed scene labels are available, the fallback associates each marked
+/// edge label with the nearest rendered relation segment. This is intentionally
+/// diagnostic-only: it catches detached labels without trying to infer ownership
+/// from serialized SVG.
+pub fn check_edge_label_proximity(svg: &str, max_distance_px: i32) -> Vec<InvariantViolation> {
+    let relations = extract_relation_segments(svg);
+    if relations.is_empty() {
+        return Vec::new();
+    }
+
+    let texts = extract_text_elements(svg);
+    texts
+        .iter()
+        .filter(|text| text.is_edge_label)
+        .filter_map(|text| {
+            let min_distance = relations
+                .iter()
+                .flat_map(|(_, _, segs)| segs.iter())
+                .map(|seg| point_to_segment_distance((text.x, text.y), *seg))
+                .min()
+                .unwrap_or(i32::MAX);
+
+            (min_distance > max_distance_px).then(|| InvariantViolation {
+                kind: InvariantKind::DetachedEdgeLabel {
+                    snippet: text.snippet.clone(),
+                    distance_px: min_distance,
+                },
+                corrected: false,
+                message: format!(
+                    "[INV-label-owner] edge label {:?} is {min_distance}px from the nearest route segment (max {max_distance_px}px)",
+                    &text.snippet[..text.snippet.len().min(20)]
+                ),
+            })
+        })
+        .collect()
+}
+
+fn point_to_segment_distance(point: (i32, i32), seg: Segment) -> i32 {
+    let (px, py) = point;
+    let x1 = seg.x1 as f64;
+    let y1 = seg.y1 as f64;
+    let x2 = seg.x2 as f64;
+    let y2 = seg.y2 as f64;
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq == 0.0 {
+        let dx = px as f64 - x1;
+        let dy = py as f64 - y1;
+        return (dx.hypot(dy)).round() as i32;
+    }
+    let t = (((px as f64 - x1) * dx + (py as f64 - y1) * dy) / len_sq).clamp(0.0, 1.0);
+    let proj_x = x1 + t * dx;
+    let proj_y = y1 + t * dy;
+    ((px as f64 - proj_x).hypot(py as f64 - proj_y)).round() as i32
+}
+
 /// Approximate minimum distance from a segment to a rectangle's boundary.
 ///
 /// Returns 0 if the segment passes through the rect.  Otherwise returns the
@@ -826,8 +972,12 @@ fn find_text_element_pos(svg: &str, x: i32, y: i32) -> Option<usize> {
 #[derive(Debug, Clone)]
 pub struct PackageFrame {
     pub id: String,
+    /// Left edge of the package frame.
+    pub x: i32,
     /// Top-left y of the entire package frame.
     pub y: i32,
+    /// Width of the package frame.
+    pub width: i32,
     /// Height of the label/header strip at the top.
     pub header_height: i32,
 }
@@ -844,11 +994,18 @@ pub fn check_package_headers(svg: &str, frames: &[PackageFrame]) -> Vec<Invarian
         for frame in frames {
             let header_top = frame.y;
             let header_bot = frame.y + frame.header_height;
+            let header_left = frame.x;
+            let header_right = frame.x + frame.width;
             for seg in segs {
-                // Check if the segment's y range overlaps the header strip.
+                let seg_min_x = seg.x1.min(seg.x2);
+                let seg_max_x = seg.x1.max(seg.x2);
                 let seg_min_y = seg.y1.min(seg.y2);
                 let seg_max_y = seg.y1.max(seg.y2);
-                if seg_min_y < header_bot && seg_max_y > header_top {
+                let overlaps_header = seg_min_x < header_right
+                    && seg_max_x > header_left
+                    && seg_min_y < header_bot
+                    && seg_max_y > header_top;
+                if overlaps_header {
                     violations.push(InvariantViolation {
                         kind: InvariantKind::EdgeThroughPackageHeader {
                             from: from.clone(),
@@ -868,6 +1025,56 @@ pub fn check_package_headers(svg: &str, frames: &[PackageFrame]) -> Vec<Invarian
     }
 
     violations
+}
+
+/// Extract package/group header strips from rendered SVG group frames.
+///
+/// The current SVG backend emits a `rect.uml-group-frame`, a small title tab,
+/// and a separator line. Typed group geometry is not available for every
+/// renderer yet, so the fallback uses the top 30px as the reserved header
+/// strip.
+pub fn extract_package_frames(svg: &str) -> Vec<PackageFrame> {
+    let mut result = Vec::new();
+    let mut pos = 0;
+    while let Some(rel) = svg[pos..].find("class=\"uml-group-frame") {
+        let abs = pos + rel;
+        let tag_start = svg[..abs].rfind('<').unwrap_or(abs);
+        let next_pos = abs + "class=\"uml-group-frame".len();
+        let Some(rel_close) = svg[tag_start..].find('>') else {
+            pos = next_pos;
+            continue;
+        };
+        let tag = &svg[tag_start..tag_start + rel_close];
+        let Some(x) = parse_attr_i32_lossy(tag, "x") else {
+            pos = next_pos;
+            continue;
+        };
+        let Some(y) = parse_attr_i32_lossy(tag, "y") else {
+            pos = next_pos;
+            continue;
+        };
+        let Some(width) = parse_attr_i32_lossy(tag, "width") else {
+            pos = next_pos;
+            continue;
+        };
+        let id =
+            extract_attr_str(tag, "data-uml-group").unwrap_or_else(|| format!("group@{x},{y}"));
+        result.push(PackageFrame {
+            id,
+            x,
+            y,
+            width,
+            header_height: 30,
+        });
+        pos = next_pos;
+    }
+    result
+}
+
+/// Check package/group header routing using frames scraped from the SVG.
+pub fn check_package_headers_from_svg(svg: &str) -> Vec<InvariantViolation> {
+    let frames = extract_package_frames(svg);
+    check_package_headers(svg, &frames)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1006,6 +1213,150 @@ fn point_touches_bbox(pt: (i32, i32), bbox: &NodeBbox) -> bool {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Non-fatal visual quality metrics
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ContentBounds {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct QualityMetrics {
+    pub viewbox_width: i32,
+    pub viewbox_height: i32,
+    pub aspect_ratio: f64,
+    pub node_count: usize,
+    pub relation_count: usize,
+    pub package_count: usize,
+    pub text_count: usize,
+    pub route_length_px: f64,
+    pub route_length_per_node_px: f64,
+    pub content_bounds: Option<ContentBounds>,
+    pub max_empty_gutter_ratio: f64,
+}
+
+/// Collect visual quality metrics from SVG output.
+///
+/// These are intentionally non-fatal first-pass metrics for #1113/#594. Tests
+/// can promote thresholds gradually as layout fixes land.
+pub fn collect_quality_metrics(svg: &str) -> QualityMetrics {
+    let (_, _, viewbox_width, viewbox_height) = parse_viewbox(svg).unwrap_or_default();
+    let nodes = extract_node_bboxes(svg);
+    let relations = extract_relation_segments(svg);
+    let packages = extract_package_frames(svg);
+    let texts = extract_text_elements(svg);
+    let route_length_px = relations
+        .iter()
+        .flat_map(|(_, _, segs)| segs.iter())
+        .map(|seg| {
+            let dx = (seg.x2 - seg.x1) as f64;
+            let dy = (seg.y2 - seg.y1) as f64;
+            dx.hypot(dy)
+        })
+        .sum::<f64>();
+    let content_bounds = collect_content_bounds(&nodes, &relations, &packages, &texts);
+    let max_empty_gutter_ratio = content_bounds.map_or(0.0, |bounds| {
+        max_empty_gutter_ratio(viewbox_width, viewbox_height, bounds)
+    });
+    let aspect_ratio = if viewbox_width > 0 && viewbox_height > 0 {
+        let w = viewbox_width as f64;
+        let h = viewbox_height as f64;
+        w.max(h) / w.min(h)
+    } else {
+        0.0
+    };
+
+    QualityMetrics {
+        viewbox_width,
+        viewbox_height,
+        aspect_ratio,
+        node_count: nodes.len(),
+        relation_count: relations.len(),
+        package_count: packages.len(),
+        text_count: texts.len(),
+        route_length_px,
+        route_length_per_node_px: route_length_px / nodes.len().max(1) as f64,
+        content_bounds,
+        max_empty_gutter_ratio,
+    }
+}
+
+fn collect_content_bounds(
+    nodes: &[NodeBbox],
+    relations: &[(String, String, Vec<Segment>)],
+    packages: &[PackageFrame],
+    texts: &[TextElement],
+) -> Option<ContentBounds> {
+    let mut bounds = Vec::new();
+    bounds.extend(
+        nodes
+            .iter()
+            .map(|node| (node.x, node.y, node.x + node.w, node.y + node.h)),
+    );
+    bounds.extend(packages.iter().map(|frame| {
+        (
+            frame.x,
+            frame.y,
+            frame.x + frame.width,
+            frame.y + frame.header_height,
+        )
+    }));
+    for (_, _, segs) in relations {
+        bounds.extend(segs.iter().map(|seg| {
+            (
+                seg.x1.min(seg.x2),
+                seg.y1.min(seg.y2),
+                seg.x1.max(seg.x2),
+                seg.y1.max(seg.y2),
+            )
+        }));
+    }
+    bounds.extend(texts.iter().map(text_bounds));
+    let min_x = bounds.iter().map(|(x, _, _, _)| *x).min()?;
+    let min_y = bounds.iter().map(|(_, y, _, _)| *y).min()?;
+    let max_x = bounds.iter().map(|(_, _, x, _)| *x).max()?;
+    let max_y = bounds.iter().map(|(_, _, _, y)| *y).max()?;
+    Some(ContentBounds {
+        x: min_x,
+        y: min_y,
+        width: max_x - min_x,
+        height: max_y - min_y,
+    })
+}
+
+fn text_bounds(text: &TextElement) -> (i32, i32, i32, i32) {
+    let text_len = text.snippet.chars().count() as i32;
+    let text_width = text_len * CHAR_WIDTH_PX;
+    let (left, right) = match text.anchor {
+        TextAnchor::Middle => (text.x - text_width / 2, text.x + text_width / 2),
+        TextAnchor::End => (text.x - text_width, text.x),
+        TextAnchor::Start => (text.x, text.x + text_width),
+    };
+    (
+        left,
+        text.y - TEXT_ASCENT_PX,
+        right,
+        text.y + TEXT_DESCENT_PX,
+    )
+}
+
+fn max_empty_gutter_ratio(viewbox_width: i32, viewbox_height: i32, bounds: ContentBounds) -> f64 {
+    if viewbox_width <= 0 || viewbox_height <= 0 {
+        return 0.0;
+    }
+    let left = bounds.x.max(0) as f64 / viewbox_width as f64;
+    let right = (viewbox_width - (bounds.x + bounds.width)).max(0) as f64 / viewbox_width as f64;
+    let top = bounds.y.max(0) as f64 / viewbox_height as f64;
+    let bottom =
+        (viewbox_height - (bounds.y + bounds.height)).max(0) as f64 / viewbox_height as f64;
+    left.max(right).max(top).max(bottom)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Top-level entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1045,8 +1396,19 @@ pub fn run(svg: &mut String, mode: AutoCorrect) -> InvariantReport {
         report.violations.extend(v);
     }
 
+    // Edge labels should stay near visible routes. This remains diagnostic-only
+    // until typed label ownership is available before SVG emission.
+    report
+        .violations
+        .extend(check_edge_label_proximity(svg, 96));
+
     // Invariant #1: edge-vs-node intersection (diagnostic; layout engine auto-corrects)
     report.violations.extend(check_edge_node_clearance(svg));
+
+    // Invariant #4: group/package header reservation (diagnostic fallback).
+    report
+        .violations
+        .extend(check_package_headers_from_svg(svg));
 
     // Invariant #6: edge endpoint connectivity (diagnostic)
     report.violations.extend(check_endpoint_connectivity(svg));
