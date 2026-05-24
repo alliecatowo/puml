@@ -361,7 +361,7 @@ fn normalize_chart_color(token: &str) -> Option<String> {
     if token.starts_with('#') {
         Some(token.to_string())
     } else {
-        crate::theme::css3_color_to_hex(token).map(ToString::to_string)
+        crate::theme::color::css3_color_to_hex(token).map(ToString::to_string)
     }
 }
 
@@ -547,11 +547,11 @@ fn parse_chart_series(line: &str) -> Option<(ChartSubtype, ChartSeries)> {
     }
     let color = rest[end + 1..]
         .split_whitespace()
-        .find(|token| token.starts_with('#') || crate::theme::css3_color_to_hex(token).is_some())
+        .find(|token| {
+            token.starts_with('#') || crate::theme::color::css3_color_to_hex(token).is_some()
+        })
         .map(|token| {
-            crate::theme::css3_color_to_hex(token)
-                .unwrap_or(token)
-                .to_string()
+            crate::theme::color::resolve_css3_color_or_original(token).unwrap_or_default()
         });
     Some((
         subtype,

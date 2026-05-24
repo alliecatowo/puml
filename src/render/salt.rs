@@ -462,15 +462,7 @@ impl SaltRenderStyle {
 }
 
 fn normalize_salt_color(value: &str) -> Option<String> {
-    let trimmed = value.trim().trim_matches('"');
-    if trimmed.is_empty() {
-        return None;
-    }
-    if trimmed.starts_with('#') {
-        Some(trimmed.to_string())
-    } else {
-        Some(css3_color_to_hex(trimmed).unwrap_or(trimmed).to_string())
-    }
+    crate::theme::color::resolve_css3_color_or_original(value)
 }
 
 fn apply_salt_style_directive(line: &str, style: &mut SaltRenderStyle) -> bool {
