@@ -1,5 +1,7 @@
 use super::crossing::count_inversions;
+use super::router::Router;
 use super::*;
+use crate::render_core::GeometryIssue;
 
 #[test]
 fn count_inversions_merge_sort_correctness() {
@@ -156,8 +158,102 @@ fn hierarchical_layout_is_deterministic() {
     assert_eq!(first.node_positions, second.node_positions);
     assert_eq!(first.node_ranks, second.node_ranks);
     assert_eq!(first.edge_paths, second.edge_paths);
+    assert_eq!(first.route_channels, second.route_channels);
     assert_eq!(first.group_bounds, second.group_bounds);
     assert_eq!(first.scene, second.scene);
+}
+
+#[test]
+fn shared_router_channels_are_ordered_deterministically() {
+    let nodes = vec![
+        make_node("A", None),
+        make_node("B", None),
+        make_node("C", None),
+        make_node("D", None),
+    ];
+    let positions = std::collections::BTreeMap::from([
+        ("A".to_string(), (100.0, 0.0)),
+        ("B".to_string(), (0.0, 160.0)),
+        ("C".to_string(), (240.0, 160.0)),
+        ("D".to_string(), (100.0, 320.0)),
+    ]);
+    let edges = vec![
+        make_edge("e1", "A", "B"),
+        make_edge("e2", "A", "C"),
+        make_edge("e3", "B", "D"),
+        make_edge("e4", "C", "D"),
+    ];
+    let mut reversed_edges_input = edges.clone();
+    reversed_edges_input.reverse();
+    let reversed_edges = std::collections::BTreeSet::new();
+    let group_bounds = std::collections::BTreeMap::new();
+
+    let router = router::ChannelRouter::new(router::RouteOptions::default());
+    let first = router.route(router::RouteRequest {
+        nodes: &nodes,
+        edges: &edges,
+        positions: &positions,
+        reversed_edges: &reversed_edges,
+        group_bounds: &group_bounds,
+    });
+    let second = router.route(router::RouteRequest {
+        nodes: &nodes,
+        edges: &reversed_edges_input,
+        positions: &positions,
+        reversed_edges: &reversed_edges,
+        group_bounds: &group_bounds,
+    });
+    let channel_ids = first.route_channels.keys().cloned().collect::<Vec<_>>();
+
+    assert_eq!(
+        channel_ids,
+        vec![
+            "rank:0:track:0".to_string(),
+            "rank:0:track:1".to_string(),
+            "rank:1:track:0".to_string(),
+            "rank:1:track:1".to_string(),
+        ]
+    );
+    assert_eq!(first.route_channels, second.route_channels);
+    assert_eq!(first.edge_paths, second.edge_paths);
+}
+
+#[test]
+fn multi_rank_column_edge_detours_around_intermediate_node_body() {
+    let nodes = vec![
+        make_node("A", None),
+        make_node("B", None),
+        make_node("C", None),
+    ];
+    let edges = vec![
+        make_edge("e1", "A", "B"),
+        make_edge("e2", "B", "C"),
+        make_edge("e3", "A", "C"),
+    ];
+
+    let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
+    let path = layout.edge_paths.get("e3").expect("e3 should have a path");
+    assert!(
+        path.len() >= 6,
+        "multi-rank column edge should add a detour around B, got {path:?}"
+    );
+
+    let crossings = layout
+        .scene
+        .validate_geometry()
+        .into_iter()
+        .filter(|issue| {
+            matches!(
+                issue,
+                GeometryIssue::EdgeCrossesNode { edge_id, node_id, .. }
+                    if edge_id == "e3" && node_id == "B"
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        crossings.is_empty(),
+        "e3 should not cross intermediate node body: {crossings:?}"
+    );
 }
 
 #[test]

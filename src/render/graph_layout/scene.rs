@@ -2,31 +2,35 @@ use super::{EdgeSpec, NodeSize};
 use crate::render::layout_constants::PKG_TAB_HEIGHT;
 use crate::render_core::{
     Anchor, GroupFrame, LabelBox, LabelRole, NodeBox, Point, Polyline, Port, PortSide, Rect,
-    RenderScene, SceneEdge, SceneGroup, SceneNode,
+    RenderScene, RouteChannel, SceneEdge, SceneGroup, SceneNode,
 };
 use std::collections::BTreeMap;
 
-pub(super) fn build_render_scene(
-    nodes: &[NodeSize],
-    edges: &[EdgeSpec],
-    node_positions: &BTreeMap<String, (f64, f64)>,
-    edge_paths: &BTreeMap<String, Vec<(f64, f64)>>,
-    group_bounds: &BTreeMap<String, (f64, f64, f64, f64)>,
-    canvas_width: f64,
-    canvas_height: f64,
-) -> RenderScene {
-    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, canvas_width, canvas_height));
-    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+pub(super) struct SceneBuildInput<'a> {
+    pub nodes: &'a [NodeSize],
+    pub edges: &'a [EdgeSpec],
+    pub node_positions: &'a BTreeMap<String, (f64, f64)>,
+    pub edge_paths: &'a BTreeMap<String, Vec<(f64, f64)>>,
+    pub route_channels: &'a BTreeMap<String, RouteChannel>,
+    pub group_bounds: &'a BTreeMap<String, (f64, f64, f64, f64)>,
+    pub canvas_width: f64,
+    pub canvas_height: f64,
+}
+
+pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, input.canvas_width, input.canvas_height));
+    let node_by_id: BTreeMap<&str, &NodeSize> =
+        input.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     let mut children_by_group: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    for node in nodes {
+    for node in input.nodes {
         if let Some(parent) = &node.parent {
             children_by_group
                 .entry(parent.clone())
                 .or_default()
                 .push(node.id.clone());
         }
-        let Some(&(x, y)) = node_positions.get(&node.id) else {
+        let Some(&(x, y)) = input.node_positions.get(&node.id) else {
             continue;
         };
         let bounds = Rect::new(x, y, node.width, node.height);
@@ -49,7 +53,7 @@ pub(super) fn build_render_scene(
         });
     }
 
-    for (group_id, &(x, y, width, height)) in group_bounds {
+    for (group_id, &(x, y, width, height)) in input.group_bounds {
         let bounds = Rect::new(x, y, width, height);
         let header = Some(Rect::new(x, y, width, (PKG_TAB_HEIGHT as f64).min(height)));
         let mut child_node_ids = children_by_group.remove(group_id).unwrap_or_default();
@@ -78,8 +82,9 @@ pub(super) fn build_render_scene(
         });
     }
 
-    for edge in edges {
-        let points = edge_paths
+    for edge in input.edges {
+        let points = input
+            .edge_paths
             .get(&edge.id)
             .map(|path| {
                 path.iter()
@@ -89,17 +94,17 @@ pub(super) fn build_render_scene(
             .unwrap_or_default();
         let route = Polyline::new(points);
         let source_point = route.first().unwrap_or_else(|| {
-            node_rect(&edge.from, &node_by_id, node_positions)
+            node_rect(&edge.from, &node_by_id, input.node_positions)
                 .map(Rect::center)
                 .unwrap_or(Point::new(0.0, 0.0))
         });
         let target_point = route.last().unwrap_or_else(|| {
-            node_rect(&edge.to, &node_by_id, node_positions)
+            node_rect(&edge.to, &node_by_id, input.node_positions)
                 .map(Rect::center)
                 .unwrap_or(Point::new(0.0, 0.0))
         });
-        let source_rect = node_rect(&edge.from, &node_by_id, node_positions);
-        let target_rect = node_rect(&edge.to, &node_by_id, node_positions);
+        let source_rect = node_rect(&edge.from, &node_by_id, input.node_positions);
+        let target_rect = node_rect(&edge.to, &node_by_id, input.node_positions);
         scene.add_edge(SceneEdge {
             id: edge.id.clone(),
             from: edge.from.clone(),
@@ -123,6 +128,7 @@ pub(super) fn build_render_scene(
         });
     }
 
+    scene.route_channels = input.route_channels.clone();
     scene.fit_viewport_to_visible_bounds();
     scene
 }
