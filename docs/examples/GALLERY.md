@@ -126,8 +126,7 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 - Families are no longer documented here as “parse-only” or “not yet parsed”.
 - Current status should be interpreted as:
   - family availability: implemented
-  - feature depth inside each family: mixed (`implemented` and `partial`), tracked in the spec audits
+  - feature depth inside each family: mixed (`implemented` and `partial`), tracked through focused issues and tests
 
 See:
-- [../internal/spec/plantuml-spec.md](../internal/spec/plantuml-spec.md)
-- [../internal/spec/audit/](../internal/spec/audit/)
+- [../parity-roadmap.md](../parity-roadmap.md)

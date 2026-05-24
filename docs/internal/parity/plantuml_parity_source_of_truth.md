@@ -1,11 +1,11 @@
-# PlantUML Legacy Parity Compatibility Table
+# PlantUML Legacy Compatibility Table
 
 > **Legacy compatibility table.** This file is retained because
 > `tests/parity_csv_audit.rs` and related tooling parse its markdown table rows.
-> It is not the canonical support surface. The authoritative PlantUML status lives
-> in [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md), backed by
-> the per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/).
-> When status disagrees, update and trust the spec matrix plus chapter audit first.
+> It is not a planning source and not a support authority. Prefer focused GitHub
+> issues, executable tests/fixtures, and
+> [`docs/parity-roadmap.md`](../../parity-roadmap.md). If this table disagrees
+> with current code or issue acceptance criteria, update or retire the stale row.
 
 Status date: 2026-05-17  
 Legacy machine-readable parity table (kept for tooling/test compatibility).
@@ -20,8 +20,8 @@ Legacy machine-readable parity table (kept for tooling/test compatibility).
   `docs/internal/parity/parity_gap_nonuml.csv` are secondary aligned exports for
   tooling compatibility; they do not supersede the spec audit.
 - Historical post-blitz planning notes may be useful context, but current
-  implementation status should be checked against `docs/internal/spec/plantuml-spec.md`
-  and `docs/internal/spec/audit/`.
+  implementation status should be checked against executable tests, examples,
+  and focused issues.
 - **Measured parity evidence**: the authoritative measured source for "what is actually matching at parse/render level" is the latest JAR-backed oracle report produced by `.github/workflows/oracle.yml` and uploaded as the `oracle-report-<run>` CI artifact. When `PUML_ORACLE_JAR` is set, `scripts/oracle.sh` runs fixture-by-fixture SVG diff against PlantUML JAR v1.2024.7 (Temurin JDK 17) and writes `docs/benchmarks/oracle_report.json` in that job workspace or local checkout.
 - The committed `docs/benchmarks/oracle_report.json` may intentionally be a local skip sentinel such as `{"skipped":true,"reason":"PUML_ORACLE_JAR not set"}`. Treat that sentinel as "comparison not run", not as measured pass/fail evidence. Use the latest CI artifact, or a freshly generated local JAR-backed report, when measured oracle numbers matter.
 - Examples, closed issues, and merged PRs are evidence inputs only; they do not override this table.

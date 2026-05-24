@@ -4,7 +4,7 @@ description = "Every diagram family puml recognizes, with links into the gallery
 weight = 80
 +++
 
-`puml` is a multi-family engine. Some families have deep coverage, others have baseline rendering with partial-depth semantics. The canonical, conservative status per family is tracked in [`docs/internal/parity/plantuml_parity_source_of_truth.md`](https://github.com/alliecatowo/puml/blob/main/docs/internal/parity/plantuml_parity_source_of_truth.md).
+`puml` is a multi-family engine. Some families have deep coverage, others have baseline rendering with partial-depth semantics. Current compatibility planning is tracked through executable examples, tests, and focused GitHub issues linked from [`docs/parity-roadmap.md`](https://github.com/alliecatowo/puml/blob/main/docs/parity-roadmap.md).
 
 ## Core UML families
 

@@ -105,12 +105,12 @@ fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
 }
 
 #[test]
-fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
+fn legacy_compatibility_markdown_statuses_are_machine_readable() {
     let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
     let rows = markdown_table_rows("docs/internal/parity/plantuml_parity_source_of_truth.md");
     assert!(
         !rows.is_empty(),
-        "source-of-truth table should not be empty"
+        "legacy compatibility table should not be empty"
     );
 
     // First encountered row is header in this parser output.
@@ -155,11 +155,11 @@ fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
 }
 
 #[test]
-fn parity_source_of_truth_contains_required_official_reference_pages() {
+fn legacy_compatibility_table_contains_required_official_reference_pages() {
     let raw = fs::read_to_string(repo_path(
         "docs/internal/parity/plantuml_parity_source_of_truth.md",
     ))
-    .expect("source-of-truth markdown");
+    .expect("legacy compatibility markdown");
     let required = [
         "https://plantuml.com/sequence-diagram",
         "https://plantuml.com/skinparam",

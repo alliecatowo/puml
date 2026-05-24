@@ -1,12 +1,8 @@
 # Supported Sequence Primitives
 
-For the canonical, per-chapter support matrix, see
-[`docs/internal/spec/plantuml-spec.md`](../internal/spec/plantuml-spec.md) and the
-sequence chapter audit at
-[`docs/internal/spec/audit/ch01-sequence.md`](../internal/spec/audit/ch01-sequence.md).
-
-The rendered example artifacts below remain as docs-as-tests coverage seeds, not
-as the authoritative status surface.
+These rendered example artifacts are docs-as-tests coverage seeds. They document
+the sequence primitives exercised by this corpus, not full PlantUML sequence
+parity.
 
 ## Participants And Messages
 

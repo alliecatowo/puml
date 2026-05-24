@@ -1,8 +1,10 @@
 # PlantUML Language Reference — Support Matrix
 
 **Source:** PlantUML Language Reference Guide v1.2025.0 (Feb 2025), 607 pages.
-**Goal:** 1:1 feature parity with upstream PlantUML. (Pico-UML and Mermaid are explicitly out of scope — separate languages.)
-**Method:** 10 audit agents fanned out across the 27 chapters of the reference, each reading the relevant slice of the extracted text, grepping the puml repo, and producing a per-chapter audit with file:line evidence.
+**Goal:** 1:1 feature parity with upstream PlantUML over time. PicoUML and
+Mermaid are separate frontend surfaces.
+**Method:** historical chapter scan of the PlantUML reference against this repo.
+This file is orientation material, not a live assignment source.
 
 ## Status legend
 
@@ -26,7 +28,8 @@ Across the 27 chapters the initial audits scored roughly:
 
 At that snapshot, roughly 63% of documented PlantUML features had at least
 partial code support, and roughly 35% were confidently 1:1. For current planning,
-trust the per-chapter audit evidence over these aggregate percentages.
+trust focused issues, tests, fixtures, and examples over these aggregate
+percentages.
 
 ## Per-chapter support matrix
 

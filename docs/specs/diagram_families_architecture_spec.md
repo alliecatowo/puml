@@ -34,7 +34,9 @@ Pipeline target:
 
 Current implementation snapshot:
 - Sequence family: stable deep path with active parity hardening for advanced breadth.
-- Core UML and non-UML families: family-aware routed render paths exist for the tracked families named in the parity source of truth. Many core rows are implemented, while advanced rows remain partial until fixture and oracle evidence justify promotion.
+- Core UML and non-UML families: family-aware routed render paths exist for many
+  tracked families. Many core rows are implemented, while advanced rows remain
+  partial until fixture and oracle evidence justify promotion.
 - Unsupported constructs or ambiguous family inputs return deterministic diagnostics; unsupported behavior is tracked at construct/feature granularity rather than by blanket family rejection.
 
 ## Shared IR Boundary
@@ -128,7 +130,6 @@ Scaffolding phase is complete when:
 - Unsupported families are deterministically rejected with explicit diagnostics.
 - Parity roadmap contains family-by-family execution slices.
 
-Current follow-up acceptance now lives in
-`docs/internal/parity/plantuml_parity_source_of_truth.md` and the relevant fixture/oracle
-reports. Do not use this historical scaffolding checklist as the current parity
-status table.
+Current follow-up acceptance lives in focused GitHub issues and
+`docs/internal/architecture/renderer-refactor-roadmap.md`. Use this historical
+scaffolding checklist only as context, not as current implementation status.

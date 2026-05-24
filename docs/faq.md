@@ -17,11 +17,9 @@ The fastest compatibility test is:
 find . -name '*.puml' -not -path './target/*' -exec puml --check {} +
 ```
 
-Then visually inspect rendered output for important diagrams. The conservative status
-trackers are:
-
-- [`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md)
-- [`docs/internal/parity/plantuml_parity_source_of_truth.md`](internal/parity/plantuml_parity_source_of_truth.md)
+Then visually inspect rendered output for important diagrams. For current planning
+and compatibility work, start with [`docs/parity-roadmap.md`](parity-roadmap.md)
+and the linked GitHub issues.
 
 ---
 

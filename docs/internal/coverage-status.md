@@ -27,9 +27,10 @@ Top in-scope modules from latest run:
 - Coverage gate is enforced only in full `./scripts/check-all.sh` mode.
 - Quick `./scripts/check-all.sh --quick` skips coverage but enforces benchmark perf + binary-size gates.
 - Benchmark regressions are tracked in `docs/benchmarks/latest_trend.{md,json}` with deterministic scenario rows and mode-scoped baselines.
-- Benchmark and oracle artifacts are run evidence, not source-of-truth support
-  ledgers; support status remains in `docs/internal/spec/plantuml-spec.md` plus
-  `docs/internal/spec/audit/`.
+- Benchmark and oracle artifacts are run evidence, not support-status ledgers.
+  Compatibility planning lives in `docs/parity-roadmap.md` and focused GitHub
+  issues; specific behavior should be verified against executable tests and
+  fixtures.
 
 ## Contract Audit Notes
 

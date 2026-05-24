@@ -1,11 +1,10 @@
 # Docs Examples Corpus
 
-This directory is the canonical docs-as-tests corpus consumed by `scripts/render_check.py`.
-The corpus is executable documentation and parity evidence, but it is not proof
-of full PlantUML 1:1 parity and is not the source of truth for support status.
-The authoritative current status is
-[`docs/internal/spec/plantuml-spec.md`](../internal/spec/plantuml-spec.md) plus
-the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audit/).
+This directory is the docs-as-tests corpus consumed by `scripts/render_check.py`.
+The corpus is executable documentation and compatibility evidence, but it is not
+proof of full PlantUML 1:1 parity and is not a support-status authority. Current
+planning lives in [`docs/parity-roadmap.md`](../parity-roadmap.md) and focused
+GitHub issues.
 
 ## Corpus location and size
 
@@ -33,5 +32,6 @@ the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audi
 
 - This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
 - Examples are coverage seeds for implemented behavior, not exhaustive proof of PlantUML compatibility.
-- If an example and the spec audit appear to disagree, treat the spec audit as authoritative and update the stale artifact or wording.
+- If an example, test, and planning doc disagree, verify current behavior with the
+  renderer and update the stale artifact or wording.
 - When behavior changes, update the corresponding `.svg` artifacts in the same change.
