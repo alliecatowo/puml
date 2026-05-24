@@ -1,78 +1,10 @@
 // ─── Railroad diagram shared primitives ──────────────────────────────────────
 
 use super::shared::{escape_xml, svg_header, svg_white_bg};
+pub(super) use model::{RailLayout, RailNode, RailStyle};
+use model::{RAIL_ALT_GAP, RAIL_BOX_H, RAIL_FONT_W, RAIL_GAP, RAIL_PAD_X};
 
-/// A railroad diagram element.
-#[derive(Debug, Clone)]
-pub(super) enum RailNode {
-    /// A literal terminal in a rounded rect.
-    Literal(String),
-    /// Sequence of nodes.
-    Sequence(Vec<RailNode>),
-    /// Alternation / choice: parallel branches.
-    Alternation(Vec<RailNode>),
-    /// Zero-or-more repetition (loop back).
-    Repeat(Box<RailNode>),
-    /// Optional (zero-or-one).
-    Optional(Box<RailNode>),
-    /// One-or-more (+ quantifier): item then loop.
-    OneOrMore(Box<RailNode>),
-    /// Counted repeat ({n}, {n,m}, {n,}, {,m}) with exact source label.
-    CountedRepeat(Box<RailNode>, String),
-    /// Non-terminal reference.
-    NonTerminal(String),
-    /// Anchor (^, $).
-    Anchor(String),
-    /// Character class.
-    CharClass(String),
-    /// EBNF special sequence: ? ... ?
-    Special(String),
-    /// Empty / epsilon.
-    Empty,
-}
-
-/// Layout a RailNode and return an SVG group string plus (width, height, midY).
-/// `mid_y` is the vertical center of the track baseline.
-const RAIL_PAD_X: i32 = 8;
-const RAIL_FONT_W: i32 = 8; // approximate char width in monospace 12
-const RAIL_BOX_H: i32 = 28;
-const RAIL_GAP: i32 = 20; // horizontal gap between elements in a sequence
-const RAIL_ALT_GAP: i32 = 24; // vertical gap between alternation branches
-
-#[derive(Debug, Clone)]
-pub(super) struct RailStyle {
-    pub(super) literal_fill: String,
-    pub(super) literal_stroke: String,
-    pub(super) literal_text: String,
-    pub(super) nonterminal_fill: String,
-    pub(super) nonterminal_stroke: String,
-    pub(super) nonterminal_text: String,
-    pub(super) charclass_fill: String,
-    pub(super) charclass_stroke: String,
-    pub(super) charclass_text: String,
-    pub(super) anchor_fill: String,
-    pub(super) anchor_stroke: String,
-    pub(super) anchor_text: String,
-}
-
-impl Default for RailStyle {
-    fn default() -> Self {
-        Self {
-            literal_fill: "#fff8e1".to_string(),
-            literal_stroke: "#f9a825".to_string(),
-            literal_text: "#333".to_string(),
-            nonterminal_fill: "#e8f5e9".to_string(),
-            nonterminal_stroke: "#388e3c".to_string(),
-            nonterminal_text: "#1b5e20".to_string(),
-            charclass_fill: "#fce4ec".to_string(),
-            charclass_stroke: "#c62828".to_string(),
-            charclass_text: "#b71c1c".to_string(),
-            anchor_fill: "#e3f2fd".to_string(),
-            anchor_stroke: "#1976d2".to_string(),
-            anchor_text: "#1565c0".to_string(),
-        }
-    }
-}
+mod model;
 
 fn rail_literal_width(text: &str) -> i32 {
     (text.len() as i32) * RAIL_FONT_W + RAIL_PAD_X * 2 + 8
@@ -80,14 +12,6 @@ fn rail_literal_width(text: &str) -> i32 {
 
 fn rail_box_width(text: &str) -> i32 {
     rail_literal_width(text).max(40)
-}
-
-pub(super) struct RailLayout {
-    pub(super) svg: String,
-    pub(super) width: i32,
-    pub(super) height: i32,
-    /// Y position of the track center-line within this element's bounding box
-    pub(super) mid_y: i32,
 }
 
 fn layout_rail(node: &RailNode) -> RailLayout {
