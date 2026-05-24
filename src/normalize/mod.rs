@@ -183,6 +183,7 @@ fn is_family_page_common_statement(kind: &StatementKind) -> bool {
             | StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
+            | StatementKind::AllowMixing
             | StatementKind::Footbox(_)
             | StatementKind::Scale(_)
             | StatementKind::LegendPos(_)

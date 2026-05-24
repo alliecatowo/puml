@@ -1259,6 +1259,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(usecase_doc.kind, DiagramKind::UseCase);
+
+        let single_usecase_doc =
+            parse_with_options("usecase Checkout\n", &ParseOptions::default()).unwrap();
+        assert_eq!(single_usecase_doc.kind, DiagramKind::UseCase);
     }
 
     #[test]

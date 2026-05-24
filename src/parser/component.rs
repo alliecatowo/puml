@@ -1,5 +1,5 @@
 fn parse_component_decl(line: &str) -> Option<StatementKind> {
-    for (kw, kind) in component_decl_keywords().iter().copied() {
+    for (kw, kind) in component_decl_keywords() {
         let trimmed = line.trim();
         if !trimmed.starts_with(kw) {
             continue;
@@ -110,48 +110,13 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn component_decl_keywords() -> &'static [(&'static str, ComponentNodeKind)] {
-    use crate::ast::ComponentNodeKind as K;
-    &[
-        ("component", K::Component),
-        ("interface", K::Interface),
-        ("portin", K::Port),
-        ("portout", K::Port),
-        ("port", K::Port),
-        ("node", K::Node),
-        ("database", K::Database),
-        ("cloud", K::Cloud),
-        ("frame", K::Frame),
-        ("storage", K::Storage),
-        ("package", K::Package),
-        ("rectangle", K::Rectangle),
-        ("folder", K::Folder),
-        ("file", K::File),
-        ("card", K::Card),
-        ("artifact", K::Artifact),
-        ("actor/", K::Actor),
-        ("actor", K::Actor),
-        ("agent", K::Agent),
-        ("boundary", K::Boundary),
-        ("circle", K::Circle),
-        ("collections", K::Collections),
-        ("container", K::Container),
-        ("control", K::Control),
-        ("entity", K::Entity),
-        ("hexagon", K::Hexagon),
-        ("label", K::Label),
-        ("person", K::Person),
-        ("process", K::Process),
-        ("queue", K::Queue),
-        ("stack", K::Stack),
-        ("action", K::Action),
-        ("usecase/", K::UseCase),
-    ]
+fn component_decl_keywords() -> impl Iterator<Item = (&'static str, ComponentNodeKind)> + Clone {
+    crate::registry::component_declaration_keywords()
 }
 
 fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind)> {
     let trimmed = line.trim_start();
-    component_decl_keywords().iter().copied().find(|(kw, _)| {
+    component_decl_keywords().find(|(kw, _)| {
         trimmed.starts_with(kw)
             && trimmed
                 .as_bytes()

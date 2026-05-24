@@ -246,6 +246,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 }
             }
             StatementKind::Pragma(_)
+            | StatementKind::AllowMixing
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}

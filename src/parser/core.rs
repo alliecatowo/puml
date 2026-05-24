@@ -10,6 +10,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
     let mut detected_kind: Option<DiagramKind> = None;
     let mut in_block = false;
+    let mut allow_mixing = false;
     let mut block_kind: Option<BlockKind> = None;
     let mut block_start_span: Option<Span> = None;
     let mut i = 0usize;
@@ -141,6 +142,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if let Some(kind) = parse_keyword(line) {
+            if matches!(kind, StatementKind::AllowMixing) {
+                allow_mixing = true;
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
             let multiline_note_head =
                 matches!(&kind, StatementKind::Note(_)) && note_block_continues(&lines, i, line);
             let multiline_text_head = matches!(
@@ -241,7 +248,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     } else {
                         DiagramKind::Component
                     };
-                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    detected_kind = Some(select_diagram_kind_with_mixing(
+                        detected_kind,
+                        family,
+                        span,
+                        allow_mixing,
+                    )?);
                     statements.push(Statement { span, kind });
                     i = end_idx + 1;
                     continue;
@@ -256,10 +268,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             {
                 if matches!(detected_kind, Some(DiagramKind::Deployment)) {
                     if let Some(kind) = parse_deployment_usecase_decl(line) {
-                        detected_kind = Some(select_diagram_kind(
+                        detected_kind = Some(select_diagram_kind_with_mixing(
                             detected_kind,
                             DiagramKind::Deployment,
                             span,
+                            allow_mixing,
                         )?);
                         statements.push(Statement { span, kind });
                         i += 1;
@@ -272,7 +285,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     } else {
                         DiagramKind::Deployment
                     };
-                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    detected_kind = Some(select_diagram_kind_with_mixing(
+                        detected_kind,
+                        family,
+                        span,
+                        allow_mixing,
+                    )?);
                     statements.push(Statement { span, kind });
                     i = end_idx + 1;
                     continue;
@@ -315,7 +333,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                             _ => DiagramKind::Component,
                         }
                     };
-                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    detected_kind = Some(select_diagram_kind_with_mixing(
+                        detected_kind,
+                        family,
+                        span,
+                        allow_mixing,
+                    )?);
                     statements.push(Statement { span, kind });
                     i += 1;
                     continue;
@@ -335,7 +358,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 Some(DiagramKind::Class) | None => DiagramKind::Class,
                 Some(other) => other,
             };
-            detected_kind = Some(select_diagram_kind(detected_kind, projection_family, span)?);
+            detected_kind = Some(select_diagram_kind_with_mixing(
+                detected_kind,
+                projection_family,
+                span,
+                allow_mixing,
+            )?);
             let block_span = Span::new(span.start, lines[end_idx].1.end);
             statements.push(Statement {
                 span: block_span,
@@ -359,7 +387,37 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         {
             if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
                 let family = family_for_declaration(&kind);
-                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                detected_kind = Some(select_diagram_kind_with_mixing(
+                    detected_kind,
+                    family,
+                    span,
+                    allow_mixing,
+                )?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
+        if allow_mixing
+            && detected_kind.is_some_and(crate::registry::is_mixed_graph_family)
+            && !matches!(
+                detected_kind,
+                None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+            )
+        {
+            if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
+                let family = family_for_declaration(&kind);
+                detected_kind = Some(select_diagram_kind_with_mixing(
+                    detected_kind,
+                    family,
+                    span,
+                    allow_mixing,
+                )?);
                 let block_span = Span::new(span.start, lines[end_idx].1.end);
                 statements.push(Statement {
                     span: block_span,

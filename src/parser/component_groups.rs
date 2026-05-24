@@ -231,8 +231,7 @@ fn component_scoping_block_head<'a>(
         return Some(("namespace", trimmed.strip_prefix("namespace ").unwrap_or("").trim()));
     }
     component_decl_keywords()
-        .iter()
-        .map(|(keyword, _)| *keyword)
+        .map(|(keyword, _)| keyword)
         .filter(|keyword| is_component_container_keyword(keyword))
         .find_map(|keyword| {
             lower.starts_with(&format!("{keyword} ")).then(|| {

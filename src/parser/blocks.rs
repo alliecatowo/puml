@@ -215,6 +215,22 @@ fn select_diagram_kind(
     .with_span(span))
 }
 
+fn select_diagram_kind_with_mixing(
+    current: Option<DiagramKind>,
+    candidate: DiagramKind,
+    span: Span,
+    allow_mixing: bool,
+) -> Result<DiagramKind, Diagnostic> {
+    if allow_mixing {
+        if let Some(current) = current {
+            if let Some(mixed) = crate::registry::mixed_graph_family(current, candidate) {
+                return Ok(mixed);
+            }
+        }
+    }
+    select_diagram_kind(current, candidate, span)
+}
+
 fn looks_like_unsupported_family_syntax(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
     lower.starts_with("state ")

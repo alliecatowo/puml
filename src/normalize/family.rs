@@ -447,6 +447,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 );
             }
             StatementKind::Pragma(_)
+            | StatementKind::AllowMixing
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -2014,6 +2015,90 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     fill_color,
                 });
             }
+            StatementKind::ClassDecl(decl) => {
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
+                let source_id = decl.alias.as_deref().unwrap_or(&decl.name).to_string();
+                let heritage_relations =
+                    extract_family_heritage_relations(&mut members, &source_id);
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+                for rel in &heritage_relations {
+                    ensure_family_class_node(&mut nodes, &rel.from);
+                }
+                relations.extend(heritage_relations);
+            }
+            StatementKind::ObjectDecl(decl) => {
+                let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
+                let mut members = decl.members;
+                let resolved_kind = if members.first().is_some_and(|m| m.text.trim() == "<<map>>") {
+                    let _ = members.remove(0);
+                    FamilyNodeKind::Map
+                } else if members
+                    .first()
+                    .is_some_and(|m| m.text.trim() == "<<diamond>>")
+                {
+                    let _ = members.remove(0);
+                    FamilyNodeKind::Diamond
+                } else {
+                    c4_kind.unwrap_or(FamilyNodeKind::Object)
+                };
+                let fill_color = extract_family_node_fill_color(&mut members);
+                let (name, typed_label) = if resolved_kind == FamilyNodeKind::Object {
+                    split_object_instance_type(decl.name)
+                } else {
+                    (decl.name, None)
+                };
+                let node_id = clean_alias.as_deref().unwrap_or(&name).to_string();
+                if resolved_kind == FamilyNodeKind::Map {
+                    relations.extend(extract_map_row_relations(&members, &node_id));
+                }
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: resolved_kind,
+                        name,
+                        alias: clean_alias,
+                        members,
+                        depth: 0,
+                        label: typed_label,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+            }
+            StatementKind::UseCaseDecl(decl) => {
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
+                let resolved_kind = resolve_usecase_node_kind(&mut members);
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: resolved_kind,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+            }
             StatementKind::StateDecl(decl) => nodes.push(FamilyNode {
                 kind: FamilyNodeKind::State,
                 name: decl.name,
@@ -2694,6 +2779,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 hide_options.insert(opt.to_ascii_lowercase());
             }
             StatementKind::Pragma(_)
+            | StatementKind::AllowMixing
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
@@ -3112,38 +3198,9 @@ fn normalize_timing_range_note(
 }
 
 fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
-    match kind {
-        ComponentNodeKind::Action => FamilyNodeKind::Action,
-        ComponentNodeKind::Agent => FamilyNodeKind::Agent,
-        ComponentNodeKind::Component => FamilyNodeKind::Component,
-        ComponentNodeKind::Interface => FamilyNodeKind::Interface,
-        ComponentNodeKind::Port => FamilyNodeKind::Port,
-        ComponentNodeKind::Node => FamilyNodeKind::Node,
-        ComponentNodeKind::Artifact => FamilyNodeKind::Artifact,
-        ComponentNodeKind::Boundary => FamilyNodeKind::Boundary,
-        ComponentNodeKind::Cloud => FamilyNodeKind::Cloud,
-        ComponentNodeKind::Circle => FamilyNodeKind::Circle,
-        ComponentNodeKind::Collections => FamilyNodeKind::Collections,
-        ComponentNodeKind::Frame => FamilyNodeKind::Frame,
-        ComponentNodeKind::Storage => FamilyNodeKind::Storage,
-        ComponentNodeKind::Container => FamilyNodeKind::Container,
-        ComponentNodeKind::Control => FamilyNodeKind::Control,
-        ComponentNodeKind::Database => FamilyNodeKind::Database,
-        ComponentNodeKind::Entity => FamilyNodeKind::Entity,
-        ComponentNodeKind::Package => FamilyNodeKind::Package,
-        ComponentNodeKind::Rectangle => FamilyNodeKind::Rectangle,
-        ComponentNodeKind::Folder => FamilyNodeKind::Folder,
-        ComponentNodeKind::File => FamilyNodeKind::File,
-        ComponentNodeKind::Card => FamilyNodeKind::Card,
-        ComponentNodeKind::Actor => FamilyNodeKind::Actor,
-        ComponentNodeKind::Hexagon => FamilyNodeKind::Hexagon,
-        ComponentNodeKind::Label => FamilyNodeKind::Label,
-        ComponentNodeKind::Person => FamilyNodeKind::Person,
-        ComponentNodeKind::Process => FamilyNodeKind::Process,
-        ComponentNodeKind::Queue => FamilyNodeKind::Queue,
-        ComponentNodeKind::Stack => FamilyNodeKind::Stack,
-        ComponentNodeKind::UseCase => FamilyNodeKind::UseCaseDeployment,
-    }
+    crate::registry::graph_element_for_component_kind(kind)
+        .map(|spec| spec.family_node_kind)
+        .unwrap_or(FamilyNodeKind::Component)
 }
 
 fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {

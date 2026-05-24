@@ -289,6 +289,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower == "hide unlinked" {
         return Some(StatementKind::HideUnlinked);
     }
+    if lower == "allowmixing" {
+        return Some(StatementKind::AllowMixing);
+    }
     if lower == "hide empty description" {
         return Some(StatementKind::HideOption(
             "empty description".to_string(),
@@ -1165,6 +1168,7 @@ fn is_family_common_keyword(kind: &StatementKind) -> bool {
             | StatementKind::IgnoreNewPage
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_)
+            | StatementKind::AllowMixing
             | StatementKind::Pragma(_)
     )
 }
@@ -1182,6 +1186,7 @@ fn is_family_common_keyword_before_detection(kind: &StatementKind) -> bool {
             | StatementKind::Theme(_)
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_)
+            | StatementKind::AllowMixing
             | StatementKind::Pragma(_)
     )
 }
