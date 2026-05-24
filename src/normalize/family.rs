@@ -752,6 +752,29 @@ fn extract_activity_sdl_shape(label: &mut Option<String>) -> Option<String> {
     Some(shape.trim().to_string())
 }
 
+fn extract_activity_note_meta(label: &mut Option<String>) -> Option<(String, bool)> {
+    let value = label.take()?;
+    let Some(rest) = value.strip_prefix("\x1factivity:note:") else {
+        *label = Some(value);
+        return None;
+    };
+    let Some((encoded, display)) = rest.split_once('\x1f') else {
+        *label = Some(value);
+        return None;
+    };
+    let mut side = "right".to_string();
+    let mut floating = false;
+    for part in encoded.split(':') {
+        if let Some(value) = part.strip_prefix("side=") {
+            side = value.to_string();
+        } else if let Some(value) = part.strip_prefix("floating=") {
+            floating = value == "1" || value.eq_ignore_ascii_case("true");
+        }
+    }
+    *label = (!display.is_empty()).then(|| display.to_string());
+    Some((side, floating))
+}
+
 fn extract_family_heritage_relations(
     members: &mut Vec<ClassMember>,
     source_id: &str,
@@ -2009,6 +2032,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 let mut label = step.label;
                 let fill_color = extract_activity_inline_fill(&mut label);
                 let sdl_shape = extract_activity_sdl_shape(&mut label);
+                let note_meta = extract_activity_note_meta(&mut label);
                 let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
                 match step.kind {
                     ActivityStepKind::PartitionStart => {
@@ -2037,17 +2061,23 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         .clone()
                         .unwrap_or_else(|| "default".to_string())
                 };
-                let alias = if let Some(shape) = &sdl_shape {
-                    format!(
-                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}|sdl={}",
-                        step.kind, lane, activity_fork_depth, activity_fork_branch, shape
-                    )
-                } else {
-                    format!(
-                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
-                        step.kind, lane, activity_fork_depth, activity_fork_branch
-                    )
-                };
+                let mut alias_parts = vec![
+                    format!("activity::{:?}", step.kind),
+                    format!("lane={lane}"),
+                    format!("fork_depth={activity_fork_depth}"),
+                    format!("fork_branch={activity_fork_branch}"),
+                ];
+                if let Some(shape) = &sdl_shape {
+                    alias_parts.push(format!("sdl={shape}"));
+                }
+                if let Some((side, floating)) = &note_meta {
+                    alias_parts.push(format!("position={side}"));
+                    alias_parts.push(format!("note_side={side}"));
+                    if *floating {
+                        alias_parts.push("note_floating=1".to_string());
+                    }
+                }
+                let alias = alias_parts.join("|");
                 nodes.push(FamilyNode {
                     kind,
                     name,
@@ -2320,8 +2350,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         kind: FamilyNodeKind::Note,
                         name: format!("__act_{activity_step_counter:04}"),
                         alias: Some(format!(
-                            "activity::Note|position={}|lane={}|fork_depth={}|fork_branch={}",
-                            position, "default", activity_fork_depth, activity_fork_branch
+                            "activity::Note|position={}|note_side={}|lane={}|fork_depth={}|fork_branch={}",
+                            position, position, "default", activity_fork_depth, activity_fork_branch
                         )),
                         members: Vec::new(),
                         depth: 0,

@@ -91,10 +91,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let extra_branch_width = 2 * branch_x_offset * max_if_depth;
     let extra_fork_width = (max_fork_branches * ACTIVITY_BRANCH_X_OFFSET).max(0);
 
-    let lane_area_x = ACTIVITY_LANE_AREA_X;
+    let has_left_notes = metas
+        .iter()
+        .any(|meta| meta.step_kind == "Note" && meta.note_side.as_deref() == Some("left"));
+    let has_right_notes = metas
+        .iter()
+        .any(|meta| meta.step_kind == "Note" && meta.note_side.as_deref() != Some("left"));
+    let side_note_margin = 260;
+    let lane_area_x = ACTIVITY_LANE_AREA_X + if has_left_notes { side_note_margin } else { 0 };
     let base_lane_area_w = ACTIVITY_BASE_LANE_WIDTH;
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
-    let width = lane_area_w + 64;
+    let width = lane_area_x + lane_area_w + 32 + if has_right_notes { side_note_margin } else { 0 };
     let has_named_lanes = lanes.iter().any(|l| l != "default");
     let has_partition_markers = metas.iter().any(|meta| meta.step_kind == "PartitionStart");
     let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");

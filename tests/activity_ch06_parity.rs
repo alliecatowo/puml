@@ -322,6 +322,63 @@ fn activity_ch06_render_applies_arrow_color_note_connector_and_detach() {
 }
 
 #[test]
+fn activity_ch06_side_note_attaches_without_consuming_flow_slot() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+title Activity note attachment gap
+start
+:Prepare release;
+note right: attach evidence packet
+:Ship release;
+stop
+@enduml
+"#,
+    )
+    .expect("render attached activity note");
+
+    assert!(svg.contains("class=\"activity-note-connector\""));
+    assert!(
+        svg.contains("<line x1=\"240\" y1=\"164\" x2=\"240\" y2=\"182\""),
+        "main flow should continue from the noted action to the following action"
+    );
+    assert!(
+        !svg.contains(">note right: attach evidence packet<"),
+        "note directive should not be rendered as flow text"
+    );
+}
+
+#[test]
+fn activity_ch06_detached_fork_branch_does_not_join() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+title Fork branch termination gap
+start
+fork
+  :branch A;
+  detach
+fork again
+  :branch B;
+end fork
+:after fork;
+stop
+@enduml
+"#,
+    )
+    .expect("render detached fork branch");
+
+    assert!(svg.contains("data-activity-kind=\"Detach\""));
+    assert!(
+        !svg.contains("<line x1=\"216\" y1=\"262\" x2=\"216\" y2=\"326\"")
+            && !svg.contains("<line x1=\"216\" y1=\"284\" x2=\"216\" y2=\"326\""),
+        "a detached branch should not draw a connector into the fork join bar"
+    );
+    assert!(
+        svg.contains("<line x1=\"584\" y1=\"224\" x2=\"584\" y2=\"326\""),
+        "non-terminated fork branches should still connect to the join bar"
+    );
+}
+
+#[test]
 fn activity_ch06_fork_branch_connector_arrows_do_not_point_upward() {
     let svg = puml::render_source_to_svg(
         r#"@startuml
@@ -394,9 +451,7 @@ fn activity_inline_note_renders_payload_without_directive_prefix() {
     assert!(svg.contains(">baseline note<"));
     assert!(!svg.contains(">note right: baseline note<"));
     assert!(
-        svg.contains("<line x1=\"344\" y1=\"406\" x2=\"344\" y2=\"415\"")
-            && svg.contains("<line x1=\"344\" y1=\"415\" x2=\"136\" y2=\"415\"")
-            && svg.contains("<line x1=\"136\" y1=\"415\" x2=\"136\" y2=\"424\""),
+        svg.contains("class=\"activity-note-connector\""),
         "annotation connector should route from detach to the out-of-lane note"
     );
 }

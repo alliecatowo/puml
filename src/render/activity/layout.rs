@@ -14,6 +14,8 @@ pub(super) struct NodeMeta {
     pub arrow_style: Option<ActivityArrowStyle>,
     /// SDL action shape (e.g. "send", "receive", "input", "output", "bar", "bracket", "brace")
     pub sdl_shape: Option<String>,
+    pub note_side: Option<String>,
+    pub note_floating: bool,
 }
 
 pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
@@ -24,6 +26,8 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
             let mut lane_name = "default".to_string();
             let mut fork_branch = 0usize;
             let mut sdl_shape: Option<String> = None;
+            let mut note_side: Option<String> = None;
+            let mut note_floating = false;
             if let Some(alias) = &node.alias {
                 if let Some(meta) = alias.strip_prefix("activity::") {
                     for (pi, part) in meta.split('|').enumerate() {
@@ -37,6 +41,12 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
                             fork_branch = v.parse::<usize>().unwrap_or(0);
                         } else if let Some(v) = part.strip_prefix("sdl=") {
                             sdl_shape = Some(v.to_string());
+                        } else if let Some(v) = part.strip_prefix("note_side=") {
+                            note_side = Some(v.to_string());
+                        } else if let Some(v) = part.strip_prefix("position=") {
+                            note_side = Some(v.to_string());
+                        } else if let Some(v) = part.strip_prefix("note_floating=") {
+                            note_floating = v == "1" || v.eq_ignore_ascii_case("true");
                         }
                     }
                 }
@@ -48,6 +58,8 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
                 fork_branch,
                 arrow_style,
                 sdl_shape,
+                note_side,
+                note_floating,
             }
         })
         .collect()
@@ -159,6 +171,7 @@ struct ForkFrame {
 struct ForkBranch {
     start_node_idx: usize,
     end_next_slot: i32,
+    end_node_idx: Option<usize>,
 }
 
 struct RepeatFrame {
@@ -358,6 +371,7 @@ pub(super) fn compute_layout(
                     branches: vec![ForkBranch {
                         start_node_idx: i + 1,
                         end_next_slot: next_slot_y,
+                        end_node_idx: None,
                     }],
                     current_branch: 0,
                     fork_again_indices: Vec::new(),
@@ -372,6 +386,7 @@ pub(super) fn compute_layout(
                 frame.branches.push(ForkBranch {
                     start_node_idx: i + 1,
                     end_next_slot: frame.branch_start_y,
+                    end_node_idx: None,
                 });
                 frame.current_branch += 1;
                 let n_branches = frame.branches.len();
@@ -480,14 +495,19 @@ pub(super) fn compute_layout(
                         }
                     }
                     // Straight-down arrow from branch last node to the join bar
-                    let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
-                    let join_bar_top_y = slot_y + 24;
-                    let (y1, y2) = if branch_arrow_out_y <= join_bar_top_y {
-                        (branch_arrow_out_y, join_bar_top_y)
-                    } else {
-                        (join_bar_top_y, branch_arrow_out_y)
-                    };
-                    direct_arrows.push(ActivityRoute::new(col_cx, y1, col_cx, y2));
+                    if !branch
+                        .end_node_idx
+                        .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
+                    {
+                        let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
+                        let join_bar_top_y = slot_y + 24;
+                        let (y1, y2) = if branch_arrow_out_y <= join_bar_top_y {
+                            (branch_arrow_out_y, join_bar_top_y)
+                        } else {
+                            (join_bar_top_y, branch_arrow_out_y)
+                        };
+                        direct_arrows.push(ActivityRoute::new(col_cx, y1, col_cx, y2));
+                    }
                 }
 
                 // Straight-down arrows from the fork bar bottom to each branch column
@@ -525,7 +545,31 @@ pub(super) fn compute_layout(
                     || meta.step_kind == "PartitionEnd"
                     || meta.step_kind == "Arrow"
                     || meta.step_kind == "OldStyle";
-                if is_partition_marker
+                if meta.step_kind == "Note" && !meta.note_floating {
+                    let anchor_idx = previous_activity_flow_node(doc, metas, i);
+                    let (slot_y, anchor_cx, anchor_arrow_out_y) = anchor_idx
+                        .and_then(|idx| {
+                            node_layouts
+                                .get(idx)
+                                .map(|layout| (layout.slot_y, layout.cx, layout.arrow_out_y))
+                        })
+                        .unwrap_or((current_slot_y, cx, current_slot_y + ARROW_OUT));
+                    let note_offset = (lane_w / 2).max(140) + 32;
+                    let note_cx = match meta.note_side.as_deref() {
+                        Some("left") => anchor_cx - note_offset,
+                        Some("top") | Some("bottom") | Some("right") | None => {
+                            anchor_cx + note_offset
+                        }
+                        Some(_) => anchor_cx + note_offset,
+                    };
+                    node_layouts.push(NodeLayout {
+                        cx: note_cx,
+                        slot_y,
+                        arrow_out_y: anchor_arrow_out_y,
+                        next_slot_y: current_slot_y,
+                    });
+                    suppress_prev_arrow.insert(i);
+                } else if is_partition_marker
                     && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)
                 {
                     let slot_y = current_slot_y;
@@ -562,6 +606,12 @@ pub(super) fn compute_layout(
                     if let Some(fork_frame) = fork_stack.last_mut() {
                         let bi = fork_frame.current_branch;
                         fork_frame.branches[bi].end_next_slot = next_slot_y;
+                        if !matches!(
+                            meta.step_kind.as_str(),
+                            "Note" | "Arrow" | "PartitionStart" | "PartitionEnd" | "OldStyle"
+                        ) {
+                            fork_frame.branches[bi].end_node_idx = Some(i);
+                        }
                     }
                     current_slot_y = next_slot_y;
                 }
@@ -582,4 +632,33 @@ fn activity_decision_guard(label: &str) -> Option<String> {
     label
         .split_once(" / ")
         .map(|(_, guard)| guard.trim().to_string())
+}
+
+pub(super) fn is_activity_terminal_step(step_kind: &str) -> bool {
+    matches!(step_kind, "Stop" | "End" | "Kill" | "Detach")
+}
+
+pub(super) fn is_activity_flow_neutral_node(
+    doc: &FamilyDocument,
+    metas: &[NodeMeta],
+    idx: usize,
+) -> bool {
+    let step_kind = metas[idx].step_kind.as_str();
+    (matches!(doc.nodes[idx].kind, FamilyNodeKind::ActivityPartition)
+        && (step_kind == "PartitionStart"
+            || step_kind == "PartitionEnd"
+            || step_kind == "Arrow"
+            || step_kind == "OldStyle"))
+        || step_kind == "RepeatStart"
+        || (step_kind == "Note" && !metas[idx].note_floating)
+}
+
+pub(super) fn previous_activity_flow_node(
+    doc: &FamilyDocument,
+    metas: &[NodeMeta],
+    idx: usize,
+) -> Option<usize> {
+    (0..idx)
+        .rev()
+        .find(|&prev_idx| !is_activity_flow_neutral_node(doc, metas, prev_idx))
 }

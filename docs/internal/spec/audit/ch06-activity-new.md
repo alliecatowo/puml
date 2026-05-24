@@ -54,8 +54,8 @@ Note: the `ActivityStepKind` enum is intentionally small; many distinct PlantUML
 **Feature:** `kill` / `detach` keywords inside if/fork branches to terminate without joining.
 **Status:** ✅
 **Evidence:** `activity.rs:190-200` parses both, emits `ActivityStepKind::Kill` / `ActivityStepKind::Detach`. Renderer (`nodes.rs`) distinguishes by `step_kind`: kill renders as an X-in-circle; detach renders as a horizontal bar. Both suppress outgoing arrows via `emit_predecessor_arrow` (`nodes.rs:274`, checks `"Kill" | "Detach"`).
-**Notes:** Within fork branches, kill/detach still draw arrows to the join bar (a deeper layout change would be needed to fully suppress fork-branch joins). The visual shape distinction is correct for linear-flow contexts.
-**Implemented:** 2026-05-21 (PR #948)
+**Notes:** The visual shape distinction is correct for linear-flow contexts, and fork branches ending in `kill`/`detach`/`stop`/`end` no longer draw a synthetic connector into the join bar.
+**Implemented:** 2026-05-21 (PR #948); fork-branch join suppression follow-up 2026-05-23.
 
 ### 6.6 Repeat loop — 🟡
 #### 6.6.1 Simple repeat — 🟡
@@ -113,13 +113,13 @@ See 6.6.2 — backward flattened.
 **Feature:** `split` / `split again` / `end split` for multi-start / multi-end shapes.
 **Status:** 🟡
 **Evidence:** `activity.rs:80-97` aliases split to fork. `end merge` also maps here.
-**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) not supported — hidden-arrow directives aren't parsed. Multi-end (each branch ends with `kill`/`detach`/`stop`/`end`) renders, but the no-join visual semantic is incorrect because all branches still connect to a synthetic join bar.
+**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) remains partial. Multi-end branches ending with `kill`/`detach`/`stop`/`end` no longer connect to the synthetic join bar, but true split-specific multi-end topology still needs a richer control-flow model.
 
 ### 6.12 Notes — 🟡
 **Feature:** `note left:`, `note right`, `floating note`, multi-line `note ... end note`, attached to actions, backward steps, partitions.
 **Status:** 🟡
 **Evidence:** `parse_activity_note_step` (activity.rs:326-349) recognizes `note left/right/top/bottom` and `floating note*` prefixes — but stores the text on a synthetic `Action` step labeled e.g. `"note right: This is a note"`.
-**Notes:** Notes render as activity boxes in the flow, not as attached side-notes. Multi-line `note ... end note` blocks: no multi-line aggregation here; depends on upstream block handler. Notes on `backward`/`partition` definitely not attached correctly.
+**Notes:** Single-line `note left/right/top/bottom:` directives now preserve side metadata, render as folded note cards beside the previous flow node, and use a dashed connector without consuming a main-flow slot. Multi-line `note ... end note` blocks depend on the shared multiline parser and still need deeper layout polish, especially floating notes and notes on `backward`/`partition`.
 
 ### 6.13 Colors (`#red:label;`, gradient) — 🟡
 **Feature:** `#HotPink:label;` per-action background; `#red/white` partition gradient; `#blue\green:` action gradient.
@@ -204,7 +204,7 @@ _Updated 2026-05-21: promoted 6.5 (kill/detach shapes), 6.20 (kill/detach arrow 
 ### Cross-cutting gaps (highest impact)
 1. **Activity arrow styling (6.15)** — no parser for `->`, `-[#blue]->`, `-[#…,dashed]->`, inline arrow labels. Blocks 6.9.3, 6.11 input-split, 6.14, and ch6.22 fidelity.
 2. **Color on actions/partitions (6.13, 6.18.2, 6.19)** — colors are recognized and stripped; rendering ignores them.
-3. **Detach/kill no-arrow semantic (6.5, 6.20, 6.11 multi-end)** — both keywords collapse to Stop nodes; the "suppress trailing arrow" behavior isn't implemented.
+3. **Advanced detach/kill topology (6.11 multi-end)** — linear and fork-branch outgoing arrows are suppressed, but split-specific multi-end topology still uses the generic fork/join layout.
 4. **Loop branch labels become condition text, not edge labels (6.6, 6.9)** — visually misplaced.
 5. **Backward action (6.6.2, 6.9.2)** — flattened to forward action; no back-edge.
 6. **Connectors `(A)` (6.16, 6.17)** — completely missing.
