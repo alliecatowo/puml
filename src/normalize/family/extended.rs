@@ -1,6 +1,20 @@
 use super::*;
 use crate::normalize::common::{CommonDirectives, LegendTextMode};
 
+mod activity;
+mod styles;
+mod timing;
+
+use self::activity::{
+    normalize_activity_note, normalize_activity_step, normalize_activity_unknown_line,
+    ActivityNormalizeState,
+};
+use self::styles::ExtendedFamilyStyles;
+use self::timing::{
+    normalize_timing_decl, normalize_timing_event, normalize_timing_relation_endpoint,
+    normalize_timing_scale_node, TimingNormalizeState,
+};
+
 pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
     let mut nodes = Vec::new();
@@ -9,27 +23,15 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
     let mut common = CommonDirectives::default();
     let mut hide_options: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut activity_step_counter: usize = 0;
-    let mut activity_active_partition: Option<String> = None;
-    let mut activity_fork_depth: usize = 0;
-    let mut activity_fork_branch: usize = 0;
-    let mut timing_current_time: Option<String> = None;
-    let mut timing_current_signal: Option<String> = None;
-    let mut timing_anchors = std::collections::BTreeMap::new();
-    let mut timing_clock_scales = std::collections::BTreeMap::new();
-    let mut component_style = ComponentStyle::default();
-    let mut activity_style = ActivityStyle::default();
-    let mut timing_style = TimingStyle::default();
-    let mut component_monochrome_mode = None;
-    let mut activity_monochrome_mode = None;
-    let mut timing_monochrome_mode = None;
+    let mut activity_state = ActivityNormalizeState::default();
+    let mut timing_state = TimingNormalizeState::default();
+    let mut family_styles = ExtendedFamilyStyles::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut last_relation: Option<(String, String)> = None;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut orientation = FamilyOrientation::TopToBottom;
-    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -156,69 +158,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 fill_color: None,
             }),
             StatementKind::ActivityStep(step) => {
-                activity_step_counter += 1;
-                let kind = activity_step_node_kind(&step.kind);
-                let name = format!("__act_{activity_step_counter:04}");
-                let mut label = step.label;
-                let fill_color = extract_activity_inline_fill(&mut label);
-                let sdl_shape = extract_activity_sdl_shape(&mut label);
-                let note_meta = extract_activity_note_meta(&mut label);
-                let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
-                match step.kind {
-                    ActivityStepKind::PartitionStart => {
-                        activity_active_partition = label.clone();
-                    }
-                    ActivityStepKind::PartitionEnd => {
-                        activity_active_partition = None;
-                    }
-                    ActivityStepKind::Fork => {
-                        activity_fork_depth += 1;
-                        activity_fork_branch = 0;
-                    }
-                    ActivityStepKind::ForkAgain => {
-                        activity_fork_branch += 1;
-                    }
-                    ActivityStepKind::EndFork => {
-                        activity_fork_depth = activity_fork_depth.saturating_sub(1);
-                        activity_fork_branch = 0;
-                    }
-                    _ => {}
-                }
-                let lane = if is_activity_note_step {
-                    "default".to_string()
-                } else {
-                    activity_active_partition
-                        .clone()
-                        .unwrap_or_else(|| "default".to_string())
-                };
-                let mut alias_parts = vec![
-                    format!("activity::{:?}", step.kind),
-                    format!("lane={lane}"),
-                    format!("fork_depth={activity_fork_depth}"),
-                    format!("fork_branch={activity_fork_branch}"),
-                ];
-                if let Some(shape) = &sdl_shape {
-                    alias_parts.push(format!("sdl={shape}"));
-                }
-                if let Some((side, floating)) = &note_meta {
-                    alias_parts.push(format!("position={side}"));
-                    alias_parts.push(format!("note_side={side}"));
-                    if *floating {
-                        alias_parts.push("note_floating=1".to_string());
-                    }
-                }
-                let alias = alias_parts.join("|");
-                nodes.push(FamilyNode {
-                    kind,
-                    name,
-                    alias: Some(alias),
-                    members: Vec::new(),
-                    depth: 0,
-                    label,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                    fill_color,
-                });
+                normalize_activity_step(&mut nodes, &mut activity_state, step);
             }
             StatementKind::TimingDecl {
                 kind,
@@ -226,37 +166,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 label,
                 controls,
             } => {
-                if matches!(kind, TimingDeclKind::Clock) {
-                    let period = controls.iter().find_map(|control| {
-                        let rest = control.strip_prefix("period ")?;
-                        rest.split_whitespace().next()?.parse::<i64>().ok()
-                    });
-                    let offset = controls.iter().find_map(|control| {
-                        let rest = control.strip_prefix("offset ")?;
-                        rest.split_whitespace().next()?.parse::<i64>().ok()
-                    });
-                    if let Some(period) = period {
-                        timing_clock_scales.insert(name.clone(), (period, offset.unwrap_or(0)));
-                    }
-                }
-                let node_kind = timing_decl_node_kind(kind);
-                nodes.push(FamilyNode {
-                    kind: node_kind,
-                    name,
-                    alias: None,
-                    members: controls
-                        .into_iter()
-                        .map(|text| crate::ast::ClassMember {
-                            text,
-                            modifier: None,
-                        })
-                        .collect(),
-                    depth: 0,
-                    label,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                    fill_color: None,
-                });
+                normalize_timing_decl(&mut nodes, &mut timing_state, kind, name, label, controls);
             }
             StatementKind::TimingEvent {
                 time,
@@ -264,152 +174,13 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 state,
                 note,
             } => {
-                // §10.27: `<signal> has <values>` ordering declaration — append ordering
-                // to the already-created signal node so the renderer can use it.
-                if family_kind == DiagramKind::Timing
-                    && state.is_none()
-                    && note
-                        .as_deref()
-                        .is_some_and(|n| n.starts_with("__timing:order:"))
-                {
-                    if let (Some(sig_name), Some(note_str)) = (&signal, &note) {
-                        let order_payload = note_str
-                            .strip_prefix("__timing:order:")
-                            .unwrap_or("")
-                            .to_string();
-                        if !order_payload.is_empty() {
-                            if let Some(sig_node) = nodes.iter_mut().find(|n| {
-                                matches!(n.kind, FamilyNodeKind::TimingRobust)
-                                    && n.name == *sig_name
-                            }) {
-                                sig_node.members.push(crate::ast::ClassMember {
-                                    text: format!("__timing:order:{order_payload}"),
-                                    modifier: None,
-                                });
-                            }
-                        }
-                    }
-                    continue;
-                }
-                if family_kind == DiagramKind::Timing
-                    && signal.is_none()
-                    && state.is_none()
-                    && note.as_deref().is_some_and(|n| n.starts_with("__timing:"))
-                {
-                    let normalized_time = normalize_timing_time(
-                        &time,
-                        timing_current_time.as_deref(),
-                        &timing_anchors,
-                        &timing_clock_scales,
-                    );
-                    if let Some(anchor) = note
-                        .as_deref()
-                        .and_then(|n| n.strip_prefix("__timing:anchor:"))
-                    {
-                        if !normalized_time.is_empty() {
-                            timing_anchors.insert(anchor.to_string(), normalized_time.clone());
-                            timing_current_time = Some(normalized_time);
-                        }
-                        continue;
-                    }
-                    nodes.push(FamilyNode {
-                        kind: FamilyNodeKind::TimingEvent,
-                        name: normalized_time,
-                        alias: None,
-                        members: Vec::new(),
-                        depth: 0,
-                        label: note,
-                        mindmap_side: MindMapSide::Right,
-                        wbs_checkbox: None,
-                        fill_color: None,
-                    });
-                    continue;
-                }
-                let mut signal = signal;
-                if family_kind == DiagramKind::Timing
-                    && signal.is_none()
-                    && state.is_none()
-                    && note.is_none()
-                    && !time.is_empty()
-                    && nodes.iter().any(|node: &FamilyNode| {
-                        matches!(
-                            node.kind,
-                            FamilyNodeKind::TimingConcise
-                                | FamilyNodeKind::TimingRobust
-                                | FamilyNodeKind::TimingClock
-                                | FamilyNodeKind::TimingBinary
-                        ) && node.name == time
-                    })
-                {
-                    timing_current_signal = Some(time);
-                    continue;
-                }
-                if family_kind == DiagramKind::Timing && signal.is_none() && state.is_some() {
-                    signal = timing_current_signal.clone();
-                }
-                let effective_time = if time.is_empty() || signal.as_deref() == Some(time.as_str())
-                {
-                    timing_current_time.clone().unwrap_or_default()
-                } else {
-                    let normalized_time = normalize_timing_time(
-                        &time,
-                        timing_current_time.as_deref(),
-                        &timing_anchors,
-                        &timing_clock_scales,
-                    );
-                    timing_current_time = Some(normalized_time.clone());
-                    normalized_time
-                };
-                let note = note.map(|note| {
-                    normalize_timing_range_note(
-                        &note,
-                        timing_current_time.as_deref(),
-                        &timing_anchors,
-                        &timing_clock_scales,
-                    )
-                });
-                let display = match (&signal, &state, &note) {
-                    (Some(s), Some(st), _) => format!("{s} is {st}"),
-                    (None, None, Some(n)) => n.clone(),
-                    _ => String::new(),
-                };
-                nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::TimingEvent,
-                    name: effective_time,
-                    alias: signal,
-                    members: state
-                        .into_iter()
-                        .map(|s| crate::ast::ClassMember {
-                            text: s,
-                            modifier: None,
-                        })
-                        .collect(),
-                    depth: 0,
-                    label: if display.is_empty() {
-                        None
-                    } else {
-                        Some(display)
-                    },
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                    fill_color: None,
-                });
+                normalize_timing_event(&mut nodes, &mut timing_state, time, signal, state, note);
             }
             StatementKind::FamilyRelation(rel) => {
                 let (from, to) = if family_kind == DiagramKind::Timing {
                     (
-                        normalize_timing_endpoint(
-                            &rel.from,
-                            timing_current_time.as_deref(),
-                            &timing_anchors,
-                            &timing_clock_scales,
-                        ),
-                        normalize_timing_endpoint(
-                            &rel.to,
-                            timing_current_time.as_deref(),
-                            &timing_anchors,
-                            &timing_clock_scales,
-                        ),
+                        normalize_timing_relation_endpoint(&rel.from, &timing_state),
+                        normalize_timing_relation_endpoint(&rel.to, &timing_state),
                     )
                 } else {
                     (rel.from, rel.to)
@@ -468,28 +239,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             StatementKind::Note(note) => {
                 note_counter += 1;
                 if family_kind == DiagramKind::Activity {
-                    activity_step_counter += 1;
-                    let position = note.position.trim().to_string();
-                    let text = note.text.trim();
-                    let label = if text.is_empty() {
-                        "note".to_string()
-                    } else {
-                        text.to_string()
-                    };
-                    nodes.push(FamilyNode {
-                        kind: FamilyNodeKind::Note,
-                        name: format!("__act_{activity_step_counter:04}"),
-                        alias: Some(format!(
-                            "activity::Note|position={}|note_side={}|lane={}|fork_depth={}|fork_branch={}",
-                            position, position, "default", activity_fork_depth, activity_fork_branch
-                        )),
-                        members: Vec::new(),
-                        depth: 0,
-                        label: Some(label),
-                        mindmap_side: MindMapSide::Right,
-                        wbs_checkbox: None,
-                        fill_color: None,
-                    });
+                    normalize_activity_note(&mut nodes, &mut activity_state, note);
                 } else {
                     let target = note.target.clone();
                     let note_node = family_note_node(note_counter, note);
@@ -596,215 +346,16 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
-                let mut handled = false;
-                if key.trim().eq_ignore_ascii_case("monochrome") {
-                    handled = true;
-                    match classify_sequence_skinparam(&key, &value) {
-                        SequenceSkinParamSupport::SupportedNoop => {}
-                        SequenceSkinParamSupport::SupportedWithValue(
-                            SequenceSkinParamValue::Monochrome(mode),
-                        ) => match family_kind {
-                            DiagramKind::Component | DiagramKind::Deployment => {
-                                component_monochrome_mode = Some(mode);
-                            }
-                            DiagramKind::Activity => {
-                                activity_monochrome_mode = Some(mode);
-                            }
-                            DiagramKind::Timing => {
-                                timing_monochrome_mode = Some(mode);
-                            }
-                            _ => {}
-                        },
-                        _ => ext_warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        ),
-                    }
-                } else if key.trim().eq_ignore_ascii_case("handwritten") {
-                    handled = true;
-                    match classify_sequence_skinparam(&key, &value) {
-                        SequenceSkinParamSupport::SupportedNoop
-                        | SequenceSkinParamSupport::SupportedWithValue(
-                            SequenceSkinParamValue::Handwritten(_),
-                        ) => {}
-                        _ => ext_warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        ),
-                    }
-                } else if key.trim().eq_ignore_ascii_case("sepia") {
-                    handled = true;
-                    if let SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::Sepia(enabled),
-                    ) = classify_sequence_skinparam(&key, &value)
-                    {
-                        sepia = enabled;
-                    }
-                }
-                if matches!(
+                family_styles.handle_skinparam(
                     family_kind,
-                    DiagramKind::Component | DiagramKind::Deployment
-                ) {
-                    use crate::theme::ComponentSkinParamValue;
-                    match classify_component_skinparam(&key, &value) {
-                        SkinParamSupport::SupportedNoop => {
-                            handled = true;
-                        }
-                        SkinParamSupport::SupportedWithValue(v) => {
-                            handled = true;
-                            match v {
-                                ComponentSkinParamValue::BackgroundColor(c) => {
-                                    component_style.background_color = c;
-                                }
-                                ComponentSkinParamValue::BorderColor(c) => {
-                                    component_style.border_color = c;
-                                }
-                                ComponentSkinParamValue::InterfaceColor(c) => {
-                                    component_style.interface_color = c;
-                                }
-                                ComponentSkinParamValue::FontColor(c) => {
-                                    component_style.font_color = c;
-                                }
-                                ComponentSkinParamValue::ArrowColor(c) => {
-                                    component_style.arrow_color = c;
-                                }
-                                ComponentSkinParamValue::StyleMode(mode) => {
-                                    component_style.component_style_mode = mode;
-                                }
-                            }
-                        }
-                        SkinParamSupport::UnsupportedKey => {}
-                        SkinParamSupport::UnsupportedValue => {
-                            handled = true;
-                            ext_warnings.push(
-                                Diagnostic::warning(format!(
-                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                    value, key
-                                ))
-                                .with_span(stmt.span),
-                            );
-                        }
-                    }
-                }
-                if !handled && matches!(family_kind, DiagramKind::Activity) {
-                    use crate::theme::ActivitySkinParamValue;
-                    match classify_activity_skinparam(&key, &value) {
-                        SkinParamSupport::SupportedNoop => {
-                            handled = true;
-                        }
-                        SkinParamSupport::SupportedWithValue(v) => {
-                            handled = true;
-                            match v {
-                                ActivitySkinParamValue::BackgroundColor(c) => {
-                                    activity_style.background_color = c;
-                                }
-                                ActivitySkinParamValue::BorderColor(c) => {
-                                    activity_style.border_color = c;
-                                }
-                                ActivitySkinParamValue::DiamondBackgroundColor(c) => {
-                                    activity_style.diamond_color = c;
-                                }
-                                ActivitySkinParamValue::BarColor(c) => {
-                                    activity_style.fork_color = c;
-                                }
-                                ActivitySkinParamValue::FontColor(c) => {
-                                    activity_style.font_color = c;
-                                }
-                                ActivitySkinParamValue::ArrowColor(c) => {
-                                    activity_style.arrow_color = c;
-                                }
-                            }
-                        }
-                        SkinParamSupport::UnsupportedKey => {}
-                        SkinParamSupport::UnsupportedValue => {
-                            handled = true;
-                            ext_warnings.push(
-                                Diagnostic::warning(format!(
-                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                    value, key
-                                ))
-                                .with_span(stmt.span),
-                            );
-                        }
-                    }
-                }
-                if !handled && matches!(family_kind, DiagramKind::Timing) {
-                    use crate::theme::TimingSkinParamValue;
-                    match classify_timing_skinparam(&key, &value) {
-                        SkinParamSupport::SupportedNoop => {
-                            handled = true;
-                        }
-                        SkinParamSupport::SupportedWithValue(v) => {
-                            handled = true;
-                            match v {
-                                TimingSkinParamValue::BackgroundColor(c) => {
-                                    timing_style.background_color = c;
-                                }
-                                TimingSkinParamValue::AxisColor(c) => {
-                                    timing_style.axis_color = c;
-                                }
-                                TimingSkinParamValue::GridColor(c) => {
-                                    timing_style.grid_color = c;
-                                }
-                                TimingSkinParamValue::SignalBackgroundColor(c) => {
-                                    timing_style.signal_background_color = c;
-                                }
-                                TimingSkinParamValue::SignalBorderColor(c) => {
-                                    timing_style.signal_border_color = c;
-                                }
-                                TimingSkinParamValue::ArrowColor(c) => {
-                                    timing_style.arrow_color = c;
-                                }
-                                TimingSkinParamValue::FontColor(c) => {
-                                    timing_style.font_color = c;
-                                }
-                            }
-                        }
-                        SkinParamSupport::UnsupportedKey => {}
-                        SkinParamSupport::UnsupportedValue => {
-                            handled = true;
-                            ext_warnings.push(
-                                Diagnostic::warning(format!(
-                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                    value, key
-                                ))
-                                .with_span(stmt.span),
-                            );
-                        }
-                    }
-                }
-                if !handled {
-                    ext_warnings.push(
-                        Diagnostic::warning(format!(
-                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
-                            key
-                        ))
-                        .with_span(stmt.span),
-                    );
-                }
+                    &key,
+                    &value,
+                    stmt.span,
+                    &mut ext_warnings,
+                );
             }
             StatementKind::Theme(value) => {
-                let style = resolve_sequence_theme_preset(&value)
-                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
-                    .style;
-                match family_kind {
-                    DiagramKind::Component | DiagramKind::Deployment => {
-                        component_style = component_style_from_sequence_theme(&style);
-                    }
-                    DiagramKind::Activity => {
-                        activity_style = activity_style_from_sequence_theme(&style);
-                    }
-                    DiagramKind::Timing => {
-                        timing_style = timing_style_from_sequence_theme(&style);
-                    }
-                    _ => {}
-                }
+                family_styles.apply_theme(family_kind, &value, stmt.span)?;
             }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection {
@@ -831,17 +382,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::LegendPos(_) => {}
             StatementKind::Scale(body) => {
                 if family_kind == DiagramKind::Timing && body.contains(" as ") {
-                    nodes.push(FamilyNode {
-                        kind: FamilyNodeKind::TimingEvent,
-                        name: String::new(),
-                        alias: None,
-                        members: Vec::new(),
-                        depth: 0,
-                        label: Some(format!("__timing:scale:{body}")),
-                        mindmap_side: MindMapSide::Right,
-                        wbs_checkbox: None,
-                        fill_color: None,
-                    });
+                    normalize_timing_scale_node(&mut nodes, body);
                 }
             }
             StatementKind::Unknown(line)
@@ -856,35 +397,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     continue;
                 }
                 if family_kind == DiagramKind::Activity {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-                    activity_step_counter += 1;
-                    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-                        activity_active_partition =
-                            Some(trimmed.trim_matches('|').trim().to_string());
-                    }
-                    let lane = activity_active_partition
-                        .clone()
-                        .unwrap_or_else(|| "default".to_string());
-                    nodes.push(FamilyNode {
-                        kind: if trimmed.starts_with('|') && trimmed.ends_with('|') {
-                            FamilyNodeKind::ActivityPartition
-                        } else {
-                            FamilyNodeKind::ActivityAction
-                        },
-                        name: format!("__act_{activity_step_counter:04}"),
-                        alias: Some(format!(
-                            "activity::OldStyle|lane={lane}|fork_depth={activity_fork_depth}|fork_branch={activity_fork_branch}"
-                        )),
-                        members: Vec::new(),
-                        depth: 0,
-                        label: Some(trimmed.to_string()),
-                        mindmap_side: MindMapSide::Right,
-                        wbs_checkbox: None,
-                        fill_color: None,
-                    });
+                    normalize_activity_unknown_line(&mut nodes, &mut activity_state, &line);
                     continue;
                 }
                 return Err(Diagnostic::error(format!(
@@ -904,27 +417,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         }
     }
 
-    let family_style = match family_kind {
-        DiagramKind::Component | DiagramKind::Deployment => {
-            if let Some(mode) = component_monochrome_mode {
-                apply_monochrome_to_component_style(&mut component_style, mode);
-            }
-            Some(FamilyStyle::Component(component_style))
-        }
-        DiagramKind::Activity => {
-            if let Some(mode) = activity_monochrome_mode {
-                apply_monochrome_to_activity_style(&mut activity_style, mode);
-            }
-            Some(FamilyStyle::Activity(activity_style))
-        }
-        DiagramKind::Timing => {
-            if let Some(mode) = timing_monochrome_mode {
-                apply_monochrome_to_timing_style(&mut timing_style, mode);
-            }
-            Some(FamilyStyle::Timing(timing_style))
-        }
-        _ => None,
-    };
+    let sepia = family_styles.sepia;
+    let family_style = family_styles.into_family_style(family_kind);
 
     if matches!(
         family_kind,
