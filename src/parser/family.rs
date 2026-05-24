@@ -3,6 +3,7 @@ fn parse_family_declaration(
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let (class_visibility, class_line) = strip_class_declaration_visibility(line);
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),
@@ -17,7 +18,7 @@ fn parse_family_declaration(
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
-        let Some(decl) = parse_named_family_decl(line, keyword) else {
+        let Some(decl) = parse_named_family_decl(class_line, keyword) else {
             continue;
         };
         let FamilyDeclParts {
@@ -25,6 +26,7 @@ fn parse_family_declaration(
             alias,
             has_block,
             stereotypes,
+            tags,
             fill_color,
             style_members,
             heritage,
@@ -54,6 +56,8 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_class_visibility_member(&mut members, class_visibility);
+        append_family_tag_members(&mut members, tags);
         append_inline_fill_member(&mut members, fill_color);
         append_inline_style_members(&mut members, style_members);
         append_heritage_members(&mut members, heritage);
@@ -71,12 +75,13 @@ fn parse_family_declaration(
         )));
     }
 
-    if let Some(decl) = parse_named_family_decl(line, "entity") {
+    if let Some(decl) = parse_named_family_decl(class_line, "entity") {
         let FamilyDeclParts {
             name,
             alias,
             has_block,
             stereotypes,
+            tags,
             fill_color,
             style_members,
             heritage,
@@ -98,6 +103,8 @@ fn parse_family_declaration(
             } else {
                 declaration_marker_members(None, stereotypes)
             };
+            append_class_visibility_member(&mut members, class_visibility);
+            append_family_tag_members(&mut members, tags);
             append_inline_fill_member(&mut members, fill_color);
             append_inline_style_members(&mut members, style_members);
             append_heritage_members(&mut members, heritage);
@@ -129,6 +136,7 @@ fn parse_family_declaration(
             alias,
             has_block,
             stereotypes,
+            tags,
             fill_color,
             style_members,
             ..
@@ -157,6 +165,7 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_family_tag_members(&mut members, tags);
         append_inline_fill_member(&mut members, fill_color);
         append_inline_style_members(&mut members, style_members);
         return Ok(Some((
@@ -242,6 +251,7 @@ fn parse_family_declaration(
             alias,
             has_block,
             stereotypes,
+            tags,
             fill_color,
             style_members,
             business,
@@ -271,6 +281,7 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_family_tag_members(&mut members, tags);
         append_business_member(&mut members, business || keyword.ends_with('/'));
         append_inline_fill_member(&mut members, fill_color);
         append_inline_style_members(&mut members, style_members);
@@ -390,6 +401,7 @@ struct FamilyDeclParts {
     alias: Option<String>,
     has_block: bool,
     stereotypes: Vec<String>,
+    tags: Vec<String>,
     fill_color: Option<String>,
     style_members: Vec<String>,
     business: bool,
@@ -438,31 +450,130 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         (trimmed.trim().to_string(), false)
     };
 
-    let (name_raw, alias_raw) = if let Some((lhs, rhs)) = trimmed.split_once(" as ") {
-        (lhs.trim(), Some(rhs.trim()))
+    let (name_raw, alias_raw, tags) = if let Some((lhs, rhs)) = trimmed.split_once(" as ") {
+        let (alias_raw, tags) = split_family_decl_trailing_tags(rhs);
+        (lhs.trim().to_string(), Some(alias_raw), tags)
     } else {
-        (trimmed.as_str(), None)
+        let (name_raw, tags) = split_family_decl_trailing_tags(&trimmed);
+        (name_raw, None, tags)
     };
 
-    let (name_raw, heritage) = split_declaration_heritage(name_raw);
+    let (name_raw, heritage) = split_declaration_heritage(&name_raw);
     let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(&name_raw);
     let name = clean_family_decl_ident(&name_without_stereotypes);
     if name.is_empty() {
         return None;
     }
+    let tags = if tags.is_empty() && name.starts_with('$') {
+        vec![name.clone()]
+    } else {
+        tags
+    };
     let alias = alias_raw
-        .map(clean_family_decl_ident)
+        .map(|value| clean_family_decl_ident(&value))
         .filter(|v| !v.is_empty());
     Some(FamilyDeclParts {
         name,
         alias,
         has_block,
         stereotypes,
+        tags,
         fill_color: inline_style.fill_color,
         style_members: inline_style.members,
         business: business || keyword.ends_with('/'),
         heritage,
     })
+}
+
+fn strip_class_declaration_visibility(line: &str) -> (Option<char>, &str) {
+    let mut chars = line.chars();
+    let Some(symbol @ ('+' | '-' | '#' | '~')) = chars.next() else {
+        return (None, line);
+    };
+    let rest = chars.as_str().trim_start();
+    let lower = rest.to_ascii_lowercase();
+    let is_class_decl = [
+        "abstract class ",
+        "exception ",
+        "metaclass ",
+        "stereotype ",
+        "interface ",
+        "enum ",
+        "annotation ",
+        "protocol ",
+        "struct ",
+        "circle ",
+        "abstract ",
+        "class ",
+        "entity ",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix));
+    if is_class_decl {
+        (Some(symbol), rest)
+    } else {
+        (None, line)
+    }
+}
+
+fn split_family_decl_trailing_tags(input: &str) -> (String, Vec<String>) {
+    let mut rest = input.trim_end();
+    let mut tags = Vec::new();
+    while let Some((start, token)) = last_family_decl_token(rest) {
+        if !is_family_tag_token(token) {
+            break;
+        }
+        let before = rest[..start].trim_end();
+        if before.is_empty() {
+            tags.push(token.to_string());
+            break;
+        }
+        tags.push(token.to_string());
+        rest = before;
+    }
+    tags.reverse();
+    (rest.trim().to_string(), tags)
+}
+
+fn last_family_decl_token(input: &str) -> Option<(usize, &str)> {
+    let trimmed = input.trim_end();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let start = trimmed
+        .char_indices()
+        .rev()
+        .find_map(|(idx, ch)| ch.is_whitespace().then_some(idx + ch.len_utf8()))
+        .unwrap_or(0);
+    Some((start, &trimmed[start..]))
+}
+
+fn is_family_tag_token(token: &str) -> bool {
+    let Some(rest) = token.strip_prefix('$') else {
+        return false;
+    };
+    !rest.is_empty()
+        && rest
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn append_class_visibility_member(members: &mut Vec<ClassMember>, visibility: Option<char>) {
+    if let Some(visibility) = visibility {
+        members.push(ClassMember {
+            text: format!("\x1fclass:visibility:{visibility}"),
+            modifier: None,
+        });
+    }
+}
+
+fn append_family_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
+    for tag in tags {
+        members.push(ClassMember {
+            text: format!("\x1ffamily:tag:{tag}"),
+            modifier: None,
+        });
+    }
 }
 
 fn append_heritage_members(members: &mut Vec<ClassMember>, heritage: Vec<FamilyHeritage>) {
@@ -824,6 +935,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         alias,
         has_block,
         stereotypes: Vec::new(),
+        tags: Vec::new(),
         fill_color: inline_style.fill_color,
         style_members: inline_style.members,
         business: keyword_business || suffix_business,
@@ -860,6 +972,7 @@ fn parse_colon_actor_decl(line: &str) -> Option<FamilyDeclParts> {
         alias,
         has_block: false,
         stereotypes: Vec::new(),
+        tags: Vec::new(),
         fill_color: inline_style.fill_color,
         style_members: inline_style.members,
         business,
@@ -1312,6 +1425,17 @@ fn parse_family_visibility_control(
         return Some(StatementKind::HideOption(
             "empty description".to_string(),
         ));
+    }
+    if family.is_none() {
+        for keyword in ["hide", "remove", "restore"] {
+            let Some(rest) = lower.strip_prefix(&format!("{keyword} ")) else {
+                continue;
+            };
+            let rest = rest.trim();
+            if rest == "*" || rest.starts_with('$') {
+                return Some(StatementKind::HideOption(format!("{keyword} node {rest}")));
+            }
+        }
     }
     if !matches!(
         family,

@@ -91,6 +91,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                             ClassSkinParamValue::ActorStyle(style) => {
                                 class_style.actor_style = style;
                             }
+                            ClassSkinParamValue::AttributeIcons(enabled) => {
+                                class_style.attribute_icons = enabled;
+                            }
                             ClassSkinParamValue::Monochrome(mode) => {
                                 class_monochrome_mode = Some(mode);
                             }
@@ -871,11 +874,15 @@ fn apply_class_visibility_controls(
     groups: &mut Vec<FamilyGroup>,
     hide_options: &std::collections::BTreeSet<String>,
 ) {
+    let node_tags: Vec<std::collections::BTreeSet<String>> =
+        nodes.iter_mut().map(extract_family_node_tags).collect();
+
     if hide_options.is_empty() {
         return;
     }
 
-    let removed = collect_filtered_node_names(nodes, relations, hide_options);
+    let mut removed = collect_filtered_node_names(nodes, relations, hide_options);
+    apply_family_tag_visibility_controls(nodes, &node_tags, hide_options, &mut removed);
     if !removed.is_empty() {
         nodes.retain(|node| !node_matches_any_filter(node, &removed));
         relations.retain(|rel| {
@@ -900,6 +907,68 @@ fn apply_class_visibility_controls(
     }
 }
 
+fn extract_family_node_tags(node: &mut FamilyNode) -> std::collections::BTreeSet<String> {
+    let mut tags = std::collections::BTreeSet::new();
+    node.members.retain(|member| {
+        let Some(tag) = member.text.strip_prefix("\x1ffamily:tag:") else {
+            return true;
+        };
+        tags.insert(tag.to_ascii_lowercase());
+        false
+    });
+    tags
+}
+
+fn apply_family_tag_visibility_controls(
+    nodes: &[FamilyNode],
+    node_tags: &[std::collections::BTreeSet<String>],
+    hide_options: &std::collections::BTreeSet<String>,
+    removed: &mut std::collections::BTreeSet<String>,
+) {
+    if hide_options.contains("hide node *") || hide_options.contains("remove node *") {
+        for node in nodes {
+            removed.extend(family_node_match_keys(node));
+        }
+    }
+
+    for (node, tags) in nodes.iter().zip(node_tags.iter()) {
+        for tag in tags {
+            if hide_options.contains(&format!("hide node {tag}"))
+                || hide_options.contains(&format!("remove node {tag}"))
+            {
+                removed.extend(family_node_match_keys(node));
+                break;
+            }
+        }
+    }
+
+    if hide_options.contains("restore node *") {
+        removed.clear();
+    }
+
+    for (node, tags) in nodes.iter().zip(node_tags.iter()) {
+        let restore_tagged = tags
+            .iter()
+            .any(|tag| hide_options.contains(&format!("restore node {tag}")));
+        let restore_named = family_node_match_keys(node)
+            .iter()
+            .any(|key| hide_options.contains(&format!("restore node {key}")));
+        if restore_tagged || restore_named {
+            for key in family_node_match_keys(node) {
+                removed.remove(&key);
+            }
+        }
+    }
+}
+
+fn family_node_match_keys(node: &FamilyNode) -> std::collections::BTreeSet<String> {
+    let mut keys = std::collections::BTreeSet::from([clean_filter_name(&node.name)]);
+    if let Some(alias) = &node.alias {
+        keys.insert(clean_filter_name(alias));
+    }
+    keys
+}
+
 fn collect_filtered_node_names(
     nodes: &[FamilyNode],
     relations: &[ModelFamilyRelation],
@@ -911,6 +980,9 @@ fn collect_filtered_node_names(
             .strip_prefix("hide node ")
             .or_else(|| opt.strip_prefix("remove node "))
         {
+            if name == "*" || name.starts_with('$') {
+                continue;
+            }
             removed.insert(clean_filter_name(name));
         }
     }
@@ -930,6 +1002,9 @@ fn collect_filtered_node_names(
     }
     for opt in hide_options {
         if let Some(name) = opt.strip_prefix("restore node ") {
+            if name == "*" || name.starts_with('$') {
+                continue;
+            }
             removed.remove(&clean_filter_name(name));
         }
     }
