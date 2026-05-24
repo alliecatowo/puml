@@ -91,8 +91,22 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/render_e2e.rs");
     let oracle_smoke = fs::read_to_string(repo_path("tests/oracle_smoke.rs"))
         .expect("failed to read tests/oracle_smoke.rs");
-    let parser_tests = fs::read_to_string(repo_path("src/parser/tests.rs"))
+    let mut parser_tests = fs::read_to_string(repo_path("src/parser/tests.rs"))
         .expect("failed to read src/parser/tests.rs");
+    for entry in fs::read_dir(repo_path("src/parser/tests"))
+        .expect("failed to read src/parser/tests directory")
+    {
+        let entry = entry.expect("failed to read parser test module entry");
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|extension| extension == "rs")
+        {
+            parser_tests.push_str(
+                &fs::read_to_string(entry.path()).expect("failed to read parser test module"),
+            );
+        }
+    }
     for anchor_cell in anchors {
         for anchor in anchor_cell
             .split(',')
