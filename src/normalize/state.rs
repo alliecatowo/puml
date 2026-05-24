@@ -251,7 +251,11 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
             StatementKind::StateRegionDivider => {}
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
                     line

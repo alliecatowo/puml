@@ -1,7 +1,9 @@
+use super::{FrontendResult, SourceMap};
 use crate::Diagnostic;
 
-pub(crate) fn adapt_to_plantuml(source: &str) -> Result<String, Diagnostic> {
+pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
     // First pass: strip block comments `[/* ... */]`.
+    let original = source;
     let source = picouml_strip_block_comments(source);
 
     let mut out = String::new();
@@ -50,7 +52,8 @@ pub(crate) fn adapt_to_plantuml(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    Ok(out)
+    let source_map = SourceMap::line_map(original, &out);
+    Ok(FrontendResult::new(out, source_map))
 }
 
 /// Strip PicoUML block comments of the form `[/* ... */]` (possibly multiline).

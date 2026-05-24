@@ -794,7 +794,11 @@ pub(super) fn normalize_with_options(
             }
             // Class-family-only options: silently ignored in sequence context
             StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 if line.trim() == "---" {
                     continue;
                 }

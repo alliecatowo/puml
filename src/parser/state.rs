@@ -317,7 +317,7 @@ fn parse_state_block(
         // Unknown line inside block — store for normalizer
         children.push(Statement {
             span,
-            kind: StatementKind::Unknown(inner.to_string()),
+            kind: StatementKind::UnsupportedSyntax(inner.to_string()),
         });
         j += 1;
     }

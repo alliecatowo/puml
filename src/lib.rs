@@ -174,12 +174,26 @@ pub fn parse_with_pipeline_options(
             parser::parse_with_options(source, &parser_options)
         }
         FrontendSelection::Mermaid => {
-            let adapted = frontend::mermaid::adapt_to_plantuml(source)?;
-            parser::parse_with_options(&adapted, &parser_options)
+            let adapted = frontend::mermaid::adapt(source)?;
+            let frontend::FrontendResult {
+                source: adapted_source,
+                source_map,
+                diagnostics,
+            } = adapted;
+            let _ = diagnostics;
+            parser::parse_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
         }
         FrontendSelection::Picouml => {
-            let adapted = frontend::picouml::adapt_to_plantuml(source)?;
-            parser::parse_with_options(&adapted, &parser_options)
+            let adapted = frontend::picouml::adapt(source)?;
+            let frontend::FrontendResult {
+                source: adapted_source,
+                source_map,
+                diagnostics,
+            } = adapted;
+            let _ = diagnostics;
+            parser::parse_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
         }
     }
 }
@@ -196,12 +210,26 @@ pub fn preprocess_with_pipeline_options(
             parser::preprocess_with_options(source, &parser_options)
         }
         FrontendSelection::Mermaid => {
-            let adapted = frontend::mermaid::adapt_to_plantuml(source)?;
-            parser::preprocess_with_options(&adapted, &parser_options)
+            let adapted = frontend::mermaid::adapt(source)?;
+            let frontend::FrontendResult {
+                source: adapted_source,
+                source_map,
+                diagnostics,
+            } = adapted;
+            let _ = diagnostics;
+            parser::preprocess_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
         }
         FrontendSelection::Picouml => {
-            let adapted = frontend::picouml::adapt_to_plantuml(source)?;
-            parser::preprocess_with_options(&adapted, &parser_options)
+            let adapted = frontend::picouml::adapt(source)?;
+            let frontend::FrontendResult {
+                source: adapted_source,
+                source_map,
+                diagnostics,
+            } = adapted;
+            let _ = diagnostics;
+            parser::preprocess_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
         }
     }
 }

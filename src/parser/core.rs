@@ -648,7 +648,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
             statements.push(Statement {
                 span,
-                kind: StatementKind::Unknown(format!(
+                kind: StatementKind::UnsupportedSyntax(format!(
                     "[E_GANTT_UNSUPPORTED] unsupported gantt baseline syntax: `{line}`"
                 )),
             });
@@ -679,7 +679,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
             statements.push(Statement {
                 span,
-                kind: StatementKind::Unknown(format!(
+                kind: StatementKind::UnsupportedSyntax(format!(
                     "[E_CHRONOLOGY_UNSUPPORTED] unsupported chronology baseline syntax: `{line}`"
                 )),
             });
@@ -705,7 +705,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             // is stored as Unknown for normalizer to reject gracefully.
             statements.push(Statement {
                 span,
-                kind: StatementKind::Unknown(line.to_string()),
+                kind: StatementKind::UnsupportedSyntax(line.to_string()),
             });
             i += 1;
             continue;
@@ -825,7 +825,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         statements.push(Statement {
             span,
-            kind: StatementKind::Unknown(line.to_string()),
+            kind: StatementKind::UnsupportedSyntax(line.to_string()),
         });
         i += 1;
     }
@@ -935,9 +935,9 @@ fn parse_style_block(
         // Preserve unsupported style blocks as raw lines so family-specific
         // style handling (e.g. mindmap depth styles) can consume them without
         // generic top-level keyword parsing rewriting inner declarations.
-        let mut kinds = vec![StatementKind::Unknown(line.to_string())];
+        let mut kinds = vec![StatementKind::DeferredRaw(line.to_string())];
         for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
-            kinds.push(StatementKind::Unknown((*raw).to_string()));
+            kinds.push(StatementKind::DeferredRaw((*raw).to_string()));
             if strip_inline_plantuml_comment(raw)
                 .trim()
                 .eq_ignore_ascii_case("</style>")
