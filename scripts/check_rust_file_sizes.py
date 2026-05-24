@@ -65,9 +65,19 @@ def collect_over_limit(root: pathlib.Path, threshold: int) -> tuple[list[RustFil
     return sorted(authored, reverse=True), sorted(allowlisted, reverse=True)
 
 
-def render_text(authored: list[RustFileSize], allowlisted: list[RustFileSize], threshold: int) -> str:
+def guardrail_mode(fail_on_violations: bool) -> str:
+    return "enforced" if fail_on_violations else "warning-only"
+
+
+def render_text(
+    authored: list[RustFileSize],
+    allowlisted: list[RustFileSize],
+    threshold: int,
+    fail_on_violations: bool = False,
+) -> str:
+    mode = guardrail_mode(fail_on_violations)
     lines = [
-        f"[rust-file-size] warning-only guardrail: authored Rust files over {threshold} LOC",
+        f"[rust-file-size] {mode} guardrail: authored Rust files over {threshold} LOC",
         f"[rust-file-size] authored_over_limit={len(authored)} allowlisted_generated={len(allowlisted)}",
     ]
 
@@ -86,16 +96,25 @@ def render_text(authored: list[RustFileSize], allowlisted: list[RustFileSize], t
             reason = ALLOWLIST_REASONS[entry.path]
             lines.append(f"  {entry.lines:>{width}}  {entry.path}  # {reason}")
 
-    lines.append("[rust-file-size] status=warning-only; use --fail-on-violations when enforcement is enabled")
+    if fail_on_violations:
+        status = "enforced; violations fail this command"
+    else:
+        status = "warning-only; pass --fail-on-violations to enforce"
+    lines.append(f"[rust-file-size] status={status}")
     return "\n".join(lines)
 
 
-def render_json(authored: list[RustFileSize], allowlisted: list[RustFileSize], threshold: int) -> str:
+def render_json(
+    authored: list[RustFileSize],
+    allowlisted: list[RustFileSize],
+    threshold: int,
+    fail_on_violations: bool = False,
+) -> str:
     payload = {
         "schema": "puml.rust_file_size_guardrail",
         "schema_version": 1,
         "threshold": threshold,
-        "mode": "warning-only",
+        "mode": guardrail_mode(fail_on_violations),
         "authored_over_limit": [entry.__dict__ for entry in authored],
         "allowlisted_generated": [
             {**entry.__dict__, "reason": ALLOWLIST_REASONS[entry.path]} for entry in allowlisted
@@ -129,7 +148,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--fail-on-violations",
         action="store_true",
-        help="exit non-zero when authored files exceed the target; do not use in CI yet",
+        help="exit non-zero when authored files exceed the target",
     )
     return parser.parse_args(argv)
 
@@ -140,9 +159,9 @@ def main(argv: list[str] | None = None) -> int:
     authored, allowlisted = collect_over_limit(root, args.threshold)
 
     if args.format == "json":
-        print(render_json(authored, allowlisted, args.threshold))
+        print(render_json(authored, allowlisted, args.threshold, args.fail_on_violations))
     else:
-        print(render_text(authored, allowlisted, args.threshold))
+        print(render_text(authored, allowlisted, args.threshold, args.fail_on_violations))
 
     if args.fail_on_violations and authored:
         return 1

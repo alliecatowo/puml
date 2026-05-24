@@ -160,6 +160,20 @@ jobs:
       - name: fmt gate
         run: cargo fmt --check
 
+  rust_file_size:
+    name: rust file size
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Rust file-size guardrail
+        run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+
   clippy:
     name: clippy
     needs: [changes, artifact_regen]
