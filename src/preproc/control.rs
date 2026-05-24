@@ -3,26 +3,36 @@ use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
 
+#[path = "control/callables.rs"]
+mod callables;
+#[path = "control/flow.rs"]
+mod flow;
+#[path = "control/url.rs"]
+mod url;
+use callables::define_callable_block;
+use flow::{
+    check_include_depth, ensure_conditionals_closed, is_active, looks_like_iso_date_value,
+    preprocess_loop_block, strip_block_comments,
+};
+use url::process_include_url;
+
 use super::builtins::{
-    execute_procedure_call, invoke_dynamic_procedure, parse_callable_definition,
-    preprocessor_foreach_bindings,
+    execute_procedure_call, invoke_dynamic_procedure, preprocessor_foreach_bindings,
 };
 use super::includes::{
-    consume_preprocessor_block, eval_simple_arithmetic, evaluate_assert_expression,
-    evaluate_preprocess_expr, extract_url, fetch_url_include, find_matching_endfor,
-    find_matching_endwhile, parse_preprocess_directive, process_import_directive,
-    process_include_directive, process_include_many_directive, ImportDirectiveContext,
+    eval_simple_arithmetic, evaluate_assert_expression, evaluate_preprocess_expr,
+    find_matching_endfor, find_matching_endwhile, parse_preprocess_directive,
+    process_import_directive, process_include_directive, process_include_many_directive,
+    ImportDirectiveContext,
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
 use super::{
     ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
+    PreprocVariableScope, PreprocessDirective, MAX_PREPROC_WHILE_ITERATIONS,
 };
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
     let mut state = PreprocState::default();
-    // Seed preprocessor variables from caller-supplied injections (e.g. CLI -D flags).
-    // Applied before any source line is processed so they are visible in !if/$VAR from line 1.
     state.vars.extend(options.inject_vars.clone());
     let mut include_stack = Vec::new();
     let mut include_once_seen = BTreeSet::new();
@@ -47,51 +57,6 @@ pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String,
     Ok(expanded)
 }
 
-/// Strip PlantUML block comments of the form `/' ... '/`.
-/// Comments may span multiple lines. Each consumed line is replaced with an
-/// empty line so that span/line-number information stays correct for
-/// error reporting.
-fn strip_block_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let bytes = source.as_bytes();
-    let len = bytes.len();
-    let mut i = 0;
-
-    while i < len {
-        // Look for block comment open: `/'`
-        if i + 1 < len && bytes[i] == b'/' && bytes[i + 1] == b'\'' {
-            // Consume `/'`, then scan forward for matching `'/`
-            i += 2;
-            loop {
-                if i >= len {
-                    // Unterminated block comment — consume the rest; normalizer
-                    // will handle any resulting empty input gracefully.
-                    break;
-                }
-                if i + 1 < len && bytes[i] == b'\'' && bytes[i + 1] == b'/' {
-                    // Consume closing `'/`
-                    i += 2;
-                    break;
-                }
-                // Keep newlines so that line numbers stay accurate; drop
-                // all other content inside the block comment.
-                if bytes[i] == b'\n' {
-                    out.push('\n');
-                }
-                i += 1;
-            }
-        } else {
-            // Regular character — emit as-is.
-            // Advance by full char width to avoid splitting multi-byte sequences.
-            let ch = source[i..].chars().next().unwrap_or('\0');
-            out.push(ch);
-            i += ch.len_utf8();
-        }
-    }
-
-    out
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn preprocess_text(
     source: &str,
@@ -103,11 +68,7 @@ pub(super) fn preprocess_text(
     call_depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
-    if depth > MAX_INCLUDE_DEPTH {
-        return Err(Diagnostic::error(format!(
-            "include depth exceeded maximum of {MAX_INCLUDE_DEPTH}"
-        )));
-    }
+    check_include_depth(depth)?;
 
     let lines = source.lines().collect::<Vec<_>>();
     let mut i = 0usize;
@@ -338,40 +299,14 @@ pub(super) fn preprocess_text(
                     ));
                 }
                 PreprocessDirective::Function => {
-                    let end_idx = consume_preprocessor_block(
-                        &lines,
-                        i,
-                        PreprocessDirective::Function,
-                        PreprocessDirective::EndFunction,
-                        "E_FUNCTION_UNCLOSED",
-                        "!endfunction",
-                    )?;
-                    let header = lines[i].trim();
-                    let callable = parse_callable_definition(
-                        header,
-                        &lines[i + 1..end_idx],
-                        PreprocCallableKind::Function,
-                    )?;
-                    state.callables.insert(callable.0, callable.1);
+                    let end_idx =
+                        define_callable_block(&lines, i, PreprocCallableKind::Function, state)?;
                     i = end_idx + 1;
                     continue;
                 }
                 PreprocessDirective::Procedure => {
-                    let end_idx = consume_preprocessor_block(
-                        &lines,
-                        i,
-                        PreprocessDirective::Procedure,
-                        PreprocessDirective::EndProcedure,
-                        "E_PROCEDURE_UNCLOSED",
-                        "!endprocedure",
-                    )?;
-                    let header = lines[i].trim();
-                    let callable = parse_callable_definition(
-                        header,
-                        &lines[i + 1..end_idx],
-                        PreprocCallableKind::Procedure,
-                    )?;
-                    state.callables.insert(callable.0, callable.1);
+                    let end_idx =
+                        define_callable_block(&lines, i, PreprocCallableKind::Procedure, state)?;
                     i = end_idx + 1;
                     continue;
                 }
@@ -561,38 +496,16 @@ pub(super) fn preprocess_text(
                 }
                 PreprocessDirective::IncludeUrl(raw_target) => {
                     if active {
-                        if !options.allow_url_includes {
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_URL_DISABLED",
-                                format!(
-                                    "!includeurl URL includes are disabled (pass --allow-url-includes to enable): {raw_target}"
-                                ),
-                            ));
-                        }
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            let url = extract_url(&raw_target);
-                            let content = fetch_url_include(url)?;
-                            preprocess_text(
-                                &content,
-                                options,
-                                state,
-                                include_stack,
-                                include_once_seen,
-                                depth + 1,
-                                call_depth,
-                                out,
-                            )?;
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        {
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_URL_UNSUPPORTED",
-                                format!(
-                                    "!includeurl URL targets are not supported in WASM: {raw_target}"
-                                ),
-                            ));
-                        }
+                        process_include_url(
+                            &raw_target,
+                            options,
+                            state,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            call_depth,
+                            out,
+                        )?;
                     }
                 }
                 PreprocessDirective::Import(raw_target) => {
@@ -681,58 +594,5 @@ pub(super) fn preprocess_text(
         i += 1;
     }
 
-    if !conditionals.is_empty() {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_COND_UNCLOSED",
-            "missing `!endif` for conditional block",
-        ));
-    }
-
-    Ok(())
-}
-
-fn is_active(conditionals: &[ConditionalFrame]) -> bool {
-    conditionals.iter().all(|f| f.current_active)
-}
-
-fn looks_like_iso_date_value(value: &str) -> bool {
-    let date = value.split_whitespace().next().unwrap_or(value).trim();
-    let mut parts = date.split('-');
-    let (Some(year), Some(month), Some(day)) = (parts.next(), parts.next(), parts.next()) else {
-        return false;
-    };
-    parts.next().is_none()
-        && year.len() == 4
-        && month.len() == 2
-        && day.len() == 2
-        && year.chars().all(|ch| ch.is_ascii_digit())
-        && month.chars().all(|ch| ch.is_ascii_digit())
-        && day.chars().all(|ch| ch.is_ascii_digit())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn preprocess_loop_block(
-    source: &str,
-    options: &ParseOptions,
-    state: &mut PreprocState,
-    include_stack: &mut Vec<PathBuf>,
-    include_once_seen: &mut BTreeSet<PathBuf>,
-    depth: usize,
-    call_depth: usize,
-    out: &mut String,
-) -> Result<Option<PreprocLoopSignal>, Diagnostic> {
-    state.loop_depth += 1;
-    let result = preprocess_text(
-        source,
-        options,
-        state,
-        include_stack,
-        include_once_seen,
-        depth,
-        call_depth,
-        out,
-    );
-    state.loop_depth = state.loop_depth.saturating_sub(1);
-    result?;
-    Ok(state.loop_signal.take())
+    ensure_conditionals_closed(&conditionals)
 }
