@@ -332,15 +332,19 @@ pub(in crate::preproc) fn process_include_many_directive(
     }
     Ok(())
 }
+pub(in crate::preproc) struct ImportDirectiveContext<'a> {
+    pub(in crate::preproc) options: &'a ParseOptions,
+    pub(in crate::preproc) state: &'a mut PreprocState,
+    pub(in crate::preproc) include_stack: &'a mut Vec<PathBuf>,
+    pub(in crate::preproc) include_once_seen: &'a mut BTreeSet<PathBuf>,
+    pub(in crate::preproc) depth: usize,
+    pub(in crate::preproc) call_depth: usize,
+    pub(in crate::preproc) out: &'a mut String,
+}
+
 pub(in crate::preproc) fn process_import_directive(
     raw_target: &str,
-    options: &ParseOptions,
-    state: &mut PreprocState,
-    include_stack: &mut Vec<PathBuf>,
-    include_once_seen: &mut BTreeSet<PathBuf>,
-    depth: usize,
-    call_depth: usize,
-    out: &mut String,
+    ctx: ImportDirectiveContext<'_>,
 ) -> Result<(), Diagnostic> {
     if raw_target.trim().is_empty() {
         return Err(Diagnostic::error_code(
@@ -349,20 +353,20 @@ pub(in crate::preproc) fn process_import_directive(
         ));
     }
     if is_url_include_target(raw_target) {
-        if !options.allow_url_includes {
+        if !ctx.options.allow_url_includes {
             return Err(url_includes_disabled("!import", raw_target));
         }
         let url = extract_url(raw_target);
         let content = fetch_url_include(url)?;
         return preprocess_text(
             &content,
-            options,
-            state,
-            include_stack,
-            include_once_seen,
-            depth + 1,
-            call_depth,
-            out,
+            ctx.options,
+            ctx.state,
+            ctx.include_stack,
+            ctx.include_once_seen,
+            ctx.depth + 1,
+            ctx.call_depth,
+            ctx.out,
         );
     }
 
@@ -377,16 +381,16 @@ pub(in crate::preproc) fn process_import_directive(
         ));
     }
 
-    let stdlib_root = resolve_stdlib_root(options, include_stack)?;
+    let stdlib_root = resolve_stdlib_root(ctx.options, ctx.include_stack)?;
     let resolved = resolve_import_path(&stdlib_root, &target)?;
-    if !include_once_seen.insert(resolved.clone()) {
+    if !ctx.include_once_seen.insert(resolved.clone()) {
         return Ok(());
     }
-    if include_stack.iter().any(|p| p == &resolved) {
+    if ctx.include_stack.iter().any(|p| p == &resolved) {
         return Err(stack_cycle(
             "E_IMPORT_CYCLE",
             "import",
-            include_stack,
+            ctx.include_stack,
             &resolved,
         ));
     }
@@ -397,17 +401,17 @@ pub(in crate::preproc) fn process_import_directive(
             format!("failed to read import '{}': {e}", resolved.display()),
         )
     })?;
-    include_stack.push(resolved);
+    ctx.include_stack.push(resolved);
     preprocess_text(
         &content,
-        options,
-        state,
-        include_stack,
-        include_once_seen,
-        depth + 1,
-        call_depth,
-        out,
+        ctx.options,
+        ctx.state,
+        ctx.include_stack,
+        ctx.include_once_seen,
+        ctx.depth + 1,
+        ctx.call_depth,
+        ctx.out,
     )?;
-    include_stack.pop();
+    ctx.include_stack.pop();
     Ok(())
 }

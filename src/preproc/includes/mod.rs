@@ -22,6 +22,7 @@ pub(super) use expr::{
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) use resolution::{
     process_import_directive, process_include_directive, process_include_many_directive,
+    ImportDirectiveContext,
 };
 pub(super) use url::{extract_url, fetch_url_include};
 #[cfg(target_arch = "wasm32")]

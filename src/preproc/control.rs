@@ -11,7 +11,7 @@ use super::includes::{
     consume_preprocessor_block, eval_simple_arithmetic, evaluate_assert_expression,
     evaluate_preprocess_expr, extract_url, fetch_url_include, find_matching_endfor,
     find_matching_endwhile, parse_preprocess_directive, process_import_directive,
-    process_include_directive, process_include_many_directive,
+    process_include_directive, process_include_many_directive, ImportDirectiveContext,
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
 use super::{
@@ -599,13 +599,15 @@ pub(super) fn preprocess_text(
                     if active {
                         process_import_directive(
                             &raw_target,
-                            options,
-                            state,
-                            include_stack,
-                            include_once_seen,
-                            depth,
-                            call_depth,
-                            out,
+                            ImportDirectiveContext {
+                                options,
+                                state,
+                                include_stack,
+                                include_once_seen,
+                                depth,
+                                call_depth,
+                                out,
+                            },
                         )?;
                     }
                 }
