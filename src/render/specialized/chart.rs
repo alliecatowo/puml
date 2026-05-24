@@ -1,4 +1,5 @@
 use super::*;
+use crate::render::text_metrics::proportional_monospace_width;
 
 pub fn render_chart_svg(document: &ChartDocument) -> String {
     let title_lines: Vec<&str> = document
@@ -1097,5 +1098,5 @@ fn chart_legend_v_name(value: LegendVAlign) -> &'static str {
 }
 
 fn estimate_text_width(text: &str, font_size: i32) -> i32 {
-    ((text.chars().count() as i32) * font_size * 3) / 5
+    proportional_monospace_width(text, font_size)
 }

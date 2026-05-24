@@ -1,4 +1,5 @@
 use clap::{ArgAction, ArgGroup, Args, Parser, Subcommand, ValueEnum};
+pub use puml::output::OutputFormat;
 use std::path::PathBuf;
 
 // Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
@@ -366,20 +367,6 @@ pub enum HashAlgoArg {
 pub enum HashFormatArg {
     Hex,
     Base64,
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
-pub enum OutputFormat {
-    Svg,
-    Html,
-    Png,
-    Jpg,
-    Webp,
-    /// PDF output via SVG-to-PDF vector conversion.
-    Pdf,
-    Txt,
-    Atxt,
-    Utxt,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

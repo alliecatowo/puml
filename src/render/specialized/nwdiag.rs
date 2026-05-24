@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use super::*;
 use crate::creole::tokenize_creole;
 use crate::model::{NwdiagNetwork, NwdiagNode};
+use crate::render::text_metrics::rounded_proportional_monospace_width;
 
 /// A rendered node bounding box (may appear in multiple network rows).
 struct NodeRect {
@@ -739,8 +740,7 @@ fn expand_span_to_fit(
 }
 
 fn text_width(text: &str, font_size: i32) -> i32 {
-    let glyphs = text.chars().count() as i32;
-    ((glyphs * font_size * 3) + 4) / 5
+    rounded_proportional_monospace_width(text, font_size)
 }
 
 fn label_chip_x(overlay_x: i32, overlay_width: i32, chip_width: i32, connector_xs: &[i32]) -> i32 {

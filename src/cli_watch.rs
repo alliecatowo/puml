@@ -4,6 +4,7 @@
 //! on a fixed interval and re-invokes the render path on each detected change.
 
 use crate::cli::{Cli, OutputFormat};
+use puml::output::svg_to_raster_bytes;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -109,12 +110,6 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
         return Err("renderer produced no output pages".to_string());
     }
 
-    // Fix #3: convert the SVG to the requested output format rather than always
-    // writing raw SVG bytes. PNG/JPG/WebP are rasterised inline; other formats
-    // either pass through or return a clear error.
-    //
-    // TODO: extract a shared `svg_to_output_bytes(svg, format, dpi)` helper out
-    // of main.rs::render_output_bytes so this path can be deduplicated.
     let out_bytes = svg_to_output_bytes(&svg_pages[0], cli.format, cli.dpi)?;
 
     // Determine output path: explicit --output or derive from input stem.
@@ -123,7 +118,7 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
         None => {
             let p = cli.input.as_ref().unwrap();
             let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("diagram");
-            let ext = format_extension(cli.format);
+            let ext = cli.format.extension();
             p.with_file_name(format!("{stem}.{ext}"))
         }
     };
@@ -139,14 +134,13 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
 /// PNG, JPG, and WebP are rasterised via `resvg`. SVG/HTML pass through as
 /// UTF-8 bytes. PDF and text formats return a clear unsupported error rather
 /// than silently writing a corrupt file.
-///
-/// TODO: once `main.rs::render_output_bytes` is extracted into a shared
-/// helper, replace this function with a call to that helper.
 fn svg_to_output_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, String> {
     match format {
         OutputFormat::Svg | OutputFormat::Html => Ok(svg.as_bytes().to_vec()),
 
-        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => rasterize(svg, format, dpi),
+        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
+            svg_to_raster_bytes(svg, format, dpi).map_err(|err| err.message().to_string())
+        }
 
         OutputFormat::Pdf => Err(
             "--watch does not yet support --format pdf; use --format svg or --format png"
@@ -155,70 +149,8 @@ fn svg_to_output_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<
 
         OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => Err(format!(
             "--watch does not support text output (--format {}); use svg or png",
-            format_extension(format)
+            format.extension()
         )),
-    }
-}
-
-/// Rasterise an SVG string to PNG, JPG, or WebP bytes using `resvg`.
-///
-/// Mirrors the logic in `main.rs::svg_to_raster_bytes` / `encode_*`.
-fn rasterize(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, String> {
-    use image::ImageEncoder as _;
-
-    let mut opt = resvg::usvg::Options::default();
-    opt.fontdb_mut().load_system_fonts();
-    let tree = resvg::usvg::Tree::from_str(svg, &opt)
-        .map_err(|e| format!("failed to parse SVG for raster output: {e}"))?;
-
-    let scale = dpi / 96.0;
-    let size = tree.size();
-    let width = (size.width() * scale).ceil() as u32;
-    let height = (size.height() * scale).ceil() as u32;
-
-    if width == 0 || height == 0 {
-        return Err(format!("degenerate SVG dimensions {width}x{height}"));
-    }
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)
-        .ok_or_else(|| format!("failed to allocate raster surface {width}x{height}"))?;
-    resvg::render(
-        &tree,
-        resvg::tiny_skia::Transform::from_scale(scale, scale),
-        &mut pixmap.as_mut(),
-    );
-
-    match format {
-        OutputFormat::Png => {
-            let mut buf = Vec::new();
-            image::codecs::png::PngEncoder::new(&mut buf)
-                .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
-                .map_err(|e| format!("PNG encoding failed: {e}"))?;
-            Ok(buf)
-        }
-        OutputFormat::Jpg => {
-            // Flatten alpha over white before JPEG encoding (no alpha channel).
-            let rgba = pixmap.data();
-            let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-            for pixel in rgba.chunks_exact(4) {
-                let a = pixel[3] as u16;
-                for &c in &pixel[..3] {
-                    rgb.push(((c as u16 * a + 255 * (255 - a) + 127) / 255) as u8);
-                }
-            }
-            let mut buf = Vec::new();
-            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 90)
-                .write_image(&rgb, width, height, image::ColorType::Rgb8.into())
-                .map_err(|e| format!("JPEG encoding failed: {e}"))?;
-            Ok(buf)
-        }
-        OutputFormat::Webp => {
-            let mut buf = Vec::new();
-            image::codecs::webp::WebPEncoder::new_lossless(&mut buf)
-                .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
-                .map_err(|e| format!("WebP encoding failed: {e}"))?;
-            Ok(buf)
-        }
-        _ => unreachable!("rasterize called with non-raster format"),
     }
 }
 
@@ -234,20 +166,6 @@ fn chrono_hms() -> String {
     let m = (secs / 60) % 60;
     let h = (secs / 3600) % 24;
     format!("{h:02}:{m:02}:{s:02}")
-}
-
-fn format_extension(fmt: OutputFormat) -> &'static str {
-    match fmt {
-        OutputFormat::Svg => "svg",
-        OutputFormat::Html => "html",
-        OutputFormat::Png => "png",
-        OutputFormat::Jpg => "jpg",
-        OutputFormat::Webp => "webp",
-        OutputFormat::Pdf => "pdf",
-        OutputFormat::Txt => "txt",
-        OutputFormat::Atxt => "atxt",
-        OutputFormat::Utxt => "utxt",
-    }
 }
 
 #[cfg(test)]
@@ -295,15 +213,15 @@ mod tests {
 
     #[test]
     fn watch_output_format_helpers_report_supported_extensions_and_errors() {
-        assert_eq!(format_extension(OutputFormat::Svg), "svg");
-        assert_eq!(format_extension(OutputFormat::Html), "html");
-        assert_eq!(format_extension(OutputFormat::Png), "png");
-        assert_eq!(format_extension(OutputFormat::Jpg), "jpg");
-        assert_eq!(format_extension(OutputFormat::Webp), "webp");
-        assert_eq!(format_extension(OutputFormat::Pdf), "pdf");
-        assert_eq!(format_extension(OutputFormat::Txt), "txt");
-        assert_eq!(format_extension(OutputFormat::Atxt), "atxt");
-        assert_eq!(format_extension(OutputFormat::Utxt), "utxt");
+        assert_eq!(OutputFormat::Svg.extension(), "svg");
+        assert_eq!(OutputFormat::Html.extension(), "html");
+        assert_eq!(OutputFormat::Png.extension(), "png");
+        assert_eq!(OutputFormat::Jpg.extension(), "jpg");
+        assert_eq!(OutputFormat::Webp.extension(), "webp");
+        assert_eq!(OutputFormat::Pdf.extension(), "pdf");
+        assert_eq!(OutputFormat::Txt.extension(), "txt");
+        assert_eq!(OutputFormat::Atxt.extension(), "atxt");
+        assert_eq!(OutputFormat::Utxt.extension(), "utxt");
 
         let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>";
         assert_eq!(
@@ -355,9 +273,9 @@ mod tests {
   <rect x="0" y="0" width="8" height="6" fill="#fff"/>
 </svg>"##;
 
-        let err = rasterize(svg, OutputFormat::Png, 0.0).expect_err("degenerate output");
+        let err = svg_to_output_bytes(svg, OutputFormat::Png, 0.0).expect_err("degenerate output");
 
-        assert!(err.contains("degenerate SVG dimensions"));
+        assert!(err.contains("failed to rasterize PNG"));
     }
 
     #[test]
