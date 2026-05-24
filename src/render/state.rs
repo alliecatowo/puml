@@ -1840,6 +1840,10 @@ fn state_node_text(node: &StateNode, state_style: &crate::theme::StateStyle) -> 
     )
 }
 
+fn state_node_font_size(state_style: &crate::theme::StateStyle) -> u32 {
+    state_style.font_size.unwrap_or(13)
+}
+
 fn state_node_border_dash(node: &StateNode) -> &'static str {
     if node.style.border_dashed {
         " stroke-dasharray=\"5 3\""
@@ -2371,8 +2375,8 @@ fn render_node<'a>(
                 cx, cy, state_style.background_color, state_style.border_color
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
-                cx, cy, state_style.font_color, escape_text(label)
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
+                cx, cy, state_node_font_size(state_style), state_style.font_color, escape_text(label)
             ));
         }
 
@@ -2487,8 +2491,8 @@ fn render_node<'a>(
                 ));
                 // Composite name label at top-center
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 20, text, escape_text(display)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    x + w / 2, y + 20, state_node_font_size(state_style), text, escape_text(display)
                 ));
 
                 // Draw concurrent region dividers (dashed vertical lines)
@@ -2716,8 +2720,12 @@ fn render_node<'a>(
                     state_node_border_dash(node)
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 24, state_node_text(node, state_style), escape_text(display)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    x + w / 2,
+                    y + 24,
+                    state_node_font_size(state_style),
+                    state_node_text(node, state_style),
+                    escape_text(display)
                 ));
                 // Internal actions
                 if !node.internal_actions.is_empty() {

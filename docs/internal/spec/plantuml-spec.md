@@ -104,7 +104,7 @@ The initial audit found no general sprite system, but current code supports spri
 
 ### 2. `<style>` blocks partially wired
 
-PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) now has narrow sequence and componentDiagram component-color slices that lower to existing skinparam plumbing. It remains mostly unwired across title/header/footer selectors, class, activity, state, timing, and deployment.
+PlantUML's modern theming language (CSS-like selectors inside `<style>...</style>`) now has narrow sequence, componentDiagram, stateDiagram, and activityDiagram slices that lower to existing skinparam plumbing. It remains mostly unwired across title/header/footer selectors, class, timing, deployment, stereotype-scoped selectors, and richer non-color properties.
 
 ### 3. Stereotype-scoped skinparam `<<X>>` overrides
 

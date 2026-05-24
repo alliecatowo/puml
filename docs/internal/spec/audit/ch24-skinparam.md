@@ -72,8 +72,8 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 ### Skinparam replacement: `<style>` blocks — 🟡
 **Feature:** CSS-like style blocks that override skinparam values.
 **Status:** 🟡
-**Evidence:** `src/parser/core.rs` lowers a narrow style subset to existing `SkinParam` statements. Sequence support covers `sequenceDiagram` plus `participant`, `note`, and `group` selectors. Component support covers `componentDiagram { component { BackgroundColor/BorderColor/FontColor ... } }` with override and SVG evidence in `tests/fixtures/styling/valid_style_block_component.puml` and `tests/ch07_component_parity.rs`.
-**Notes:** This intentionally reuses the skinparam classifiers/renderers for now. Broader selector matching, title/header/footer style properties, stereotype-scoped selectors, and most renderer families remain open.
+**Evidence:** `src/parser/core.rs` lowers a narrow style subset to existing `SkinParam` statements. Sequence support covers `sequenceDiagram` plus `participant`, `note`, and `group` selectors. Component support covers `componentDiagram { component { BackgroundColor/BorderColor/FontColor ... } }` with override and SVG evidence in `tests/fixtures/styling/valid_style_block_component.puml` and `tests/ch07_component_parity.rs`. State and activity support covers root `ArrowColor` plus nested state/activity/start/diamond/bar color selectors, with visual examples at `docs/examples/state/13_style_block.puml` and `docs/examples/activity_new/08_style_block.puml`.
+**Notes:** This intentionally reuses the skinparam classifiers/renderers for now. Broader selector matching, title/header/footer style properties, stereotype-scoped selectors, and class/timing/deployment renderer families remain open.
 
 ### Skinparam: `roundcorner` — ✅
 **Feature:** Corner radius on boxes.

@@ -398,3 +398,95 @@ fn top_level_background_color_after_family_detection_applies_to_component() {
         &svg[..svg.len().min(500)]
     );
 }
+
+// ── 21.8  style blocks for non-sequence families ────────────────────────────
+
+#[test]
+fn style_block_state_diagram_colors_reach_svg() {
+    let src = "\
+@startuml
+<style>
+stateDiagram {
+  ArrowColor #0f766e
+  state {
+    BackgroundColor #ecfeff
+    BorderColor #0891b2
+    FontColor #164e63
+    FontSize 14
+  }
+  start {
+    BackgroundColor #dc2626
+  }
+}
+</style>
+[*] --> Idle : boot
+Idle --> Running : start
+Running --> [*] : stop
+@enduml
+";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("#ecfeff"), "state fill should reach SVG");
+    assert!(svg.contains("#0891b2"), "state border should reach SVG");
+    assert!(svg.contains("#164e63"), "state font color should reach SVG");
+    assert!(
+        svg.contains("font-size=\"14\""),
+        "state font size should reach SVG"
+    );
+    assert!(
+        svg.contains("#0f766e"),
+        "state arrow color should reach SVG"
+    );
+    assert!(
+        svg.contains("#dc2626"),
+        "start pseudo-state color should reach SVG"
+    );
+}
+
+#[test]
+fn style_block_activity_diagram_colors_reach_svg() {
+    let src = "\
+@startuml
+<style>
+activityDiagram {
+  ArrowColor #1d4ed8
+  activity {
+    BackgroundColor #eff6ff
+    BorderColor #2563eb
+    FontColor #1e3a8a
+  }
+  diamond {
+    BackgroundColor #fef3c7
+  }
+  bar {
+    BackgroundColor #7c2d12
+  }
+}
+</style>
+start
+if (ready?) then (yes)
+  :ship;
+else (no)
+  :retry;
+endif
+stop
+@enduml
+";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("#eff6ff"), "activity fill should reach SVG");
+    assert!(svg.contains("#2563eb"), "activity border should reach SVG");
+    assert!(
+        svg.contains("#1e3a8a"),
+        "activity font color should reach SVG"
+    );
+    assert!(svg.contains("#fef3c7"), "diamond color should reach SVG");
+    assert!(
+        svg.contains("#7c2d12"),
+        "bar/start/stop color should reach SVG"
+    );
+    assert!(
+        svg.contains("#1d4ed8"),
+        "activity arrow color should reach SVG"
+    );
+}

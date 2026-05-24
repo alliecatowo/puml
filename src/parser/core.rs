@@ -960,6 +960,8 @@ fn parse_style_block(
 enum StyleBlockTarget {
     Sequence,
     Component,
+    State,
+    Activity,
 }
 
 impl StyleBlockTarget {
@@ -968,6 +970,8 @@ impl StyleBlockTarget {
         match self {
             Self::Sequence => selector.eq_ignore_ascii_case("sequenceDiagram"),
             Self::Component => selector.eq_ignore_ascii_case("componentDiagram"),
+            Self::State => selector.eq_ignore_ascii_case("stateDiagram"),
+            Self::Activity => selector.eq_ignore_ascii_case("activityDiagram"),
         }
     }
 
@@ -976,6 +980,8 @@ impl StyleBlockTarget {
         match self {
             Self::Sequence => sequence_style_skinparam_key(nested_selector, &key),
             Self::Component => component_style_skinparam_key(nested_selector, &key),
+            Self::State => state_style_skinparam_key(nested_selector, &key),
+            Self::Activity => activity_style_skinparam_key(nested_selector, &key),
         }
     }
 }
@@ -995,6 +1001,12 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
         }
         if selector.eq_ignore_ascii_case("componentDiagram") {
             return Some(StyleBlockTarget::Component);
+        }
+        if selector.eq_ignore_ascii_case("stateDiagram") {
+            return Some(StyleBlockTarget::State);
+        }
+        if selector.eq_ignore_ascii_case("activityDiagram") {
+            return Some(StyleBlockTarget::Activity);
         }
         return None;
     }
@@ -1040,6 +1052,51 @@ fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Op
             _ => None,
         },
         _ => None,
+    }
+}
+
+fn state_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        None => match key {
+            "arrowcolor" => Some("StateArrowColor".to_string()),
+            _ => None,
+        },
+        Some("state") => match key {
+            "backgroundcolor" => Some("StateBackgroundColor".to_string()),
+            "bordercolor" => Some("StateBorderColor".to_string()),
+            "fontcolor" => Some("StateFontColor".to_string()),
+            "fontsize" => Some("StateFontSize".to_string()),
+            _ => None,
+        },
+        Some("start") => match key {
+            "backgroundcolor" | "color" => Some("StateStartColor".to_string()),
+            _ => None,
+        },
+        Some(_) => None,
+    }
+}
+
+fn activity_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        None => match key {
+            "arrowcolor" => Some("ActivityArrowColor".to_string()),
+            _ => None,
+        },
+        Some("activity") => match key {
+            "backgroundcolor" => Some("ActivityBackgroundColor".to_string()),
+            "bordercolor" => Some("ActivityBorderColor".to_string()),
+            "fontcolor" => Some("ActivityFontColor".to_string()),
+            _ => None,
+        },
+        Some("diamond") => match key {
+            "backgroundcolor" | "color" => Some("ActivityDiamondBackgroundColor".to_string()),
+            _ => None,
+        },
+        Some("bar") | Some("fork") | Some("start") | Some("stop") => match key {
+            "backgroundcolor" | "color" => Some("ActivityBarColor".to_string()),
+            _ => None,
+        },
+        Some(_) => None,
     }
 }
 
