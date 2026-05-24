@@ -318,8 +318,36 @@ const FAMILY_SPECS: &[DiagramFamilySpec] = &[
     ),
 ];
 
+macro_rules! graph {
+    (
+        $keyword:expr,
+        $aliases:expr,
+        $source_families:expr,
+        $component_kind:expr,
+        $family_node_kind:expr,
+        $shape_kind:expr,
+        $style_hook:expr,
+        $renderer_shape:expr,
+        $renderer_label:expr,
+        $relation_endpoint:expr $(,)?
+    ) => {
+        GraphElementSpec {
+            keyword: $keyword,
+            aliases: $aliases,
+            source_families: $source_families,
+            component_kind: $component_kind,
+            family_node_kind: $family_node_kind,
+            shape_kind: $shape_kind,
+            style_hook: $style_hook,
+            renderer_shape: $renderer_shape,
+            renderer_label: $renderer_label,
+            relation_endpoint: $relation_endpoint,
+        }
+    };
+}
+
 const GRAPH_SPECS: &[GraphElementSpec] = &[
-    graph(
+    graph!(
         "class",
         &[],
         &[
@@ -335,7 +363,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "class",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "abstract class",
         &["abstract"],
         &[DiagramKind::Class],
@@ -347,7 +375,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "class",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "interface",
         &[],
         &[DiagramKind::Class, DiagramKind::Component],
@@ -359,7 +387,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "interface",
         RelationEndpointSupport::NamedOrLollipop,
     ),
-    graph(
+    graph!(
         "enum",
         &[],
         &[DiagramKind::Class],
@@ -371,7 +399,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "class",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "annotation",
         &[],
         &[DiagramKind::Class],
@@ -383,7 +411,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "class",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "object",
         &[],
         &[
@@ -399,7 +427,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "object",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "map",
         &[],
         &[DiagramKind::Object],
@@ -411,7 +439,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "map",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "diamond",
         &[],
         &[DiagramKind::Object],
@@ -423,7 +451,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "diamond",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "usecase",
         &["usecase/"],
         &[DiagramKind::UseCase, DiagramKind::Deployment],
@@ -435,7 +463,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "usecase",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "actor",
         &["actor/"],
         &[
@@ -451,7 +479,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "actor",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "component",
         &[],
         &[DiagramKind::Component],
@@ -463,7 +491,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "component",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "port",
         &["portin", "portout"],
         &[DiagramKind::Component],
@@ -475,7 +503,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "port",
         RelationEndpointSupport::NamedOrLollipop,
     ),
-    graph(
+    graph!(
         "node",
         &[],
         &[DiagramKind::Deployment],
@@ -487,7 +515,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "node",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "artifact",
         &[],
         &[DiagramKind::Deployment],
@@ -499,7 +527,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "artifact",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "cloud",
         &[],
         &[DiagramKind::Deployment],
@@ -511,7 +539,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "cloud",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "database",
         &[],
         &[DiagramKind::Deployment],
@@ -523,7 +551,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "database",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "package",
         &[],
         &[DiagramKind::Component, DiagramKind::Deployment],
@@ -535,7 +563,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "package",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "rectangle",
         &[],
         &[DiagramKind::Component, DiagramKind::Deployment],
@@ -547,7 +575,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "rectangle",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "folder",
         &[],
         &[DiagramKind::Deployment],
@@ -559,7 +587,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "folder",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "file",
         &[],
         &[DiagramKind::Deployment],
@@ -571,7 +599,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "file",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "card",
         &[],
         &[DiagramKind::Deployment],
@@ -583,7 +611,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "card",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "frame",
         &[],
         &[DiagramKind::Deployment],
@@ -595,7 +623,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "frame",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "storage",
         &[],
         &[DiagramKind::Deployment],
@@ -607,7 +635,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "storage",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "queue",
         &[],
         &[DiagramKind::Deployment],
@@ -619,7 +647,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "queue",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "stack",
         &[],
         &[DiagramKind::Deployment],
@@ -631,7 +659,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "stack",
         RelationEndpointSupport::NamedOrBracketed,
     ),
-    graph(
+    graph!(
         "agent",
         &[],
         &[DiagramKind::Deployment],
@@ -643,7 +671,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "agent",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "boundary",
         &[],
         &[DiagramKind::Deployment],
@@ -655,7 +683,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "boundary",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "control",
         &[],
         &[DiagramKind::Deployment],
@@ -667,7 +695,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "control",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "entity",
         &[],
         &[DiagramKind::Class, DiagramKind::Deployment],
@@ -679,7 +707,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "entity",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "person",
         &[],
         &[DiagramKind::Deployment],
@@ -691,7 +719,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "person",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "process",
         &[],
         &[DiagramKind::Deployment],
@@ -703,7 +731,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "process",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "action",
         &[],
         &[DiagramKind::Deployment],
@@ -715,7 +743,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "action",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "circle",
         &[],
         &[DiagramKind::Class, DiagramKind::Deployment],
@@ -727,7 +755,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "circle",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "collections",
         &[],
         &[DiagramKind::Deployment],
@@ -739,7 +767,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "collections",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "container",
         &[],
         &[DiagramKind::Deployment],
@@ -751,7 +779,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "container",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "hexagon",
         &[],
         &[DiagramKind::Deployment],
@@ -763,7 +791,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "hexagon",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "label",
         &[],
         &[DiagramKind::Deployment],
@@ -775,7 +803,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "label",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "c4 person",
         &["Person"],
         &[
@@ -791,7 +819,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "person",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "c4 system",
         &["System"],
         &[
@@ -807,7 +835,7 @@ const GRAPH_SPECS: &[GraphElementSpec] = &[
         "system",
         RelationEndpointSupport::Named,
     ),
-    graph(
+    graph!(
         "c4 component",
         &["Component"],
         &[
@@ -838,32 +866,6 @@ const fn family(
         name,
         render_kind,
         capabilities,
-    }
-}
-
-const fn graph(
-    keyword: &'static str,
-    aliases: &'static [&'static str],
-    source_families: &'static [DiagramKind],
-    component_kind: Option<ComponentNodeKind>,
-    family_node_kind: FamilyNodeKind,
-    shape_kind: GraphElementShapeKind,
-    style_hook: GraphElementStyleHook,
-    renderer_shape: GraphRendererShape,
-    renderer_label: &'static str,
-    relation_endpoint: RelationEndpointSupport,
-) -> GraphElementSpec {
-    GraphElementSpec {
-        keyword,
-        aliases,
-        source_families,
-        component_kind,
-        family_node_kind,
-        shape_kind,
-        style_hook,
-        renderer_shape,
-        renderer_label,
-        relation_endpoint,
     }
 }
 
