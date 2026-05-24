@@ -62,6 +62,30 @@ class RustFileSizeGuardrailTest(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 1)
+            self.assertIn("enforced guardrail", stdout.getvalue())
+
+    def test_json_reports_enforced_mode_when_requested(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "src").mkdir()
+            (root / "src" / "large.rs").write_text("fn large() {}\n" * 4, encoding="utf-8")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = check_rust_file_sizes.main(
+                    [
+                        "--root",
+                        str(root),
+                        "--threshold",
+                        "3",
+                        "--format",
+                        "json",
+                        "--fail-on-violations",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn('"mode": "enforced"', stdout.getvalue())
 
 
 if __name__ == "__main__":
