@@ -824,17 +824,17 @@ fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle
         let lower = part.to_ascii_lowercase();
         if let Some(color) = lower
             .strip_prefix("back:")
-            .and_then(parse_relation_color_token)
+            .and_then(crate::theme::color::parse_relation_color_token)
         {
             style.fill_color = Some(color);
         } else if let Some(color) = lower
             .strip_prefix("line:")
-            .and_then(parse_relation_color_token)
+            .and_then(crate::theme::color::parse_relation_color_token)
         {
             style.members.push(format!("\x1fstyle:border:{color}"));
         } else if let Some(color) = lower
             .strip_prefix("text:")
-            .and_then(parse_relation_color_token)
+            .and_then(crate::theme::color::parse_relation_color_token)
         {
             style.members.push(format!("\x1fstyle:text:{color}"));
         } else if matches!(lower.as_str(), "line.dashed" | "line.dotted" | "dashed" | "dotted")
@@ -846,8 +846,8 @@ fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle
             style.members.push("\x1fstyle:border-thickness:1".to_string());
         } else if idx == 0 {
             let hex_prefixed = format!("#{part}");
-            if let Some(color) =
-                parse_relation_color_token(part).or_else(|| parse_relation_color_token(&hex_prefixed))
+            if let Some(color) = crate::theme::color::parse_relation_color_token(part)
+                .or_else(|| crate::theme::color::parse_relation_color_token(&hex_prefixed))
             {
                 style.fill_color = Some(color);
             }
@@ -1716,7 +1716,7 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
                         if let Ok(n) = value.trim().parse::<u8>() {
                             style.thickness = Some(n.clamp(1, 8));
                         }
-                    } else if let Some(color) = parse_relation_color_token(token) {
+                    } else if let Some(color) = crate::theme::color::parse_relation_color_token(token) {
                         style.line_color = Some(color);
                     }
                 }
@@ -1754,17 +1754,6 @@ fn parse_family_relation_direction(raw_arrow: &str) -> Option<String> {
         }
     }
     None
-}
-
-fn parse_relation_color_token(token: &str) -> Option<String> {
-    let trimmed = token.trim();
-    if trimmed.len() == 7
-        && trimmed.starts_with('#')
-        && trimmed[1..].chars().all(|ch| ch.is_ascii_hexdigit())
-    {
-        return Some(trimmed.to_ascii_lowercase());
-    }
-    crate::theme::css3_color_to_hex(trimmed.trim_start_matches('#')).map(str::to_string)
 }
 
 fn family_arrow_token_len(s: &str) -> Option<usize> {

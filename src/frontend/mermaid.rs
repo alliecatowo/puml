@@ -354,12 +354,10 @@ fn parse_mermaid_style_fill(attrs: &str) -> Option<String> {
         .split(',')
         .find_map(|part| part.trim().strip_prefix("fill:"))
         .map(str::trim)
-        .filter(|value| value.starts_with('#') || crate::theme::css3_color_to_hex(value).is_some())
-        .map(|value| {
-            crate::theme::css3_color_to_hex(value)
-                .unwrap_or(value)
-                .to_string()
+        .filter(|value| {
+            value.starts_with('#') || crate::theme::color::css3_color_to_hex(value).is_some()
         })
+        .map(|value| crate::theme::color::resolve_css3_color_or_original(value).unwrap_or_default())
 }
 
 /// Parse a Mermaid flowchart edge: `A --> B`, `A -->|label| B`,

@@ -7,7 +7,6 @@ pub(crate) use crate::model::{
     TimelineChronologyEvent, TimelineDocument, TimelineMilestone, TimelineResourceOffRange,
     TimelineTask, WbsCheckbox, YamlDocument,
 };
-pub(crate) use crate::theme::css3_color_to_hex;
 pub(crate) use std::collections::BTreeMap;
 
 mod activity;
