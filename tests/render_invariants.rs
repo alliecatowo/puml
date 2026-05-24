@@ -8,6 +8,9 @@
 //! round-trip: parse → normalize → render → SVG post-processing.
 
 use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
+use puml::render_core::{
+    Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -219,6 +222,83 @@ fn invariant3_full_run_adds_background_for_marked_tight_edge_label() {
         svg.contains("class=\"uml-edge-label-bg\""),
         "background rect should be marked for visual/audit checks"
     );
+}
+
+#[test]
+fn run_with_scene_reports_typed_issues_and_svg_fallback_corrections() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 320.0, 180.0));
+    scene.add_node(SceneNode {
+        id: "A".to_string(),
+        node_box: NodeBox {
+            id: "A".to_string(),
+            bounds: Rect::new(20.0, 80.0, 60.0, 40.0),
+            ports: vec![],
+            labels: vec![],
+        },
+    });
+    scene.add_node(SceneNode {
+        id: "B".to_string(),
+        node_box: NodeBox {
+            id: "B".to_string(),
+            bounds: Rect::new(240.0, 80.0, 60.0, 40.0),
+            ports: vec![],
+            labels: vec![],
+        },
+    });
+    scene.add_node(SceneNode {
+        id: "obstacle".to_string(),
+        node_box: NodeBox {
+            id: "obstacle".to_string(),
+            bounds: Rect::new(130.0, 70.0, 60.0, 60.0),
+            ports: vec![],
+            labels: vec![],
+        },
+    });
+    scene.add_edge(SceneEdge {
+        id: "edge:A:B".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::from_tuples(&[(80.0, 100.0), (240.0, 100.0)]),
+        source_anchor: Anchor {
+            id: "A:right".to_string(),
+            owner_id: "A".to_string(),
+            position: Point::new(80.0, 100.0),
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "B:left".to_string(),
+            owner_id: "B".to_string(),
+            position: Point::new(240.0, 100.0),
+            port: None,
+        },
+        labels: vec![],
+    });
+
+    let mut svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">"#,
+        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="80,100 240,100" fill="none" stroke="#555" stroke-width="2"/>"##,
+        r#"<text class="uml-edge-label" data-uml-label-role="edge" x="160" y="100" text-anchor="middle" font-family="monospace">tight</text>"#,
+        r#"</svg>"#
+    )
+    .to_string();
+    let report = validate::run_with_scene(&mut svg, Some(&scene), AutoCorrect::Apply);
+
+    assert!(
+        report.typed_issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::EdgeCrossesNode {
+                edge_id,
+                node_id,
+                ..
+            } if edge_id == "edge:A:B" && node_id == "obstacle"
+        )),
+        "typed scene bridge should report the edge crossing before SVG fallback"
+    );
+    assert_eq!(
+        report.background_rects_added, 1,
+        "SVG fallback should still auto-correct tight edge-label clearance"
+    );
+    assert!(svg.contains("class=\"uml-edge-label-bg\""));
 }
 
 #[test]
