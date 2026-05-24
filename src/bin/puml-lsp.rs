@@ -1,9 +1,11 @@
 use puml::ast::StatementKind;
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics_with_options, document_symbols, format_document,
-    hover as language_hover, resolve_completion_item, semantic_tokens as shared_semantic_tokens,
-    CompletionItemKind, DocumentSymbolKind, SemanticTokenKind,
+    completion_items, definition as language_definition, diagnostics_with_options,
+    document_symbols, format_document, hover as language_hover, lc_to_offset, offset_to_lc,
+    prepare_rename, references as language_references, rename as language_rename,
+    resolve_completion_item, semantic_tokens as shared_semantic_tokens, word_range_at_pos,
+    CompletionItemKind, DocumentSnapshot, DocumentSymbolKind, SemanticTokenKind,
 };
 use puml::{
     normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Document,
@@ -13,12 +15,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 
-#[derive(Clone, Debug)]
-struct Doc {
-    text: String,
-    parsed: Option<Document>,
-    version: i64,
-}
+type Doc = DocumentSnapshot;
 
 #[derive(Clone, Debug)]
 struct RefHit {
@@ -101,15 +98,7 @@ fn main() {
             "exit" => break,
             "textDocument/didOpen" => {
                 if let Some((u, v, t)) = open(&msg) {
-                    let parsed = lsp_parse(&t).ok();
-                    docs.insert(
-                        u.clone(),
-                        Doc {
-                            text: t.clone(),
-                            parsed,
-                            version: v,
-                        },
-                    );
+                    docs.insert(u.clone(), Doc::new(t.clone(), v));
                     let _ = pub_diag(&mut w, &u, v, &t);
                 }
             }
@@ -125,15 +114,7 @@ fn main() {
                             continue;
                         }
                     }
-                    let parsed = lsp_parse(&t).ok();
-                    docs.insert(
-                        u.clone(),
-                        Doc {
-                            text: t.clone(),
-                            parsed,
-                            version: v,
-                        },
-                    );
+                    docs.insert(u.clone(), Doc::new(t.clone(), v));
                     let _ = pub_diag(&mut w, &u, v, &t);
                 }
             }
@@ -183,7 +164,7 @@ fn main() {
                 let pos = read_pos(&msg).unwrap_or((0, 0));
                 let out = docs
                     .get(uri)
-                    .and_then(|d| definition(d, uri, pos))
+                    .and_then(|d| definition_lsp(d, uri, pos))
                     .unwrap_or(Value::Array(vec![]));
                 let _ = resp(&mut w, id, out);
             }
@@ -196,7 +177,7 @@ fn main() {
                 let pos = read_pos(&msg).unwrap_or((0, 0));
                 let out = docs
                     .get(uri)
-                    .map(|d| references(d, uri, pos))
+                    .map(|d| references_lsp(d, uri, pos))
                     .unwrap_or(Value::Array(vec![]));
                 let _ = resp(&mut w, id, out);
             }
@@ -210,7 +191,8 @@ fn main() {
                 let out = docs
                     .get(uri)
                     .and_then(|d| {
-                        word_range_at_pos(&d.text, pos).map(|(s, e)| range(&d.text, s, e))
+                        prepare_rename(&d.text, pos)
+                            .map(|span| range(&d.text, span.start, span.end))
                     })
                     .unwrap_or(Value::Null);
                 let _ = resp(&mut w, id, out);
@@ -228,7 +210,7 @@ fn main() {
                     .unwrap_or("");
                 let out = docs
                     .get(uri)
-                    .map(|d| rename(d, uri, pos, new_name))
+                    .map(|d| rename_lsp(d, uri, pos, new_name))
                     .unwrap_or(json!({"changes":{}}));
                 let _ = resp(&mut w, id, out);
             }
@@ -432,30 +414,23 @@ fn lsp_completion_item_kind(kind: CompletionItemKind) -> u32 {
     }
 }
 
-fn definition(d: &Doc, uri: &str, posn: (u64, u64)) -> Option<Value> {
-    let (s, e) = word_range_at_pos(&d.text, posn)?;
-    let sym = &d.text[s..e];
-    let decl = find_participant_decl(d.parsed.as_ref()?, sym)?;
-    Some(json!([{"uri":uri,"range":range(&d.text,decl.0,decl.1)}]))
+fn definition_lsp(d: &Doc, uri: &str, posn: (u64, u64)) -> Option<Value> {
+    language_definition(d, posn)
+        .map(|hit| json!([{"uri":uri,"range":range(&d.text, hit.span.start, hit.span.end)}]))
 }
-fn references(d: &Doc, uri: &str, posn: (u64, u64)) -> Value {
-    let mut out = Vec::new();
-    if let Some((s, e)) = word_range_at_pos(&d.text, posn) {
-        let sym = &d.text[s..e];
-        for hit in find_word_refs(&d.text, sym) {
-            out.push(json!({"uri":uri,"range":range(&d.text,hit.start,hit.end)}));
-        }
-    }
-    Value::Array(out)
+fn references_lsp(d: &Doc, uri: &str, posn: (u64, u64)) -> Value {
+    Value::Array(
+        language_references(&d.text, posn)
+            .into_iter()
+            .map(|hit| json!({"uri":uri,"range":range(&d.text,hit.span.start,hit.span.end)}))
+            .collect(),
+    )
 }
-fn rename(d: &Doc, uri: &str, posn: (u64, u64), new_name: &str) -> Value {
-    let mut edits = Vec::new();
-    if let Some((s, e)) = word_range_at_pos(&d.text, posn) {
-        let sym = &d.text[s..e];
-        for hit in find_word_refs(&d.text, sym) {
-            edits.push(json!({"range":range(&d.text,hit.start,hit.end),"newText":new_name}));
-        }
-    }
+fn rename_lsp(d: &Doc, uri: &str, posn: (u64, u64), new_name: &str) -> Value {
+    let edits = language_rename(&d.text, posn, new_name)
+        .into_iter()
+        .map(|edit| json!({"range":range(&d.text,edit.span.start,edit.span.end),"newText":edit.new_text}))
+        .collect::<Vec<_>>();
     json!({"changes":{uri:edits}})
 }
 
@@ -763,96 +738,6 @@ fn decode_hex_color(v: &str) -> Option<(f64, f64, f64, f64)> {
     ))
 }
 
-fn find_participant_decl(doc: &Document, sym: &str) -> Option<(usize, usize)> {
-    for st in &doc.statements {
-        if let StatementKind::Participant(p) = &st.kind {
-            if p.name == sym || p.alias.as_deref() == Some(sym) {
-                return Some((st.span.start, st.span.end));
-            }
-        }
-    }
-    None
-}
-fn find_word_refs(src: &str, sym: &str) -> Vec<RefHit> {
-    let mut v = Vec::new();
-    if sym.is_empty() {
-        return v;
-    }
-    let b = src.as_bytes();
-    let sb = sym.as_bytes();
-    let mut i = 0;
-    while i + sb.len() <= b.len() {
-        if &b[i..i + sb.len()] == sb {
-            let left = i == 0 || !is_ident(b[i - 1] as char);
-            let right = i + sb.len() == b.len() || !is_ident(b[i + sb.len()] as char);
-            if left && right {
-                v.push(RefHit {
-                    start: i,
-                    end: i + sb.len(),
-                });
-            }
-            i += sb.len();
-        } else {
-            i += 1;
-        }
-    }
-    v
-}
-
-fn is_ident(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_'
-}
-fn word_range_at_pos(src: &str, posn: (u64, u64)) -> Option<(usize, usize)> {
-    let off = lc_to_offset(src, posn.0 as usize, posn.1 as usize);
-    if off >= src.len() {
-        return None;
-    }
-    let b = src.as_bytes();
-    if !is_ident(b[off] as char) {
-        return None;
-    }
-    let mut s = off;
-    while s > 0 && is_ident(b[s - 1] as char) {
-        s -= 1;
-    }
-    let mut e = off;
-    while e < b.len() && is_ident(b[e] as char) {
-        e += 1;
-    }
-    Some((s, e))
-}
-fn lc_to_offset(src: &str, line: usize, ch: usize) -> usize {
-    let mut l = 0usize;
-    let mut c = 0usize;
-    for (i, k) in src.char_indices() {
-        if l == line && c == ch {
-            return i;
-        }
-        if k == '\n' {
-            l += 1;
-            c = 0;
-        } else {
-            c += 1;
-        }
-    }
-    src.len()
-}
-fn offset_to_lc(src: &str, off: usize) -> (usize, usize) {
-    let mut l = 0usize;
-    let mut c = 0usize;
-    for (i, k) in src.char_indices() {
-        if i >= off.min(src.len()) {
-            break;
-        }
-        if k == '\n' {
-            l += 1;
-            c = 0;
-        } else {
-            c += 1;
-        }
-    }
-    (l, c)
-}
 fn read_pos(msg: &Value) -> Option<(u64, u64)> {
     Some((
         msg.pointer("/params/position/line")?.as_u64()?,
@@ -1029,7 +914,7 @@ mod tests {
             version: 1,
             parsed: lsp_parse(src).ok(),
         };
-        let out = definition(&doc, "file:///test.puml", (2, 1)).expect("definition");
+        let out = definition_lsp(&doc, "file:///test.puml", (2, 1)).expect("definition");
         let first = out
             .as_array()
             .and_then(|arr| arr.first())
@@ -1368,7 +1253,7 @@ mod tests {
         });
         assert!(apply_incremental_change(&mut original, &bad_range, "x").is_none());
 
-        assert_eq!(find_word_refs("Alice Alice_Bob Bob", "Alice").len(), 1);
+        assert_eq!(language_references("Alice Alice_Bob Bob", (0, 1)).len(), 1);
         assert!(word_range_at_pos("Alice -> Bob", (0, 5)).is_none());
         assert_eq!(lc_to_offset("a\nβ", 1, 1), "a\nβ".len());
     }

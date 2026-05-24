@@ -1,7 +1,8 @@
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics, diagnostics_with_options, document_symbols, hover,
-    resolve_completion_item, CompletionItemKind, DocumentSymbolKind,
+    completion_items, definition, diagnostics, diagnostics_with_options, document_symbols, hover,
+    references, rename, resolve_completion_item, CompletionItemKind, DocumentSnapshot,
+    DocumentSymbolKind,
 };
 use puml::source::Span;
 use puml::{CompatMode, DeterminismMode, FrontendSelection, ParsePipelineOptions};
@@ -74,6 +75,25 @@ fn hover_returns_plain_word_for_unknown_identifiers_without_lsp_transport() {
     let markdown = hover(source, (1, 1)).expect("hover").markdown;
 
     assert_eq!(markdown, "`Alice`");
+}
+
+#[test]
+fn navigation_is_available_without_lsp_transport() {
+    let source = "@startuml\nparticipant Alice\nAlice -> Bob: hi\n@enduml\n";
+    let snapshot = DocumentSnapshot::new(source.to_string(), 1);
+
+    let declaration = definition(&snapshot, (2, 1)).expect("definition hit");
+    assert_eq!(
+        &source[declaration.span.start..declaration.span.end],
+        "participant Alice"
+    );
+
+    let refs = references(source, (2, 1));
+    assert_eq!(refs.len(), 2);
+
+    let edits = rename(source, (2, 1), "User");
+    assert_eq!(edits.len(), 2);
+    assert!(edits.iter().all(|edit| edit.new_text == "User"));
 }
 
 #[test]
