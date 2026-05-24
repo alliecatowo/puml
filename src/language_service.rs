@@ -1,10 +1,10 @@
 use crate::ast::{Document, ParticipantDecl, StatementKind};
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    diagnostic_code, normalized_warnings, offset_to_line_col, Diagnostic, Severity,
+};
 use crate::formatter;
 use crate::source::Span;
-use crate::{
-    normalize_family, parse_with_pipeline_options, NormalizedDocument, ParsePipelineOptions,
-};
+use crate::{normalize_family, parse_with_pipeline_options, ParsePipelineOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
@@ -806,56 +806,9 @@ fn language_diagnostic(source: &str, diagnostic: &Diagnostic) -> LanguageDiagnos
     }
 }
 
-fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
-    match model {
-        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
-        NormalizedDocument::Family(family) => &family.warnings,
-        NormalizedDocument::FamilyPages(pages) => pages
-            .iter()
-            .find_map(|page| (!page.warnings.is_empty()).then_some(page.warnings.as_slice()))
-            .unwrap_or(&[]),
-        NormalizedDocument::Timeline(timeline) => &timeline.warnings,
-        NormalizedDocument::State(state) => &state.warnings,
-        NormalizedDocument::Json(doc) => &doc.warnings,
-        NormalizedDocument::Yaml(doc) => &doc.warnings,
-        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
-        NormalizedDocument::Archimate(doc) => &doc.warnings,
-        NormalizedDocument::Regex(doc) => &doc.warnings,
-        NormalizedDocument::Ebnf(doc) => &doc.warnings,
-        NormalizedDocument::Math(doc) => &doc.warnings,
-        NormalizedDocument::Sdl(doc) => &doc.warnings,
-        NormalizedDocument::Ditaa(doc) => &doc.warnings,
-        NormalizedDocument::Chart(doc) => &doc.warnings,
-    }
-}
-
-fn diagnostic_code(message: &str) -> Option<String> {
-    let rest = message.strip_prefix('[')?;
-    let (code, _tail) = rest.split_once("] ")?;
-    if code.is_empty() {
-        None
-    } else {
-        Some(code.to_string())
-    }
-}
-
 fn source_position(source: &str, offset: usize) -> SourcePosition {
-    let off = offset.min(source.len());
-    let mut line = 1usize;
-    let mut line_start = 0usize;
-    for (idx, ch) in source.char_indices() {
-        if idx >= off {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            line_start = idx + 1;
-        }
-    }
-    SourcePosition {
-        line,
-        column: source[line_start..off].chars().count() + 1,
-    }
+    let (line, column) = offset_to_line_col(source, offset);
+    SourcePosition { line, column }
 }
 
 pub fn format_document(source: &str) -> FormatDocumentResult {
