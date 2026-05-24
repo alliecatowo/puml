@@ -1,4 +1,5 @@
 use super::*;
+use crate::normalize::common::{CommonDirectives, LegendTextMode};
 
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;

@@ -7,7 +7,7 @@ pub(super) enum LegendTextMode {
     StripPackedPosition,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct CommonDirectives {
     pub title: Option<String>,
     pub header: Option<String>,
@@ -20,24 +20,6 @@ pub(super) struct CommonDirectives {
     pub legend_valign: LegendVAlign,
     pub mainframe: Option<String>,
     pub scale: Option<ScaleSpec>,
-}
-
-impl Default for CommonDirectives {
-    fn default() -> Self {
-        Self {
-            title: None,
-            header: None,
-            header_align: MetadataHAlign::default(),
-            footer: None,
-            footer_align: MetadataHAlign::default(),
-            caption: None,
-            legend: None,
-            legend_halign: LegendHAlign::default(),
-            legend_valign: LegendVAlign::default(),
-            mainframe: None,
-            scale: None,
-        }
-    }
 }
 
 impl CommonDirectives {

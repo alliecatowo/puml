@@ -1,4 +1,5 @@
 use super::*;
+use crate::normalize::common::{CommonDirectives, LegendTextMode};
 
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
