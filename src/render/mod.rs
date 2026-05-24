@@ -30,11 +30,39 @@ mod timeline;
 mod timing;
 pub mod validate;
 
+use crate::render_core::RenderScene;
+
+#[derive(Debug, Default)]
+pub struct RenderArtifact {
+    pub svg: String,
+    pub scene: Option<RenderScene>,
+    pub invariant_report: Option<validate::InvariantReport>,
+}
+
+impl RenderArtifact {
+    pub fn svg_only(svg: String) -> Self {
+        Self {
+            svg,
+            scene: None,
+            invariant_report: None,
+        }
+    }
+
+    pub fn with_scene(svg: String, scene: RenderScene) -> Self {
+        Self {
+            svg,
+            scene: Some(scene),
+            invariant_report: None,
+        }
+    }
+}
+
 pub use activity::render_activity_svg;
 pub use data::{render_json_svg, render_yaml_svg};
 pub use family::{
-    render_class_svg, render_component_svg, render_deployment_svg, render_family_stub_svg,
-    render_family_tree_svg,
+    render_class_artifact, render_class_svg, render_component_artifact, render_component_svg,
+    render_deployment_artifact, render_deployment_svg, render_family_stub_artifact,
+    render_family_stub_svg, render_family_tree_svg,
 };
 pub use mindmap::{render_mindmap_svg, render_wbs_svg};
 pub use salt::render_salt_svg;

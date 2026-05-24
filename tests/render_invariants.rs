@@ -8,6 +8,7 @@
 //! round-trip: parse → normalize → render → SVG post-processing.
 
 use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
+use puml::render_core::validate::GeometryMetric;
 use puml::render_core::{
     Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
 };
@@ -18,6 +19,14 @@ use puml::render_core::{
 
 fn render_to_svg(source: &str) -> String {
     puml::render_source_to_svg(source).expect("render should succeed")
+}
+
+fn render_family_artifact(source: &str) -> puml::render::RenderArtifact {
+    let doc = puml::parse(source).expect("parse should succeed");
+    match puml::normalize_family(doc).expect("normalize should succeed") {
+        puml::NormalizedDocument::Family(family) => puml::render_family_document_artifact(&family),
+        other => panic!("expected family document, got {other:?}"),
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,6 +308,91 @@ fn run_with_scene_reports_typed_issues_and_svg_fallback_corrections() {
         "SVG fallback should still auto-correct tight edge-label clearance"
     );
     assert!(svg.contains("class=\"uml-edge-label-bg\""));
+}
+
+#[test]
+fn graph_family_artifact_runs_typed_scene_validation_for_component() {
+    let source = include_str!("../docs/examples/component/07_ports_lollipop_interfaces.puml");
+    let artifact = render_family_artifact(source);
+    let scene = artifact.scene.as_ref().expect("component scene");
+    let report = artifact
+        .invariant_report
+        .as_ref()
+        .expect("component invariant report");
+    let typed = scene.validate_scene();
+
+    assert_eq!(artifact.svg, render_to_svg(source));
+    assert_eq!(report.typed_issues, typed.issues);
+    assert_eq!(report.typed_metrics, typed.metrics);
+    assert!(
+        !scene.edges.is_empty(),
+        "component scene should expose edges"
+    );
+    assert!(
+        !scene.route_channels.is_empty(),
+        "component scene should expose route-channel geometry"
+    );
+    assert!(report
+        .typed_metrics
+        .iter()
+        .any(|metric| matches!(metric, GeometryMetric::EmptyGutter { .. })));
+    assert!(report
+        .typed_metrics
+        .iter()
+        .any(|metric| matches!(metric, GeometryMetric::Compactness { .. })));
+}
+
+#[test]
+fn graph_family_artifacts_preserve_svg_api_for_class_and_deployment() {
+    let fixtures = [
+        include_str!("../docs/examples/class/32_association_class_deep_packages.puml"),
+        include_str!("../docs/examples/deployment/06_kubernetes_pods_containers.puml"),
+    ];
+
+    for source in fixtures {
+        let artifact = render_family_artifact(source);
+        let scene = artifact.scene.as_ref().expect("graph-family scene");
+        let report = artifact
+            .invariant_report
+            .as_ref()
+            .expect("graph-family invariant report");
+
+        assert_eq!(artifact.svg, render_to_svg(source));
+        assert!(!scene.nodes.is_empty(), "scene should expose typed nodes");
+        assert!(!scene.edges.is_empty(), "scene should expose typed edges");
+        assert_eq!(report.typed_metrics, scene.validate_scene().metrics);
+    }
+}
+
+#[test]
+fn object_artifact_scene_uses_final_normalized_edge_paths() {
+    let source = r#"
+@startuml
+object Root
+object Left
+object Right
+Root --> Left
+Root --> Right
+@enduml
+"#;
+    let artifact = render_family_artifact(source);
+    let scene = artifact.scene.as_ref().expect("object scene");
+    let routed = scene
+        .edges
+        .values()
+        .find(|edge| edge.route.points.len() >= 4)
+        .expect("expected a cross-rank routed object edge");
+    let first = routed.route.points[0];
+    let last = *routed.route.points.last().expect("route endpoint");
+    let expected_mid_y = (first.y + last.y) / 2.0;
+    let end = routed.route.points.len().saturating_sub(1);
+
+    for point in routed.route.points.iter().take(end).skip(1) {
+        assert!(
+            (point.y - expected_mid_y).abs() <= 0.5,
+            "typed scene should be rebuilt from final object route paths"
+        );
+    }
 }
 
 #[test]

@@ -279,18 +279,10 @@ structured_variant!(model::ChartDocument, Chart);
 
 fn render_family_with(
     document: Document,
-    renderer: fn(&FamilyDocument) -> String,
+    _renderer: fn(&FamilyDocument) -> String,
 ) -> Result<Vec<String>, Diagnostic> {
     match normalize_mod::normalize_family(document)? {
-        model::NormalizedDocument::Family(doc) => {
-            Ok(vec![render::with_sprite_registry(&doc.sprites, || {
-                if doc.list_sprites {
-                    render::render_sprite_sheet(&doc.sprites)
-                } else {
-                    renderer(&doc)
-                }
-            })])
-        }
+        model::NormalizedDocument::Family(doc) => Ok(vec![render_family_document_svg(&doc)]),
         model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
             "[E_FAMILY_INTERNAL] unexpected sequence model during extended family render",
         )),
@@ -356,30 +348,48 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {
-    let mut svg = render::with_sprite_registry(&family.sprites, || {
+    render_family_document_artifact(family).svg
+}
+
+pub fn render_family_document_artifact(family: &FamilyDocument) -> render::RenderArtifact {
+    let mut artifact = render::with_sprite_registry(&family.sprites, || {
         if family.list_sprites {
-            return render::render_sprite_sheet(&family.sprites);
+            return render::RenderArtifact::svg_only(render::render_sprite_sheet(&family.sprites));
         }
         match registry::family_spec_by_ast(family.kind)
             .map(|spec| spec.render_kind)
             .unwrap_or(registry::FamilyRenderKind::Unsupported)
         {
-            registry::FamilyRenderKind::Salt => render::render_salt_svg(family),
-            registry::FamilyRenderKind::Component => render::render_component_svg(family),
-            registry::FamilyRenderKind::Deployment => render::render_deployment_svg(family),
-            registry::FamilyRenderKind::Activity => render::render_activity_svg(family),
-            registry::FamilyRenderKind::Timing => render::render_timing_svg(family),
-            registry::FamilyRenderKind::MindMap => render::render_mindmap_svg(family),
-            registry::FamilyRenderKind::Wbs => render::render_wbs_svg(family),
-            _ => render::render_family_stub_svg(family),
+            registry::FamilyRenderKind::Salt => {
+                render::RenderArtifact::svg_only(render::render_salt_svg(family))
+            }
+            registry::FamilyRenderKind::Component => render::render_component_artifact(family),
+            registry::FamilyRenderKind::Deployment => render::render_deployment_artifact(family),
+            registry::FamilyRenderKind::Activity => {
+                render::RenderArtifact::svg_only(render::render_activity_svg(family))
+            }
+            registry::FamilyRenderKind::Timing => {
+                render::RenderArtifact::svg_only(render::render_timing_svg(family))
+            }
+            registry::FamilyRenderKind::MindMap => {
+                render::RenderArtifact::svg_only(render::render_mindmap_svg(family))
+            }
+            registry::FamilyRenderKind::Wbs => {
+                render::RenderArtifact::svg_only(render::render_wbs_svg(family))
+            }
+            _ => render::render_family_stub_artifact(family),
         }
     });
     if let Some(title) = &family.mainframe {
-        render::append_mainframe_svg(&mut svg, title);
+        render::append_mainframe_svg(&mut artifact.svg, title);
     }
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place. Diagnostic-only violations are silently recorded.
-    let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
-    svg
+    artifact.invariant_report = Some(render::validate::run_with_scene(
+        &mut artifact.svg,
+        artifact.scene.as_ref(),
+        render::validate::AutoCorrect::Apply,
+    ));
+    artifact
 }

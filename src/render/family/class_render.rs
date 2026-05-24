@@ -3,6 +3,8 @@ use crate::render::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
 };
 use crate::render::svg::escape_text;
+use crate::render::RenderArtifact;
+use crate::render_core::Rect;
 use crate::theme::ClassStyle;
 
 use super::c4_nodes::c4_node_height;
@@ -23,10 +25,18 @@ use super::group_frames::{
 use super::projections::render_family_projection_boxes;
 
 pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
-    render_class_svg(document)
+    render_family_stub_artifact(document).svg
+}
+
+pub fn render_family_stub_artifact(document: &FamilyDocument) -> RenderArtifact {
+    render_class_artifact(document)
 }
 
 pub fn render_class_svg(document: &FamilyDocument) -> String {
+    render_class_artifact(document).svg
+}
+
+pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     // Extract class style (use defaults if not present)
     let class_style = match &document.family_style {
         Some(FamilyStyle::Class(s)) => s.clone(),
@@ -348,5 +358,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
+    let mut scene = gl_result_class.scene.clone();
+    scene.viewport = Rect::new(0.0, 0.0, svg_width as f64, svg_height as f64);
+    RenderArtifact::with_scene(out, scene)
 }

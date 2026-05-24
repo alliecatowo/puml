@@ -120,6 +120,22 @@ impl Default for LayoutOptions {
     }
 }
 
+impl GraphLayout {
+    /// Rebuild the typed scene after renderer-local route normalization.
+    pub fn rebuild_scene(&mut self, nodes: &[NodeSize], edges: &[EdgeSpec]) {
+        self.scene = scene::build_render_scene(scene::SceneBuildInput {
+            nodes,
+            edges,
+            node_positions: &self.node_positions,
+            edge_paths: &self.edge_paths,
+            route_channels: &self.route_channels,
+            group_bounds: &self.group_bounds,
+            canvas_width: self.canvas_width,
+            canvas_height: self.canvas_height,
+        });
+    }
+}
+
 /// Run the full Sugiyama-style hierarchical layout pipeline.
 pub fn layout_hierarchical(
     nodes: &[NodeSize],
