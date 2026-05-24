@@ -1858,10 +1858,13 @@ mod tests {
     }
 
     #[test]
-    fn malformed_family_relation_is_preserved_as_unknown_statement() {
+    fn malformed_family_relation_is_preserved_as_unsupported_statement() {
         let doc = parse_with_options("class User\nUser -->\n", &ParseOptions::default()).unwrap();
         assert_eq!(doc.kind, DiagramKind::Class);
-        assert!(matches!(doc.statements[1].kind, StatementKind::Unknown(_)));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::UnsupportedSyntax(_)
+        ));
     }
 
     #[test]
