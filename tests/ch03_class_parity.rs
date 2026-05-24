@@ -11,12 +11,153 @@
 //! - `hide <classname>` / `remove <classname>` remove specific classes (3.15–3.16)
 //! - Stereotype-scoped skinparam block form applies per-stereotype colors (3.30)
 //! - Escaped leading visibility markers render as literal member text (3.6)
+//! - Class visibility prefixes, classAttributeIconSize, and `$tag` controls (3.4.1, 3.6, 3.6.2, 3.17)
 
 use puml::model::{FamilyNodeKind, FamilyStyle, NormalizedDocument};
 
 #[path = "svg_test_helpers.rs"]
 mod svg_test_helpers;
 use svg_test_helpers::{bounds, SvgDoc};
+
+// ─── 3.4.1 / 3.6 / 3.6.2 / 3.17 class controls ─────────────────────────────
+
+const CLASS_CONTROL_CLUSTER_SRC: &str = r##"@startuml
++class PublicService $keep {
+  +load(): Data
+  -token: String
+}
+#interface InternalApi $internal
+class $TaggedByName
+PublicService --> InternalApi : calls
+hide $internal
+remove $TaggedByName
+@enduml
+"##;
+
+#[test]
+fn class_visibility_prefix_parses_without_polluting_node_name() {
+    let document = puml::parser::parse(CLASS_CONTROL_CLUSTER_SRC)
+        .expect("parse class visibility prefix and tag controls");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize class visibility prefix")
+    else {
+        panic!("class diagram should normalize as Family");
+    };
+    let public = model
+        .nodes
+        .iter()
+        .find(|node| node.name == "PublicService")
+        .expect("class visibility prefix should not become part of the node name");
+    assert!(
+        public
+            .members
+            .iter()
+            .any(|member| member.text == "\u{1f}class:visibility:+"),
+        "class declaration visibility should be retained as non-rendered metadata"
+    );
+    assert!(
+        !model.nodes.iter().any(|node| node.name == "+PublicService"),
+        "visibility prefix must not be part of the identifier"
+    );
+}
+
+#[test]
+fn class_visibility_prefix_renders_header_metadata() {
+    let svg = puml::render_source_to_svg(CLASS_CONTROL_CLUSTER_SRC)
+        .expect("render class visibility prefix");
+    assert!(
+        svg.contains("data-uml-class-visibility=\"public\""),
+        "class visibility should be exposed on the header text: svg={svg}"
+    );
+    assert!(
+        svg.contains(">+PublicService<"),
+        "class visibility prefix should appear in the displayed class header: svg={svg}"
+    );
+}
+
+#[test]
+fn class_tag_controls_hide_remove_and_strip_tag_text() {
+    let svg =
+        puml::render_source_to_svg(CLASS_CONTROL_CLUSTER_SRC).expect("render class tag controls");
+    assert!(
+        svg.contains("PublicService"),
+        "untagged-visible class remains"
+    );
+    assert!(
+        !svg.contains("InternalApi"),
+        "hide $internal should remove the tagged interface"
+    );
+    assert!(
+        !svg.contains("TaggedByName"),
+        "remove $TaggedByName should remove a dollar-prefixed tagged class"
+    );
+    assert!(
+        !svg.contains("$keep") && !svg.contains("$internal"),
+        "class tag metadata should not render as member/header text: svg={svg}"
+    );
+    assert!(
+        !svg.contains("calls"),
+        "relations touching hidden tagged nodes should also be removed"
+    );
+}
+
+#[test]
+fn restore_class_tag_after_hide_all_keeps_tagged_nodes() {
+    let svg = puml::render_source_to_svg(
+        r##"@startuml
+class Gateway $edge
+class Worker $internal
+hide *
+restore $edge
+@enduml
+"##,
+    )
+    .expect("render restore class tag after hide all");
+    assert!(svg.contains("Gateway"), "restored tag should render");
+    assert!(
+        !svg.contains("Worker"),
+        "non-restored tag should stay hidden after hide *"
+    );
+}
+
+#[test]
+fn class_attribute_icon_size_zero_disables_visibility_metadata() {
+    let src = r"@startuml
+skinparam classAttributeIconSize 0
+class Repository {
+  +find(): Item
+  -cache: Map
+}
+@enduml
+";
+    let document = puml::parser::parse(src).expect("parse classAttributeIconSize");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize classAttributeIconSize")
+    else {
+        panic!("class diagram should normalize as Family");
+    };
+    let Some(FamilyStyle::Class(style)) = model.family_style else {
+        panic!("class diagram should carry ClassStyle");
+    };
+    assert!(
+        !style.attribute_icons,
+        "classAttributeIconSize 0 should disable visibility icon metadata"
+    );
+
+    let svg = puml::render_source_to_svg(src).expect("render classAttributeIconSize");
+    assert!(
+        svg.contains("+find(): Item"),
+        "public prefix remains visible"
+    );
+    assert!(
+        svg.contains("-cache: Map"),
+        "private prefix remains visible"
+    );
+    assert!(
+        !svg.contains("data-uml-visibility="),
+        "visibility metadata/icons should be suppressed when icon size is zero: svg={svg}"
+    );
+}
 
 // ─── 3.29 skinparam block form ───────────────────────────────────────────────
 

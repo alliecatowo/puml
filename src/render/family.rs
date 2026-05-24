@@ -2924,6 +2924,21 @@ fn family_node_inline_style(node: &crate::model::FamilyNode) -> FamilyNodeInline
 
 fn is_family_style_member(text: &str) -> bool {
     text.starts_with("\x1fstyle:")
+        || text.starts_with("\x1fclass:")
+        || text.starts_with("\x1ffamily:tag:")
+}
+
+fn class_node_visibility_symbol(node: &crate::model::FamilyNode) -> Option<&'static str> {
+    node.members.iter().find_map(|member| {
+        let symbol = member.text.strip_prefix("\x1fclass:visibility:")?;
+        match symbol.trim() {
+            "+" => Some("+"),
+            "-" => Some("-"),
+            "#" => Some("#"),
+            "~" => Some("~"),
+            _ => None,
+        }
+    })
 }
 
 fn render_class_node(
@@ -3215,6 +3230,14 @@ fn render_class_node(
 
     // Header text: class name or object instance label (`name : Type`).
     let header_text = class_node_display_name(node, namespace_separator);
+    let class_visibility = class_node_visibility_symbol(node);
+    let header_text = class_visibility
+        .map(|symbol| format!("{symbol}{header_text}"))
+        .unwrap_or(header_text);
+    let class_visibility_attr = class_visibility
+        .map(uml_visibility_name)
+        .map(|name| format!(" data-uml-class-visibility=\"{name}\""))
+        .unwrap_or_default();
     // Underline for objects (PlantUML convention — fix #486)
     let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
         " text-decoration=\"underline\" text-decoration-thickness=\"1\""
@@ -3233,7 +3256,7 @@ fn render_class_node(
     };
     let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}{cv}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
         fc = escape_text(font_color),
@@ -3241,6 +3264,7 @@ fn render_class_node(
         ty = name_ty,
         td = text_decoration,
         fi = name_font_style,
+        cv = class_visibility_attr,
         txt = escape_text(&header_text)
     ));
 
@@ -3351,8 +3375,9 @@ fn render_class_node(
                 }
             }
         }
-        // If no explicit visibility color, fall back to member_color from style
-        let effective_color = if vis_sym.is_some() {
+        let render_visibility_icons = class_style.attribute_icons;
+        // If no explicit visibility color, fall back to member_color from style.
+        let effective_color = if vis_sym.is_some() && render_visibility_icons {
             vis_color
         } else {
             member_color
@@ -3363,10 +3388,14 @@ fn render_class_node(
         } else {
             text_after_mod.to_string()
         };
-        let visibility_attr = vis_sym
-            .map(uml_visibility_name)
-            .map(|name| format!(" data-uml-visibility=\"{name}\""))
-            .unwrap_or_default();
+        let visibility_attr = if render_visibility_icons {
+            vis_sym
+                .map(uml_visibility_name)
+                .map(|name| format!(" data-uml-visibility=\"{name}\""))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();

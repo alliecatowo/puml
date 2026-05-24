@@ -404,6 +404,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
         actor_style: ActorStyle::Stick,
+        attribute_icons: true,
         stereotype_styles: BTreeMap::new(),
     }
 }
@@ -1540,6 +1541,7 @@ pub struct ClassStyle {
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
     pub actor_style: ActorStyle,
+    pub attribute_icons: bool,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
 }
 
@@ -1571,6 +1573,7 @@ impl Default for ClassStyle {
             font_size: None,
             font_name: None,
             actor_style: ActorStyle::Stick,
+            attribute_icons: true,
             stereotype_styles: BTreeMap::new(),
         }
     }
@@ -1587,6 +1590,7 @@ pub enum ClassSkinParamValue {
     FontSize(u32),
     FontName(String),
     ActorStyle(ActorStyle),
+    AttributeIcons(bool),
     Monochrome(MonochromeMode),
     StereotypeBackgroundColor(String, String),
     StereotypeBorderColor(String, String),
@@ -1725,6 +1729,11 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
             }
             _ => SkinParamSupport::UnsupportedValue,
         },
+        "classattributeiconsize" => match value.trim().parse::<i32>() {
+            Ok(0) => SkinParamSupport::SupportedWithValue(ClassSkinParamValue::AttributeIcons(false)),
+            Ok(_) => SkinParamSupport::SupportedWithValue(ClassSkinParamValue::AttributeIcons(true)),
+            Err(_) => SkinParamSupport::UnsupportedValue,
+        },
         "monochrome" => match parse_monochrome_value(value) {
             Some(Some(mode)) => {
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::Monochrome(mode))
@@ -1742,7 +1751,6 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         "classstereotypefontcolor"
         | "classstereotypefontsize"
         | "classstereotypefontname"
-        | "classattributeiconsize"
         | "classattributefontsize"
         | "classmethodfontsize"
         | "objectstereotypefontcolor"
