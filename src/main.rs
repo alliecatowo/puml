@@ -12,7 +12,6 @@ use cli::{
     FormatArgs, LintArgs, LintFormat, LintReportFormat, OutputFormat,
 };
 use glob::glob;
-use image::ImageEncoder;
 use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
@@ -22,12 +21,16 @@ use puml::model::{
     SequenceEventKind, StateDocument, TimelineDocument, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide,
 };
+use puml::output::{
+    render_output_bytes, render_svg_export_content, OutputError, OutputErrorKind,
+    RenderedBinaryOutput, RenderedOutput,
+};
 use puml::source::Span;
 use puml::{
     extract_markdown_diagrams, extract_metadata, normalize_family,
     preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized, CompatMode,
     DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
-    NormalizedDocument, ParsePipelineOptions, TextOutputMode,
+    NormalizedDocument, ParsePipelineOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -88,18 +91,6 @@ struct InputDiagram {
     source_span: Option<Span>,
     frontend_hint: Option<FrontendSelection>,
     output_name_hint: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct RenderedOutput {
-    name_hint: Option<String>,
-    content: String,
-}
-
-#[derive(Debug, Clone)]
-struct RenderedBinaryOutput {
-    name_hint: Option<String>,
-    bytes: Vec<u8>,
 }
 
 #[derive(Debug, Serialize)]
@@ -749,7 +740,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             let name_hint = source
                 .output_name_hint
                 .as_ref()
-                .map(|base| format!("{base}.{}", output_extension(cli.format)));
+                .map(|base| format!("{base}.{}", cli.format.extension()));
             all.push(RenderedOutput {
                 name_hint,
                 content: render_svg_export_content(&svg, cli.format),
@@ -796,9 +787,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         for (page_idx, content) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
                 if page_count == 1 {
-                    format!("{base}.{}", output_extension(cli.format))
+                    format!("{base}.{}", cli.format.extension())
                 } else {
-                    format!("{base}-{}.{}", page_idx + 1, output_extension(cli.format))
+                    format!("{base}-{}.{}", page_idx + 1, cli.format.extension())
                 }
             });
             all.push(RenderedOutput { name_hint, content });
@@ -819,7 +810,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 EXIT_VALIDATION,
                 format!(
                     "multiple {} outputs on stdin are not supported; provide file input or --output",
-                    output_extension(cli.format).to_uppercase()
+                    cli.format.extension().to_uppercase()
                 )
                     .to_string(),
             ));
@@ -828,9 +819,10 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .enumerate()
             .map(|(idx, out)| MultiSvgOut {
-                name: out.name_hint.clone().unwrap_or_else(|| {
-                    format!("diagram-{}.{}", idx + 1, output_extension(cli.format))
-                }),
+                name: out
+                    .name_hint
+                    .clone()
+                    .unwrap_or_else(|| format!("diagram-{}.{}", idx + 1, cli.format.extension())),
                 svg: if cli.format == OutputFormat::Svg {
                     Some(out.content.clone())
                 } else {
@@ -862,7 +854,8 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     let binary_outputs = outputs
         .iter()
         .map(|out| render_output_bytes(out, cli.format, cli.dpi))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(output_err)?;
 
     if let Some(path) = cli.output {
         let payloads = binary_outputs
@@ -900,7 +893,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                             EXIT_IO,
                             format!(
                                 "failed to write {} to stdout: {e}",
-                                output_extension(cli.format).to_uppercase()
+                                cli.format.extension().to_uppercase()
                             ),
                         )
                     })?;
@@ -1874,17 +1867,13 @@ fn render_pages_from_model(model: &NormalizedDocument, format: OutputFormat) -> 
     }
 }
 
-fn render_svg_export_content(svg: &str, format: OutputFormat) -> String {
-    match format {
-        OutputFormat::Html => svg_to_html_document(svg),
-        _ => svg.to_string(),
-    }
-}
-
-fn svg_to_html_document(svg: &str) -> String {
-    format!(
-        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>puml diagram</title>\n<style>html,body{{margin:0;min-height:100%;background:#fff;}}body{{display:flex;align-items:flex-start;justify-content:center;padding:16px;box-sizing:border-box;}}svg{{max-width:100%;height:auto;}}</style>\n</head>\n<body>\n{svg}\n</body>\n</html>"
-    )
+fn output_err(error: OutputError) -> (u8, String) {
+    let code = match error.kind() {
+        OutputErrorKind::Validation => EXIT_VALIDATION,
+        OutputErrorKind::Io => EXIT_IO,
+        OutputErrorKind::Internal | OutputErrorKind::Unsupported => EXIT_INTERNAL,
+    };
+    (code, error.message().to_string())
 }
 
 // All CLI pipeline parameters are required at call sites; grouping them into a
@@ -2185,7 +2174,7 @@ fn default_output_base(input: &Path, format: OutputFormat) -> Result<PathBuf, (u
             ),
         )
     })?;
-    Ok(input.with_file_name(format!("{stem}.{}", output_extension(format))))
+    Ok(input.with_file_name(format!("{stem}.{}", format.extension())))
 }
 
 fn write_markdown_output_files(
@@ -2364,199 +2353,6 @@ fn transactional_write_fail_after() -> Option<usize> {
     std::env::var("PUML_FAIL_OUTPUT_AFTER")
         .ok()
         .and_then(|raw| raw.parse::<usize>().ok())
-}
-
-fn output_extension(format: OutputFormat) -> &'static str {
-    match format {
-        OutputFormat::Svg => "svg",
-        OutputFormat::Html => "html",
-        OutputFormat::Png => "png",
-        OutputFormat::Jpg => "jpg",
-        OutputFormat::Webp => "webp",
-        OutputFormat::Pdf => "pdf",
-        OutputFormat::Txt => "txt",
-        OutputFormat::Atxt => "atxt",
-        OutputFormat::Utxt => "utxt",
-    }
-}
-
-impl OutputFormat {
-    fn uses_svg_renderer(self) -> bool {
-        matches!(
-            self,
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf
-        )
-    }
-
-    fn is_binary(self) -> bool {
-        matches!(self, Self::Png | Self::Jpg | Self::Webp | Self::Pdf)
-    }
-
-    fn is_text(self) -> bool {
-        self.text_mode().is_some()
-    }
-
-    fn text_mode(self) -> Option<TextOutputMode> {
-        match self {
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf => None,
-            Self::Txt => Some(TextOutputMode::Txt),
-            Self::Atxt => Some(TextOutputMode::Atxt),
-            Self::Utxt => Some(TextOutputMode::Utxt),
-        }
-    }
-}
-
-fn render_output_bytes(
-    output: &RenderedOutput,
-    format: OutputFormat,
-    dpi: f32,
-) -> Result<RenderedBinaryOutput, (u8, String)> {
-    let bytes = match format {
-        OutputFormat::Svg
-        | OutputFormat::Html
-        | OutputFormat::Txt
-        | OutputFormat::Atxt
-        | OutputFormat::Utxt => output.content.as_bytes().to_vec(),
-        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
-            svg_to_raster_bytes(&output.content, format, dpi)?
-        }
-        OutputFormat::Pdf => svg_to_pdf_bytes(&output.content)?,
-    };
-    Ok(RenderedBinaryOutput {
-        name_hint: output.name_hint.clone(),
-        bytes,
-    })
-}
-
-struct RasterizedSvg {
-    width: u32,
-    height: u32,
-    rgba: Vec<u8>,
-}
-
-fn svg_to_raster_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
-    let raster = rasterize_svg(svg, dpi)?;
-    match format {
-        OutputFormat::Png => encode_png(&raster),
-        OutputFormat::Jpg => encode_jpg(&raster),
-        OutputFormat::Webp => encode_webp(&raster),
-        _ => Err((
-            EXIT_INTERNAL,
-            format!(
-                "format '{}' does not use SVG raster export",
-                output_extension(format)
-            ),
-        )),
-    }
-}
-
-#[cfg(feature = "cli")]
-fn svg_to_pdf_bytes(svg: &str) -> Result<Vec<u8>, (u8, String)> {
-    let mut opt = svg2pdf::usvg::Options::default();
-    opt.fontdb_mut().load_system_fonts();
-    let tree = svg2pdf::usvg::Tree::from_str(svg, &opt).map_err(|e| {
-        (
-            EXIT_VALIDATION,
-            format!("failed to parse rendered SVG for PDF output: {e}"),
-        )
-    })?;
-    svg2pdf::to_pdf(
-        &tree,
-        svg2pdf::ConversionOptions::default(),
-        svg2pdf::PageOptions::default(),
-    )
-    .map_err(|e| (EXIT_INTERNAL, format!("failed to convert SVG to PDF: {e}")))
-}
-
-fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, (u8, String)> {
-    let mut opt = resvg::usvg::Options::default();
-    let fontdb = opt.fontdb_mut();
-    fontdb.load_system_fonts();
-    fontdb.set_monospace_family("Liberation Mono");
-    let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| {
-        (
-            EXIT_VALIDATION,
-            format!("failed to parse rendered SVG for PNG output: {e}"),
-        )
-    })?;
-
-    let size = tree.size();
-    let scale = dpi / 96.0;
-    let width = (size.width() * scale).round() as u32;
-    let height = (size.height() * scale).round() as u32;
-    if width == 0 || height == 0 {
-        return Err((
-            EXIT_INTERNAL,
-            "failed to rasterize PNG: computed zero-sized output".to_string(),
-        ));
-    }
-
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or_else(|| {
-        (
-            EXIT_INTERNAL,
-            format!("failed to allocate PNG surface {width}x{height}"),
-        )
-    })?;
-    let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
-    resvg::render(&tree, transform, &mut pixmap.as_mut());
-
-    Ok(RasterizedSvg {
-        width,
-        height,
-        rgba: pixmap.data().to_vec(),
-    })
-}
-
-fn encode_png(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
-    let mut png = Vec::new();
-    image::codecs::png::PngEncoder::new(&mut png)
-        .write_image(
-            &raster.rgba,
-            raster.width,
-            raster.height,
-            image::ColorType::Rgba8.into(),
-        )
-        .map_err(|e| (EXIT_IO, format!("failed to encode PNG: {e}")))?;
-    Ok(png)
-}
-
-fn encode_jpg(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
-    let rgb = rgba_to_rgb_over_white(&raster.rgba);
-    let mut jpg = Vec::new();
-    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, 90)
-        .write_image(
-            &rgb,
-            raster.width,
-            raster.height,
-            image::ColorType::Rgb8.into(),
-        )
-        .map_err(|e| (EXIT_IO, format!("failed to encode JPG: {e}")))?;
-    Ok(jpg)
-}
-
-fn encode_webp(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
-    let mut webp = Vec::new();
-    image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
-        .write_image(
-            &raster.rgba,
-            raster.width,
-            raster.height,
-            image::ColorType::Rgba8.into(),
-        )
-        .map_err(|e| (EXIT_IO, format!("failed to encode WebP: {e}")))?;
-    Ok(webp)
-}
-
-fn rgba_to_rgb_over_white(rgba: &[u8]) -> Vec<u8> {
-    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-    for pixel in rgba.chunks_exact(4) {
-        let alpha = pixel[3] as u16;
-        for channel in &pixel[..3] {
-            let value = ((*channel as u16 * alpha) + (255 * (255 - alpha)) + 127) / 255;
-            rgb.push(value as u8);
-        }
-    }
-    rgb
 }
 
 fn ast_to_json(doc: &Document) -> Value {

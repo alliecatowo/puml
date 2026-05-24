@@ -8,6 +8,7 @@ use super::relation::{
     render_relation_marker_defs, usecase_dependency_label,
 };
 use super::svg::{creole_text, escape_text, render_actor_stick_figure};
+use super::text_metrics::{ellipsize_with_dots, wrap_line_by_chars};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
@@ -5433,11 +5434,11 @@ fn wrap_text(
     match policy {
         crate::scene::TextOverflowPolicy::EllipsisSingleLine => text
             .lines()
-            .map(|line| ellipsize(line.to_string(), max_chars))
+            .map(|line| ellipsize_with_dots(line, max_chars))
             .collect::<Vec<_>>(),
         crate::scene::TextOverflowPolicy::WrapAndGrow => text
             .lines()
-            .flat_map(|line| wrap_line(line, max_chars))
+            .flat_map(|line| wrap_line_by_chars(line, max_chars))
             .collect::<Vec<_>>(),
     }
 }
@@ -5498,95 +5499,6 @@ fn render_tree_arrow(out: &mut String, x1: i32, y1: i32, x2: i32, y2: i32, color
             color
         ));
     }
-}
-
-fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
-    if line.is_empty() {
-        return vec![String::new()];
-    }
-    let words = line.split_whitespace().collect::<Vec<_>>();
-    if words.is_empty() {
-        return vec![String::new()];
-    }
-
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    for word in words {
-        let word_len = word.chars().count();
-        if current.is_empty() {
-            if word_len <= max_chars {
-                current.push_str(word);
-            } else {
-                for chunk in chunk_text(word, max_chars) {
-                    lines.push(chunk);
-                }
-            }
-            continue;
-        }
-
-        let next_len = current.chars().count() + 1 + word_len;
-        if next_len <= max_chars {
-            current.push(' ');
-            current.push_str(word);
-        } else {
-            lines.push(current);
-            if word_len <= max_chars {
-                current = word.to_string();
-            } else {
-                let mut chunks = chunk_text(word, max_chars);
-                let tail = chunks.pop().unwrap_or_default();
-                lines.extend(chunks);
-                current = tail;
-            }
-        }
-    }
-    if !current.is_empty() {
-        lines.push(current);
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
-}
-
-fn chunk_text(text: &str, max_chars: usize) -> Vec<String> {
-    if max_chars == 0 {
-        return vec![text.to_string()];
-    }
-    let mut out = Vec::new();
-    let mut current = String::new();
-    for ch in text.chars() {
-        current.push(ch);
-        if current.chars().count() >= max_chars {
-            out.push(current);
-            current = String::new();
-        }
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    if out.is_empty() {
-        vec![String::new()]
-    } else {
-        out
-    }
-}
-
-fn ellipsize(text: String, max_chars: usize) -> String {
-    if max_chars == 0 {
-        return "...".to_string();
-    }
-
-    let count = text.chars().count();
-    if count <= max_chars {
-        return text;
-    }
-
-    if max_chars <= 3 {
-        return "...".to_string();
-    }
-
-    text.chars().take(max_chars - 3).collect::<String>() + "..."
 }
 
 fn render_centered_multiline_text(

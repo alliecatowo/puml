@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
 use crate::model::{VirtualEndpoint, VirtualEndpointSide};
 use crate::normalize;
+use crate::render::text_metrics::{chunk_text, default_monospace_width};
 use crate::scene::{
     ActivationBox, GroupBox, GroupSeparator, Label, LayoutOptions, LifecycleMarker,
     LifecycleMarkerKind, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene, StructureKind,
@@ -999,29 +1000,6 @@ fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     lines
 }
 
-fn chunk_text(text: &str, max_chars: usize) -> Vec<String> {
-    if max_chars == 0 {
-        return vec![text.to_string()];
-    }
-    let mut out = Vec::new();
-    let mut current = String::new();
-    for ch in text.chars() {
-        current.push(ch);
-        if current.chars().count() >= max_chars {
-            out.push(current);
-            current = String::new();
-        }
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    if out.is_empty() {
-        vec![String::new()]
-    } else {
-        out
-    }
-}
-
 fn ellipsize(text: &str, max_chars: usize) -> String {
     if text.chars().count() <= max_chars {
         return text.to_string();
@@ -1346,7 +1324,7 @@ fn else_separator_label(label: Option<&str>) -> String {
 }
 
 fn estimate_text_px_width(line: &str) -> i32 {
-    (line.chars().count() as i32) * 7
+    default_monospace_width(line)
 }
 
 fn message_label_bounds(x1: i32, x2: i32, text_width: i32, align: MessageAlign) -> (i32, i32) {

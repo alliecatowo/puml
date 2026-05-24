@@ -24,6 +24,7 @@ mod specialized;
 mod state;
 mod svg;
 mod text;
+pub(crate) mod text_metrics;
 mod timeline;
 mod timing;
 pub mod validate;

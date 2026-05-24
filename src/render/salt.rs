@@ -1,3 +1,4 @@
+use super::text_metrics::default_monospace_width;
 use super::*;
 
 pub fn render_salt_svg(document: &FamilyDocument) -> String {
@@ -1102,7 +1103,7 @@ fn decode_salt_cell(s: &str) -> SaltCellRender {
 
 /// Estimate text width in monospace pixels (approx 7px per char at 12px font).
 fn estimate_text_width(text: &str) -> i32 {
-    (text.chars().count() as i32) * 7
+    default_monospace_width(text)
 }
 
 fn estimate_salt_text_width(text: &str) -> i32 {
