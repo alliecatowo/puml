@@ -1,6 +1,10 @@
 ' Deterministic Material table_chart icon stub.
 !include <material/common>
 
-!procedure MA_TABLE_CHART($alias, $label="table_chart", $descr="")
-MaterialIcon($alias, table_chart, $label, $descr)
+!procedure MA_TABLE_CHART($a, $b=table_chart, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, table_chart, %unquote($e), "")
+!else
+MaterialIcon($a, table_chart, %unquote($b), %unquote($c))
+!endif
 !endprocedure

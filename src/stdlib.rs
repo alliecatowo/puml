@@ -16,10 +16,23 @@ pub struct StdlibEntry {
     pub alias: bool,
 }
 
-pub const STDLIB_ALIASES: &[StdlibAlias] = &[StdlibAlias {
-    slug: "awslib",
-    target: "awslib14",
-}];
+pub const STDLIB_ALIASES: &[StdlibAlias] = &[
+    StdlibAlias {
+        slug: "awslib",
+        target: "awslib14",
+    },
+    // PlantUML's upstream docs still point older Material sprite users at
+    // material2.1.19; keep those diagrams resolving to our deterministic
+    // material compatibility subset.
+    StdlibAlias {
+        slug: "material2",
+        target: "material",
+    },
+    StdlibAlias {
+        slug: "material2.1.19",
+        target: "material",
+    },
+];
 
 pub const MISSING_UPSTREAM_STDLIB_PACKS: &[&str] = &[
     "ada",
@@ -33,9 +46,27 @@ pub const MISSING_UPSTREAM_STDLIB_PACKS: &[&str] = &[
     "eip",
     "elastic",
     "k8s",
-    "material2",
     "material7",
 ];
+
+pub fn apply_stdlib_path_alias(path: PathBuf) -> PathBuf {
+    let mut components = path.components();
+    let Some(first) = components.next().and_then(|component| match component {
+        std::path::Component::Normal(name) => Some(name),
+        _ => None,
+    }) else {
+        return path;
+    };
+    let Some(alias) = STDLIB_ALIASES.iter().find(|alias| first == alias.slug) else {
+        return path;
+    };
+
+    let mut aliased = PathBuf::from(alias.target);
+    for component in components {
+        aliased.push(component.as_os_str());
+    }
+    aliased
+}
 
 pub fn resolve_local_stdlib_root(include_root: Option<&Path>) -> Result<PathBuf, String> {
     if let Ok(env_root) = std::env::var("PUML_STDLIB_ROOT") {
@@ -191,6 +222,9 @@ mod tests {
 
         assert!(paths.contains(&"awslib/Compute/EC2.puml"));
         assert!(paths.contains(&"awslib14/Compute/EC2.puml"));
+        assert!(paths.contains(&"material2/folder.puml"));
+        assert!(paths.contains(&"material2.1.19/folder.puml"));
+        assert!(paths.contains(&"material/folder.puml"));
 
         let mut sorted = paths.clone();
         sorted.sort();

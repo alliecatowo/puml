@@ -1,6 +1,10 @@
 ' Deterministic Material payment icon stub.
 !include <material/common>
 
-!procedure MA_PAYMENT($alias, $label="payment", $descr="")
-MaterialIcon($alias, payment, $label, $descr)
+!procedure MA_PAYMENT($a, $b=payment, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, payment, %unquote($e), "")
+!else
+MaterialIcon($a, payment, %unquote($b), %unquote($c))
+!endif
 !endprocedure

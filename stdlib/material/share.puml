@@ -1,6 +1,10 @@
 ' Deterministic Material share icon stub.
 !include <material/common>
 
-!procedure MA_SHARE($alias, $label="share", $descr="")
-MaterialIcon($alias, share, $label, $descr)
+!procedure MA_SHARE($a, $b=share, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, share, %unquote($e), "")
+!else
+MaterialIcon($a, share, %unquote($b), %unquote($c))
+!endif
 !endprocedure

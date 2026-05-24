@@ -1,6 +1,10 @@
 ' Deterministic Material database icon stub.
 !include <material/common>
 
-!procedure MA_DATABASE($alias, $label="database", $descr="")
-MaterialIcon($alias, database, $label, $descr)
+!procedure MA_DATABASE($a, $b=database, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, database, %unquote($e), "")
+!else
+MaterialIcon($a, database, %unquote($b), %unquote($c))
+!endif
 !endprocedure

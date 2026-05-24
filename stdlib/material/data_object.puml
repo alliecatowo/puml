@@ -1,6 +1,10 @@
 ' Deterministic Material data_object icon stub.
 !include <material/common>
 
-!procedure MA_DATA_OBJECT($alias, $label="data_object", $descr="")
-MaterialIcon($alias, data_object, $label, $descr)
+!procedure MA_DATA_OBJECT($a, $b=data_object, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, data_object, %unquote($e), "")
+!else
+MaterialIcon($a, data_object, %unquote($b), %unquote($c))
+!endif
 !endprocedure

@@ -1,6 +1,10 @@
 ' Deterministic Material monitor icon stub.
 !include <material/common>
 
-!procedure MA_MONITOR($alias, $label="monitor", $descr="")
-MaterialIcon($alias, monitor, $label, $descr)
+!procedure MA_MONITOR($a, $b=monitor, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, monitor, %unquote($e), "")
+!else
+MaterialIcon($a, monitor, %unquote($b), %unquote($c))
+!endif
 !endprocedure

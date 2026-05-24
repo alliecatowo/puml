@@ -1,6 +1,10 @@
 ' Deterministic Material sync icon stub.
 !include <material/common>
 
-!procedure MA_SYNC($alias, $label="sync", $descr="")
-MaterialIcon($alias, sync, $label, $descr)
+!procedure MA_SYNC($a, $b=sync, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, sync, %unquote($e), "")
+!else
+MaterialIcon($a, sync, %unquote($b), %unquote($c))
+!endif
 !endprocedure

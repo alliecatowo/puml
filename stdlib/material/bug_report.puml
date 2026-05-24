@@ -1,6 +1,10 @@
 ' Deterministic Material bug_report icon stub.
 !include <material/common>
 
-!procedure MA_BUG_REPORT($alias, $label="bug_report", $descr="")
-MaterialIcon($alias, bug_report, $label, $descr)
+!procedure MA_BUG_REPORT($a, $b=bug_report, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, bug_report, %unquote($e), "")
+!else
+MaterialIcon($a, bug_report, %unquote($b), %unquote($c))
+!endif
 !endprocedure

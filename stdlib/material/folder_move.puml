@@ -1,0 +1,21 @@
+' Deterministic Material folder_move icon stub.
+!include <material/common>
+
+sprite $ma_folder_move [8x8/16] {
+00000000
+04444400
+4FFFFF40
+4F444F40
+4FFF0F40
+4F44F440
+4FFFFF40
+00000000
+}
+
+!procedure MA_FOLDER_MOVE($a, $b=folder_move, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, folder_move, %unquote($e), "")
+!else
+MaterialIcon($a, folder_move, %unquote($b), %unquote($c))
+!endif
+!endprocedure

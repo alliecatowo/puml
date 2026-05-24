@@ -1,6 +1,10 @@
 ' Deterministic Material security icon stub.
 !include <material/common>
 
-!procedure MA_SECURITY($alias, $label="security", $descr="")
-MaterialIcon($alias, security, $label, $descr)
+!procedure MA_SECURITY($a, $b=security, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, security, %unquote($e), "")
+!else
+MaterialIcon($a, security, %unquote($b), %unquote($c))
+!endif
 !endprocedure

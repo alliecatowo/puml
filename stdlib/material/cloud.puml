@@ -1,6 +1,10 @@
 ' Deterministic Material cloud icon stub.
 !include <material/common>
 
-!procedure MA_CLOUD($alias, $label="cloud", $descr="")
-MaterialIcon($alias, cloud, $label, $descr)
+!procedure MA_CLOUD($a, $b=cloud, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, cloud, %unquote($e), "")
+!else
+MaterialIcon($a, cloud, %unquote($b), %unquote($c))
+!endif
 !endprocedure

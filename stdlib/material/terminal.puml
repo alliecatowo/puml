@@ -1,6 +1,10 @@
 ' Deterministic Material terminal icon stub.
 !include <material/common>
 
-!procedure MA_TERMINAL($alias, $label="terminal", $descr="")
-MaterialIcon($alias, terminal, $label, $descr)
+!procedure MA_TERMINAL($a, $b=terminal, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, terminal, %unquote($e), "")
+!else
+MaterialIcon($a, terminal, %unquote($b), %unquote($c))
+!endif
 !endprocedure

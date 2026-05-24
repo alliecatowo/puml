@@ -1,6 +1,10 @@
 ' Deterministic Material analytics icon stub.
 !include <material/common>
 
-!procedure MA_ANALYTICS($alias, $label="analytics", $descr="")
-MaterialIcon($alias, analytics, $label, $descr)
+!procedure MA_ANALYTICS($a, $b=analytics, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, analytics, %unquote($e), "")
+!else
+MaterialIcon($a, analytics, %unquote($b), %unquote($c))
+!endif
 !endprocedure

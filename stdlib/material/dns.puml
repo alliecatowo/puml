@@ -1,6 +1,10 @@
 ' Deterministic Material dns icon stub.
 !include <material/common>
 
-!procedure MA_DNS($alias, $label="dns", $descr="")
-MaterialIcon($alias, dns, $label, $descr)
+!procedure MA_DNS($a, $b=dns, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, dns, %unquote($e), "")
+!else
+MaterialIcon($a, dns, %unquote($b), %unquote($c))
+!endif
 !endprocedure

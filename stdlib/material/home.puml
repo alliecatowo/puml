@@ -1,6 +1,10 @@
 ' Deterministic Material home icon stub.
 !include <material/common>
 
-!procedure MA_HOME($alias, $label="home", $descr="")
-MaterialIcon($alias, home, $label, $descr)
+!procedure MA_HOME($a, $b=home, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, home, %unquote($e), "")
+!else
+MaterialIcon($a, home, %unquote($b), %unquote($c))
+!endif
 !endprocedure

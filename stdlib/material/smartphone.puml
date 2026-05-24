@@ -1,6 +1,10 @@
 ' Deterministic Material smartphone icon stub.
 !include <material/common>
 
-!procedure MA_SMARTPHONE($alias, $label="smartphone", $descr="")
-MaterialIcon($alias, smartphone, $label, $descr)
+!procedure MA_SMARTPHONE($a, $b=smartphone, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, smartphone, %unquote($e), "")
+!else
+MaterialIcon($a, smartphone, %unquote($b), %unquote($c))
+!endif
 !endprocedure

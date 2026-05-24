@@ -6697,6 +6697,39 @@ fn stdlib_awslib_ec2_check_passes_and_ast_has_object_declarations() {
 }
 
 #[test]
+fn stdlib_material2_legacy_aliases_and_macro_arity_render() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("stdlib_catalog/valid_material2_legacy_icons.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let tmp = tempdir().unwrap();
+    let output = tmp.path().join("material2.svg");
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            &fixture("stdlib_catalog/valid_material2_legacy_icons.puml"),
+            "--format",
+            "svg",
+            "-o",
+            output.to_str().expect("utf8 temp path"),
+        ])
+        .assert()
+        .success();
+    let svg = fs::read_to_string(output).expect("svg output");
+
+    assert!(svg.contains("Moved Folder"));
+    assert!(svg.contains("User Folder"));
+    assert!(svg.contains("data-sprite=\"ma_folder_move\""));
+}
+
+#[test]
 fn c4_multiple_rel_on_same_pair_coalesces_labels_with_newline_not_concatenation() {
     // Regression test for #425: multiple Rel() calls between the same source→target
     // pair must NOT produce "Uses HTTPSSends emails" (concatenated without separator).

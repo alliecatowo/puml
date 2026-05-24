@@ -1,6 +1,10 @@
 ' Deterministic Material token icon stub.
 !include <material/common>
 
-!procedure MA_TOKEN($alias, $label="token", $descr="")
-MaterialIcon($alias, token, $label, $descr)
+!procedure MA_TOKEN($a, $b=token, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, token, %unquote($e), "")
+!else
+MaterialIcon($a, token, %unquote($b), %unquote($c))
+!endif
 !endprocedure

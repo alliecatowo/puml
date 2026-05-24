@@ -1,6 +1,10 @@
 ' Deterministic Material key icon stub.
 !include <material/common>
 
-!procedure MA_KEY($alias, $label="key", $descr="")
-MaterialIcon($alias, key, $label, $descr)
+!procedure MA_KEY($a, $b=key, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, key, %unquote($e), "")
+!else
+MaterialIcon($a, key, %unquote($b), %unquote($c))
+!endif
 !endprocedure

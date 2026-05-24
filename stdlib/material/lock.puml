@@ -1,6 +1,10 @@
 ' Deterministic Material lock icon stub.
 !include <material/common>
 
-!procedure MA_LOCK($alias, $label="lock", $descr="")
-MaterialIcon($alias, lock, $label, $descr)
+!procedure MA_LOCK($a, $b=lock, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, lock, %unquote($e), "")
+!else
+MaterialIcon($a, lock, %unquote($b), %unquote($c))
+!endif
 !endprocedure

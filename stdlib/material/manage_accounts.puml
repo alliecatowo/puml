@@ -1,6 +1,10 @@
 ' Deterministic Material manage_accounts icon stub.
 !include <material/common>
 
-!procedure MA_MANAGE_ACCOUNTS($alias, $label="manage_accounts", $descr="")
-MaterialIcon($alias, manage_accounts, $label, $descr)
+!procedure MA_MANAGE_ACCOUNTS($a, $b=manage_accounts, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, manage_accounts, %unquote($e), "")
+!else
+MaterialIcon($a, manage_accounts, %unquote($b), %unquote($c))
+!endif
 !endprocedure

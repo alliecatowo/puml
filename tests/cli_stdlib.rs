@@ -12,11 +12,18 @@ fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
             "# PUML local stdlib inventory (deterministic shim subset",
         ))
         .stdout(predicate::str::contains("# alias: awslib -> awslib14"))
+        .stdout(predicate::str::contains("# alias: material2 -> material"))
+        .stdout(predicate::str::contains(
+            "# alias: material2.1.19 -> material",
+        ))
         .stdout(predicate::str::contains("C4/C4_Context.puml\n"))
         .stdout(predicate::str::contains(
             "awslib/Compute/EC2.puml -> awslib14/Compute/EC2.puml\n",
         ))
         .stdout(predicate::str::contains("awslib14/Compute/EC2.puml\n"))
+        .stdout(predicate::str::contains(
+            "material2.1.19/folder_move.puml -> material/folder_move.puml\n",
+        ))
         .stdout(predicate::str::contains("# missing upstream packs:"))
         .stderr(predicate::str::is_empty());
 }

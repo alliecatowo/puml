@@ -1,0 +1,13 @@
+@startuml
+title Legacy Material2 stdlib aliases
+!include <material2.1.19/common>
+!include <material2.1.19/folder_move>
+!include <material2/folder>
+MA_FOLDER_MOVE(#1565c0, 1, archive, rectangle, "Archive Folder")
+MA_FOLDER(home, "Home Folder")
+archive -> home : restore <$ma_folder_move{scale=2,color=#1565c0}> old include path
+note over archive, home
+  <material2.1.19/...> and <material2/...> resolve to the bundled
+  deterministic Material subset, including legacy MA_* macro arity.
+end note
+@enduml

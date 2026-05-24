@@ -1,6 +1,10 @@
 ' Deterministic Material search icon stub.
 !include <material/common>
 
-!procedure MA_SEARCH($alias, $label="search", $descr="")
-MaterialIcon($alias, search, $label, $descr)
+!procedure MA_SEARCH($a, $b=search, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, search, %unquote($e), "")
+!else
+MaterialIcon($a, search, %unquote($b), %unquote($c))
+!endif
 !endprocedure

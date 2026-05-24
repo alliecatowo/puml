@@ -1,6 +1,10 @@
 ' Deterministic Material person icon stub.
 !include <material/common>
 
-!procedure MA_PERSON($alias, $label="person", $descr="")
-MaterialIcon($alias, person, $label, $descr)
+!procedure MA_PERSON($a, $b=person, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, person, %unquote($e), "")
+!else
+MaterialIcon($a, person, %unquote($b), %unquote($c))
+!endif
 !endprocedure

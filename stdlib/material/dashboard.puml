@@ -1,6 +1,10 @@
 ' Deterministic Material dashboard icon stub.
 !include <material/common>
 
-!procedure MA_DASHBOARD($alias, $label="dashboard", $descr="")
-MaterialIcon($alias, dashboard, $label, $descr)
+!procedure MA_DASHBOARD($a, $b=dashboard, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, dashboard, %unquote($e), "")
+!else
+MaterialIcon($a, dashboard, %unquote($b), %unquote($c))
+!endif
 !endprocedure

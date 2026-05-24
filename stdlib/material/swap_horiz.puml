@@ -1,6 +1,10 @@
 ' Deterministic Material swap_horiz icon stub.
 !include <material/common>
 
-!procedure MA_SWAP_HORIZ($alias, $label="swap_horiz", $descr="")
-MaterialIcon($alias, swap_horiz, $label, $descr)
+!procedure MA_SWAP_HORIZ($a, $b=swap_horiz, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, swap_horiz, %unquote($e), "")
+!else
+MaterialIcon($a, swap_horiz, %unquote($b), %unquote($c))
+!endif
 !endprocedure

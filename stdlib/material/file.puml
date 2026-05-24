@@ -1,6 +1,10 @@
 ' Deterministic Material file icon stub.
 !include <material/common>
 
-!procedure MA_FILE($alias, $label="file", $descr="")
-MaterialIcon($alias, file, $label, $descr)
+!procedure MA_FILE($a, $b=file, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, file, %unquote($e), "")
+!else
+MaterialIcon($a, file, %unquote($b), %unquote($c))
+!endif
 !endprocedure
