@@ -17,33 +17,16 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     while i < lines.len() {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
-        // In raw-body family blocks we never strip empty lines or interpret comments.
-        // Check for the closing marker first; otherwise capture verbatim.
-        if let Some(bk) = block_kind {
-            if is_raw_body_block(bk) || block_kind_is_raw_body(bk) {
-                if let Some(end_kind) = parse_end_block_kind(raw_line.trim()) {
-                    if block_kind == Some(end_kind) {
-                        in_block = false;
-                        block_kind = None;
-                        block_start_span = None;
-                        i += 1;
-                        continue;
-                    } else {
-                        return Err(Diagnostic::error(format!(
-                            "[E_BLOCK_MISMATCH] closing marker `@end{}` does not match opening `@start{}`",
-                            block_kind_name(end_kind),
-                            block_kind_name(bk)
-                        ))
-                        .with_span(span));
-                    }
-                }
-                statements.push(Statement {
-                    span,
-                    kind: StatementKind::RawBody(raw_line.to_string()),
-                });
-                i += 1;
-                continue;
-            }
+        if parse_raw_body_block_line(
+            &mut statements,
+            raw_line,
+            span,
+            &mut in_block,
+            &mut block_kind,
+            &mut block_start_span,
+        )? {
+            i += 1;
+            continue;
         }
 
         if line.is_empty()
@@ -75,51 +58,15 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if let Some((start_kind, qualifier)) = parse_start_block_kind_with_qualifier(line) {
-            if in_block {
-                return Err(Diagnostic::error(
-                    "unmatched @startuml/@enduml boundary: found new @start marker before closing previous block",
-                )
-                .with_span(span));
-            }
-            in_block = true;
-            block_kind = Some(start_kind);
-            block_start_span = Some(span);
-            if let Some(candidate) = start_block_family(start_kind) {
-                detected_kind = Some(select_diagram_kind(detected_kind, candidate, span)?);
-            }
-            // For raw-body blocks (chart, regex, ebnf, …) emit any inline qualifier
-            // after @startXxx as a synthetic first body line so the normalizer can
-            // use it (e.g. `@startchart area` → subtype "area").
-            if !qualifier.is_empty()
-                && (is_raw_body_block(start_kind) || block_kind_is_raw_body(start_kind))
-            {
-                statements.push(Statement {
-                    span,
-                    kind: StatementKind::RawBody(qualifier.to_string()),
-                });
-            }
-            i += 1;
-            continue;
-        }
-        if let Some(end_kind) = parse_end_block_kind(line) {
-            if !in_block {
-                return Err(Diagnostic::error(
-                    "unmatched @startuml/@enduml boundary: found @end marker without a preceding @startuml",
-                )
-                .with_span(span));
-            }
-            if block_kind != Some(end_kind) {
-                return Err(Diagnostic::error(format!(
-                    "[E_BLOCK_MISMATCH] closing marker `@end{}` does not match opening `@start{}`",
-                    block_kind_name(end_kind),
-                    block_kind_name(block_kind.unwrap_or(BlockKind::Uml))
-                ))
-                .with_span(span));
-            }
-            in_block = false;
-            block_kind = None;
-            block_start_span = None;
+        if parse_block_boundary_line(
+            &mut statements,
+            line,
+            span,
+            &mut detected_kind,
+            &mut in_block,
+            &mut block_kind,
+            &mut block_start_span,
+        )? {
             i += 1;
             continue;
         }
@@ -184,166 +131,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind = Some(DiagramKind::Activity);
         }
 
-        if matches!(
-            detected_kind,
-            None | Some(DiagramKind::Component | DiagramKind::Deployment)
-        ) {
-            let ambiguous_class_interface = detected_kind.is_none()
-                && line.starts_with("interface ")
-                && later_lines_contain_class_family_declaration(&lines, i);
-            let actor_prefers_non_component = detected_kind.is_none()
-                && line.starts_with("actor ")
-                && (line.contains("<<")
-                    || line.contains('"')
-                    || later_lines_contain_usecase_family_declaration(&lines, i)
-                    || later_lines_contain_sequence_family_keywords(&lines, i));
-            let ambiguous_sequence_participant_prefers_sequence = detected_kind.is_none()
-                && component_decl_keyword(line).is_some_and(|(kw, _)| {
-                    is_ambiguous_sequence_participant_keyword(kw)
-                        && later_lines_contain_sequence_family_keywords(&lines, i)
-                });
-            let ambiguous_activity_keyword_prefers_activity = detected_kind.is_none()
-                && component_decl_keyword(line).is_some_and(|(kw, _)| {
-                    is_ambiguous_activity_keyword(kw) && later_lines_contain_activity_context(&lines, i)
-                });
-            let ambiguous_usecase_prefers_usecase = detected_kind.is_none()
-                && (line.starts_with("usecase ") || line.starts_with('('))
-                && later_lines_contain_usecase_family_declaration(&lines, i);
-            let ambiguous_class_scope = detected_kind.is_none()
-                && (line.starts_with("package ") || line.starts_with("namespace "))
-                && line.trim_end().ends_with('{')
-                && {
-                    let end_idx = find_scoping_block_end(&lines, i);
-                    end_idx > i
-                        && !group_body_contains_component_family(&lines, i, end_idx)
-                        && (group_body_contains_class_family(&lines, i, end_idx)
-                            || group_body_contains_object_family(&lines, i, end_idx)
-                            || group_body_contains_usecase_family(&lines, i, end_idx))
-                };
-            if !ambiguous_class_scope {
-                if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                    let is_deployment_scope =
-                        matches!(detected_kind, Some(DiagramKind::Deployment))
-                            || matches!(
-                                &kind,
-                                StatementKind::ClassGroup { kind, .. }
-                                    if matches!(
-                                        kind.as_str(),
-                                        "action"
-                                            | "artifact"
-                                            | "cloud"
-                                            | "container"
-                                            | "database"
-                                            | "frame"
-                                            | "hexagon"
-                                            | "node"
-                                            | "process"
-                                            | "queue"
-                                            | "stack"
-                                            | "storage"
-                                    )
-                            );
-                    let family = if is_deployment_scope {
-                        DiagramKind::Deployment
-                    } else {
-                        DiagramKind::Component
-                    };
-                    detected_kind = Some(select_diagram_kind_with_mixing(
-                        detected_kind,
-                        family,
-                        span,
-                        allow_mixing,
-                    )?);
-                    statements.push(Statement { span, kind });
-                    i = end_idx + 1;
-                    continue;
-                }
-            }
-            if !ambiguous_class_interface
-                && !actor_prefers_non_component
-                && !ambiguous_sequence_participant_prefers_sequence
-                && !ambiguous_activity_keyword_prefers_activity
-                && !ambiguous_usecase_prefers_usecase
-                && !ambiguous_class_scope
-            {
-                if matches!(detected_kind, Some(DiagramKind::Deployment)) {
-                    if let Some(kind) = parse_deployment_usecase_decl(line) {
-                        detected_kind = Some(select_diagram_kind_with_mixing(
-                            detected_kind,
-                            DiagramKind::Deployment,
-                            span,
-                            allow_mixing,
-                        )?);
-                        statements.push(Statement { span, kind });
-                        i += 1;
-                        continue;
-                    }
-                }
-                if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
-                    let family = if matches!(detected_kind, Some(DiagramKind::Component)) {
-                        DiagramKind::Component
-                    } else {
-                        DiagramKind::Deployment
-                    };
-                    detected_kind = Some(select_diagram_kind_with_mixing(
-                        detected_kind,
-                        family,
-                        span,
-                        allow_mixing,
-                    )?);
-                    statements.push(Statement { span, kind });
-                    i = end_idx + 1;
-                    continue;
-                }
-                if let Some(kind) = parse_component_decl(line) {
-                    let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
-                        DiagramKind::Deployment
-                    } else {
-                        match &kind {
-                            StatementKind::ComponentDecl {
-                                kind:
-                                    ComponentNodeKind::Node
-                                    | ComponentNodeKind::Action
-                                    | ComponentNodeKind::Agent
-                                    | ComponentNodeKind::Artifact
-                                    | ComponentNodeKind::Boundary
-                                    | ComponentNodeKind::Cloud
-                                    | ComponentNodeKind::Circle
-                                    | ComponentNodeKind::Collections
-                                    | ComponentNodeKind::Container
-                                    | ComponentNodeKind::Control
-                                    | ComponentNodeKind::Frame
-                                    | ComponentNodeKind::Storage
-                                    | ComponentNodeKind::Database
-                                    | ComponentNodeKind::Entity
-                                    | ComponentNodeKind::Package
-                                    | ComponentNodeKind::Rectangle
-                                    | ComponentNodeKind::Folder
-                                    | ComponentNodeKind::File
-                                    | ComponentNodeKind::Card
-                                    | ComponentNodeKind::Hexagon
-                                    | ComponentNodeKind::Label
-                                    | ComponentNodeKind::Person
-                                    | ComponentNodeKind::Process
-                                    | ComponentNodeKind::Queue
-                                    | ComponentNodeKind::Stack
-                                    | ComponentNodeKind::UseCase,
-                                ..
-                            } => DiagramKind::Deployment,
-                            _ => DiagramKind::Component,
-                        }
-                    };
-                    detected_kind = Some(select_diagram_kind_with_mixing(
-                        detected_kind,
-                        family,
-                        span,
-                        allow_mixing,
-                    )?);
-                    statements.push(Statement { span, kind });
-                    i += 1;
-                    continue;
-                }
-            }
+        if let Some(next_i) = parse_component_or_deployment_core(
+            &lines,
+            i,
+            line,
+            span,
+            allow_mixing,
+            &mut detected_kind,
+            &mut statements,
+        )? {
+            i = next_i;
+            continue;
         }
 
         // Inline JSON/YAML projection: `json $alias {` / `yaml $alias {` ... `}`.
@@ -581,9 +379,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         let allow_sequence_parse =
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
-        let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
-        let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
-        let allow_state_parse = matches!(detected_kind, Some(DiagramKind::State));
         // MindMap and WBS also support multiline legend/title/caption/header/footer blocks.
         let allow_family_keyword_block =
             matches!(detected_kind, Some(DiagramKind::MindMap | DiagramKind::Wbs));
@@ -617,97 +412,15 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
-        if allow_gantt_parse {
-            if let Some(kind) = parse_gantt_baseline_statement(line) {
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
-            }
-            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
-                statements.push(Statement {
-                    span: Span::new(span.start, lines[end_idx].1.end),
-                    kind,
-                });
-                i = end_idx + 1;
-                continue;
-            }
-            if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
-                statements.push(Statement {
-                    span: Span::new(span.start, lines[end_idx].1.end),
-                    kind,
-                });
-                i = end_idx + 1;
-                continue;
-            }
-            if let Some(kind) = parse_keyword(line) {
-                if is_timeline_metadata_statement(&kind) {
-                    statements.push(Statement { span, kind });
-                    i += 1;
-                    continue;
-                }
-            }
-            statements.push(Statement {
-                span,
-                kind: StatementKind::UnsupportedSyntax(format!(
-                    "[E_GANTT_UNSUPPORTED] unsupported gantt baseline syntax: `{line}`"
-                )),
-            });
-            i += 1;
-            continue;
-        }
-
-        if allow_chronology_parse {
-            if let Some(kind) = parse_chronology_baseline_statement(line) {
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
-            }
-            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
-                statements.push(Statement {
-                    span: Span::new(span.start, lines[end_idx].1.end),
-                    kind,
-                });
-                i = end_idx + 1;
-                continue;
-            }
-            if let Some(kind) = parse_keyword(line) {
-                if is_timeline_metadata_statement(&kind) {
-                    statements.push(Statement { span, kind });
-                    i += 1;
-                    continue;
-                }
-            }
-            statements.push(Statement {
-                span,
-                kind: StatementKind::UnsupportedSyntax(format!(
-                    "[E_CHRONOLOGY_UNSUPPORTED] unsupported chronology baseline syntax: `{line}`"
-                )),
-            });
-            i += 1;
-            continue;
-        }
-
-        if allow_state_parse {
-            if let Some((kind, end_idx)) = parse_state_statement(&lines, i, line)? {
-                let block_span = if end_idx > i {
-                    Span::new(span.start, lines[end_idx].1.end)
-                } else {
-                    span
-                };
-                statements.push(Statement {
-                    span: block_span,
-                    kind,
-                });
-                i = end_idx + 1;
-                continue;
-            }
-            // Any non-empty line in a state diagram that wasn't recognised above
-            // is stored as Unknown for normalizer to reject gracefully.
-            statements.push(Statement {
-                span,
-                kind: StatementKind::UnsupportedSyntax(line.to_string()),
-            });
-            i += 1;
+        if let Some(next_i) = parse_timeline_or_state_core(
+            &lines,
+            i,
+            line,
+            span,
+            detected_kind,
+            &mut statements,
+        )? {
+            i = next_i;
             continue;
         }
 
