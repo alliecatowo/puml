@@ -1,6 +1,10 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
+fn fixture(path: &str) -> String {
+    format!("{}/tests/fixtures/{path}", env!("CARGO_MANIFEST_DIR"))
+}
+
 #[test]
 fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
     Command::cargo_bin("puml")
@@ -17,6 +21,7 @@ fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
             "# alias: material2.1.19 -> material",
         ))
         .stdout(predicate::str::contains("C4/C4_Context.puml\n"))
+        .stdout(predicate::str::contains("material/folder.puml\n"))
         .stdout(predicate::str::contains(
             "awslib/Compute/EC2.puml -> awslib14/Compute/EC2.puml\n",
         ))
@@ -24,6 +29,8 @@ fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
         .stdout(predicate::str::contains(
             "material2.1.19/folder_move.puml -> material/folder_move.puml\n",
         ))
+        .stdout(predicate::str::contains("bootstrap"))
+        .stdout(predicate::str::contains("openiconic"))
         .stdout(predicate::str::contains("# missing upstream packs:"))
         .stderr(predicate::str::is_empty());
 }
@@ -47,4 +54,120 @@ fn stdlib_flag_output_paths_are_sorted() {
     sorted.sort();
 
     assert_eq!(paths, sorted);
+}
+
+#[test]
+fn stdlib_catalog_diagram_renders_from_registry_path() {
+    let source = std::fs::read_to_string(fixture(
+        "stdlib_catalog/valid_stdlib_inventory_diagram.puml",
+    ))
+    .expect("fixture");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-", "--format", "svg"])
+        .write_stdin(source)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("data-stdlib-catalog=\"true\""))
+        .stdout(predicate::str::contains("Local stdlib inventory"))
+        .stdout(predicate::str::contains(">C4<"))
+        .stdout(predicate::str::contains(">material<"))
+        .stdout(predicate::str::contains(">bootstrap<"))
+        .stdout(predicate::str::contains(">openiconic<"))
+        .stdout(predicate::str::contains("unavailable"))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_diagram_text_output_is_deterministic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-", "--format", "txt"])
+        .write_stdin("@startuml\ntitle Local stdlib inventory\nstdlib\n@enduml\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("stdlib\n"))
+        .stdout(predicate::str::contains("available C4"))
+        .stdout(predicate::str::contains("unavailable bootstrap"))
+        .stdout(predicate::str::contains("material2.1.19 -> material"))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn unavailable_stdlib_pack_diagnostic_lists_available_and_missing_packs() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            &fixture("stdlib_catalog/invalid_bootstrap_include.puml"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "\"code\": \"E_INCLUDE_STDLIB_PACK_UNAVAILABLE\"",
+        ))
+        .stderr(predicate::str::contains(
+            "stdlib pack 'bootstrap' is not bundled",
+        ))
+        .stderr(predicate::str::contains("available packs: C4"))
+        .stderr(predicate::str::contains("material2.1.19"))
+        .stderr(predicate::str::contains(
+            "known unavailable upstream packs:",
+        ))
+        .stderr(predicate::str::contains("openiconic"));
+}
+
+#[test]
+fn unavailable_openiconic_pack_points_to_builtin_sprite_catalog_boundary() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            &fixture("stdlib_catalog/invalid_openiconic_include.puml"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "\"code\": \"E_INCLUDE_STDLIB_PACK_UNAVAILABLE\"",
+        ))
+        .stderr(predicate::str::contains(
+            "stdlib pack 'openiconic' is not bundled",
+        ))
+        .stderr(predicate::str::contains("available packs: C4"));
+}
+
+#[test]
+fn unknown_stdlib_pack_diagnostic_is_distinct_from_unavailable_pack() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            &fixture("stdlib_catalog/invalid_unknown_pack_include.puml"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "\"code\": \"E_INCLUDE_STDLIB_NOT_FOUND\"",
+        ))
+        .stderr(
+            predicate::str::contains(
+                "stdlib include '&lt;does-not-exist/example&gt;' was not found",
+            )
+            .or(predicate::str::contains(
+                "stdlib include '<does-not-exist/example>' was not found",
+            )),
+        )
+        .stderr(predicate::str::contains(
+            "known unavailable upstream packs:",
+        ));
 }

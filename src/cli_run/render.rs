@@ -8,12 +8,12 @@ use super::{
         default_output_base, output_err, render_pages_from_model, write_markdown_output_files,
         write_output_files, MultiSvgOut,
     },
-    pipeline::{parse_for_cli_with_diagnostics, preprocess_for_cli},
+    pipeline::{normalize_for_cli, parse_for_cli_with_diagnostics, preprocess_for_cli},
     EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION,
 };
 use crate::cli::{Cli, OutputFormat};
 use puml::output::{render_output_bytes, render_svg_export_content, RenderedOutput};
-use puml::{normalize_family, specialized};
+use puml::specialized;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -83,9 +83,10 @@ pub(super) fn run_render_mode(
         .map_err(|d| {
             diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
         })?;
-        let model = normalize_family(parse_result.document).map_err(|d| {
-            diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
-        })?;
+        let model =
+            normalize_for_cli(parse_result.document, include_root.clone()).map_err(|d| {
+                diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
+            })?;
         emit_diagnostics_label(
             &parse_result.diagnostics,
             raw,

@@ -211,6 +211,13 @@ const FAMILY_SPECS: &[DiagramFamilySpec] = &[
         PLANTUML_ONLY,
     ),
     family(
+        DiagramKind::Stdlib,
+        DiagramFamily::Stdlib,
+        "stdlib",
+        FamilyRenderKind::Stdlib,
+        PLANTUML_ONLY,
+    ),
+    family(
         DiagramKind::Unknown,
         DiagramFamily::Unknown,
         "unknown",

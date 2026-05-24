@@ -158,6 +158,7 @@ fn render_document_for_family(
             "E_FAMILY_STUB_INTERNAL",
             render::render_chart_svg,
         ),
+        DiagramFamily::Stdlib => render_stdlib(document),
         DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
         DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
         DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -224,6 +225,15 @@ fn render_state(document: Document) -> Result<Vec<String>, Diagnostic> {
         }
         _ => Err(Diagnostic::error(
             "[E_STATE_INTERNAL] unexpected model variant during state render",
+        )),
+    }
+}
+
+fn render_stdlib(document: Document) -> Result<Vec<String>, Diagnostic> {
+    match normalize_mod::normalize_family(document)? {
+        model::NormalizedDocument::Stdlib(doc) => Ok(vec![render::render_stdlib_svg(&doc)]),
+        _ => Err(Diagnostic::error(
+            "[E_STDLIB_INTERNAL] unexpected model during stdlib render",
         )),
     }
 }
@@ -352,6 +362,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
         NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
         NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
+        NormalizedDocument::Stdlib(doc) => vec![render::render_stdlib_svg(doc)],
     }
 }
 

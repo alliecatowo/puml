@@ -19,9 +19,11 @@ use encodesprite::run_encodesprite;
 use format::run_format_command;
 use input::{frontend_hint_for_path, read_input, should_extract_markdown, split_diagrams};
 use lint::{is_lint_mode_enabled, run_lint_mode, run_lint_subcommand, LintSubcommandContext};
-use pipeline::{parse_for_cli, parse_for_cli_with_diagnostics, preprocess_for_cli};
+use pipeline::{
+    normalize_for_cli, parse_for_cli, parse_for_cli_with_diagnostics, preprocess_for_cli,
+};
 use puml::diagnostic::normalized_warnings;
-use puml::{extract_metadata, normalize_family};
+use puml::extract_metadata;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
@@ -124,7 +126,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         let include_root = path.parent().map(|p| p.to_path_buf());
         let parse_result = parse_for_cli_with_diagnostics(
             &src,
-            include_root,
+            include_root.clone(),
             cli.dialect,
             cli.compat,
             cli.determinism,
@@ -135,7 +137,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         .map_err(|d| {
             diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
         })?;
-        let model = normalize_family(parse_result.document).map_err(|d| {
+        let model = normalize_for_cli(parse_result.document, include_root).map_err(|d| {
             diag_err_with_source_label(&src, d, diagnostics_output, Some(&fixture_label))
         })?;
         emit_diagnostics_label(
@@ -258,7 +260,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     )
                 })?;
                 let ast = doc.clone();
-                let model = normalize_family(doc).map_err(|d| {
+                let model = normalize_for_cli(doc, include_root.clone()).map_err(|d| {
                     diag_err_mapped_label(
                         &raw,
                         source.source_span,
@@ -316,15 +318,16 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     input_label.as_deref(),
                 )
             })?;
-            let model = normalize_family(parse_result.document).map_err(|d| {
-                diag_err_mapped_label(
-                    &raw,
-                    source.source_span,
-                    d,
-                    diagnostics_output,
-                    input_label.as_deref(),
-                )
-            })?;
+            let model =
+                normalize_for_cli(parse_result.document, include_root.clone()).map_err(|d| {
+                    diag_err_mapped_label(
+                        &raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label.as_deref(),
+                    )
+                })?;
             had_warnings |= !parse_result.diagnostics.is_empty();
             let warnings = normalized_warnings(&model);
             had_warnings |= !warnings.is_empty();
@@ -403,7 +406,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                             input_label.as_deref(),
                         )
                     })?;
-                    let model = normalize_family(doc).map_err(|d| {
+                    let model = normalize_for_cli(doc, include_root.clone()).map_err(|d| {
                         diag_err_mapped_label(
                             &raw,
                             source.source_span,
@@ -441,7 +444,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                             input_label.as_deref(),
                         )
                     })?;
-                    let model = normalize_family(doc).map_err(|d| {
+                    let model = normalize_for_cli(doc, include_root.clone()).map_err(|d| {
                         diag_err_mapped_label(
                             &raw,
                             source.source_span,
