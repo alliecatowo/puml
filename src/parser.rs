@@ -26,6 +26,13 @@ pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<S
 include!("parser/core.rs");
 include!("parser/blocks.rs");
 include!("parser/family.rs");
+include!("parser/family_context.rs");
+include!("parser/family_declarations.rs");
+include!("parser/family_members.rs");
+include!("parser/family_relations.rs");
+include!("parser/family_arrows.rs");
+include!("parser/family_scopes.rs");
+include!("parser/family_context_tail.rs");
 include!("parser/component_groups.rs");
 include!("parser/detect.rs");
 include!("parser/gantt.rs");
