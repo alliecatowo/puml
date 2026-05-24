@@ -8,6 +8,7 @@ pub mod language_service;
 // source before the shared parser, normalizer, layout, and renderer run.
 mod frontend;
 pub mod layout;
+mod material_icons;
 pub mod metadata;
 pub mod model;
 pub mod normalize;

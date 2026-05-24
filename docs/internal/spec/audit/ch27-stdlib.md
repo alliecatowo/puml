@@ -16,7 +16,7 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 
 Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility directory for `!include <awslib/...>`, `!import awslib/...`, `-stdlib`, and `%get_all_stdlib()` (`src/preproc/includes.rs`, `src/stdlib.rs`, `tests/fixtures/include/valid_awslib_ec2.puml`, `src/parser/tests.rs`, `tests/cli_stdlib.rs`, `tests/coverage_wave23_builtins.rs`). The direct `awslib14/...` path remains supported for existing fixtures.
 
-**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. Bootstrap Icons is an exception: it is bundled as generated built-in SVG sprite data rather than a `stdlib/bootstrap/` directory. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
+**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. Bootstrap Icons and classic Google Material Icons are exceptions: they are bundled as generated built-in SVG sprite data rather than full upstream `stdlib/` macro directories. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
 
 **Upstream comparison source:** The official `plantuml/plantuml-stdlib` README currently lists AdaML `[ada]`, Amazon Web Services `[aws]`, Amazon Labs AWS `[awslib]`, Azure `[azure]`, Bootstrap `[bootstrap]`, C4 `[C4]`, Classy `[classy]`, Classy C4 `[classy-c4]`, DomainStory `[DomainStory]`, Edgy `[edgy]`, EIP `[eip]`, Elastic `[elastic]`, GCP `[gcp]`, K8S `[k8s]`, Material `[material, material2, material7]`, Tupadr3 `[tupadr3]`, plus an ArchiMate section below the summary list.
 
@@ -70,7 +70,9 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 **Status:** ❌ — directory **not bundled**.
 
 ### 27.10 Google Material Icons [material] — 🟡
-**Status:** 🟡 — bundled at `stdlib/material/` with 52 deterministic shim files (e.g. `account_circle.puml`, `analytics.puml`, `api.puml`, `bug_report.puml`, ...). Sprite includes render through the ch23 sprite path, but the local pack is a small curated subset and does not provide the official `material2` or `material7` slugs.
+**Status:** 🟡 — bundled as two layers: full classic Google Material Design Icons filled 24px SVG art is generated into `src/material_icons.rs` (2,170 entries) and reachable via PlantUML-style `<$ma_name>` sprite references; `stdlib/material/` still provides 52 deterministic `MA_*` macro/include compatibility shims (e.g. `account_circle.puml`, `analytics.puml`, `api.puml`, `bug_report.puml`, ...). The official `material2` and `material7` slugs remain unimplemented.
+**Evidence:** `scripts/import_material_icons.py` imports Google `material-design-icons/src/*/*/materialicons/24px.svg`; `src/sprites.rs` resolves the `ma_` prefix plus `ma-` aliases; `src/render/svg.rs` includes Material Icons in `listsprites`; `tests/integration.rs` covers inline rendering and list metadata.
+**Notes:** Google Material Design Icons are Apache-2.0 licensed; attribution is recorded in `THIRD_PARTY_NOTICES.md`.
 
 ### 27.11 Kubernetes [kubernetes] — ❌
 **Status:** ❌ — directory **not bundled**.
@@ -120,4 +122,4 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 
 **Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI 🟡 local shim listing · `-extractstdlib` CLI ❌ · `listsprites` ✅ (see ch23) · angle-bracket resolver ✅ · `%get_all_stdlib` 🟡 local shim path list.
 
-**Score:** 8 of the locally tracked 17 library rows are at least partially bundled (47%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, Bootstrap Icons, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest to full intended UX because it is mostly macro-based; most icon-library directory shims are curated deterministic subsets, while Bootstrap Icons is bundled as generated SVG sprite data.
+**Score:** 8 of the locally tracked 17 library rows are at least partially bundled (47%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, Bootstrap Icons, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest macro-based stdlib UX; Bootstrap Icons and classic Google Material Icons now have complete generated SVG sprite art, while most other icon-library directory shims are curated deterministic subsets.

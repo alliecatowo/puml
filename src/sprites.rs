@@ -7,6 +7,7 @@ use flate2::Compression;
 
 use crate::bootstrap_icons::BOOTSTRAP_ICONS_SVG;
 use crate::diagnostic::Diagnostic;
+use crate::material_icons::MATERIAL_ICONS_SVG;
 use crate::openiconic::OPENICONIC_SVG;
 
 const ENCODE_6BIT: &[u8; 64] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_";
@@ -125,6 +126,27 @@ pub fn bootstrap_icon_sprites() -> SpriteRegistry {
         .collect()
 }
 
+pub fn material_icon_sprite(name: &str) -> Option<SpriteDefinition> {
+    let normalized = normalize_material_icon_name(name)?;
+    let icon_name = normalized.strip_prefix("ma_").unwrap_or(&normalized);
+    let source = MATERIAL_ICONS_SVG
+        .iter()
+        .find_map(|(name, svg)| (*name == icon_name).then_some(*svg))?;
+    parse_svg_sprite(&normalized, source).ok()
+}
+
+pub fn material_icon_sprites() -> SpriteRegistry {
+    MATERIAL_ICONS_SVG
+        .iter()
+        .filter_map(|(name, svg)| {
+            let sprite_name = format!("ma_{name}");
+            parse_svg_sprite(&sprite_name, svg)
+                .ok()
+                .map(|sprite| (sprite_name, sprite))
+        })
+        .collect()
+}
+
 fn is_openiconic_icon(name: &str) -> bool {
     OPENICONIC_SVG
         .iter()
@@ -148,6 +170,15 @@ fn normalize_bootstrap_icon_name(raw: &str) -> Option<String> {
         .to_ascii_lowercase();
     let icon_name = normalized.strip_prefix("bi-")?;
     (!icon_name.is_empty()).then(|| format!("bi-{icon_name}"))
+}
+
+fn normalize_material_icon_name(raw: &str) -> Option<String> {
+    let normalized = normalize_sprite_name(raw).to_ascii_lowercase();
+    let icon_name = normalized
+        .strip_prefix("ma_")
+        .or_else(|| normalized.strip_prefix("ma-"))?
+        .replace('-', "_");
+    (!icon_name.is_empty()).then(|| format!("ma_{icon_name}"))
 }
 
 fn parse_sprite_ref_inner(inner: &str) -> Option<SpriteRef> {
@@ -820,5 +851,18 @@ mod tests {
         assert_eq!(alias.name, "bi-bootstrap-fill");
         assert!(bootstrap_icon_sprite("globe").is_none());
         assert_eq!(bootstrap_icon_sprites().len(), 2078);
+    }
+
+    #[test]
+    fn loads_material_icons_with_prefixed_names() {
+        let folder = material_icon_sprite("ma_folder").expect("folder icon");
+        assert_eq!((folder.width, folder.height), (24, 24));
+        assert_eq!(folder.name, "ma_folder");
+        assert!(matches!(folder.kind, SpriteKind::Svg { .. }));
+
+        let alias = material_icon_sprite("ma-cloud-upload").expect("hyphen alias");
+        assert_eq!(alias.name, "ma_cloud_upload");
+        assert!(material_icon_sprite("folder").is_none());
+        assert_eq!(material_icon_sprites().len(), 2170);
     }
 }

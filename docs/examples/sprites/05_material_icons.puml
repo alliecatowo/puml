@@ -1,0 +1,10 @@
+@startuml
+title Built-in Google Material Icons SVG sprites
+Alice -> Bob : Open <$ma_folder,scale=2,color=#2563eb> assets
+Bob --> Alice : Upload <$ma_cloud_upload,scale=2,color=#0f766e> complete
+note over Alice, Bob
+  Material Icons use the PlantUML stdlib `ma_` prefix:
+  <$ma-security,scale=1,color=#b91c1c> security alias
+  <$ma_dashboard,scale=1,color=#ca8a04> dashboard
+end note
+@enduml

@@ -2,9 +2,9 @@ use std::cell::RefCell;
 
 use crate::creole::{decode_unicode_escapes, render_creole_to_svg_tspans, tokenize_creole};
 use crate::sprites::{
-    bootstrap_icon_sprite, bootstrap_icon_sprites, openiconic_sprite, openiconic_sprites,
-    parse_openiconic_ref_at, parse_sprite_ref_at, render_sprite, SpriteDefinition, SpriteRef,
-    SpriteRegistry,
+    bootstrap_icon_sprite, bootstrap_icon_sprites, material_icon_sprite, material_icon_sprites,
+    openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at, parse_sprite_ref_at,
+    render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
 };
 
 thread_local! {
@@ -215,11 +215,13 @@ fn active_sprite(name: &str) -> Option<SpriteDefinition> {
         .with(|cell| cell.borrow().get(name).cloned())
         .or_else(|| openiconic_sprite(name))
         .or_else(|| bootstrap_icon_sprite(name))
+        .or_else(|| material_icon_sprite(name))
 }
 
 fn sprites_with_builtins(sprites: &SpriteRegistry) -> SpriteRegistry {
     let mut combined = openiconic_sprites();
     combined.extend(bootstrap_icon_sprites());
+    combined.extend(material_icon_sprites());
     for (name, sprite) in sprites {
         combined.insert(name.clone(), sprite.clone());
     }
