@@ -62,7 +62,7 @@ sprite $foo1 {
 **Feature:** Diagnostic diagram that lists every defined sprite.
 **Syntax example:** `@startuml\nlistsprites\n@enduml`
 **Status:** ✅
-**Evidence:** `src/parser/core.rs:64` recognizes `listsprite`/`listsprites`; `src/normalize/family.rs:44` records the request; `src/render/svg.rs:21` renders the sprite sheet with bundled OpenIconic and Bootstrap Icons plus user-defined sprites; `tests/integration.rs` verifies list output and sprite count metadata.
+**Evidence:** `src/parser/core.rs:64` recognizes `listsprite`/`listsprites`; `src/normalize/family.rs:44` records the request; `src/render/svg.rs:21` renders the sprite sheet with bundled OpenIconic, Bootstrap Icons, and Google Material Icons plus user-defined sprites; `tests/integration.rs` verifies list output and sprite count metadata.
 
 ### 23.8 OpenIconic inline SVG icons — ✅
 **Feature:** PlantUML/OpenIconic-style label icons via `<&name>` and bare `&name`.
@@ -77,6 +77,12 @@ sprite $foo1 {
 **Status:** ✅
 **Evidence:** `src/bootstrap_icons.rs` vendors all 2,078 MIT Bootstrap Icons 1.13.1 SVG files as generated data; `src/sprites.rs` normalizes `bi-`/`bi_` prefixed names and resolves them to SVG sprites; `src/render/svg.rs` renders those icons as inline SVG paths in labels and `listsprites`; `tests/integration.rs` verifies rendered path output and list metadata.
 **Notes:** Bootstrap Icons is MIT licensed by The Bootstrap Authors. The import script is `scripts/import_bootstrap_icons.py`, and attribution is recorded in `THIRD_PARTY_NOTICES.md`.
+
+### 23.10 Google Material Icons inline SVG sprites — ✅
+**Feature:** PlantUML stdlib Material-style `ma_` prefixed SVG sprites via `<$ma_name>`.
+**Status:** ✅ — classic filled Google Material Design Icons 24px SVG art is bundled as generated data, with `ma-foo` aliases normalized to canonical `ma_foo` sprite names.
+**Evidence:** `src/material_icons.rs` vendors all 2,170 Apache-2.0 Google Material Design Icons classic filled 24px SVG files as generated data; `src/sprites.rs` normalizes `ma_`/`ma-` prefixed names and resolves them to SVG sprites; `src/render/svg.rs` renders those icons as inline SVG paths in labels and `listsprites`; `tests/integration.rs` verifies rendered path output and list metadata.
+**Notes:** Google Material Design Icons are Apache-2.0 licensed. The import script is `scripts/import_material_icons.py`, and attribution is recorded in `THIRD_PARTY_NOTICES.md`.
 
 ---
 
@@ -94,5 +100,6 @@ sprite $foo1 {
 | `listsprites` | ✅ |
 | OpenIconic `<&name>` / `&name` SVG icons | ✅ |
 | Bootstrap Icons `<$bi-name>` SVG sprites | ✅ |
+| Google Material Icons `<$ma_name>` SVG sprites | ✅ |
 
-**Score:** 9 ✅ · 0 🟡 · 1 ❌ out of 10 features. The remaining ❌ is the intentionally out-of-scope GUI import helper; renderer and CLI sprite support are now broadly present.
+**Score:** 10 ✅ · 0 🟡 · 1 ❌ out of 11 tracked features. The remaining ❌ is the intentionally out-of-scope GUI import helper; renderer and CLI sprite support are now broadly present.

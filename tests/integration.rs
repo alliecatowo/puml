@@ -7031,13 +7031,15 @@ listsprites\n\
 @enduml\n";
     let svg = render_source_to_svg(src).expect("compressed sprite should render");
     assert!(svg.contains("data-sprite-list=\"true\""));
-    assert!(svg.contains("data-sprite-count=\"2302\""));
+    assert!(svg.contains("data-sprite-count=\"4472\""));
     assert!(svg.contains("$printer"));
     assert!(svg.contains("data-sprite=\"printer\""));
     assert!(svg.contains("$folder"));
     assert!(svg.contains("data-sprite=\"folder\""));
     assert!(svg.contains("$bi-globe"));
     assert!(svg.contains("data-sprite=\"bi-globe\""));
+    assert!(svg.contains("$ma_folder"));
+    assert!(svg.contains("data-sprite=\"ma_folder\""));
 }
 
 #[test]
@@ -7097,15 +7099,34 @@ Alice -> Bob : Browse <$bi-globe,scale=2,color=#7952b3> then <$bi_bootstrap_fill
 }
 
 #[test]
+fn material_icons_render_as_prefixed_inline_svg_paths() {
+    let src = "@startuml\n\
+Alice -> Bob : Store <$ma_folder,scale=2,color=#2563eb> then <$ma-cloud-upload{scale=2,color=#0f766e}>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("Material icons should render");
+    assert!(svg.contains("data-creole-sprites=\"true\""));
+    assert!(svg.contains("data-sprite=\"ma_folder\""));
+    assert!(svg.contains("data-sprite=\"ma_cloud_upload\""));
+    assert!(svg.contains("puml-sprite-svg"));
+    assert!(svg.contains("fill=\"#2563eb\""));
+    assert!(svg.contains("fill=\"#0f766e\""));
+    assert!(svg.contains("viewBox=\"0 0 24 24\""));
+    assert!(!svg.contains("&lt;$ma_folder"));
+    assert!(!svg.contains("&lt;$ma-cloud-upload"));
+}
+
+#[test]
 fn listsprites_includes_bundled_openiconic_icons() {
     let src = "@startuml\nlistsprites\n@enduml\n";
     let svg = render_source_to_svg(src).expect("built-in sprite sheet should render");
     assert!(svg.contains("data-sprite-list=\"true\""));
-    assert!(svg.contains("data-sprite-count=\"2301\""));
+    assert!(svg.contains("data-sprite-count=\"4471\""));
     assert!(svg.contains("$folder"));
     assert!(svg.contains("data-sprite=\"folder\""));
     assert!(svg.contains("$bi-globe"));
     assert!(svg.contains("data-sprite=\"bi-globe\""));
+    assert!(svg.contains("$ma_folder"));
+    assert!(svg.contains("data-sprite=\"ma_folder\""));
     assert!(svg.contains("puml-sprite-svg"));
 }
 

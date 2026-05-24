@@ -38,6 +38,21 @@ The icons are real inline SVG paths, do not require an `!include`, accept the no
 
 ---
 
+## Google Material Icons (`<$ma_name>`)
+
+PUML bundles the full classic filled 24px Google Material Design Icons SVG set as built-in `ma_` prefixed sprites, matching PlantUML's Material stdlib family prefix:
+
+```plantuml
+Alice -> Bob : Open <$ma_folder,scale=2,color=#2563eb>
+Bob --> Alice : Upload <$ma_cloud_upload{scale=2,color=#0f766e}>
+```
+
+The icons are real inline SVG paths, do not require an `!include`, accept the normal sprite `scale` and `color` parameters, accept `ma-foo` aliases for the canonical `ma_foo` sprite names, and appear in `listsprites` output alongside Open Iconic and Bootstrap Icons. Google Material Design Icons are Apache-2.0 licensed; see `THIRD_PARTY_NOTICES.md` for attribution.
+
+The local `stdlib/material/*.puml` files below remain deterministic macro/include compatibility shims for common PlantUML `MA_*` entry points. They intentionally do not bulk-vendor upstream PlantUML stdlib macro files; the complete icon art is provided by the generated built-in sprite registry instead.
+
+---
+
 ## C4 (`C4/`)
 
 C4 architecture diagram library (C4-PlantUML).
@@ -103,7 +118,7 @@ All macros delegate to `GCPIcon($alias, ServiceName, $label, $descr)` from `GCPC
 
 ## Material Design (`material/`)
 
-50+ common Material Design icon stubs. Each file exports one `MA_<NAME>($alias, $label, $descr)` macro.
+50+ common Material Design macro stubs. Each file exports one `MA_<NAME>($alias, $label, $descr)` macro. The full 2,170-icon classic filled SVG art pack is available through the built-in `ma_` sprite prefix described above.
 
 `cloud`, `security`, `storage`, `database`, `smartphone`, `laptop`, `person`, `group`, `settings`, `network`, `router`, `server`, `email`, `message`, `notifications`, `lock`, `key`, `code`, `api`, `dashboard`, `analytics`, `search`, `home`, `build`, `share`, `queue`, `dns`, `vpn_lock`, `bug_report`, `cloud_upload`, `cloud_download`, `folder`, `file`, `schedule`, `account_circle`, `payment`, `public`, `devices`, `monitor`, `cached`, `sync`, `hub`, `token`, `policy`, `integration_instructions`, `terminal`, `data_object`, `table_chart`, `swap_horiz`, `manage_accounts`
 
