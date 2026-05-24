@@ -7,16 +7,30 @@ use crate::theme::ComponentStyle;
 use super::box_grid::PackageLayout;
 use super::group_frames::collect_render_group_frames;
 
+pub(super) struct BoxGridPackageFrameInputs<'a> {
+    pub(super) doc: &'a FamilyDocument,
+    pub(super) pkg_layouts: &'a [PackageLayout],
+    pub(super) pkg_frame_widths: &'a [i32],
+    pub(super) pkg_frame_heights: &'a [i32],
+    pub(super) pkg_tab: i32,
+    pub(super) comp_style: &'a ComponentStyle,
+    pub(super) positions: &'a BTreeMap<String, (i32, i32, i32, i32)>,
+}
+
 pub(super) fn render_box_grid_package_frames(
     out: &mut String,
-    doc: &FamilyDocument,
-    pkg_layouts: &[PackageLayout],
-    pkg_frame_widths: &[i32],
-    pkg_frame_heights: &[i32],
-    pkg_tab: i32,
-    comp_style: &ComponentStyle,
-    positions: &BTreeMap<String, (i32, i32, i32, i32)>,
+    inputs: BoxGridPackageFrameInputs<'_>,
 ) {
+    let BoxGridPackageFrameInputs {
+        doc,
+        pkg_layouts,
+        pkg_frame_widths,
+        pkg_frame_heights,
+        pkg_tab,
+        comp_style,
+        positions,
+    } = inputs;
+
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1e: Render package frames (BEFORE nodes, so nodes sit on top)
     // ─────────────────────────────────────────────────────────────────────────

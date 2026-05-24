@@ -8,7 +8,7 @@ use crate::render::svg::escape_text;
 use crate::theme::ComponentStyle;
 
 use super::box_grid_edges::render_box_grid_relations_and_labels;
-use super::box_grid_frames::render_box_grid_package_frames;
+use super::box_grid_frames::{render_box_grid_package_frames, BoxGridPackageFrameInputs};
 use super::node_shapes::{render_family_node_shape_styled, DeploymentShapeBounds};
 use super::projections::{family_projection_extra_height, render_family_projection_boxes};
 
@@ -508,13 +508,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
     render_box_grid_package_frames(
         &mut out,
-        doc,
-        &pkg_layouts,
-        &pkg_frame_widths,
-        &pkg_frame_heights,
-        pkg_tab,
-        &comp_style,
-        &positions,
+        BoxGridPackageFrameInputs {
+            doc,
+            pkg_layouts: &pkg_layouts,
+            pkg_frame_widths: &pkg_frame_widths,
+            pkg_frame_heights: &pkg_frame_heights,
+            pkg_tab,
+            comp_style: &comp_style,
+            positions: &positions,
+        },
     );
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1f: Render nodes
