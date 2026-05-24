@@ -623,7 +623,7 @@ pub fn lsp_capabilities() -> serde_json::Value {
         "renameProvider":{"prepareProvider":true},
         "documentSymbolProvider":true,
         "workspaceSymbolProvider":true,
-        "semanticTokensProvider":{"legend":{"tokenTypes":["keyword","operator","string","comment","number","type","class","function","variable","parameter","property","namespace","label","decorator","modifier"],"tokenModifiers":[]},"full":true},
+        "semanticTokensProvider":{"legend":{"tokenTypes":language_service::semantic_token_legend(),"tokenModifiers":[]},"full":true},
         "documentFormattingProvider":true,
         "documentRangeFormattingProvider":true,
         "foldingRangeProvider":true,
