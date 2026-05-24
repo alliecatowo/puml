@@ -91,6 +91,20 @@ fn diagnostics_reports_parse_errors_without_lsp_transport() {
 }
 
 #[test]
+fn diagnostics_range_uses_shared_unicode_line_column_mapping() {
+    let source = "@startuml\nµ ->\n@enduml\n";
+
+    let report = diagnostics(source);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let range = report.diagnostics[0].range.expect("range");
+    assert_eq!(range.start.line, 2);
+    assert_eq!(range.start.column, 1);
+    assert_eq!(range.end.line, 2);
+    assert_eq!(range.end.column, 5);
+}
+
+#[test]
 fn diagnostics_reports_normalization_warnings_without_lsp_transport() {
     let source = "@startuml\nskinparam TotallyUnknownColor red\nA -> B\n@enduml\n";
 

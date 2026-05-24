@@ -16,6 +16,7 @@ use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
 };
+use puml::diagnostic::{diagnostic_message_and_code, normalized_warnings, offset_to_line_col};
 use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, StateDocument, TimelineDocument, VirtualEndpoint, VirtualEndpointKind,
@@ -1252,8 +1253,8 @@ fn diagnostic_to_entry(d: &puml::Diagnostic, source: &str) -> LintDiagnosticEntr
     let json = d.to_json_with_source(source);
     let (start_line, start_col, end_line, end_col) = match d.span {
         Some(span) => {
-            let (sl, sc) = line_col_at(source, span.start);
-            let (el, ec) = line_col_at(source, span.end);
+            let (sl, sc) = offset_to_line_col(source, span.start);
+            let (el, ec) = offset_to_line_col(source, span.end);
             (sl, sc, el, ec)
         }
         None => (0, 0, 0, 0),
@@ -1272,23 +1273,6 @@ fn diagnostic_to_entry(d: &puml::Diagnostic, source: &str) -> LintDiagnosticEntr
             end_col,
         },
     }
-}
-
-fn line_col_at(source: &str, offset: usize) -> (usize, usize) {
-    let off = offset.min(source.len());
-    let mut line = 1usize;
-    let mut line_start = 0usize;
-    for (idx, ch) in source.char_indices() {
-        if idx >= off {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            line_start = idx + 1;
-        }
-    }
-    let col = source[line_start..off].chars().count() + 1;
-    (line, col)
 }
 
 fn format_unified_diff(path: &Path, old: &str, new: &str) -> String {
@@ -1737,7 +1721,7 @@ fn render_human_diagnostic_with_file_label(
     color_enabled: bool,
     file_label: &str,
 ) -> String {
-    let (message, code) = human_message_and_code(&d.message);
+    let (message, code) = diagnostic_message_and_code(&d.message);
     let severity = match d.severity {
         puml::diagnostic::Severity::Error => "error",
         puml::diagnostic::Severity::Warning => "warning",
@@ -1773,19 +1757,6 @@ fn render_human_diagnostic_with_file_label(
         }
     }
     out
-}
-
-fn human_message_and_code(message: &str) -> (&str, Option<&str>) {
-    let Some(rest) = message.strip_prefix('[') else {
-        return (message, None);
-    };
-    let Some((code, message_tail)) = rest.split_once("] ") else {
-        return (message, None);
-    };
-    if code.is_empty() {
-        return (message, None);
-    }
-    (message_tail, Some(code))
 }
 
 fn ansi(text: &str, code: &str) -> String {
@@ -1831,29 +1802,6 @@ fn emit_warnings_for_model_label(
             }
             DiagnosticsFormat::Stdrpt => eprintln!("{}", diagnostic_stdrpt(&warning, source)),
         }
-    }
-}
-
-fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
-    match model {
-        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
-        NormalizedDocument::Family(family) => &family.warnings,
-        NormalizedDocument::FamilyPages(pages) => pages
-            .iter()
-            .find_map(|page| (!page.warnings.is_empty()).then_some(page.warnings.as_slice()))
-            .unwrap_or(&[]),
-        NormalizedDocument::Timeline(timeline) => &timeline.warnings,
-        NormalizedDocument::State(state) => &state.warnings,
-        NormalizedDocument::Json(doc) => &doc.warnings,
-        NormalizedDocument::Yaml(doc) => &doc.warnings,
-        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
-        NormalizedDocument::Archimate(doc) => &doc.warnings,
-        NormalizedDocument::Regex(doc) => &doc.warnings,
-        NormalizedDocument::Ebnf(doc) => &doc.warnings,
-        NormalizedDocument::Math(doc) => &doc.warnings,
-        NormalizedDocument::Sdl(doc) => &doc.warnings,
-        NormalizedDocument::Ditaa(doc) => &doc.warnings,
-        NormalizedDocument::Chart(doc) => &doc.warnings,
     }
 }
 

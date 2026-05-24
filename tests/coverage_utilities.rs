@@ -1,4 +1,7 @@
-use puml::diagnostic::{render_caret_line, Diagnostic, Severity};
+use puml::diagnostic::{
+    diagnostic_code, diagnostic_message_and_code, offset_to_line_col, render_caret_line,
+    Diagnostic, Severity,
+};
 use puml::scene::TextOverflowPolicy;
 use puml::source::{Source, Span};
 use puml::theme::Theme;
@@ -38,6 +41,24 @@ fn diagnostic_line_col_tracks_lines_and_unicode_columns() {
     let beta_offset = src.find("beta").expect("expected beta");
     let d2 = Diagnostic::warning("warn").with_span(Span::new(beta_offset, beta_offset + 1));
     assert_eq!(d2.line_col(src), Some((2, 2)));
+    assert_eq!(offset_to_line_col(src, beta_offset), (2, 2));
+    assert_eq!(offset_to_line_col(src, usize::MAX), (3, 6));
+}
+
+#[test]
+fn diagnostic_code_helpers_preserve_cli_and_json_message_contracts() {
+    let message = "[E_ARROW_INVALID] unsupported arrow";
+
+    assert_eq!(diagnostic_code(message).as_deref(), Some("E_ARROW_INVALID"));
+    assert_eq!(
+        diagnostic_message_and_code(message),
+        ("unsupported arrow", Some("E_ARROW_INVALID"))
+    );
+    assert_eq!(diagnostic_code("[] missing code"), None);
+    assert_eq!(
+        diagnostic_message_and_code("[oops]missing separator"),
+        ("[oops]missing separator", None)
+    );
 }
 
 #[test]

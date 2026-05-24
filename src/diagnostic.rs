@@ -1,3 +1,4 @@
+use crate::model::NormalizedDocument;
 use crate::source::Span;
 use serde::Serialize;
 
@@ -79,7 +80,7 @@ impl Diagnostic {
     }
 
     pub fn to_json_with_source(&self, source: &str) -> DiagnosticJson {
-        let code = split_diagnostic_code(&self.message);
+        let code = diagnostic_code(&self.message);
         let (line, column) = self
             .span
             .map(|span| offset_to_line_col(source, span.start))
@@ -119,7 +120,7 @@ impl Diagnostic {
     }
 }
 
-fn split_diagnostic_code(message: &str) -> Option<String> {
+pub fn diagnostic_code(message: &str) -> Option<String> {
     if let Some(rest) = message.strip_prefix('[') {
         if let Some((code, _message_tail)) = rest.split_once("] ") {
             if !code.is_empty() {
@@ -128,6 +129,42 @@ fn split_diagnostic_code(message: &str) -> Option<String> {
         }
     }
     None
+}
+
+pub fn diagnostic_message_and_code(message: &str) -> (&str, Option<&str>) {
+    let Some(rest) = message.strip_prefix('[') else {
+        return (message, None);
+    };
+    let Some((code, message_tail)) = rest.split_once("] ") else {
+        return (message, None);
+    };
+    if code.is_empty() {
+        return (message, None);
+    }
+    (message_tail, Some(code))
+}
+
+pub fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
+    match model {
+        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
+        NormalizedDocument::Family(family) => &family.warnings,
+        NormalizedDocument::FamilyPages(pages) => pages
+            .iter()
+            .find_map(|page| (!page.warnings.is_empty()).then_some(page.warnings.as_slice()))
+            .unwrap_or(&[]),
+        NormalizedDocument::Timeline(timeline) => &timeline.warnings,
+        NormalizedDocument::State(state) => &state.warnings,
+        NormalizedDocument::Json(doc) => &doc.warnings,
+        NormalizedDocument::Yaml(doc) => &doc.warnings,
+        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
+        NormalizedDocument::Archimate(doc) => &doc.warnings,
+        NormalizedDocument::Regex(doc) => &doc.warnings,
+        NormalizedDocument::Ebnf(doc) => &doc.warnings,
+        NormalizedDocument::Math(doc) => &doc.warnings,
+        NormalizedDocument::Sdl(doc) => &doc.warnings,
+        NormalizedDocument::Ditaa(doc) => &doc.warnings,
+        NormalizedDocument::Chart(doc) => &doc.warnings,
+    }
 }
 
 pub fn render_caret_line(source: &str, span: Span) -> String {
@@ -157,7 +194,7 @@ fn containing_line_bounds(source: &str, offset: usize) -> (usize, usize) {
     (start, end)
 }
 
-fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
+pub fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     let off = offset.min(source.len());
     let mut line = 1usize;
     let mut line_start = 0usize;
