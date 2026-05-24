@@ -6,6 +6,8 @@
 
 use std::collections::BTreeMap;
 
+pub mod validate;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
     pub x: f64,
@@ -412,70 +414,12 @@ impl RenderScene {
         self.viewport = self.visible_bounds();
     }
 
+    pub fn validate_scene(&self) -> validate::SceneValidationReport {
+        validate::validate_scene(self)
+    }
+
     pub fn validate_geometry(&self) -> Vec<GeometryIssue> {
-        let mut issues = Vec::new();
-        for node in self.nodes.values() {
-            if !self.viewport.contains_rect(node.node_box.bounds) {
-                issues.push(GeometryIssue::NodeOutsideViewport {
-                    node_id: node.id.clone(),
-                    bounds: node.node_box.bounds,
-                    viewport: self.viewport,
-                });
-            }
-        }
-        for group in self.groups.values() {
-            if !self.viewport.contains_rect(group.frame.bounds) {
-                issues.push(GeometryIssue::GroupOutsideViewport {
-                    group_id: group.id.clone(),
-                    bounds: group.frame.bounds,
-                    viewport: self.viewport,
-                });
-            }
-        }
-        for lane in self.lanes.values() {
-            if !self.viewport.contains_rect(lane.bounds) {
-                issues.push(GeometryIssue::LaneOutsideViewport {
-                    lane_id: lane.id.clone(),
-                    bounds: lane.bounds,
-                    viewport: self.viewport,
-                });
-            }
-        }
-        for label in self.labels.values() {
-            if !self.viewport.contains_rect(label.label_box.bounds) {
-                issues.push(GeometryIssue::LabelOutsideViewport {
-                    label_id: label.id.clone(),
-                    bounds: label.label_box.bounds,
-                    viewport: self.viewport,
-                });
-            }
-        }
-        for edge in self.edges.values() {
-            match (edge.route.first(), edge.route.last()) {
-                (Some(first), Some(last)) => {
-                    if first.distance_to(edge.source_anchor.position) > 0.5 {
-                        issues.push(GeometryIssue::EdgeEndpointDetached {
-                            edge_id: edge.id.clone(),
-                            anchor_id: edge.source_anchor.id.clone(),
-                            expected: edge.source_anchor.position,
-                            actual: first,
-                        });
-                    }
-                    if last.distance_to(edge.target_anchor.position) > 0.5 {
-                        issues.push(GeometryIssue::EdgeEndpointDetached {
-                            edge_id: edge.id.clone(),
-                            anchor_id: edge.target_anchor.id.clone(),
-                            expected: edge.target_anchor.position,
-                            actual: last,
-                        });
-                    }
-                }
-                _ => issues.push(GeometryIssue::EdgeMissingRoute {
-                    edge_id: edge.id.clone(),
-                }),
-            }
-        }
-        issues
+        self.validate_scene().issues
     }
 }
 
@@ -513,6 +457,31 @@ pub enum GeometryIssue {
     EdgeEndpointDetached {
         edge_id: String,
         anchor_id: String,
+        expected: Point,
+        actual: Point,
+    },
+    EdgeCrossesNode {
+        edge_id: String,
+        node_id: String,
+        segment: Segment,
+        node_bounds: Rect,
+    },
+    EdgeAnchorOwnerMismatch {
+        edge_id: String,
+        anchor_id: String,
+        expected_node_id: String,
+        actual_owner_id: String,
+    },
+    EdgeEndpointMissingDeclaredPort {
+        edge_id: String,
+        anchor_id: String,
+        node_id: String,
+        position: Point,
+    },
+    EdgeAnchorPortMismatch {
+        edge_id: String,
+        anchor_id: String,
+        port_id: String,
         expected: Point,
         actual: Point,
     },
