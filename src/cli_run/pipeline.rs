@@ -8,6 +8,9 @@ use puml::{
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+// CLI parse options are threaded explicitly here because every call site chooses
+// these knobs from command-line state before building ParsePipelineOptions.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn parse_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
@@ -58,7 +61,7 @@ pub(super) fn parse_for_cli_with_diagnostics(
     puml::parse_with_pipeline_result_options(source, &options)
 }
 
-// Same rationale as parse_for_cli above — all args are required.
+// Same rationale as parse_for_cli above: all args come from distinct CLI knobs.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn preprocess_for_cli(
     source: &str,

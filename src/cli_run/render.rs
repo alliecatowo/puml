@@ -18,6 +18,9 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+// Rendering crosses the CLI/input/output boundary, so this helper keeps the
+// distinct command state explicit instead of hiding it behind a transient bag.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_render_mode(
     cli: &Cli,
     diagrams: &[InputDiagram],
@@ -45,13 +48,7 @@ pub(super) fn run_render_mode(
                 inject_vars.clone(),
             )
             .map_err(|d| {
-                diag_err_mapped_label(
-                    &raw,
-                    source.source_span,
-                    d,
-                    diagnostics_output,
-                    input_label.as_deref(),
-                )
+                diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
             })?;
             let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
                 (
@@ -61,13 +58,7 @@ pub(super) fn run_render_mode(
                 )
             })?;
             let svg = result.map_err(|d| {
-                diag_err_mapped_label(
-                    &raw,
-                    source.source_span,
-                    d,
-                    diagnostics_output,
-                    input_label.as_deref(),
-                )
+                diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
             })?;
             let name_hint = source
                 .output_name_hint
@@ -90,36 +81,24 @@ pub(super) fn run_render_mode(
             inject_vars.clone(),
         )
         .map_err(|d| {
-            diag_err_mapped_label(
-                &raw,
-                source.source_span,
-                d,
-                diagnostics_output,
-                input_label.as_deref(),
-            )
+            diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
         })?;
         let model = normalize_family(parse_result.document).map_err(|d| {
-            diag_err_mapped_label(
-                &raw,
-                source.source_span,
-                d,
-                diagnostics_output,
-                input_label.as_deref(),
-            )
+            diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
         })?;
         emit_diagnostics_label(
             &parse_result.diagnostics,
-            &raw,
+            raw,
             source.source_span,
             diagnostics_output,
-            input_label.as_deref(),
+            input_label,
         );
         emit_warnings_for_model_label(
             &model,
-            &raw,
+            raw,
             source.source_span,
             diagnostics_output,
-            input_label.as_deref(),
+            input_label,
         );
         let pages = render_pages_from_model(&model, cli.format);
         let page_count = pages.len();
@@ -201,7 +180,7 @@ pub(super) fn run_render_mode(
             .iter()
             .map(|out| out.bytes.clone())
             .collect::<Vec<_>>();
-        write_output_files(&path, &payloads)?;
+        write_output_files(path, &payloads)?;
         return Ok(());
     }
 
