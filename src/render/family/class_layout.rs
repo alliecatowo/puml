@@ -177,6 +177,7 @@ pub(super) fn class_run_layout(
                 p.1 = mid_y;
             }
         }
+        gl_result.rebuild_scene(&gl_nodes, &gl_edges);
     }
 
     // Populate node_boxes: use layout positions when available, else grid fallback.

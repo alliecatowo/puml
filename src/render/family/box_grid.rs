@@ -5,6 +5,8 @@ use crate::render::layout_constants::{
 };
 use crate::render::relation::render_relation_marker_defs;
 use crate::render::svg::escape_text;
+use crate::render::RenderArtifact;
+use crate::render_core::Rect;
 use crate::theme::ComponentStyle;
 
 use super::box_grid_edges::render_box_grid_relations_and_labels;
@@ -28,14 +30,22 @@ pub(super) struct PackageLayout {
 
 /// Backwards-compatible alias; delegates to the real timeline renderer.
 pub fn render_component_svg(doc: &FamilyDocument) -> String {
-    render_box_grid_svg(doc, "component")
+    render_component_artifact(doc).svg
+}
+
+pub fn render_component_artifact(doc: &FamilyDocument) -> RenderArtifact {
+    render_box_grid_artifact(doc, "component")
 }
 
 pub fn render_deployment_svg(doc: &FamilyDocument) -> String {
-    render_box_grid_svg(doc, "deployment")
+    render_deployment_artifact(doc).svg
 }
 
-fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
+pub fn render_deployment_artifact(doc: &FamilyDocument) -> RenderArtifact {
+    render_box_grid_artifact(doc, "deployment")
+}
+
+fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifact {
     let comp_style = match &doc.family_style {
         Some(FamilyStyle::Component(s)) => s.clone(),
         _ => ComponentStyle::default(),
@@ -580,5 +590,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     out.push_str("</svg>");
-    out
+    let mut scene = gl_result.scene.clone();
+    scene.viewport = Rect::new(0.0, 0.0, svg_width as f64, svg_height as f64);
+    RenderArtifact::with_scene(out, scene)
 }

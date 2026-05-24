@@ -32,11 +32,11 @@ pub mod theme;
 pub use api::{
     detect_diagram_family, extract_markdown_diagrams, lsp_capabilities, normalize,
     normalize_family, parse, parse_with_pipeline_options, parse_with_pipeline_result_options,
-    preprocess_with_pipeline_options, render_family_document_svg, render_source_to_svg,
-    render_source_to_svg_for_family, render_source_to_svgs, render_source_to_svgs_for_family,
-    render_source_to_text, render_source_to_texts, render_svg_pages_from_model, CompatMode,
-    DeterminismMode, DiagramFamily, DiagramInput, FrontendSelection, ParsePipelineOptions,
-    ParsePipelineResult,
+    preprocess_with_pipeline_options, render_family_document_artifact, render_family_document_svg,
+    render_source_to_svg, render_source_to_svg_for_family, render_source_to_svgs,
+    render_source_to_svgs_for_family, render_source_to_text, render_source_to_texts,
+    render_svg_pages_from_model, CompatMode, DeterminismMode, DiagramFamily, DiagramInput,
+    FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
 };
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
