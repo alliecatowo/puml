@@ -4,7 +4,7 @@ use crate::diagnostic::{
 };
 use crate::formatter;
 use crate::source::Span;
-use crate::{normalize_family, parse_with_pipeline_options, ParsePipelineOptions};
+use crate::{normalize_family, parse_with_pipeline_result_options, ParsePipelineOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
@@ -781,12 +781,22 @@ pub fn diagnostics(source: &str) -> DiagnosticsReport {
 }
 
 pub fn diagnostics_with_options(source: &str, options: &ParsePipelineOptions) -> DiagnosticsReport {
-    let diagnostics = match parse_with_pipeline_options(source, options).and_then(normalize_family)
-    {
-        Ok(model) => normalized_warnings(&model)
-            .iter()
-            .map(|diagnostic| language_diagnostic(source, diagnostic))
-            .collect(),
+    let diagnostics = match parse_with_pipeline_result_options(source, options) {
+        Ok(result) => {
+            let frontend_diagnostics = result.diagnostics;
+            match normalize_family(result.document) {
+                Ok(model) => frontend_diagnostics
+                    .iter()
+                    .chain(normalized_warnings(&model).iter())
+                    .map(|diagnostic| language_diagnostic(source, diagnostic))
+                    .collect(),
+                Err(diagnostic) => frontend_diagnostics
+                    .iter()
+                    .chain(std::iter::once(&diagnostic))
+                    .map(|diagnostic| language_diagnostic(source, diagnostic))
+                    .collect(),
+            }
+        }
         Err(diagnostic) => vec![language_diagnostic(source, &diagnostic)],
     };
 

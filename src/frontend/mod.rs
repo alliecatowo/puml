@@ -18,6 +18,11 @@ impl FrontendResult {
             diagnostics: Vec::new(),
         }
     }
+
+    pub fn with_diagnostics(mut self, diagnostics: Vec<Diagnostic>) -> Self {
+        self.diagnostics = diagnostics;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -83,6 +88,7 @@ pub(crate) struct MappedSpan {
 pub(crate) struct FrontendBuilder {
     source: String,
     mappings: Vec<MappedSpan>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl FrontendBuilder {
@@ -90,6 +96,7 @@ impl FrontendBuilder {
         Self {
             source: String::new(),
             mappings: Vec::new(),
+            diagnostics: Vec::new(),
         }
     }
 
@@ -104,11 +111,16 @@ impl FrontendBuilder {
         });
     }
 
+    pub fn push_diagnostic(&mut self, diagnostic: Diagnostic) {
+        self.diagnostics.push(diagnostic);
+    }
+
     pub fn finish(self) -> FrontendResult {
         FrontendResult::new(
             self.source.trim_end_matches('\n').to_string(),
             SourceMap::new(self.mappings),
         )
+        .with_diagnostics(self.diagnostics)
     }
 }
 

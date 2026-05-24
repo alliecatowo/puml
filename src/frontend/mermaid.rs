@@ -222,12 +222,23 @@ fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Diagnostic> {
             continue;
         }
 
-        if let Some((class_name, fill)) = parse_flowchart_class_def(line) {
+        if let Some((class_name, fill, ignored_attrs)) = parse_flowchart_class_def(line) {
+            if !ignored_attrs.is_empty() {
+                out.push_diagnostic(
+                    Diagnostic::warning(format!(
+                        "[W_MERMAID_STYLE_PARTIAL] mermaid flowchart class `{class_name}` only preserves fill color; ignored attributes: {ignored_attrs}"
+                    ))
+                    .with_span(span),
+                );
+            }
             class_defs.insert(class_name, fill);
             continue;
         }
 
-        if let Some(converted) = adapt_flowchart_style(line, &class_defs) {
+        if let Some((converted, warning)) = adapt_flowchart_style(line, &class_defs, span) {
+            if let Some(warning) = warning {
+                out.push_diagnostic(warning);
+            }
             out.push_line(converted, span);
             continue;
         }
@@ -343,22 +354,34 @@ fn format_flowchart_node_declaration(
     }
 }
 
-fn parse_flowchart_class_def(line: &str) -> Option<(String, String)> {
+fn parse_flowchart_class_def(line: &str) -> Option<(String, String, String)> {
     let rest = line.trim().strip_prefix("classDef ")?;
     let (name, attrs) = rest.split_once(char::is_whitespace)?;
     let fill = parse_mermaid_style_fill(attrs)?;
-    Some((name.trim().to_string(), fill))
+    Some((
+        name.trim().to_string(),
+        fill,
+        ignored_mermaid_style_attrs(attrs),
+    ))
 }
 
 fn adapt_flowchart_style(
     line: &str,
     class_defs: &std::collections::BTreeMap<String, String>,
-) -> Option<String> {
+    span: Span,
+) -> Option<(String, Option<Diagnostic>)> {
     if let Some(rest) = line.trim().strip_prefix("style ") {
         let (id, attrs) = rest.split_once(char::is_whitespace)?;
         let fill = parse_mermaid_style_fill(attrs)?;
         let id = id.trim();
-        return Some(format!("component \"{id}\" as {id} {fill}"));
+        let warning = ignored_mermaid_style_attrs(attrs);
+        let warning = (!warning.is_empty()).then(|| {
+            Diagnostic::warning(format!(
+                "[W_MERMAID_STYLE_PARTIAL] mermaid flowchart style for `{id}` only preserves fill color; ignored attributes: {warning}"
+            ))
+            .with_span(span)
+        });
+        return Some((format!("component \"{id}\" as {id} {fill}"), warning));
     }
     if let Some(rest) = line.trim().strip_prefix("class ") {
         let mut parts = rest.split_ascii_whitespace();
@@ -376,7 +399,7 @@ fn adapt_flowchart_style(
         if lines.is_empty() {
             return None;
         }
-        return Some(lines.join("\n"));
+        return Some((lines.join("\n"), None));
     }
     None
 }
@@ -390,6 +413,16 @@ fn parse_mermaid_style_fill(attrs: &str) -> Option<String> {
             value.starts_with('#') || crate::theme::color::css3_color_to_hex(value).is_some()
         })
         .map(|value| crate::theme::color::resolve_css3_color_or_original(value).unwrap_or_default())
+}
+
+fn ignored_mermaid_style_attrs(attrs: &str) -> String {
+    attrs
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .filter(|part| !part.starts_with("fill:"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Parse a Mermaid flowchart edge: `A --> B`, `A -->|label| B`,

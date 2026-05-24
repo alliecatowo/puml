@@ -759,6 +759,39 @@ fn mermaid_graph_td_flowchart_routes_successfully() {
 }
 
 #[test]
+fn mermaid_flowchart_adapter_warning_reaches_cli_json_diagnostics() {
+    let src = "flowchart LR\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot --> B\n";
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            "--diagnostics",
+            "json",
+            "-",
+        ])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+    let json: Value = serde_json::from_slice(&output).expect("valid json diagnostics");
+
+    assert_eq!(json["schema"], "puml.diagnostics");
+    assert_eq!(json["diagnostics"][0]["severity"], "warning");
+    assert_eq!(json["diagnostics"][0]["code"], "W_MERMAID_STYLE_PARTIAL");
+    assert_eq!(json["diagnostics"][0]["line"], 2);
+    assert_eq!(json["diagnostics"][0]["column"], 1);
+    assert_eq!(
+        json["diagnostics"][0]["snippet"],
+        "classDef hot fill:#fef3c7,stroke:#92400e"
+    );
+}
+
+#[test]
 fn mermaid_alt_else_end_block_now_adapts_successfully() {
     let src = r#"sequenceDiagram
 alt happy path
