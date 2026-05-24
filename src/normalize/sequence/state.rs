@@ -132,18 +132,14 @@ impl SequenceNormalizeState {
                 self.common.legend_position(&pos);
             }
             StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
+            StatementKind::Unknown(line) => reject_unknown_sequence_syntax(stmt.span, &line)?,
+            StatementKind::UnsupportedSyntax(line)
             | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
-                if line.trim() != "---" {
-                    return Err(Diagnostic::error(format!(
-                        "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
-                        line
-                    ))
-                    .with_span(stmt.span));
-                }
+            | StatementKind::CommentLowered(line) => {
+                reject_unsupported_sequence_syntax(stmt.span, &line)?
+            }
+            StatementKind::MalformedSyntax(line) => {
+                reject_malformed_sequence_syntax(stmt.span, &line)?
             }
             _ => {
                 return Err(Diagnostic::error(
@@ -210,4 +206,42 @@ impl SequenceNormalizeState {
         groups::mark_group_content(&mut self.group_stack);
         self.events.push(SequenceEvent { span, kind });
     }
+}
+
+fn reject_unknown_sequence_syntax(span: crate::source::Span, line: &str) -> Result<(), Diagnostic> {
+    if line.trim() == "---" {
+        return Ok(());
+    }
+    Err(
+        Diagnostic::error(format!("[E_PARSE_UNKNOWN] unsupported syntax: `{line}`"))
+            .with_span(span),
+    )
+}
+
+fn reject_unsupported_sequence_syntax(
+    span: crate::source::Span,
+    line: &str,
+) -> Result<(), Diagnostic> {
+    if line.trim() == "---" {
+        return Ok(());
+    }
+    Err(Diagnostic::error(format!(
+        "[E_PARSE_UNSUPPORTED] unsupported syntax: `{line}`"
+    ))
+    .with_span(span))
+}
+
+fn reject_malformed_sequence_syntax(
+    span: crate::source::Span,
+    line: &str,
+) -> Result<(), Diagnostic> {
+    if line.trim() == "---" {
+        return Ok(());
+    }
+    let message = if line.starts_with("[E_") {
+        line.to_string()
+    } else {
+        format!("[E_PARSE_MALFORMED] malformed syntax: `{line}`")
+    };
+    Err(Diagnostic::error(message).with_span(span))
 }

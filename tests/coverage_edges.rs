@@ -1430,6 +1430,38 @@ fn normalize_sequence_ignores_preprocessor_statements_in_ast() {
 }
 
 #[test]
+fn normalize_sequence_preserves_malformed_syntax_diagnostic_code() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 13),
+            kind: puml::ast::StatementKind::MalformedSyntax(
+                "[E_REF_INVALID] malformed ref syntax: `ref over A, B`".to_string(),
+            ),
+        }],
+    };
+
+    let err = normalize::normalize(doc).expect_err("malformed syntax should fail");
+    assert!(err.message.contains("E_REF_INVALID"));
+    assert!(!err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
+fn normalize_sequence_reports_typed_unsupported_syntax() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 6),
+            kind: puml::ast::StatementKind::UnsupportedSyntax("bogus!".to_string()),
+        }],
+    };
+
+    let err = normalize::normalize(doc).expect_err("unsupported syntax should fail");
+    assert!(err.message.contains("E_PARSE_UNSUPPORTED"));
+    assert!(!err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
 fn layout_group_else_separator_and_ref_min_height_are_deterministic() {
     let src = fs::read_to_string(fixture("groups/valid_ref_and_else_rendering.puml"))
         .expect("fixture should load");
