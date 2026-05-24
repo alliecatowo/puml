@@ -8,10 +8,11 @@ use crate::render::relation::{
 use crate::render::svg::escape_text;
 
 use super::class_relation_labels::{relation_label_svg, resolve_relation_endpoint_key};
-use super::{
+use super::class_routing::{
     class_box_anchor_toward_point, class_nudge_label_y, class_port_side_from_box_anchor,
-    class_route_with_row_ports, qualified_row_anchor, ClassEndpointAnchor, ClassNodeBox,
+    class_route_with_row_ports, qualified_row_anchor,
 };
+use super::class_types::{ClassEndpointAnchor, ClassNodeBox};
 
 /// Context passed to `render_class_relations` — groups the many read-only
 /// inputs that the relation-rendering loop needs from `render_class_svg`.

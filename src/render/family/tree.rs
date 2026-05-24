@@ -4,7 +4,9 @@ use crate::render::relation::usecase_dependency_label;
 use crate::render::svg::escape_text;
 use crate::render::text_metrics::{ellipsize_with_dots, wrap_line_by_chars};
 
-use super::{builtin_type_stereotype_label, parse_member_modifiers, parse_visibility_member};
+use super::class_members::{
+    builtin_type_stereotype_label, parse_member_modifiers, parse_visibility_member,
+};
 
 #[derive(Debug, Clone)]
 struct NodeLayout {
