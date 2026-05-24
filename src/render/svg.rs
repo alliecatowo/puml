@@ -1,11 +1,12 @@
 use std::cell::RefCell;
 
-use crate::creole::{decode_unicode_escapes, render_creole_to_svg_tspans, tokenize_creole};
+use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::sprites::{
     bootstrap_icon_sprite, bootstrap_icon_sprites, material_icon_sprite, material_icon_sprites,
     openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at, parse_sprite_ref_at,
     render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
 };
+use crate::text_markup::{decode_unicode_escapes, escape_svg_text};
 
 thread_local! {
     static ACTIVE_SPRITES: RefCell<SpriteRegistry> = const { RefCell::new(SpriteRegistry::new()) };
@@ -385,17 +386,5 @@ pub(crate) fn render_actor_stick_figure(out: &mut String, cx: i32, cy: i32, stro
 }
 
 pub(crate) fn escape_text(input: &str) -> String {
-    let decoded = decode_unicode_escapes(input);
-    let mut escaped = String::with_capacity(decoded.len());
-    for ch in decoded.chars() {
-        match ch {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&#39;"),
-            _ => escaped.push(ch),
-        }
-    }
-    escaped
+    escape_svg_text(input)
 }
