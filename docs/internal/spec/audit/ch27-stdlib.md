@@ -6,15 +6,19 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 
 ## Bundled Stdlib Directory
 
-`ls /Users/allison.coleman/Develop/puml/stdlib/` returns:
+`find stdlib -mindepth 1 -maxdepth 1 -type d | sort` returns:
 
 ```
-awslib14/  azure/  C4/  gcp/  material/  office/  tupadr3/  README.md
+C4/  awslib14/  azure/  gcp/  material/  office/  tupadr3/
 ```
 
-Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised in `src/preproc/includes.rs:139,468` (`process_stdlib_angle_include`) and resolves against `PUML_STDLIB_ROOT` / `--include-root` / a sibling `stdlib/` directory (`includes.rs:494-505`). All angle-bracket includes are forced include-once (`includes.rs:507`).
+Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised in `src/preproc/includes.rs` (`process_stdlib_angle_include`) and resolves against `PUML_STDLIB_ROOT` / `--include-root` / a sibling `stdlib/` directory / the dev/test `CARGO_MANIFEST_DIR/stdlib` fallback. All angle-bracket includes are forced include-once. Import form `!import Lib/Module` resolves through the stdlib root as well.
 
-**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. For example, `stdlib/awslib14/AWSCommon.puml` contains macro stubs like `!procedure AWSIcon($alias, $service, $label="", $descr="")\n  object $label as $alias <<aws-$service>>\n!endprocedure` — the underlying sprite is **not** defined (see ch23: sprite definition is a no-op), so AWS icons render as plain `<<aws-foo>>` stereotyped objects.
+Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility directory for both `!include <awslib/...>` and `!import awslib/...` (`src/preproc/includes.rs`, `tests/fixtures/include/valid_awslib_ec2.puml`, `src/parser/tests.rs`). The direct `awslib14/...` path remains supported for existing fixtures.
+
+**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
+
+**Upstream comparison source:** The official `plantuml/plantuml-stdlib` README currently lists AdaML `[ada]`, Amazon Web Services `[aws]`, Amazon Labs AWS `[awslib]`, Azure `[azure]`, Bootstrap `[bootstrap]`, C4 `[C4]`, Classy `[classy]`, Classy C4 `[classy-c4]`, DomainStory `[DomainStory]`, Edgy `[edgy]`, EIP `[eip]`, Elastic `[elastic]`, GCP `[gcp]`, K8S `[k8s]`, Material `[material, material2, material7]`, Tupadr3 `[tupadr3]`, plus an ArchiMate section below the summary list.
 
 ---
 
@@ -35,9 +39,9 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 
 ### 27.3 Amazon Labs AWS Library [awslib] — 🟡
 **Feature:** `!include <awslib/AWSCommon>` + per-service icon includes (`!include <awslib/Analytics/KinesisDataStreams>`).
-**Status:** 🟡 — folder name is **`awslib14`** (not `awslib`). Provides AWSCommon.puml + Compute, Database, Networking, Security, Storage subfolders. Macros expand to stereotyped `object` calls but sprite icons are inactive (ch23).
-**Evidence:** `stdlib/awslib14/AWSCommon.puml` (macro shims only).
-**Notes:** Spec uses `!include <awslib/...>` — that exact form will fail; users must write `!include <awslib14/...>`.
+**Status:** 🟡 — reachable through the official `awslib` slug via a resolver alias to the bundled `awslib14` directory. Provides AWSCommon.puml + Compute, Database, Networking, Security, Storage subfolders. Macros expand to stereotyped `object` calls; the bundled surface is still a small shim subset rather than the full upstream awslib pack.
+**Evidence:** `stdlib/awslib14/AWSCommon.puml`; `tests/fixtures/include/valid_awslib_ec2.puml` uses `!include <awslib/Compute/EC2>` and `!include <awslib/AWSCommon>`; `src/parser/tests.rs` covers both `!include <awslib/...>` and `!import awslib/...`.
+**Notes:** Direct `!include <awslib14/...>` remains accepted for backwards compatibility, but docs and new tests should prefer the PlantUML slug `awslib`.
 
 ### 27.4 Azure library [azure] — 🟡
 **Feature:** `!include <azure/AzureCommon>` + per-service. Macros + sprites.
@@ -60,7 +64,7 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 **Status:** ❌ — directory **not bundled**.
 
 ### 27.10 Google Material Icons [material] — 🟡
-**Status:** 🟡 — bundled at `stdlib/material/` with ~hundreds of `*.puml` files (e.g. `account_circle.puml`, `analytics.puml`, `api.puml`, `bug_report.puml`, ...). Same caveat: sprite-only — sprites are no-ops, so includes succeed but icons don't render.
+**Status:** 🟡 — bundled at `stdlib/material/` with 52 deterministic shim files (e.g. `account_circle.puml`, `analytics.puml`, `api.puml`, `bug_report.puml`, ...). Sprite includes render through the ch23 sprite path, but the local pack is a small curated subset and does not provide the official `material2` or `material7` slugs.
 
 ### 27.11 Kubernetes [kubernetes] — ❌
 **Status:** ❌ — directory **not bundled**.
@@ -79,10 +83,10 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 
 ### 27.16 GCP library [gcp] — 🟡
 **Status:** 🟡 — bundled at `stdlib/gcp/`. Files: BigQuery, CloudCDN, CloudFunctions, CloudLoadBalancing, CloudSQL, CloudStorage, ComputeEngine, GCPCommon, GKE, IAM.
-**Notes:** Spec uses `[aws]` at §27.16 but the project ships GCP under that slot — these are different libraries; coverage of the **second AWS variant** (`!include <aws/AWSCommon>`) is ❌ (only `awslib14` is bundled).
+**Notes:** Coverage of the separate upstream AWS variant (`!include <aws/...>`) is still ❌; only the awslib compatibility subset is bundled.
 
 ### 27.17 listsprite / listsprites (per-library) — ❌
-**Status:** ❌ — see ch23.
+**Status:** ✅ — see ch23 for `listsprite` / `listsprites` parsing and sprite sheet rendering. Chapter 27 still lacks the stdlib inventory diagram and CLI listing commands.
 
 ---
 
@@ -91,22 +95,22 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 | Library [tag] | Bundled? | Macros work | Icons (sprites) work |
 |---|---|---|---|
 | archimate | ❌ | — | — |
-| awslib (as `awslib14`) | 🟡 (wrong slug) | ✅ | ❌ |
-| azure | ✅ | ✅ | ❌ |
+| awslib (aliased to `awslib14`) | 🟡 | ✅ | 🟡 |
+| azure | ✅ | ✅ | 🟡 |
 | C4 | ✅ | ✅ | N/A (macro-only) |
 | cloudinsight | ❌ | — | — |
 | cloudogu | ❌ | — | — |
 | edgy | ❌ | — | — |
 | elastic | ❌ | — | — |
-| material | ✅ | ✅ | ❌ |
+| material | ✅ | ✅ | ✅ |
 | kubernetes | ❌ | — | — |
 | logos | ❌ | — | — |
-| office | ✅ | ✅ | ❌ |
+| office | ✅ | ✅ | 🟡 |
 | osa | ❌ | — | — |
-| tupadr3 (devicons + fa5) | ✅ | ✅ | ❌ |
-| gcp | ✅ | ✅ | ❌ |
+| tupadr3 (devicons + fa5) | ✅ | ✅ | ✅ |
+| gcp | ✅ | ✅ | 🟡 |
 | aws (second variant §27.16) | ❌ | — | — |
 
-**Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI ❌ · `-extractstdlib` CLI ❌ · `listsprites` ❌ · angle-bracket resolver ✅ · `%get_all_stdlib` ❌ (stub).
+**Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI ❌ · `-extractstdlib` CLI ❌ · `listsprites` ✅ (see ch23) · angle-bracket resolver ✅ · `%get_all_stdlib` ❌ (stub).
 
-**Score:** 7 of 16 listed libraries are at least partially bundled (44%). Because **sprites are inert** (ch23), every icon library is effectively macro-shim-only — diagrams compile but render stereotyped boxes instead of icons. **C4 is the only library that delivers its full intended UX** because it does not depend on sprite rendering.
+**Score:** 7 of the locally tracked 16 library rows are at least partially bundled (44%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Bootstrap, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest to full intended UX because it is mostly macro-based; icon libraries are curated deterministic subsets, not full upstream art packs.

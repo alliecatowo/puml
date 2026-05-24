@@ -22,9 +22,13 @@ C4 architecture diagram library (C4-PlantUML).
 
 ---
 
-## AWS Icons (`awslib14/`)
+## AWS Icons (`awslib14/`, reachable as `awslib/`)
 
 Stub icon macros for Amazon Web Services resources (awslib14 layout).
+The official PlantUML stdlib slug is `awslib`, and PUML maps
+`!include <awslib/...>` / `!import awslib/...` to this bundled `awslib14/`
+compatibility directory. The `awslib14` path is kept as a backwards-compatible
+direct include form for existing fixtures.
 
 ### Compute (`awslib14/Compute/`)
 `EC2`, `Lambda`, `ECS`, `EKS`, `Batch`, `Fargate`
