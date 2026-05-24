@@ -6,6 +6,7 @@ use crate::ast::{DiagramKind, Document, StatementKind};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::model::{FamilyNodeKind, NormalizedDocument, SequenceEventKind};
 use crate::normalize;
+use crate::registry;
 
 pub const METADATA_SCHEMA: &str = "puml.metadata";
 pub const METADATA_SCHEMA_VERSION: u32 = 1;
@@ -119,7 +120,7 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
                 counts.insert("groups".to_string(), family.groups.len());
             }
             (
-                diagram_kind_name(family.kind).to_string(),
+                registry::family_name_by_ast(family.kind).to_string(),
                 family.title.clone(),
                 metadata_warnings(&family.warnings),
                 ast_skinparams(document),
@@ -129,7 +130,7 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
         NormalizedDocument::FamilyPages(pages) => {
             let kind = pages
                 .first()
-                .map(|page| diagram_kind_name(page.kind))
+                .map(|page| registry::family_name_by_ast(page.kind))
                 .unwrap_or("family")
                 .to_string();
             counts.insert("pages".to_string(), pages.len());
@@ -174,7 +175,7 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
                 timeline.chronology_events.len(),
             );
             (
-                diagram_kind_name(timeline.kind).to_string(),
+                registry::family_name_by_ast(timeline.kind).to_string(),
                 timeline.title.clone(),
                 metadata_warnings(&timeline.warnings),
                 ast_skinparams(document),
@@ -368,34 +369,4 @@ fn ast_themes(document: &Document) -> Vec<String> {
             _ => None,
         })
         .collect()
-}
-
-fn diagram_kind_name(kind: DiagramKind) -> &'static str {
-    match kind {
-        DiagramKind::Sequence => "sequence",
-        DiagramKind::Class => "class",
-        DiagramKind::Object => "object",
-        DiagramKind::UseCase => "usecase",
-        DiagramKind::Salt => "salt",
-        DiagramKind::MindMap => "mindmap",
-        DiagramKind::Wbs => "wbs",
-        DiagramKind::Gantt => "gantt",
-        DiagramKind::Chronology => "chronology",
-        DiagramKind::Component => "component",
-        DiagramKind::Deployment => "deployment",
-        DiagramKind::State => "state",
-        DiagramKind::Activity => "activity",
-        DiagramKind::Timing => "timing",
-        DiagramKind::Json => "json",
-        DiagramKind::Yaml => "yaml",
-        DiagramKind::Nwdiag => "nwdiag",
-        DiagramKind::Archimate => "archimate",
-        DiagramKind::Regex => "regex",
-        DiagramKind::Ebnf => "ebnf",
-        DiagramKind::Math => "math",
-        DiagramKind::Sdl => "sdl",
-        DiagramKind::Ditaa => "ditaa",
-        DiagramKind::Chart => "chart",
-        DiagramKind::Unknown => "unknown",
-    }
 }
