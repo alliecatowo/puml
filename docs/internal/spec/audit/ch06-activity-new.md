@@ -112,14 +112,14 @@ See 6.6.2 — backward flattened.
 ### 6.11 Split processing — 🟡
 **Feature:** `split` / `split again` / `end split` for multi-start / multi-end shapes.
 **Status:** 🟡
-**Evidence:** `activity.rs:80-97` aliases split to fork. `end merge` also maps here.
-**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) remains partial. Multi-end branches ending with `kill`/`detach`/`stop`/`end` no longer connect to the synthetic join bar, but true split-specific multi-end topology still needs a richer control-flow model.
+**Evidence:** `activity.rs:80-97` aliases split to fork. `end merge` also maps here. `layout.rs` now suppresses the synthetic `end split` join bar when every split branch terminates with `kill`/`detach`/`stop`/`end`.
+**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) remains partial. Multi-end branches ending with `kill`/`detach`/`stop`/`end` no longer connect to the synthetic join bar, and all-terminal splits no longer draw a false downstream join. Mixed live/terminal splits still share the generic fork layout.
 
 ### 6.12 Notes — 🟡
 **Feature:** `note left:`, `note right`, `floating note`, multi-line `note ... end note`, attached to actions, backward steps, partitions.
 **Status:** 🟡
-**Evidence:** `parse_activity_note_step` (activity.rs:326-349) recognizes `note left/right/top/bottom` and `floating note*` prefixes — but stores the text on a synthetic `Action` step labeled e.g. `"note right: This is a note"`.
-**Notes:** Single-line `note left/right/top/bottom:` directives now preserve side metadata, render as folded note cards beside the previous flow node, and use a dashed connector without consuming a main-flow slot. Multi-line `note ... end note` blocks depend on the shared multiline parser and still need deeper layout polish, especially floating notes and notes on `backward`/`partition`.
+**Evidence:** `parse_activity_note_step` and `parse_activity_multiline_note_block` (activity.rs) recognize `note left/right/top/bottom`, `floating note*`, and `note ... end note` blocks. `normalize/family.rs` preserves note side/floating metadata in activity node aliases. `render/activity/layout.rs` places left/right notes beside the previous flow node, top/bottom notes above or below the anchor, and keeps floating notes out of the main-flow slot. `nodes.rs` sizes note cards from the rendered line count.
+**Notes:** Single-line and multi-line activity notes now render as folded note cards instead of fallback action boxes. Attached notes use dashed connectors; floating notes omit connectors and no longer consume flow arrows. Remaining polish: notes attached to `backward` actions/partitions and richer collision avoidance for dense top/bottom placements.
 
 ### 6.13 Colors (`#red:label;`, gradient) — 🟡
 **Feature:** `#HotPink:label;` per-action background; `#red/white` partition gradient; `#blue\green:` action gradient.
@@ -204,7 +204,7 @@ _Updated 2026-05-21: promoted 6.5 (kill/detach shapes), 6.20 (kill/detach arrow 
 ### Cross-cutting gaps (highest impact)
 1. **Activity arrow styling (6.15)** — no parser for `->`, `-[#blue]->`, `-[#…,dashed]->`, inline arrow labels. Blocks 6.9.3, 6.11 input-split, 6.14, and ch6.22 fidelity.
 2. **Color on actions/partitions (6.13, 6.18.2, 6.19)** — colors are recognized and stripped; rendering ignores them.
-3. **Advanced detach/kill topology (6.11 multi-end)** — linear and fork-branch outgoing arrows are suppressed, but split-specific multi-end topology still uses the generic fork/join layout.
+3. **Advanced detach/kill topology (6.11 multi-end)** — linear/fork branch outgoing arrows are suppressed, and all-terminal splits hide the false join; mixed live/terminal split topology still uses the generic fork layout.
 4. **Loop branch labels become condition text, not edge labels (6.6, 6.9)** — visually misplaced.
 5. **Backward action (6.6.2, 6.9.2)** — flattened to forward action; no back-edge.
 6. **Connectors `(A)` (6.16, 6.17)** — completely missing.

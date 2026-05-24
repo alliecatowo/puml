@@ -211,11 +211,21 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             let cx = layout.cx;
             let y = layout.slot_y;
             match node.kind {
-                FamilyNodeKind::ActivityAction | FamilyNodeKind::Note => Some(arrows::NodeBbox {
+                FamilyNodeKind::ActivityAction => Some(arrows::NodeBbox {
                     left: cx - box_w / 2,
                     top: y + 4,
                     right: cx + box_w / 2,
                     bottom: y + 40,
+                }),
+                FamilyNodeKind::Note => Some(arrows::NodeBbox {
+                    left: cx - box_w / 2,
+                    top: y + 2,
+                    right: cx + box_w / 2,
+                    bottom: y
+                        + 2
+                        + nodes::activity_note_card_height(
+                            node.label.as_deref().unwrap_or_default(),
+                        ),
                 }),
                 FamilyNodeKind::ActivityDecision => Some(arrows::NodeBbox {
                     left: cx - 100,

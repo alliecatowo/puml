@@ -142,7 +142,14 @@ pub(super) fn render_node(
             if !metas[i].note_floating {
                 render_activity_note_connector(out, doc, i, node_layouts, metas, box_w);
             }
-            crate::render::family::render_note_card(out, cx - box_w / 2, y + 2, box_w, 44, &label);
+            crate::render::family::render_note_card(
+                out,
+                cx - box_w / 2,
+                y + 2,
+                box_w,
+                activity_note_card_height(&label),
+                &label,
+            );
         }
         FamilyNodeKind::ActivityDecision => {
             let condition_text = if let Some(idx) = label.find(" / ") {
@@ -178,6 +185,9 @@ pub(super) fn render_node(
                 // ForkAgain nodes are layout bookmarks only; render nothing.
             } else {
                 let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
+                if bar_half <= 0 {
+                    return;
+                }
                 let bar_w = (bar_half * 2).max(box_w);
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
@@ -217,6 +227,11 @@ pub(super) fn render_node(
             ));
         }
     }
+}
+
+pub(super) fn activity_note_card_height(label: &str) -> i32 {
+    let line_count = label.lines().count().max(1) as i32;
+    (28 + line_count * 15).max(44)
 }
 
 // ---------------------------------------------------------------------------
@@ -329,14 +344,22 @@ fn render_activity_note_connector(
     };
     let note = &node_layouts[note_idx];
     let anchor = &node_layouts[anchor_idx];
+    let note_h =
+        activity_note_card_height(doc.nodes[note_idx].label.as_deref().unwrap_or_default());
     let note_left = note.cx - box_w / 2;
     let note_right = note.cx + box_w / 2;
     let note_mid_y = note.slot_y + 24;
     let anchor_mid_y = anchor.slot_y + 22;
-    let (x1, y1, x2, y2) = if note.cx < anchor.cx {
-        (anchor.cx - box_w / 2, anchor_mid_y, note_right, note_mid_y)
-    } else {
-        (anchor.cx + box_w / 2, anchor_mid_y, note_left, note_mid_y)
+    let (x1, y1, x2, y2) = match metas[note_idx].note_side.as_deref() {
+        Some("top") => (
+            anchor.cx,
+            anchor.slot_y + 4,
+            note.cx,
+            note.slot_y + 2 + note_h,
+        ),
+        Some("bottom") => (anchor.cx, anchor.slot_y + 40, note.cx, note.slot_y + 2),
+        _ if note.cx < anchor.cx => (anchor.cx - box_w / 2, anchor_mid_y, note_right, note_mid_y),
+        _ => (anchor.cx + box_w / 2, anchor_mid_y, note_left, note_mid_y),
     };
     out.push_str(&format!(
         "<line class=\"activity-note-connector\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a6d1d\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",

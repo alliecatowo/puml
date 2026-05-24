@@ -20,7 +20,7 @@ fn is_layout_only_control(doc: &FamilyDocument, metas: &[NodeMeta], idx: usize) 
         || step_kind == "EndIf"
         || step_kind == "EndWhile"
         || step_kind == "RepeatStart"
-        || (step_kind == "Note" && !metas[idx].note_floating)
+        || step_kind == "Note"
 }
 
 pub(super) fn compute_hidden_nodes(
