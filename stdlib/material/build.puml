@@ -1,6 +1,10 @@
 ' Deterministic Material build icon stub.
 !include <material/common>
 
-!procedure MA_BUILD($alias, $label="build", $descr="")
-MaterialIcon($alias, build, $label, $descr)
+!procedure MA_BUILD($a, $b=build, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, build, %unquote($e), "")
+!else
+MaterialIcon($a, build, %unquote($b), %unquote($c))
+!endif
 !endprocedure

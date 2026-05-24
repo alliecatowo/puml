@@ -1,6 +1,10 @@
 ' Deterministic Material code icon stub.
 !include <material/common>
 
-!procedure MA_CODE($alias, $label="code", $descr="")
-MaterialIcon($alias, code, $label, $descr)
+!procedure MA_CODE($a, $b=code, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, code, %unquote($e), "")
+!else
+MaterialIcon($a, code, %unquote($b), %unquote($c))
+!endif
 !endprocedure

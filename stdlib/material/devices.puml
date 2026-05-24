@@ -1,6 +1,10 @@
 ' Deterministic Material devices icon stub.
 !include <material/common>
 
-!procedure MA_DEVICES($alias, $label="devices", $descr="")
-MaterialIcon($alias, devices, $label, $descr)
+!procedure MA_DEVICES($a, $b=devices, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, devices, %unquote($e), "")
+!else
+MaterialIcon($a, devices, %unquote($b), %unquote($c))
+!endif
 !endprocedure

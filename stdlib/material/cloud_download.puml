@@ -1,6 +1,10 @@
 ' Deterministic Material cloud_download icon stub.
 !include <material/common>
 
-!procedure MA_CLOUD_DOWNLOAD($alias, $label="cloud_download", $descr="")
-MaterialIcon($alias, cloud_download, $label, $descr)
+!procedure MA_CLOUD_DOWNLOAD($a, $b=cloud_download, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, cloud_download, %unquote($e), "")
+!else
+MaterialIcon($a, cloud_download, %unquote($b), %unquote($c))
+!endif
 !endprocedure

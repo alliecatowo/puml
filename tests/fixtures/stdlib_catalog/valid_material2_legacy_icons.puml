@@ -1,0 +1,8 @@
+@startuml
+!include <material2.1.19/common>
+!include <material2.1.19/folder_move>
+!include <material2/folder>
+MA_FOLDER_MOVE(#1565c0, 1, dir, rectangle, "Moved Folder")
+MA_FOLDER(user_dir, "User Folder")
+dir -> user_dir : shares <$ma_folder_move{scale=2,color=#1565c0}>
+@enduml

@@ -1,6 +1,10 @@
 ' Deterministic Material notifications icon stub.
 !include <material/common>
 
-!procedure MA_NOTIFICATIONS($alias, $label="notifications", $descr="")
-MaterialIcon($alias, notifications, $label, $descr)
+!procedure MA_NOTIFICATIONS($a, $b=notifications, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, notifications, %unquote($e), "")
+!else
+MaterialIcon($a, notifications, %unquote($b), %unquote($c))
+!endif
 !endprocedure

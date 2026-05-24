@@ -12,6 +12,10 @@ sprite $ma_folder [8x8/16] {
 00000000
 }
 
-!procedure MA_FOLDER($alias, $label="folder", $descr="")
-MaterialIcon($alias, folder, $label, $descr)
+!procedure MA_FOLDER($a, $b=folder, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, folder, %unquote($e), "")
+!else
+MaterialIcon($a, folder, %unquote($b), %unquote($c))
+!endif
 !endprocedure

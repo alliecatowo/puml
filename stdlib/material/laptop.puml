@@ -1,6 +1,10 @@
 ' Deterministic Material laptop icon stub.
 !include <material/common>
 
-!procedure MA_LAPTOP($alias, $label="laptop", $descr="")
-MaterialIcon($alias, laptop, $label, $descr)
+!procedure MA_LAPTOP($a, $b=laptop, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, laptop, %unquote($e), "")
+!else
+MaterialIcon($a, laptop, %unquote($b), %unquote($c))
+!endif
 !endprocedure

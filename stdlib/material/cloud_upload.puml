@@ -1,6 +1,10 @@
 ' Deterministic Material cloud_upload icon stub.
 !include <material/common>
 
-!procedure MA_CLOUD_UPLOAD($alias, $label="cloud_upload", $descr="")
-MaterialIcon($alias, cloud_upload, $label, $descr)
+!procedure MA_CLOUD_UPLOAD($a, $b=cloud_upload, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, cloud_upload, %unquote($e), "")
+!else
+MaterialIcon($a, cloud_upload, %unquote($b), %unquote($c))
+!endif
 !endprocedure

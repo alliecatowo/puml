@@ -1,6 +1,10 @@
 ' Deterministic Material schedule icon stub.
 !include <material/common>
 
-!procedure MA_SCHEDULE($alias, $label="schedule", $descr="")
-MaterialIcon($alias, schedule, $label, $descr)
+!procedure MA_SCHEDULE($a, $b=schedule, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, schedule, %unquote($e), "")
+!else
+MaterialIcon($a, schedule, %unquote($b), %unquote($c))
+!endif
 !endprocedure

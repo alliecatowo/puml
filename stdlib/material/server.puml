@@ -1,6 +1,10 @@
 ' Deterministic Material server icon stub.
 !include <material/common>
 
-!procedure MA_SERVER($alias, $label="server", $descr="")
-MaterialIcon($alias, server, $label, $descr)
+!procedure MA_SERVER($a, $b=server, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, server, %unquote($e), "")
+!else
+MaterialIcon($a, server, %unquote($b), %unquote($c))
+!endif
 !endprocedure

@@ -1,6 +1,10 @@
 ' Deterministic Material cached icon stub.
 !include <material/common>
 
-!procedure MA_CACHED($alias, $label="cached", $descr="")
-MaterialIcon($alias, cached, $label, $descr)
+!procedure MA_CACHED($a, $b=cached, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, cached, %unquote($e), "")
+!else
+MaterialIcon($a, cached, %unquote($b), %unquote($c))
+!endif
 !endprocedure

@@ -5,7 +5,7 @@ use std::fs;
 use std::io::Read;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
-use std::path::{Component, PathBuf};
+use std::path::PathBuf;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use sha2::{Digest, Sha256};
@@ -617,7 +617,7 @@ fn parse_stdlib_angle_include_target(
     if path.extension().is_none() {
         path.set_extension("puml");
     }
-    let path = apply_stdlib_path_alias(path);
+    let path = crate::stdlib::apply_stdlib_path_alias(path);
 
     Ok(StdlibAngleIncludeTarget {
         path,
@@ -1385,24 +1385,7 @@ pub(super) fn parse_import_target(raw_target: &str) -> Result<PathBuf, Diagnosti
     if path.extension().is_none() {
         path.set_extension("puml");
     }
-    Ok(apply_stdlib_path_alias(path))
-}
-
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-fn apply_stdlib_path_alias(path: PathBuf) -> PathBuf {
-    let mut components = path.components();
-    let Some(Component::Normal(first)) = components.next() else {
-        return path;
-    };
-    if first != "awslib" {
-        return path;
-    }
-
-    let mut aliased = PathBuf::from("awslib14");
-    for component in components {
-        aliased.push(component.as_os_str());
-    }
-    aliased
+    Ok(crate::stdlib::apply_stdlib_path_alias(path))
 }
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]

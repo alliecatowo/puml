@@ -461,16 +461,19 @@ fn builtin_get_all_stdlib_returns_local_paths_and_awslib_alias() {
 !$stdlib = %get_all_stdlib()
 !$has_alias = %list_contains($stdlib, \"awslib/Compute/EC2.puml\")
 !$has_physical = %list_contains($stdlib, \"awslib14/Compute/EC2.puml\")
+!$has_material2 = %list_contains($stdlib, \"material2.1.19/folder_move.puml\")
 !$count = %count($stdlib)
 A -> B : $has_alias
 A -> B : $has_physical
+A -> B : $has_material2
 A -> B : $count
 @enduml";
     let labels = msg_labels(src);
     assert_eq!(labels[0], "true");
     assert_eq!(labels[1], "true");
+    assert_eq!(labels[2], "true");
     assert!(
-        labels[2].parse::<usize>().unwrap() > 150,
+        labels[3].parse::<usize>().unwrap() > 150,
         "expected bundled stdlib shim inventory plus aliases"
     );
 }

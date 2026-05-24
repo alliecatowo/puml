@@ -1,6 +1,10 @@
 ' Deterministic Material account_circle icon stub.
 !include <material/common>
 
-!procedure MA_ACCOUNT_CIRCLE($alias, $label="account_circle", $descr="")
-MaterialIcon($alias, account_circle, $label, $descr)
+!procedure MA_ACCOUNT_CIRCLE($a, $b=account_circle, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, account_circle, %unquote($e), "")
+!else
+MaterialIcon($a, account_circle, %unquote($b), %unquote($c))
+!endif
 !endprocedure

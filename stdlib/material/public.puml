@@ -1,6 +1,10 @@
 ' Deterministic Material public icon stub.
 !include <material/common>
 
-!procedure MA_PUBLIC($alias, $label="public", $descr="")
-MaterialIcon($alias, public, $label, $descr)
+!procedure MA_PUBLIC($a, $b=public, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, public, %unquote($e), "")
+!else
+MaterialIcon($a, public, %unquote($b), %unquote($c))
+!endif
 !endprocedure

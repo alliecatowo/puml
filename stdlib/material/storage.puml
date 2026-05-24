@@ -1,6 +1,10 @@
 ' Deterministic Material storage icon stub.
 !include <material/common>
 
-!procedure MA_STORAGE($alias, $label="storage", $descr="")
-MaterialIcon($alias, storage, $label, $descr)
+!procedure MA_STORAGE($a, $b=storage, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, storage, %unquote($e), "")
+!else
+MaterialIcon($a, storage, %unquote($b), %unquote($c))
+!endif
 !endprocedure

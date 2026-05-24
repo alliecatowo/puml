@@ -1,6 +1,10 @@
 ' Deterministic Material group icon stub.
 !include <material/common>
 
-!procedure MA_GROUP($alias, $label="group", $descr="")
-MaterialIcon($alias, group, $label, $descr)
+!procedure MA_GROUP($a, $b=group, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, group, %unquote($e), "")
+!else
+MaterialIcon($a, group, %unquote($b), %unquote($c))
+!endif
 !endprocedure

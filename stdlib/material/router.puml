@@ -1,6 +1,10 @@
 ' Deterministic Material router icon stub.
 !include <material/common>
 
-!procedure MA_ROUTER($alias, $label="router", $descr="")
-MaterialIcon($alias, router, $label, $descr)
+!procedure MA_ROUTER($a, $b=router, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, router, %unquote($e), "")
+!else
+MaterialIcon($a, router, %unquote($b), %unquote($c))
+!endif
 !endprocedure

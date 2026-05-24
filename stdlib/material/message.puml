@@ -1,6 +1,10 @@
 ' Deterministic Material message icon stub.
 !include <material/common>
 
-!procedure MA_MESSAGE($alias, $label="message", $descr="")
-MaterialIcon($alias, message, $label, $descr)
+!procedure MA_MESSAGE($a, $b=message, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, message, %unquote($e), "")
+!else
+MaterialIcon($a, message, %unquote($b), %unquote($c))
+!endif
 !endprocedure

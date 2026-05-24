@@ -1,6 +1,10 @@
 ' Deterministic Material email icon stub.
 !include <material/common>
 
-!procedure MA_EMAIL($alias, $label="email", $descr="")
-MaterialIcon($alias, email, $label, $descr)
+!procedure MA_EMAIL($a, $b=email, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, email, %unquote($e), "")
+!else
+MaterialIcon($a, email, %unquote($b), %unquote($c))
+!endif
 !endprocedure

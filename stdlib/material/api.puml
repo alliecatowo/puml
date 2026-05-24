@@ -1,6 +1,10 @@
 ' Deterministic Material api icon stub.
 !include <material/common>
 
-!procedure MA_API($alias, $label="api", $descr="")
-MaterialIcon($alias, api, $label, $descr)
+!procedure MA_API($a, $b=api, $c=, $d=, $e=__PUML_MISSING__)
+!if $e != __PUML_MISSING__
+MaterialIcon($c, api, %unquote($e), "")
+!else
+MaterialIcon($a, api, %unquote($b), %unquote($c))
+!endif
 !endprocedure
