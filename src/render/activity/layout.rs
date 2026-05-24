@@ -163,6 +163,7 @@ struct ForkFrame {
     fork_cx: i32,
     fork_slot_y: i32,
     branch_start_y: i32,
+    is_split: bool,
     branches: Vec<ForkBranch>,
     current_branch: usize,
     fork_again_indices: Vec<usize>,
@@ -368,6 +369,10 @@ pub(super) fn compute_layout(
                     fork_cx: cx,
                     fork_slot_y: slot_y,
                     branch_start_y: next_slot_y,
+                    is_split: doc.nodes[i]
+                        .label
+                        .as_deref()
+                        .is_some_and(|label| label.eq_ignore_ascii_case("split")),
                     branches: vec![ForkBranch {
                         start_node_idx: i + 1,
                         end_next_slot: next_slot_y,
@@ -458,8 +463,21 @@ pub(super) fn compute_layout(
                 let slot_y = max_end;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
+                let live_branch_count = frame
+                    .branches
+                    .iter()
+                    .filter(|branch| {
+                        !branch
+                            .end_node_idx
+                            .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
+                    })
+                    .count();
+                let split_all_terminal = frame.is_split && live_branch_count == 0;
 
                 suppress_prev_arrow.insert(i);
+                if split_all_terminal && i + 1 < metas.len() {
+                    suppress_prev_arrow.insert(i + 1);
+                }
                 node_layouts.push(NodeLayout {
                     cx: fork_cx,
                     slot_y,
@@ -535,7 +553,7 @@ pub(super) fn compute_layout(
                     (lane_w - 24).clamp(60, 110)
                 };
                 fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);
-                fork_bar_half_widths.insert(i, bar_span_half);
+                fork_bar_half_widths.insert(i, if split_all_terminal { 0 } else { bar_span_half });
 
                 current_slot_y = next_slot_y;
             }
@@ -545,7 +563,7 @@ pub(super) fn compute_layout(
                     || meta.step_kind == "PartitionEnd"
                     || meta.step_kind == "Arrow"
                     || meta.step_kind == "OldStyle";
-                if meta.step_kind == "Note" && !meta.note_floating {
+                if meta.step_kind == "Note" {
                     let anchor_idx = previous_activity_flow_node(doc, metas, i);
                     let (slot_y, anchor_cx, anchor_arrow_out_y) = anchor_idx
                         .and_then(|idx| {
@@ -554,21 +572,32 @@ pub(super) fn compute_layout(
                                 .map(|layout| (layout.slot_y, layout.cx, layout.arrow_out_y))
                         })
                         .unwrap_or((current_slot_y, cx, current_slot_y + ARROW_OUT));
+                    let note_h = super::nodes::activity_note_card_height(
+                        doc.nodes[i].label.as_deref().unwrap_or_default(),
+                    );
                     let note_offset = (lane_w / 2).max(140) + 32;
-                    let note_cx = match meta.note_side.as_deref() {
-                        Some("left") => anchor_cx - note_offset,
-                        Some("top") | Some("bottom") | Some("right") | None => {
-                            anchor_cx + note_offset
+                    let (note_cx, note_slot_y, next_slot_y) = match meta.note_side.as_deref() {
+                        Some("left") => (anchor_cx - note_offset, slot_y, current_slot_y),
+                        Some("top") => (
+                            anchor_cx,
+                            (slot_y - note_h - 12).max(header_h),
+                            current_slot_y,
+                        ),
+                        Some("bottom") => {
+                            let y = slot_y + step_h;
+                            (anchor_cx, y, current_slot_y.max(y + note_h + 12))
                         }
-                        Some(_) => anchor_cx + note_offset,
+                        Some("right") | None => (anchor_cx + note_offset, slot_y, current_slot_y),
+                        Some(_) => (anchor_cx + note_offset, slot_y, current_slot_y),
                     };
                     node_layouts.push(NodeLayout {
                         cx: note_cx,
-                        slot_y,
+                        slot_y: note_slot_y,
                         arrow_out_y: anchor_arrow_out_y,
-                        next_slot_y: current_slot_y,
+                        next_slot_y,
                     });
                     suppress_prev_arrow.insert(i);
+                    current_slot_y = next_slot_y;
                 } else if is_partition_marker
                     && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)
                 {
@@ -650,7 +679,7 @@ pub(super) fn is_activity_flow_neutral_node(
             || step_kind == "Arrow"
             || step_kind == "OldStyle"))
         || step_kind == "RepeatStart"
-        || (step_kind == "Note" && !metas[idx].note_floating)
+        || step_kind == "Note"
 }
 
 pub(super) fn previous_activity_flow_node(

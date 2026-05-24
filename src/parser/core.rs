@@ -493,6 +493,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+            if let Some((kind, end_idx)) = parse_activity_multiline_note_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
             if let Some(kind) = parse_activity_step(line) {
                 statements.push(Statement { span, kind });
                 i += 1;

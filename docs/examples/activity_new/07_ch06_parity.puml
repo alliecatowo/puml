@@ -2,13 +2,28 @@
 title Activity New Chapter 6 Parity Slice
 start
 #LightBlue:Collect request;
+note top: request context
 -[#red,dashed]-> reviewed;
 :Review request;
-note right: capture audit evidence
+note right
+capture audit evidence
+include reviewer notes
+end note
+floating note left: out-of-band checklist
 #pink:(A)
 partition #LightYellow Ops {
   :Ship release;
 }
+note bottom: archived release memo
 detach
 :Detached follow-up;
+
+split
+  :terminal detach branch;
+  detach
+split again
+  :terminal kill branch;
+  kill
+end split
+:Post-terminal split follow-up;
 @enduml

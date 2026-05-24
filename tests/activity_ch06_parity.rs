@@ -348,6 +348,79 @@ stop
 }
 
 #[test]
+fn activity_ch06_multiline_and_floating_notes_stay_out_of_main_flow() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+:Prepare release;
+note right
+first evidence line
+second evidence line
+third evidence line
+end note
+floating note left: manual checklist
+:Ship release;
+stop
+@enduml
+"#,
+    )
+    .expect("render multiline and floating activity notes");
+
+    assert!(svg.contains(">first evidence line<"));
+    assert!(svg.contains(">second evidence line<"));
+    assert!(svg.contains(">third evidence line<"));
+    assert!(
+        !svg.contains(">end note<"),
+        "multiline activity note terminator should not render as an action"
+    );
+    assert!(
+        !svg.contains("data-activity-kind=\"OldStyle\""),
+        "multiline note body lines should not become fallback action boxes"
+    );
+    assert_eq!(
+        svg.matches("class=\"activity-note-connector\"").count(),
+        1,
+        "floating notes should not draw attached-note connectors"
+    );
+    assert!(
+        svg.contains("<line x1=\"500\" y1=\"142\" x2=\"500\" y2=\"160\""),
+        "main flow should skip floating note nodes"
+    );
+}
+
+#[test]
+fn activity_ch06_top_and_bottom_notes_place_around_anchor() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+:Prepare;
+note top: top note
+:Review;
+note bottom: bottom note
+:Ship;
+stop
+@enduml
+"#,
+    )
+    .expect("render top and bottom activity notes");
+
+    assert!(svg.contains(">top note<"));
+    assert!(svg.contains(">bottom note<"));
+    assert!(
+        svg.contains(
+            "<line class=\"activity-note-connector\" x1=\"240\" y1=\"104\" x2=\"240\" y2=\"90\""
+        ),
+        "top note connector should be vertical above the anchor"
+    );
+    assert!(
+        svg.contains(
+            "<line class=\"activity-note-connector\" x1=\"240\" y1=\"200\" x2=\"240\" y2=\"222\""
+        ),
+        "bottom note connector should be vertical below the anchor"
+    );
+}
+
+#[test]
 fn activity_ch06_detached_fork_branch_does_not_join() {
     let svg = puml::render_source_to_svg(
         r#"@startuml
@@ -375,6 +448,36 @@ stop
     assert!(
         svg.contains("<line x1=\"584\" y1=\"224\" x2=\"584\" y2=\"326\""),
         "non-terminated fork branches should still connect to the join bar"
+    );
+}
+
+#[test]
+fn activity_ch06_all_terminal_split_hides_synthetic_join() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+split
+  :branch detaches;
+  detach
+split again
+  :branch kills;
+  kill
+end split
+:unreachable follow-up;
+stop
+@enduml
+"#,
+    )
+    .expect("render all-terminal split");
+
+    assert!(svg.contains("data-activity-kind=\"EndFork\""));
+    assert!(
+        !svg.contains("<rect x=\"32\" y=\"326\" width=\"736\" height=\"8\""),
+        "all-terminal split should not render a synthetic join bar"
+    );
+    assert!(
+        !svg.contains("<line x1=\"400\" y1=\"344\" x2=\"400\" y2=\"362\""),
+        "all-terminal split should not connect the hidden join to following actions"
     );
 }
 
