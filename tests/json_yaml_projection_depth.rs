@@ -65,6 +65,11 @@ fn json_nested_maps_arrays_render_depth_metadata_and_geometry() {
         row_text_x(&svg, "data-json-label=\"service: {...}\"", 1),
         50
     );
+    assert!(svg.contains("<line x1=\"36\" y1=\"64\" x2=\"36\" y2=\"80\""));
+    assert!(
+        !svg.contains("<line x1=\"36\" y1=\"56\" x2=\"36\" y2=\"80\""),
+        "root connector should not draw through the blank root key cell"
+    );
     assert_eq!(row_text_x(&svg, "data-json-label=\"[0]: {...}\"", 1), 86);
     assert_eq!(row_text_x(&svg, "data-json-label=\"replicas: 3\"", 1), 104);
     assert_eq!(row_text_x(&svg, "data-json-label=\"replicas: 3\"", 2), 268);
@@ -97,6 +102,11 @@ fn yaml_nested_maps_arrays_render_depth_metadata_and_geometry() {
     assert_eq!(
         row_text_x(&svg, "data-yaml-label=\"service: {...}\"", 1),
         50
+    );
+    assert!(svg.contains("<line x1=\"36\" y1=\"64\" x2=\"36\" y2=\"80\""));
+    assert!(
+        !svg.contains("<line x1=\"36\" y1=\"56\" x2=\"36\" y2=\"80\""),
+        "root connector should not draw through the blank root key cell"
     );
     assert_eq!(
         row_text_x(&svg, "data-yaml-label=\"regions: [...]\"", 1),
