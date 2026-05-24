@@ -24,7 +24,10 @@ pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<S
 }
 
 include!("parser/core.rs");
+include!("parser/directives.rs");
+include!("parser/sprites.rs");
 include!("parser/blocks.rs");
+include!("parser/shared_ident.rs");
 include!("parser/family.rs");
 include!("parser/family_context.rs");
 include!("parser/family_declarations.rs");
@@ -42,5 +45,8 @@ include!("parser/timing.rs");
 include!("parser/state.rs");
 include!("parser/multiline.rs");
 include!("parser/sequence.rs");
+include!("parser/sequence_participants.rs");
+include!("parser/sequence_messages.rs");
+include!("parser/sequence_keywords.rs");
 include!("parser/projection_salt.rs");
 include!("parser/tests.rs");
