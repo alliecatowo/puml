@@ -238,7 +238,6 @@ pub(super) fn class_run_layout(
 
 /// Output of `class_compute_canvas` — the canvas dimensions and node extents
 /// needed to build the SVG header and position projections/labels.
-
 #[allow(clippy::too_many_arguments)] // 10 distinct canvas metrics; a struct would add churn without clarity
 pub(super) fn class_compute_canvas(
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,

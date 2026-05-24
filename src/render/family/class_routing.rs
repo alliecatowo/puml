@@ -141,11 +141,9 @@ pub(super) fn class_nudge_label_y(
     (lx, adjusted_y)
 }
 
-/// Run the hierarchical layout engine and populate `node_boxes` for `render_class_svg`.
-///
-/// Builds `GlNodeSize` / `GlEdgeSpec` inputs for `layout_hierarchical`, runs the
-/// layout, then converts the resulting `(f64, f64)` positions into `ClassNodeBox`
-
+// Run the hierarchical layout engine and populate `node_boxes` for `render_class_svg`.
+// Builds `GlNodeSize` / `GlEdgeSpec` inputs for `layout_hierarchical`, runs the
+// layout, then converts the resulting `(f64, f64)` positions into `ClassNodeBox`.
 fn map_row_anchor_y(
     node: &crate::model::FamilyNode,
     key: &str,
