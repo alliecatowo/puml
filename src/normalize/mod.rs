@@ -20,8 +20,8 @@ use crate::model::{
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
     TimelineConstraint, TimelineDayMarker, TimelineDocument, TimelineMilestone, TimelineNamedDate,
     TimelineNote, TimelineOpenRange, TimelineResourceAllocation, TimelineResourceOffRange,
-    TimelineSeparator, TimelineTask, TimelineTaskPauseRange, VirtualEndpoint, VirtualEndpointKind,
-    VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
+    TimelineSeparator, TimelineTask, TimelineTaskPauseRange, WbsCheckbox, YamlDocument,
+    YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
