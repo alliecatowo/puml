@@ -133,6 +133,41 @@ nwdiag {
     );
 }
 
+#[test]
+fn nwdiag_description_icons_and_multiline_labels_render() {
+    let src = r##"@startnwdiag
+nwdiag {
+  internet [shape = cloud, description = "<&cloud> Internet"];
+  network public {
+    address = "203.0.113.0/24"
+    api [address = "203.0.113.10", description = "<&globe> API\nedge gateway", color = "#ffffff"];
+  }
+  network data {
+    db [address = "10.0.0.20", description = "<&hard-drive> DB<br/>primary", color = "#f8fafc"];
+  }
+  internet -- api;
+}
+@endnwdiag
+"##;
+    let svg = puml::render_source_to_svg(src).expect("render nwdiag icon descriptions");
+
+    assert!(svg.contains("data-creole-sprites=\"true\""));
+    assert!(
+        !svg.contains("&lt;&amp;globe&gt;"),
+        "OpenIconic markers should render as inline sprites, not escaped literal text"
+    );
+    assert!(svg.contains(">edge gateway</text>"));
+    assert!(svg.contains(">primary</text>"));
+    assert!(svg.contains("class=\"nwdiag-address\""));
+
+    let api = svg_node_rect(&svg, "api").expect("api rect");
+    let db = svg_node_rect(&svg, "db").expect("db rect");
+    assert!(
+        api.y < db.y,
+        "multiline nwdiag nodes should preserve multi-network vertical ordering"
+    );
+}
+
 fn fixture(name: &str) -> String {
     format!(
         "{}/tests/fixtures/non_sequence/{name}",

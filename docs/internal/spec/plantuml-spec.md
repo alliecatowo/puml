@@ -44,7 +44,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 10 | Timing | 4 | 12 | 13 | [ch10-timing.md](audit/ch10-timing.md) |
 | 11 | JSON | 7 | 4 | 3 | [ch11-json.md](audit/ch11-json.md) |
 | 12 | YAML | 3 | 1 | 4 | [ch12-yaml.md](audit/ch12-yaml.md) |
-| 13 | nwdiag | 12 | 3 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
+| 13 | nwdiag | 15 | 2 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
 | 14 | Salt (Wireframe) | 12 | 9 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
 | 15 | ArchiMate | 6 | 2 | 1 | [ch15-archimate.md](audit/ch15-archimate.md) |
 | 16 | Gantt | 29 | 5 | 5 | [ch16-gantt.md](audit/ch16-gantt.md) |
@@ -74,7 +74,7 @@ closing implementation work from these notes.
 5. **Use Case** — 15✅/18 (83%).
 6. **JSON** — 7✅/14 (50%). serde_json + block parsing both solid.
 7. **WBS** — 6✅/12 (50%).
-8. **nwdiag** — 11✅/17 (65%). Networks/groups/addresses/peer links solid; global styling and full shape parity still lag.
+8. **nwdiag** — 15✅/19 (79%). Networks/groups/addresses/peer links and inline icon descriptions are solid; global styling and full shape parity still lag.
 9. **Sequence** — 28✅/48 (58%). Strong on participants/arrows/notes/groups/activations/mainframe/aligned-notes/short-arrows/lifeline-strategy; partial on theming and exotic arrows.
 10. **Common Commands** — 9✅/21 (43%).
 11. **Salt (Wireframe)** — 10✅/24 (42%). Wide widget coverage, weakest at Creole-in-cells.
