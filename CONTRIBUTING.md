@@ -66,6 +66,7 @@ Alice -> Bob: Hi
 Before opening a PR:
 
 ```bash
+python3 scripts/check_rust_file_sizes.py   # warning-only authored Rust file size report
 cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --release
