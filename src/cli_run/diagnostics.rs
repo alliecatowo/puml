@@ -179,7 +179,12 @@ pub(super) fn emit_diagnostics_label(
         match output.format {
             DiagnosticsFormat::Human => eprintln!(
                 "{}",
-                render_human_diagnostic_label(&diagnostic, source, output.color_enabled, file_label)
+                render_human_diagnostic_label(
+                    &diagnostic,
+                    source,
+                    output.color_enabled,
+                    file_label
+                )
             ),
             DiagnosticsFormat::Json => {
                 eprintln!("{}", diagnostics_json_payload(vec![diagnostic], source));
