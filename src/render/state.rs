@@ -62,7 +62,7 @@ mod projection;
 use edges::*;
 use labels::*;
 use layout::*;
-use node_render::render_node;
+use node_render::{render_node, NodeEdgeCounts, NodeFrame, RenderNodeContext};
 use nodes::*;
 use projection::{render_state_json_projection, state_projection_layout};
 
@@ -540,6 +540,16 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
+    let render_ctx = RenderNodeContext {
+        state_style,
+        placed: &placed,
+        incoming: &incoming,
+        outgoing: &outgoing,
+        all_transitions: transitions,
+        edge_set: &edge_set,
+        node_kinds: &node_kinds,
+    };
+
     // Draw nodes (composites drawn recursively, children inside parent box)
     for node in nodes {
         // Skip nodes that are rendered as children of a composite
@@ -553,19 +563,17 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             render_node(
                 &mut out,
                 node,
-                p.x,
-                p.y,
-                p.w,
-                p.h,
-                state_style,
-                inc,
-                out_c,
-                &placed,
-                &incoming,
-                &outgoing,
-                transitions,
-                &edge_set,
-                &node_kinds,
+                NodeFrame {
+                    x: p.x,
+                    y: p.y,
+                    w: p.w,
+                    h: p.h,
+                },
+                NodeEdgeCounts {
+                    incoming: inc,
+                    outgoing: out_c,
+                },
+                &render_ctx,
                 &mut occupied_label_bounds,
             );
         }

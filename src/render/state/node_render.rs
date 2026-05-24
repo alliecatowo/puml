@@ -1,23 +1,39 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+pub(super) struct NodeFrame {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct NodeEdgeCounts {
+    pub incoming: usize,
+    pub outgoing: usize,
+}
+
+pub(super) struct RenderNodeContext<'a> {
+    pub state_style: &'a crate::theme::StateStyle,
+    pub placed: &'a std::collections::BTreeMap<String, PlacedNode>,
+    pub incoming: &'a std::collections::BTreeMap<&'a str, usize>,
+    pub outgoing: &'a std::collections::BTreeMap<&'a str, usize>,
+    pub all_transitions: &'a [StateTransition],
+    pub edge_set: &'a std::collections::BTreeSet<(&'a str, &'a str)>,
+    pub node_kinds: &'a std::collections::BTreeMap<&'a str, &'a StateNodeKind>,
+}
+
 pub(super) fn render_node<'a>(
     out: &mut String,
     node: &'a StateNode,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    state_style: &crate::theme::StateStyle,
-    incoming_count: usize,
-    outgoing_count: usize,
-    placed: &std::collections::BTreeMap<String, PlacedNode>,
-    incoming: &std::collections::BTreeMap<&str, usize>,
-    outgoing: &std::collections::BTreeMap<&str, usize>,
-    all_transitions: &'a [StateTransition],
-    edge_set: &std::collections::BTreeSet<(&'a str, &'a str)>,
-    node_kinds: &std::collections::BTreeMap<&'a str, &'a StateNodeKind>,
+    frame: NodeFrame,
+    counts: NodeEdgeCounts,
+    ctx: &RenderNodeContext<'a>,
     occupied_label_bounds: &mut Vec<LabelBounds>,
 ) {
+    let NodeFrame { x, y, w, h } = frame;
+    let state_style = ctx.state_style;
     out.push_str(&format!(
         "<metadata data-state-node=\"{}\" data-state-kind=\"{}\"{} />",
         escape_text(&node.name),
@@ -33,7 +49,7 @@ pub(super) fn render_node<'a>(
             let cx = x + w / 2;
             let cy = y + h / 2;
             let r = 12i32;
-            if incoming_count > 0 && outgoing_count == 0 {
+            if counts.incoming > 0 && counts.outgoing == 0 {
                 // End variant: outer ring + inner dot
                 out.push_str(&format!(
                     "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
@@ -199,12 +215,12 @@ pub(super) fn render_node<'a>(
                     for ri in 0..node.regions.len() - 1 {
                         let prev_right = node.regions[ri]
                             .iter()
-                            .filter_map(|child| placed.get(&child.name))
+                            .filter_map(|child| ctx.placed.get(&child.name))
                             .map(|child| child.x + child.w)
                             .max();
                         let next_left = node.regions[ri + 1]
                             .iter()
-                            .filter_map(|child| placed.get(&child.name))
+                            .filter_map(|child| ctx.placed.get(&child.name))
                             .map(|child| child.x)
                             .min();
                         if let (Some(prev_right), Some(next_left)) = (prev_right, next_left) {
@@ -263,7 +279,8 @@ pub(super) fn render_node<'a>(
                     w: COMPOSITE_PAD_X,
                     h: composite_p.h,
                 };
-                let mut inner_placed: std::collections::BTreeMap<String, PlacedNode> = placed
+                let mut inner_placed: std::collections::BTreeMap<String, PlacedNode> = ctx
+                    .placed
                     .iter()
                     .filter(|(k, _)| k.as_str() != node.name.as_str())
                     .map(|(k, v)| (k.clone(), *v))
@@ -276,21 +293,21 @@ pub(super) fn render_node<'a>(
                 // Draw intra-composite transitions (both endpoints are direct children).
                 // These were skipped in the outer transition loop so they appear above
                 // the composite background rect rather than hidden behind it.
-                for t in all_transitions {
+                for t in ctx.all_transitions {
                     if !child_names.contains(t.from.as_str())
                         || !child_names.contains(t.to.as_str())
                     {
                         continue;
                     }
-                    let from_p = placed.get(&t.from);
-                    let to_p = placed.get(&t.to);
+                    let from_p = ctx.placed.get(&t.from);
+                    let to_p = ctx.placed.get(&t.to);
                     if let (Some(fp), Some(tp)) = (from_p, to_p) {
-                        let has_reverse =
-                            t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                        let has_reverse = t.from != t.to
+                            && ctx.edge_set.contains(&(t.to.as_str(), t.from.as_str()));
                         let (x1, y1, x2, y2) = edge_anchors_for_kinds(
-                            node_kinds.get(t.from.as_str()).copied(),
+                            ctx.node_kinds.get(t.from.as_str()).copied(),
                             fp,
-                            node_kinds.get(t.to.as_str()).copied(),
+                            ctx.node_kinds.get(t.to.as_str()).copied(),
                             tp,
                         );
                         let stroke = escape_text(
@@ -381,25 +398,23 @@ pub(super) fn render_node<'a>(
                 // Draw children recursively
                 for region in &node.regions {
                     for child in region {
-                        if let Some(cp) = placed.get(&child.name) {
-                            let c_inc = *incoming.get(child.name.as_str()).unwrap_or(&0);
-                            let c_out = *outgoing.get(child.name.as_str()).unwrap_or(&0);
+                        if let Some(cp) = ctx.placed.get(&child.name) {
+                            let c_inc = *ctx.incoming.get(child.name.as_str()).unwrap_or(&0);
+                            let c_out = *ctx.outgoing.get(child.name.as_str()).unwrap_or(&0);
                             render_node(
                                 out,
                                 child,
-                                cp.x,
-                                cp.y,
-                                cp.w,
-                                cp.h,
-                                state_style,
-                                c_inc,
-                                c_out,
-                                placed,
-                                incoming,
-                                outgoing,
-                                all_transitions,
-                                edge_set,
-                                node_kinds,
+                                NodeFrame {
+                                    x: cp.x,
+                                    y: cp.y,
+                                    w: cp.w,
+                                    h: cp.h,
+                                },
+                                NodeEdgeCounts {
+                                    incoming: c_inc,
+                                    outgoing: c_out,
+                                },
+                                ctx,
                                 occupied_label_bounds,
                             );
                         }
