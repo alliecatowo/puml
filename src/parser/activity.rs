@@ -501,25 +501,31 @@ fn activity_step_statement(kind: ActivityStepKind, label: Option<String>) -> Sta
 fn parse_activity_note_step(line: &str) -> Option<String> {
     let lower = line.to_ascii_lowercase();
     let prefixes = [
-        "floating note left",
-        "floating note right",
-        "floating note",
-        "note left",
-        "note right",
-        "note top",
-        "note bottom",
+        ("floating note left", "left", true),
+        ("floating note right", "right", true),
+        ("floating note", "right", true),
+        ("note left", "left", false),
+        ("note right", "right", false),
+        ("note top", "top", false),
+        ("note bottom", "bottom", false),
     ];
-    let prefix = prefixes.iter().find(|prefix| lower.starts_with(**prefix))?;
+    let (prefix, side, floating) = prefixes
+        .iter()
+        .find(|(prefix, _, _)| lower.starts_with(*prefix))?;
     let rest = line[prefix.len()..]
         .trim()
         .trim_start_matches(':')
         .trim_end_matches(';')
         .trim();
-    Some(if rest.is_empty() {
+    let text = if rest.is_empty() {
         "note".to_string()
     } else {
         rest.to_string()
-    })
+    };
+    Some(format!(
+        "\x1factivity:note:side={side}:floating={}\x1f{text}",
+        u8::from(*floating)
+    ))
 }
 
 fn parse_activity_if_label(input: &str) -> String {

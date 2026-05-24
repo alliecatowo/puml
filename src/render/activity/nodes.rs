@@ -3,7 +3,7 @@ use crate::render::svg::escape_text;
 use crate::theme::ActivityStyle;
 
 use super::arrows::{emit_activity_arrow, ActivityArrowStyle, NodeBbox};
-use super::layout::{NodeLayout, NodeMeta};
+use super::layout::{previous_activity_flow_node, NodeLayout, NodeMeta};
 
 // ---------------------------------------------------------------------------
 // Pass 2: render nodes (SVG shapes) for one node index
@@ -139,6 +139,9 @@ pub(super) fn render_node(
             }
         }
         FamilyNodeKind::Note => {
+            if !metas[i].note_floating {
+                render_activity_note_connector(out, doc, i, node_layouts, metas, box_w);
+            }
             crate::render::family::render_note_card(out, cx - box_w / 2, y + 2, box_w, 44, &label);
         }
         FamilyNodeKind::ActivityDecision => {
@@ -251,14 +254,8 @@ pub(super) fn emit_predecessor_arrow(
     // Walk back past zero-height partition markers to find the real predecessor
     let mut prev_idx = i - 1;
     while prev_idx > 0 {
-        let prev_kind = &doc.nodes[prev_idx].kind;
-        let prev_step = &metas[prev_idx].step_kind;
-        let is_invisible_control = (matches!(prev_kind, FamilyNodeKind::ActivityPartition)
-            && (prev_step == "PartitionStart"
-                || prev_step == "PartitionEnd"
-                || prev_step == "Arrow"
-                || prev_step == "OldStyle"))
-            || prev_step == "RepeatStart";
+        let is_invisible_control =
+            super::layout::is_activity_flow_neutral_node(doc, metas, prev_idx);
         if !is_invisible_control {
             break;
         }
@@ -317,6 +314,34 @@ pub(super) fn emit_predecessor_arrow(
             emit_activity_arrow(out, from_x, from_y, cx, y, &act_style.arrow_color, bboxes);
         }
     }
+}
+
+fn render_activity_note_connector(
+    out: &mut String,
+    doc: &FamilyDocument,
+    note_idx: usize,
+    node_layouts: &[NodeLayout],
+    metas: &[NodeMeta],
+    box_w: i32,
+) {
+    let Some(anchor_idx) = previous_activity_flow_node(doc, metas, note_idx) else {
+        return;
+    };
+    let note = &node_layouts[note_idx];
+    let anchor = &node_layouts[anchor_idx];
+    let note_left = note.cx - box_w / 2;
+    let note_right = note.cx + box_w / 2;
+    let note_mid_y = note.slot_y + 24;
+    let anchor_mid_y = anchor.slot_y + 22;
+    let (x1, y1, x2, y2) = if note.cx < anchor.cx {
+        (anchor.cx - box_w / 2, anchor_mid_y, note_right, note_mid_y)
+    } else {
+        (anchor.cx + box_w / 2, anchor_mid_y, note_left, note_mid_y)
+    };
+    out.push_str(&format!(
+        "<line class=\"activity-note-connector\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a6d1d\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+        x1, y1, x2, y2
+    ));
 }
 
 fn first_else_guard_for_if<'a>(
