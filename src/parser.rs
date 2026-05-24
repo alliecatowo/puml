@@ -24,6 +24,8 @@ pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<S
 }
 
 include!("parser/core.rs");
+include!("parser/core/blocks.rs");
+include!("parser/core/families.rs");
 include!("parser/directives.rs");
 include!("parser/sprites.rs");
 include!("parser/blocks.rs");
@@ -39,6 +41,8 @@ include!("parser/family_context_tail.rs");
 include!("parser/component_groups.rs");
 include!("parser/detect.rs");
 include!("parser/gantt.rs");
+include!("parser/gantt/tasks.rs");
+include!("parser/gantt/calendar.rs");
 include!("parser/component.rs");
 include!("parser/activity.rs");
 include!("parser/timing.rs");
