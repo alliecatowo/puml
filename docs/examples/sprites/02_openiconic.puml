@@ -1,0 +1,9 @@
+@startuml
+title Built-in OpenIconic SVG icons
+Alice -> Bob : Open <&folder,scale=2,color=#2563eb> project
+Bob --> Alice : Upload &cloud-upload complete
+note over Alice, Bob
+  Built-in MIT OpenIconic paths render as SVG:
+  <&person,scale=2,color=#0f766e> user  <&lock-locked,scale=2,color=#b91c1c> locked
+end note
+@enduml

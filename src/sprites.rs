@@ -6,6 +6,7 @@ use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
 use crate::diagnostic::Diagnostic;
+use crate::openiconic::OPENICONIC_SVG;
 
 const ENCODE_6BIT: &[u8; 64] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_";
 
@@ -48,6 +49,75 @@ pub fn parse_sprite_ref_at(input: &str) -> Option<(SpriteRef, usize)> {
     let consumed = close + 3;
     let parsed = parse_sprite_ref_inner(inner)?;
     Some((parsed, consumed))
+}
+
+pub fn parse_openiconic_ref_at(input: &str) -> Option<(SpriteRef, usize)> {
+    if let Some(rest) = input.strip_prefix("<&") {
+        let close = rest.find('>')?;
+        let inner = &rest[..close];
+        let consumed = close + 3;
+        let mut parsed = parse_sprite_ref_inner(inner)?;
+        parsed.name = normalize_openiconic_name(&parsed.name);
+        return Some((parsed, consumed));
+    }
+
+    let rest = input.strip_prefix('&')?;
+    let name_len = rest
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        .map(char::len_utf8)
+        .sum::<usize>();
+    if name_len == 0 {
+        return None;
+    }
+    let name = normalize_openiconic_name(&rest[..name_len]);
+    if !is_openiconic_icon(&name) {
+        return None;
+    }
+    Some((
+        SpriteRef {
+            name,
+            scale: 1.0,
+            color: None,
+        },
+        name_len + 1,
+    ))
+}
+
+pub fn openiconic_sprite(name: &str) -> Option<SpriteDefinition> {
+    let normalized = normalize_openiconic_name(name);
+    let source = OPENICONIC_SVG
+        .iter()
+        .find_map(|(icon_name, svg)| (*icon_name == normalized).then_some(*svg))?;
+    parse_svg_sprite(&normalized, source).ok()
+}
+
+pub fn openiconic_sprites() -> SpriteRegistry {
+    OPENICONIC_SVG
+        .iter()
+        .filter_map(|(name, svg)| {
+            parse_svg_sprite(name, svg)
+                .ok()
+                .map(|sprite| ((*name).to_string(), sprite))
+        })
+        .collect()
+}
+
+fn is_openiconic_icon(name: &str) -> bool {
+    OPENICONIC_SVG
+        .iter()
+        .any(|(icon_name, _svg)| *icon_name == name)
+}
+
+fn normalize_openiconic_name(raw: &str) -> String {
+    let normalized = normalize_sprite_name(raw)
+        .trim_start_matches('&')
+        .replace('_', "-")
+        .to_ascii_lowercase();
+    normalized
+        .strip_prefix("oi-")
+        .unwrap_or(&normalized)
+        .to_string()
 }
 
 fn parse_sprite_ref_inner(inner: &str) -> Option<SpriteRef> {
@@ -262,11 +332,15 @@ pub fn builtin_sprite(name: &str, seed: &str) -> SpriteDefinition {
 pub fn render_sprite(def: &SpriteDefinition, x: f32, y: f32, reference: &SpriteRef) -> String {
     let scale = reference.scale;
     match &def.kind {
-        SpriteKind::Svg { source } => format!(
-            "<g class=\"puml-sprite puml-sprite-svg\" data-sprite=\"{}\" transform=\"translate({x:.2},{y:.2}) scale({scale:.3})\">{}</g>",
+        SpriteKind::Svg { source } => {
+            let color = reference.color.as_deref().unwrap_or("#111827");
+            format!(
+            "<g class=\"puml-sprite puml-sprite-svg\" data-sprite=\"{}\" transform=\"translate({x:.2},{y:.2}) scale({scale:.3})\" fill=\"{}\">{}</g>",
             escape_attr(&def.name),
+            escape_attr(color),
             source
-        ),
+        )
+        }
         SpriteKind::Monochrome { pixels } => {
             let color = reference.color.as_deref().unwrap_or("#111827");
             let mut out = format!(
@@ -284,7 +358,8 @@ pub fn render_sprite(def: &SpriteDefinition, x: f32, y: f32, reference: &SpriteR
                     if value == 0 {
                         continue;
                     }
-                    let opacity = (value as f32 / (def.gray_levels.saturating_sub(1).max(1) as f32))
+                    let opacity = (value as f32
+                        / (def.gray_levels.saturating_sub(1).max(1) as f32))
                         .clamp(0.0, 1.0);
                     out.push_str(&format!(
                         "<rect x=\"{col}\" y=\"{row}\" width=\"1\" height=\"1\" fill=\"{}\" fill-opacity=\"{opacity:.3}\"/>",
@@ -680,5 +755,27 @@ mod tests {
         assert_eq!(sprite_ref.name, "foo");
         assert!((sprite_ref.scale - 3.4).abs() < f32::EPSILON);
         assert_eq!(sprite_ref.color.as_deref(), Some("orange"));
+    }
+
+    #[test]
+    fn parses_openiconic_references_and_loads_svg_sprites() {
+        let (tag_ref, consumed) =
+            parse_openiconic_ref_at("<&folder,scale=2,color=#2563eb> rest").expect("icon ref");
+        assert_eq!(consumed, "<&folder,scale=2,color=#2563eb>".len());
+        assert_eq!(tag_ref.name, "folder");
+        assert_eq!(tag_ref.scale, 2.0);
+        assert_eq!(tag_ref.color.as_deref(), Some("#2563eb"));
+
+        let (bare_ref, consumed) =
+            parse_openiconic_ref_at("&cloud_upload done").expect("bare icon ref");
+        assert_eq!(consumed, "&cloud_upload".len());
+        assert_eq!(bare_ref.name, "cloud-upload");
+
+        assert!(parse_openiconic_ref_at("&definitely-not-openiconic").is_none());
+
+        let folder = openiconic_sprite("folder").expect("folder icon");
+        assert_eq!((folder.width, folder.height), (8, 8));
+        assert!(matches!(folder.kind, SpriteKind::Svg { .. }));
+        assert_eq!(openiconic_sprites().len(), 223);
     }
 }

@@ -62,7 +62,14 @@ sprite $foo1 {
 **Feature:** Diagnostic diagram that lists every defined sprite.
 **Syntax example:** `@startuml\nlistsprites\n@enduml`
 **Status:** ✅
-**Evidence:** `src/parser/core.rs:64` recognizes `listsprite`/`listsprites`; `src/normalize/family.rs:44` records the request; `src/render/svg.rs:21` renders the sprite sheet; `tests/integration.rs:6996` verifies list output and sprite count metadata.
+**Evidence:** `src/parser/core.rs:64` recognizes `listsprite`/`listsprites`; `src/normalize/family.rs:44` records the request; `src/render/svg.rs:21` renders the sprite sheet with bundled OpenIconic icons plus user-defined sprites; `tests/integration.rs` verifies list output and sprite count metadata.
+
+### 23.8 OpenIconic inline SVG icons — ✅
+**Feature:** PlantUML/OpenIconic-style label icons via `<&name>` and bare `&name`.
+**Syntax example:** `Alice -> Bob : Open <&folder,scale=2,color=#2563eb> then &cloud-upload`
+**Status:** ✅
+**Evidence:** `src/openiconic.rs` vendors all 223 MIT Open Iconic SVG files as generated data; `src/sprites.rs` parses `<&...>` and safe `&name` references and resolves them to SVG sprites; `src/render/svg.rs` renders those icons as inline SVG paths in labels and `listsprites`; `tests/integration.rs` verifies rendered `<path>` output for both syntaxes.
+**Notes:** Open Iconic is MIT licensed by Waybury. The import script is `scripts/import_openiconic.py`, and attribution is recorded in `THIRD_PARTY_NOTICES.md`.
 
 ---
 
@@ -78,5 +85,6 @@ sprite $foo1 {
 | `[WxH/Nz]` encoded form | ✅ |
 | StdLib sprite libraries | ✅ |
 | `listsprites` | ✅ |
+| OpenIconic `<&name>` / `&name` SVG icons | ✅ |
 
-**Score:** 7 ✅ · 0 🟡 · 1 ❌ out of 8 features. The remaining ❌ is the intentionally out-of-scope GUI import helper; renderer and CLI sprite support are now broadly present.
+**Score:** 8 ✅ · 0 🟡 · 1 ❌ out of 9 features. The remaining ❌ is the intentionally out-of-scope GUI import helper; renderer and CLI sprite support are now broadly present.

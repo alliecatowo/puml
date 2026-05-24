@@ -7031,9 +7031,11 @@ listsprites\n\
 @enduml\n";
     let svg = render_source_to_svg(src).expect("compressed sprite should render");
     assert!(svg.contains("data-sprite-list=\"true\""));
-    assert!(svg.contains("data-sprite-count=\"1\""));
+    assert!(svg.contains("data-sprite-count=\"224\""));
     assert!(svg.contains("$printer"));
     assert!(svg.contains("data-sprite=\"printer\""));
+    assert!(svg.contains("$folder"));
+    assert!(svg.contains("data-sprite=\"folder\""));
 }
 
 #[test]
@@ -7058,6 +7060,33 @@ Alice -> Bob : <$ma_folder{scale=2}>\n\
     let svg = render_source_to_svg(src).expect("stdlib sprite should render");
     assert!(svg.contains("data-sprite=\"ma_folder\""));
     assert!(svg.contains("data-sprite-width=\"8\""));
+}
+
+#[test]
+fn openiconic_icons_render_as_inline_svg_paths() {
+    let src = "@startuml\n\
+Alice -> Bob : Open <&folder,scale=2,color=#2563eb> then &cloud-upload\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("OpenIconic icons should render");
+    assert!(svg.contains("data-creole-sprites=\"true\""));
+    assert!(svg.contains("data-sprite=\"folder\""));
+    assert!(svg.contains("data-sprite=\"cloud-upload\""));
+    assert!(svg.contains("puml-sprite-svg"));
+    assert!(svg.contains("fill=\"#2563eb\""));
+    assert!(svg.contains("<path d=\"M0 0v2h8v-1h-5v-1h-3"));
+    assert!(!svg.contains("&lt;&amp;folder"));
+    assert!(!svg.contains("&amp;cloud-upload"));
+}
+
+#[test]
+fn listsprites_includes_bundled_openiconic_icons() {
+    let src = "@startuml\nlistsprites\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("OpenIconic sprite sheet should render");
+    assert!(svg.contains("data-sprite-list=\"true\""));
+    assert!(svg.contains("data-sprite-count=\"223\""));
+    assert!(svg.contains("$folder"));
+    assert!(svg.contains("data-sprite=\"folder\""));
+    assert!(svg.contains("puml-sprite-svg"));
 }
 
 #[test]
@@ -8810,8 +8839,9 @@ XXXX\n\
     assert!(svg.contains("fill=\"#fef9c3\""));
     assert!(svg.contains("fill=\"#fee2e2\""));
     assert!(svg.contains("data-salt-open=\"true\""));
-    assert!(svg.contains("[person]"));
-    assert!(svg.contains("[account-login]"));
+    assert!(svg.contains("data-sprite=\"person\""));
+    assert!(svg.contains("data-sprite=\"account-login\""));
+    assert!(svg.contains("puml-sprite-svg"));
 }
 
 #[test]

@@ -10,6 +10,7 @@ pub mod layout;
 pub mod metadata;
 pub mod model;
 pub mod normalize;
+mod openiconic;
 pub mod parser;
 mod preproc;
 pub mod render;
