@@ -5,7 +5,9 @@ use crate::render::geometry::{compute_edge_anchors_for_direction, pick_port};
 use crate::render::relation::normalize_relation_endpoints;
 use crate::render::svg::escape_text;
 
-use super::{class_nudge_label_y, is_c4_component_kind, ClassNodeBox};
+use super::c4_nodes::is_c4_component_kind;
+use super::class_routing::class_nudge_label_y;
+use super::class_types::ClassNodeBox;
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///

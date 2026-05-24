@@ -1,7 +1,6 @@
-use super::{
-    family_node_label, render_centered_multiline_text, render_family_node_shape,
-    render_node_stereotype_rows,
-};
+use super::class_members::family_node_label;
+use super::family_node_shapes::{render_family_node_shape, render_node_stereotype_rows};
+use super::tree::render_centered_multiline_text;
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::escape_text;
 use crate::theme::{ComponentStyle, ComponentStyleMode};

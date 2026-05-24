@@ -1,7 +1,7 @@
 use crate::model::FamilyGroup;
 use crate::render::svg::escape_text;
 
-use super::ClassNodeBox;
+use super::class_types::ClassNodeBox;
 
 #[derive(Clone, Copy)]
 pub(super) struct ClassGroupFrameRect {
