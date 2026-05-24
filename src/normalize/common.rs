@@ -1,4 +1,7 @@
+use super::family::family_kind_name;
 use super::*;
+use crate::ast::{RawSyntax, RawSyntaxCategory};
+use crate::diagnostic::diagnostic_code;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LegendTextMode {
@@ -116,6 +119,102 @@ pub(super) fn unsupported_pragma_warning(value: &str, span: crate::source::Span)
         value
     ))
     .with_span(span)
+}
+
+pub(super) enum RawSyntaxContext {
+    State,
+    Timeline(DiagramKind),
+    Family(DiagramKind),
+}
+
+pub(super) fn raw_syntax_diagnostic(
+    raw: RawSyntax<'_>,
+    span: crate::source::Span,
+    context: RawSyntaxContext,
+) -> Diagnostic {
+    if matches!(
+        raw.category,
+        RawSyntaxCategory::Unsupported | RawSyntaxCategory::Malformed
+    ) && diagnostic_code(raw.line).is_some()
+    {
+        return Diagnostic::error(raw.line).with_span(span);
+    }
+
+    let diagnostic = match raw.category {
+        RawSyntaxCategory::LegacyUnknown => Diagnostic::error(format!(
+            "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+            raw.line
+        )),
+        RawSyntaxCategory::Unsupported => match context {
+            RawSyntaxContext::State => Diagnostic::error(format!(
+                "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::error(format!(
+                "[E_TIMELINE_UNSUPPORTED_SYNTAX] unsupported {} syntax: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::error(format!(
+                "[E_FAMILY_{}_UNSUPPORTED_SYNTAX] unsupported {} syntax: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
+        RawSyntaxCategory::Deferred => match context {
+            RawSyntaxContext::State => Diagnostic::error(format!(
+                "[E_STATE_DEFERRED_RAW] deferred state diagram syntax was not consumed: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::error(format!(
+                "[E_TIMELINE_DEFERRED_RAW] deferred {} syntax was not consumed: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::error(format!(
+                "[E_FAMILY_{}_DEFERRED_RAW] deferred {} syntax was not consumed: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
+        RawSyntaxCategory::CommentLowered => match context {
+            RawSyntaxContext::State => Diagnostic::error(format!(
+                "[E_STATE_COMMENT_LOWERED] lowered comment is not valid state syntax: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::error(format!(
+                "[E_TIMELINE_COMMENT_LOWERED] lowered comment is not valid {} syntax: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::error(format!(
+                "[E_FAMILY_{}_COMMENT_LOWERED] lowered comment is not valid {} syntax: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
+        RawSyntaxCategory::Malformed => match context {
+            RawSyntaxContext::State => Diagnostic::error(format!(
+                "[E_STATE_MALFORMED_SYNTAX] malformed state diagram syntax: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::error(format!(
+                "[E_TIMELINE_MALFORMED_SYNTAX] malformed {} syntax: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::error(format!(
+                "[E_FAMILY_{}_MALFORMED_SYNTAX] malformed {} syntax: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
+    };
+    diagnostic.with_span(span)
 }
 
 pub(super) fn sort_diagnostics_by_message_and_span(warnings: &mut [Diagnostic]) {

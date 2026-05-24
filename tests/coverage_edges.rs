@@ -1462,6 +1462,118 @@ fn normalize_sequence_reports_typed_unsupported_syntax() {
 }
 
 #[test]
+fn normalize_state_distinguishes_raw_syntax_categories() {
+    for (kind, expected_code) in [
+        (
+            puml::ast::StatementKind::UnsupportedSyntax("fork again".to_string()),
+            "E_STATE_UNSUPPORTED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::MalformedSyntax("state ???".to_string()),
+            "E_STATE_MALFORMED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+            "E_STATE_DEFERRED_RAW",
+        ),
+        (
+            puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
+            "E_STATE_COMMENT_LOWERED",
+        ),
+        (
+            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
+            "E_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::State,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(2, 12),
+                kind,
+            }],
+        };
+
+        let err = normalize_family(doc).expect_err("raw state syntax should fail");
+        assert!(
+            err.message.contains(expected_code),
+            "expected {expected_code}, got {}",
+            err.message
+        );
+        assert_eq!(err.span, Some(Span::new(2, 12)));
+    }
+}
+
+#[test]
+fn normalize_timeline_preserves_coded_unsupported_and_marks_deferred() {
+    let coded = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Gantt,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 12),
+            kind: puml::ast::StatementKind::UnsupportedSyntax(
+                "[E_GANTT_UNSUPPORTED] unsupported gantt baseline syntax: `today is colored`"
+                    .to_string(),
+            ),
+        }],
+    };
+    let err = normalize_family(coded).expect_err("coded unsupported should fail");
+    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
+    assert!(!err.message.contains("E_TIMELINE_UNSUPPORTED_SYNTAX"));
+    assert_eq!(err.span, Some(Span::new(0, 12)));
+
+    let deferred = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Chronology,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+        }],
+    };
+    let err = normalize_family(deferred).expect_err("deferred chronology should fail");
+    assert!(err.message.contains("E_TIMELINE_DEFERRED_RAW"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
+}
+
+#[test]
+fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
+    let malformed = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Component,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(1, 9),
+            kind: puml::ast::StatementKind::MalformedSyntax("component ???".to_string()),
+        }],
+    };
+    let err = normalize_family(malformed).expect_err("malformed component syntax should fail");
+    assert!(err.message.contains("E_FAMILY_COMPONENT_MALFORMED_SYNTAX"));
+    assert_eq!(err.span, Some(Span::new(1, 9)));
+
+    let deferred = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(2, 10),
+            kind: puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+        }],
+    };
+    let err = normalize_family(deferred).expect_err("unconsumed class deferred raw should fail");
+    assert!(err.message.contains("E_FAMILY_CLASS_DEFERRED_RAW"));
+    assert_eq!(err.span, Some(Span::new(2, 10)));
+
+    let salt = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Salt,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 11),
+            kind: puml::ast::StatementKind::DeferredRaw("plain label".to_string()),
+        }],
+    };
+    let model = normalize_family(salt).expect("salt deferred raw remains pass-through");
+    match model {
+        NormalizedDocument::Family(family) => {
+            assert_eq!(family.nodes.len(), 1);
+            assert_eq!(family.nodes[0].name, "SALT_ROW\x1fL:plain label");
+        }
+        other => panic!("expected salt family model, got {other:?}"),
+    }
+}
+
+#[test]
 fn layout_group_else_separator_and_ref_min_height_are_deterministic() {
     let src = fs::read_to_string(fixture("groups/valid_ref_and_else_rendering.puml"))
         .expect("fixture should load");

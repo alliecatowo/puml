@@ -1,5 +1,6 @@
 use super::*;
-use crate::normalize::common::{CommonDirectives, LegendTextMode};
+use crate::ast::RawSyntaxCategory;
+use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
@@ -482,13 +483,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     fill_color: None,
                 });
             }
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line)
-                if family_kind == DiagramKind::Salt =>
-            {
+            kind if family_kind == DiagramKind::Salt && kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                if raw.category == RawSyntaxCategory::Malformed {
+                    return Err(common::raw_syntax_diagnostic(
+                        raw,
+                        stmt.span,
+                        RawSyntaxContext::Family(family_kind),
+                    ));
+                }
+                let line = raw.line;
                 if line.trim() == "---" {
                     continue;
                 }
@@ -505,13 +509,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     fill_color: None,
                 });
             }
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                if raw.category == RawSyntaxCategory::Malformed {
+                    return Err(common::raw_syntax_diagnostic(
+                        raw,
+                        stmt.span,
+                        RawSyntaxContext::Family(family_kind),
+                    ));
+                }
+                let line = raw.line;
                 // Handle `left to right direction` / `top to bottom direction`
-                if let Some(dir) = parse_family_orientation_directive(&line) {
+                if let Some(dir) = parse_family_orientation_directive(line) {
                     orientation = dir;
                     continue;
                 }
@@ -532,11 +541,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     }
                     continue;
                 }
-                return Err(Diagnostic::error(format!(
-                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
-                    line
-                ))
-                .with_span(stmt.span));
+                return Err(common::raw_syntax_diagnostic(
+                    raw,
+                    stmt.span,
+                    RawSyntaxContext::Family(family_kind),
+                ));
             }
             _ => {
                 return Err(Diagnostic::error(format!(

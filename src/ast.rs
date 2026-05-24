@@ -202,7 +202,52 @@ pub enum StatementKind {
     DeferredRaw(String),
     CommentLowered(String),
     MalformedSyntax(String),
+    /// Legacy escape hatch for ASTs constructed before unsupported syntax was
+    /// categorized. New parser code should prefer the typed variants above.
     Unknown(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RawSyntaxCategory {
+    LegacyUnknown,
+    Unsupported,
+    Deferred,
+    CommentLowered,
+    Malformed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawSyntax<'a> {
+    pub category: RawSyntaxCategory,
+    pub line: &'a str,
+}
+
+impl StatementKind {
+    pub fn raw_syntax(&self) -> Option<RawSyntax<'_>> {
+        match self {
+            StatementKind::Unknown(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::LegacyUnknown,
+                line,
+            }),
+            StatementKind::UnsupportedSyntax(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::Unsupported,
+                line,
+            }),
+            StatementKind::DeferredRaw(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::Deferred,
+                line,
+            }),
+            StatementKind::CommentLowered(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::CommentLowered,
+                line,
+            }),
+            StatementKind::MalformedSyntax(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::Malformed,
+                line,
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// A single cell in a `@startsalt` wireframe grid row.

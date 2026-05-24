@@ -1,4 +1,4 @@
-use super::common::{CommonDirectives, LegendTextMode};
+use super::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 use super::*;
 
 mod calendar;
@@ -267,12 +267,13 @@ pub(super) fn normalize_timeline_baseline(
                 "resources footbox" | "resource footbox" => hide_resource_footbox = true,
                 _ => {}
             },
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
-                return Err(Diagnostic::error(line).with_span(stmt.span));
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                return Err(common::raw_syntax_diagnostic(
+                    raw,
+                    stmt.span,
+                    RawSyntaxContext::Timeline(document.kind),
+                ));
             }
             _ => {
                 let family = family::family_kind_name(document.kind);
