@@ -1,3 +1,4 @@
+use super::common::{self, CommonDirectives, LegendTextMode};
 use super::*;
 use crate::model::SequenceParticipantGroup;
 
@@ -86,20 +87,11 @@ pub(super) fn normalize_with_options(
     let mut participant_order: BTreeMap<String, i32> = BTreeMap::new();
     let mut events = Vec::new();
 
-    let mut title = None;
-    let mut header = None;
-    let mut header_align = MetadataHAlign::default();
-    let mut footer = None;
-    let mut footer_align = MetadataHAlign::default();
-    let mut caption = None;
-    let mut legend = None;
+    let mut common = CommonDirectives::default();
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
     let mut style = SequenceStyle::default();
     let mut monochrome_mode = None;
-    let mut scale: Option<ScaleSpec> = None;
-    let mut legend_halign = LegendHAlign::default();
-    let mut legend_valign = LegendVAlign::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut teoz = false;
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
@@ -112,8 +104,6 @@ pub(super) fn normalize_with_options(
     let mut hide_unlinked = false;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
-    let mut mainframe: Option<String> = None;
-
     for stmt in document.statements {
         match stmt.kind {
             StatementKind::SpriteDef(sprite) => {
@@ -125,9 +115,7 @@ pub(super) fn normalize_with_options(
             StatementKind::HideUnlinked => {
                 hide_unlinked = true;
             }
-            StatementKind::Mainframe(title_text) => {
-                mainframe = Some(title_text.clone());
-            }
+            StatementKind::Mainframe(title_text) => common.mainframe(title_text),
             StatementKind::Participant(p) => {
                 mark_group_content(&mut group_stack);
                 let id = p.alias.unwrap_or_else(|| p.name.clone());
@@ -369,55 +357,11 @@ pub(super) fn normalize_with_options(
                     });
                 }
             }
-            StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => {
-                let (align, text) = unpack_metadata_align(v);
-                header_align = align.unwrap_or_default();
-                header = Some(text);
-            }
-            StatementKind::Footer(v) => {
-                let (align, text) = unpack_metadata_align(v);
-                footer_align = align.unwrap_or_default();
-                footer = Some(text);
-            }
-            StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => {
-                // Parse packed "LEGEND_POS:<pos>\n<text>" format emitted by the parser
-                // when a multiline legend block has positioning qualifiers.
-                if let Some(rest) = v.strip_prefix("LEGEND_POS:") {
-                    if let Some(newline_idx) = rest.find('\n') {
-                        let pos = &rest[..newline_idx];
-                        let text = &rest[newline_idx + 1..];
-                        legend = Some(text.to_string());
-                        let lower_pos = pos.to_ascii_lowercase();
-                        for token in lower_pos.split_whitespace() {
-                            match token {
-                                "left" => legend_halign = LegendHAlign::Left,
-                                "right" => legend_halign = LegendHAlign::Right,
-                                "center" => legend_halign = LegendHAlign::Center,
-                                "top" => legend_valign = LegendVAlign::Top,
-                                "bottom" => legend_valign = LegendVAlign::Bottom,
-                                _ => {}
-                            }
-                        }
-                    } else {
-                        // Just position, no text
-                        let lower_pos = rest.to_ascii_lowercase();
-                        for token in lower_pos.split_whitespace() {
-                            match token {
-                                "left" => legend_halign = LegendHAlign::Left,
-                                "right" => legend_halign = LegendHAlign::Right,
-                                "center" => legend_halign = LegendHAlign::Center,
-                                "top" => legend_valign = LegendVAlign::Top,
-                                "bottom" => legend_valign = LegendVAlign::Bottom,
-                                _ => {}
-                            }
-                        }
-                    }
-                } else {
-                    legend = Some(v);
-                }
-            }
+            StatementKind::Title(v) => common.title(v),
+            StatementKind::Header(v) => common.header(v),
+            StatementKind::Footer(v) => common.footer(v),
+            StatementKind::Caption(v) => common.caption(v),
+            StatementKind::Legend(v) => common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::SkinParam { key, value } => {
                 mark_group_content(&mut group_stack);
                 skinparams.push((key.clone(), value.clone()));
@@ -516,22 +460,12 @@ pub(super) fn normalize_with_options(
                         SequenceSkinParamValue::Sepia(enabled),
                     ) => style.sepia = enabled,
                     SequenceSkinParamSupport::UnsupportedValue => {
-                        warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        );
+                        warnings.push(common::unsupported_skinparam_value_warning(
+                            &key, &value, stmt.span,
+                        ));
                     }
                     SequenceSkinParamSupport::UnsupportedKey => {
-                        warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
-                                key
-                            ))
-                            .with_span(stmt.span),
-                        );
+                        warnings.push(common::unsupported_skinparam_warning(&key, stmt.span));
                     }
                 }
             }
@@ -556,13 +490,7 @@ pub(super) fn normalize_with_options(
                 {
                     style.sequence_message_span = false;
                 } else {
-                    warnings.push(
-                        Diagnostic::warning(format!(
-                            "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",
-                            trimmed
-                        ))
-                        .with_span(stmt.span),
-                    );
+                    warnings.push(common::unsupported_pragma_warning(trimmed, stmt.span));
                 }
             }
             StatementKind::Footbox(v) => {
@@ -742,21 +670,11 @@ pub(super) fn normalize_with_options(
             }
             StatementKind::Scale(body) => {
                 mark_group_content(&mut group_stack);
-                scale = parse_scale_spec(&body).or(scale);
+                common.scale(&body);
             }
             StatementKind::LegendPos(pos) => {
                 mark_group_content(&mut group_stack);
-                let lower = pos.to_ascii_lowercase();
-                for token in lower.split_whitespace() {
-                    match token {
-                        "left" => legend_halign = LegendHAlign::Left,
-                        "right" => legend_halign = LegendHAlign::Right,
-                        "center" => legend_halign = LegendHAlign::Center,
-                        "top" => legend_valign = LegendVAlign::Top,
-                        "bottom" => legend_valign = LegendVAlign::Bottom,
-                        _ => {}
-                    }
-                }
+                common.legend_position(&pos);
             }
             StatementKind::ClassDecl(_)
             | StatementKind::ObjectDecl(_)
@@ -922,11 +840,7 @@ pub(super) fn normalize_with_options(
         }
     }
 
-    warnings.sort_by(|a, b| {
-        let sa = a.span.map(|s| s.start).unwrap_or_default();
-        let sb = b.span.map(|s| s.start).unwrap_or_default();
-        (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
-    });
+    common::sort_diagnostics_by_message_and_span(&mut warnings);
 
     if let Some(mode) = monochrome_mode {
         apply_monochrome_to_sequence_style(&mut style, mode);
@@ -937,25 +851,25 @@ pub(super) fn normalize_with_options(
         participant_groups,
         events,
         teoz,
-        title,
-        header,
-        header_align,
-        footer,
-        footer_align,
-        caption,
-        legend,
+        title: common.title,
+        header: common.header,
+        header_align: common.header_align,
+        footer: common.footer,
+        footer_align: common.footer_align,
+        caption: common.caption,
+        legend: common.legend,
         skinparams,
         style,
         footbox_visible,
-        scale,
-        legend_halign,
-        legend_valign,
+        scale: common.scale,
+        legend_halign: common.legend_halign,
+        legend_valign: common.legend_valign,
         warnings,
         hide_unlinked,
         hidden_participants,
         sprites,
         list_sprites,
-        mainframe,
+        mainframe: common.mainframe,
     })
 }
 
@@ -1000,87 +914,6 @@ fn parse_sequence_box_color(token: &str) -> Option<String> {
     }
 
     None
-}
-
-/// Strip the LEGEND_POS prefix from a packed legend value, returning just the text.
-pub(super) fn strip_legend_pos_prefix(v: &str) -> String {
-    if let Some(rest) = v.strip_prefix("LEGEND_POS:") {
-        if let Some(nl) = rest.find('\n') {
-            return rest[nl + 1..].to_string();
-        }
-        return String::new();
-    }
-    v.to_string()
-}
-
-/// Parse a scale body (everything after "scale ").
-/// Supports:
-///   "1.5"          → Factor(1.5)
-///   "2/3"          → Factor(0.666...)
-///   "200 width"    → Width(200)
-///   "200 height"   → Height(200)
-///   "800*600"      → Fixed { width: 800, height: 600 }
-///   "max 800"      → Max(800)
-///   "max 800 width"  → MaxWidth(800)
-///   "max 600 height" → MaxHeight(600)
-///   "max 800*600"    → MaxFixed { width: 800, height: 600 }
-fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
-    let trimmed = body.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let lower = trimmed.to_ascii_lowercase();
-    if let Some(rest) = lower.strip_prefix("max ") {
-        let rest = rest.trim();
-        if let Some(value) = rest.strip_suffix(" width") {
-            let n: u32 = value.trim().parse().ok()?;
-            return Some(ScaleSpec::MaxWidth(n));
-        }
-        if let Some(value) = rest.strip_suffix(" height") {
-            let n: u32 = value.trim().parse().ok()?;
-            return Some(ScaleSpec::MaxHeight(n));
-        }
-        if let Some(idx) = rest.find('*') {
-            let w: u32 = rest[..idx].trim().parse().ok()?;
-            let h: u32 = rest[idx + 1..].trim().parse().ok()?;
-            return Some(ScaleSpec::MaxFixed {
-                width: w,
-                height: h,
-            });
-        }
-        let n: u32 = rest.parse().ok()?;
-        return Some(ScaleSpec::Max(n));
-    }
-    if let Some(value) = lower.strip_suffix(" width") {
-        let n: u32 = value.trim().parse().ok()?;
-        return Some(ScaleSpec::Width(n));
-    }
-    if let Some(value) = lower.strip_suffix(" height") {
-        let n: u32 = value.trim().parse().ok()?;
-        return Some(ScaleSpec::Height(n));
-    }
-    if let Some(idx) = trimmed.find('*') {
-        let w: u32 = trimmed[..idx].trim().parse().ok()?;
-        let h: u32 = trimmed[idx + 1..].trim().parse().ok()?;
-        return Some(ScaleSpec::Fixed {
-            width: w,
-            height: h,
-        });
-    }
-    if let Some(idx) = trimmed.find('/') {
-        let numerator: f64 = trimmed[..idx].trim().parse().ok()?;
-        let denominator: f64 = trimmed[idx + 1..].trim().parse().ok()?;
-        if numerator > 0.0 && denominator > 0.0 {
-            return Some(ScaleSpec::Factor(numerator / denominator));
-        }
-        return None;
-    }
-    let f: f64 = trimmed.parse().ok()?;
-    if f > 0.0 {
-        Some(ScaleSpec::Factor(f))
-    } else {
-        None
-    }
 }
 
 fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
@@ -1771,22 +1604,6 @@ fn validate_autonumber_format(format: &str) -> Result<(), String> {
         return Err("autonumber format must not contain an embedded quote".to_string());
     }
     Ok(())
-}
-
-fn unpack_metadata_align(value: String) -> (Option<MetadataHAlign>, String) {
-    let Some(rest) = value.strip_prefix("METADATA_ALIGN:") else {
-        return (None, value);
-    };
-    let Some((align, text)) = rest.split_once('\n') else {
-        return (None, value);
-    };
-    let align = match align {
-        "left" => MetadataHAlign::Left,
-        "center" => MetadataHAlign::Center,
-        "right" => MetadataHAlign::Right,
-        _ => return (None, value),
-    };
-    (Some(align), text.to_string())
 }
 
 /// Extract `<<stereotype>>` from an alias string like `"myAlias <<person>>"`.

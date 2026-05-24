@@ -1,14 +1,10 @@
 use super::*;
+use crate::normalize::common::{CommonDirectives, LegendTextMode};
 
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
-    let mut title = None;
-    let mut header = None;
-    let mut footer = None;
-    let mut caption = None;
-    let mut legend = None;
-    let mut mainframe = None;
+    let mut common = CommonDirectives::default();
 
     let family_kind = document.kind;
     let mut warnings = Vec::new();
@@ -33,12 +29,12 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             StatementKind::ListSprites => {
                 list_sprites = true;
             }
-            StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => header = Some(v),
-            StatementKind::Footer(v) => footer = Some(v),
-            StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::Mainframe(v) => mainframe = Some(v),
+            StatementKind::Title(v) => common.title(v),
+            StatementKind::Header(v) => common.raw_header(v),
+            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Caption(v) => common.caption(v),
+            StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
+            StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
                 if handle_family_overflow_skinparam(
                     &key,
@@ -399,12 +395,12 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         kind: family_kind,
         nodes,
         relations,
-        title,
-        header,
-        footer,
-        caption,
-        legend,
-        mainframe,
+        title: common.title,
+        header: common.header,
+        footer: common.footer,
+        caption: common.caption,
+        legend: common.legend,
+        mainframe: common.mainframe,
         orientation,
         style,
         family_style,

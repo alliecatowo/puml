@@ -1,3 +1,4 @@
+use super::common::{CommonDirectives, LegendTextMode};
 use super::*;
 
 pub(super) fn normalize_timeline_baseline(
@@ -20,11 +21,7 @@ pub(super) fn normalize_timeline_baseline(
     let mut print_end = None;
     let mut print_start_day = None;
     let mut print_end_day = None;
-    let mut title = None;
-    let mut header = None;
-    let mut footer = None;
-    let mut caption = None;
-    let mut legend = None;
+    let mut common = CommonDirectives::default();
     let mut notes = Vec::new();
     let mut hide_footbox = false;
     let mut hide_resource_names = false;
@@ -223,13 +220,11 @@ pub(super) fn normalize_timeline_baseline(
             StatementKind::ChronologyHappensOn { subject, when } => {
                 chronology_events.push(TimelineChronologyEvent { subject, when })
             }
-            StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => header = Some(v),
-            StatementKind::Footer(v) => footer = Some(v),
-            StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => {
-                legend = Some(sequence::strip_legend_pos_prefix(&v));
-            }
+            StatementKind::Title(v) => common.title(v),
+            StatementKind::Header(v) => common.raw_header(v),
+            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Caption(v) => common.caption(v),
+            StatementKind::Legend(v) => common.legend(v, LegendTextMode::StripPackedPosition),
             StatementKind::Note(note) => {
                 notes.push(TimelineNote {
                     target: note.target.or_else(|| last_task_ref.clone()),
@@ -370,11 +365,11 @@ pub(super) fn normalize_timeline_baseline(
         print_end_day,
         project_start,
         project_start_day,
-        title,
-        header,
-        footer,
-        caption,
-        legend,
+        title: common.title,
+        header: common.header,
+        footer: common.footer,
+        caption: common.caption,
+        legend: common.legend,
         notes,
         hide_footbox,
         hide_resource_names,

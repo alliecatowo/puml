@@ -41,6 +41,7 @@ use crate::theme::{
 
 mod archimate;
 mod chart;
+mod common;
 mod ebnf;
 mod family;
 mod nwdiag;
