@@ -16,6 +16,13 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         ));
     }
 
+    if let Some((start_date, end_date)) = parse_gantt_print_between(trimmed) {
+        return Some(StatementKind::GanttConstraint {
+            subject: "Project".to_string(),
+            kind: "print_between".to_string(),
+            target: format!("{start_date} to {end_date}"),
+        });
+    }
     if let Some((scale, options)) = parse_gantt_scale_directive(trimmed) {
         return Some(StatementKind::GanttConstraint {
             subject: "Project".to_string(),
@@ -431,6 +438,24 @@ fn parse_gantt_scale_directive(line: &str) -> Option<(String, Vec<String>)> {
     let trailing = parts.collect::<Vec<_>>().join(" ");
     let options = (!trailing.is_empty()).then_some(trailing).into_iter().collect();
     Some((normalized.to_string(), options))
+}
+
+fn parse_gantt_print_between(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("print between ")
+        .and_then(|_| trimmed.get("print between ".len()..))?
+        .trim();
+    let lower_rest = rest.to_ascii_lowercase();
+    let sep = " and ";
+    let idx = lower_rest.find(sep)?;
+    let start = rest[..idx].trim();
+    let end = rest[idx + sep.len()..].trim();
+    Some((
+        parse_gantt_date_literal(start)?,
+        parse_gantt_date_literal(end)?,
+    ))
 }
 
 fn parse_gantt_vertical_separator(line: &str) -> Option<(String, String)> {

@@ -18,16 +18,20 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
 fn render_gantt_svg(document: &TimelineDocument) -> String {
     // Extra right padding so the last date-header label (≤10 chars × ~7px + gap) is
     // never clipped by the canvas edge (#485).  80px covers "YYYY-MM-DD" comfortably.
+    let scale_options = parse_gantt_scale_render_options(&document.scale_options);
     let right_pad: i32 = 80;
-    let width: i32 = 800 + right_pad;
     let margin_x: i32 = 32;
     let label_col_w: i32 = 160;
     let bar_height: i32 = 20;
     let row_gap: i32 = 14;
     let header_h: i32 = 28;
     let chart_left: i32 = margin_x + label_col_w + 12;
-    let chart_right: i32 = width - margin_x - right_pad;
-    let chart_w: i32 = chart_right - chart_left;
+    let base_width: i32 = 800 + right_pad;
+    let base_chart_right: i32 = base_width - margin_x - right_pad;
+    let base_chart_w: i32 = base_chart_right - chart_left;
+    let chart_w: i32 = ((base_chart_w as f32) * scale_options.zoom).round() as i32;
+    let chart_right: i32 = chart_left + chart_w;
+    let width: i32 = chart_right + margin_x + right_pad;
 
     let title_h = document
         .title
@@ -62,9 +66,22 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
     if let Some(scale) = &document.scale {
         out.push_str(&format!(
-            "<metadata data-gantt-scale=\"{}\" data-gantt-scale-options=\"{}\"/>",
+            "<metadata data-gantt-scale=\"{}\" data-gantt-scale-options=\"{}\" data-gantt-zoom=\"{}\" data-gantt-calendar-date=\"{}\" data-gantt-week-numbering-start=\"{}\"/>",
             escape_text(scale),
-            escape_text(&document.scale_options.join("; "))
+            escape_text(&document.scale_options.join("; ")),
+            format_gantt_zoom(scale_options.zoom),
+            scale_options.calendar_date,
+            scale_options
+                .week_numbering_start
+                .map(|value| value.to_string())
+                .unwrap_or_default()
+        ));
+    }
+    if let (Some(start), Some(end)) = (&document.print_start, &document.print_end) {
+        out.push_str(&format!(
+            "<metadata data-gantt-print-start=\"{}\" data-gantt-print-end=\"{}\"/>",
+            escape_text(start),
+            escape_text(end)
         ));
     }
     let resource_count = document
@@ -259,7 +276,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         }
     }
 
-    let min_day = document
+    let content_min_day = document
         .project_start_day
         .into_iter()
         .chain(document.tasks.iter().map(|t| t.start_day))
@@ -302,7 +319,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             (gantt_task_key_ref(task), (task.start_day, visual_end))
         })
         .collect();
-    let max_day_exclusive = document
+    let content_max_day_exclusive = document
         .project_start_day
         .map(|d| d.saturating_add(1))
         .into_iter()
@@ -324,9 +341,17 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 .map(|day| day.saturating_add(1))
         }))
         .max()
-        .unwrap_or(min_day.saturating_add(1));
+        .unwrap_or(content_min_day.saturating_add(1));
+    let min_day = document.print_start_day.unwrap_or(content_min_day);
+    let max_day_exclusive = document
+        .print_end_day
+        .map(|day| day.saturating_add(1))
+        .unwrap_or(content_max_day_exclusive)
+        .max(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
-    let date_axis = document.project_start_day.is_some() || min_day > 366;
+    let date_axis = document.project_start_day.is_some()
+        || document.print_start_day.is_some()
+        || content_min_day > 366;
     let tick_offsets = gantt_tick_offsets_for_width(total_days, document.scale.as_deref(), chart_w);
 
     // Axis header bar
@@ -360,7 +385,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 min_day.saturating_add(day_offset),
                 min_day,
                 date_axis,
-                document.scale.as_deref()
+                document.scale.as_deref(),
+                &scale_options
             ))
         ));
     }
@@ -378,6 +404,11 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 task.start_day,
                 task.start_day.saturating_add(task.duration_days.max(1)),
             ));
+        if end_day <= min_day || start_day >= max_day_exclusive {
+            return (chart_left, 0);
+        }
+        let start_day = start_day.max(min_day);
+        let end_day = end_day.min(max_day_exclusive);
         let start_offset = start_day.saturating_sub(min_day);
         let bx = chart_left + ((chart_w as u32 * start_offset) / total_days) as i32;
         let span_days = end_day.saturating_sub(start_day).max(1);
@@ -525,22 +556,32 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             ty = y + bar_height - 6,
             txt = escape_text(&task.name)
         ));
-        let (bx, bw) = bar_geom(task);
         if let (Some(base_start), Some(base_duration)) =
             (task.baseline_start_day, task.baseline_duration_days)
         {
-            let base_offset = base_start.saturating_sub(min_day);
-            let base_x = chart_left + ((chart_w as u32 * base_offset) / total_days) as i32;
-            let base_w = (((chart_w as u32) * base_duration.max(1)) / total_days).max(8) as i32;
-            let (base_x, base_w) = clamp_span_to_chart(base_x, base_w);
-            out.push_str(&format!(
-                "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{start}\" data-gantt-baseline-duration=\"{dur}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
-                start = escape_text(&format_gantt_axis_label(base_start, min_day, true)),
-                dur = base_duration,
-                x = base_x,
-                y = y + bar_height + 3,
-                w = base_w
-            ));
+            let base_end = base_start.saturating_add(base_duration.max(1));
+            if base_end > min_day && base_start < max_day_exclusive {
+                let base_start = base_start.max(min_day);
+                let base_end = base_end.min(max_day_exclusive);
+                let base_offset = base_start.saturating_sub(min_day);
+                let base_x = chart_left + ((chart_w as u32 * base_offset) / total_days) as i32;
+                let base_w = (((chart_w as u32) * base_end.saturating_sub(base_start).max(1))
+                    / total_days)
+                    .max(8) as i32;
+                let (base_x, base_w) = clamp_span_to_chart(base_x, base_w);
+                out.push_str(&format!(
+                    "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{start}\" data-gantt-baseline-duration=\"{dur}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
+                    start = escape_text(&format_gantt_axis_label(base_start, min_day, true)),
+                    dur = base_duration,
+                    x = base_x,
+                    y = y + bar_height + 3,
+                    w = base_w
+                ));
+            }
+        }
+        let (bx, bw) = bar_geom(task);
+        if bw == 0 {
+            continue;
         }
         let resource_load = format_resource_load_metadata(task);
         let critical_class = if task.is_critical {
@@ -970,6 +1011,55 @@ fn timeline_entity_x(
 /// The final tick (last day) is only appended when it is at least
 /// `LABEL_PX` pixels away from the preceding tick; otherwise the two labels
 /// smear together into an unreadable blob (#426).
+#[derive(Clone, Copy)]
+struct GanttScaleRenderOptions {
+    zoom: f32,
+    calendar_date: bool,
+    week_numbering_start: Option<i32>,
+}
+
+fn parse_gantt_scale_render_options(options: &[String]) -> GanttScaleRenderOptions {
+    let mut parsed = GanttScaleRenderOptions {
+        zoom: 1.0,
+        calendar_date: false,
+        week_numbering_start: None,
+    };
+    for option in options {
+        let lower = option.to_ascii_lowercase();
+        if lower.contains("with calendar date") {
+            parsed.calendar_date = true;
+        }
+        let tokens = lower.split_whitespace().collect::<Vec<_>>();
+        for (idx, token) in tokens.iter().enumerate() {
+            if *token == "zoom" {
+                if let Some(value) = tokens.get(idx + 1).and_then(|raw| raw.parse::<f32>().ok()) {
+                    if value.is_finite() && value > 0.0 {
+                        parsed.zoom = value.clamp(0.25, 4.0);
+                    }
+                }
+            }
+            if *token == "numbering" && tokens.get(idx + 1) == Some(&"from") {
+                if let Some(value) = tokens.get(idx + 2).and_then(|raw| raw.parse::<i32>().ok()) {
+                    parsed.week_numbering_start = Some(value);
+                }
+            }
+        }
+    }
+    parsed
+}
+
+fn format_gantt_zoom(zoom: f32) -> String {
+    let rounded = (zoom * 100.0).round() / 100.0;
+    if (rounded.fract()).abs() < f32::EPSILON {
+        format!("{}", rounded as i32)
+    } else {
+        format!("{rounded:.2}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
 fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i32) -> Vec<u32> {
     // Approximate pixel width of a single date label (YYYY-MM-DD + small gap)
     const LABEL_PX: i32 = 72;
@@ -1024,6 +1114,7 @@ fn format_gantt_scale_axis_label(
     min_day: u32,
     date_axis: bool,
     scale: Option<&str>,
+    options: &GanttScaleRenderOptions,
 ) -> String {
     if !date_axis {
         return format_gantt_axis_label(day, min_day, false);
@@ -1032,7 +1123,16 @@ fn format_gantt_scale_axis_label(
         return format_gantt_axis_label(day, min_day, true);
     };
     match scale {
-        Some("weekly") => format!("Wk {iso}"),
+        Some("weekly") => {
+            if let Some(start) = options.week_numbering_start {
+                let week = start + (day.saturating_sub(min_day) / 7) as i32;
+                format!("Week {week}")
+            } else if options.calendar_date {
+                iso
+            } else {
+                format!("Wk {iso}")
+            }
+        }
         Some("monthly") => iso
             .get(0..7)
             .map(format_month_label)

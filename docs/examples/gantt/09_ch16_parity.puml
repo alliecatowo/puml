@@ -1,7 +1,8 @@
 @startgantt
 title Chapter 16 Gantt Parity
 Project starts the 20th of september 2020
-projectscale weekly with calendar date
+Print between 2020-09-20 and 2020-10-03
+projectscale weekly with calendar date zoom 1.4
 hide resources footbox
 saturday are closed
 sunday are closed

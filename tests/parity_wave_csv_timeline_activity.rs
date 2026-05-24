@@ -592,6 +592,89 @@ then [Testing] requires 2 days
 }
 
 #[test]
+fn gantt_print_between_clips_axis_and_zoom_widens_chart() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+Print between 2026-05-05 and 2026-05-12
+printscale daily zoom 2
+[Early] starts 2026-05-01 and requires 2 days
+[Spanning] starts 2026-05-03 and requires 5 days
+[Inside] starts 2026-05-06 and requires 2 days
+[Late] starts 2026-05-20 and requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains(r#"data-gantt-print-start="2026-05-05""#));
+    assert!(svg.contains(r#"data-gantt-print-end="2026-05-12""#));
+    assert!(svg.contains(r#"data-gantt-zoom="2""#));
+    assert!(svg.contains(r#"data-gantt-tick-day="2026-05-05""#));
+    assert!(svg.contains(r#"data-gantt-tick-day="2026-05-12""#));
+    assert!(
+        !svg.contains(r#"data-gantt-start="2026-05-01""#),
+        "tasks ending before the print window should not render a bar"
+    );
+    assert!(
+        !svg.contains(r#"data-gantt-start="2026-05-20""#),
+        "tasks starting after the print window should not render a bar"
+    );
+    assert_eq!(
+        svg.matches(r#"class="gantt-task""#).count(),
+        2,
+        "only the spanning and inside tasks should render visible bars"
+    );
+
+    let (viewbox_w, _) = svg_viewbox_size(&svg).expect("svg should include a viewBox");
+    assert!(
+        viewbox_w > 1200,
+        "zoom 2 should widen the Gantt chart canvas, got viewBox width {viewbox_w}"
+    );
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.print_start.as_deref(), Some("2026-05-05"));
+    assert_eq!(model.print_end.as_deref(), Some("2026-05-12"));
+    assert_eq!(model.scale.as_deref(), Some("daily"));
+    assert_eq!(model.scale_options, vec!["zoom 2"]);
+}
+
+#[test]
+fn gantt_weekly_scale_display_options_affect_tick_labels() {
+    let week_numbering = r#"@startgantt
+Project starts 2026-05-01
+Print between 2026-05-01 and 2026-05-22
+projectscale weekly with week numbering from 3
+[Build] requires 14 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(week_numbering).expect("gantt render");
+    assert!(svg.contains(r#"data-gantt-week-numbering-start="3""#));
+    assert!(svg.contains(">Week 3<"));
+    assert!(svg.contains(">Week 4<"));
+    assert!(
+        !svg.contains(">Wk 2026-05-01<"),
+        "week numbering should replace the default weekly calendar label"
+    );
+
+    let calendar_date = r#"@startgantt
+Project starts 2026-05-01
+Print between 2026-05-01 and 2026-05-22
+ganttscale weekly with calendar date
+[Build] requires 14 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(calendar_date).expect("gantt render");
+    assert!(svg.contains(r#"data-gantt-calendar-date="true""#));
+    assert!(svg.contains(">2026-05-01<"));
+    assert!(
+        !svg.contains(">Wk 2026-05-01<"),
+        "calendar-date mode should render the date without the default Wk prefix"
+    );
+}
+
+#[test]
 fn gantt_ch16_completion_notes_resource_off_and_hide_options_render() {
     let src = r#"@startgantt
 Project starts 2022-06-27
