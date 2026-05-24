@@ -54,8 +54,8 @@ Directive dispatch: `parse_preprocess_directive` at `src/preproc/includes.rs:719
 
 ### 25.12 Builtin functions (`%…`) — ✅
 **Status:** ✅ — broad coverage.
-**Evidence (builtins.rs):** strlen/size (51,53), splitstr (67), splitstr_regex (79), str2json (263), strpos (265), substr (277), intval (294), string (295), boolval (327), true/false (328-329), not (330), lower/upper (331-332), chr (333), dec2hex/hex2dec (343,351), ord (360), random (372), dirpath (399), filename (408), feature (427), get/set_variable_value (429,466), variable_exists (434), function_exists (439), newline (462), invoke_procedure / call_user_func (498), is_dark (562), reverse_color (563), lighten/darken (568-569).
-**Determinism stubs:** `%date %time %now %getenv` deliberately return empty (`builtins.rs:368`); `%random` returns `"0"` (`builtins.rs:372`) — non-deterministic builtins neutralized intentionally (comment at builtins.rs:21).
+**Evidence (builtins.rs):** strlen/size (51,53), splitstr (67), splitstr_regex (79), str2json (263), strpos (265), substr (277), intval (294), string (295), boolval (327), true/false (328-329), not (330), lower/upper (331-332), chr (333), dec2hex/hex2dec (343,351), ord (360), deterministic date/time/now (368-374), random (376), dirpath (403), filename (412), feature (431), get/set_variable_value (433,470), variable_exists (438), function_exists (443), newline (466), invoke_procedure / call_user_func (502), is_dark (566), reverse_color (567), lighten/darken (572-573).
+**Determinism policy:** `%now()` returns deterministic epoch seconds (`0` by default, overrideable with injected `PUML_NOW`), `%date(format, seconds_expr)` and `%time(format)` format that reproducible UTC clock, `%getenv` still returns empty, and `%random` returns `"0"` — non-deterministic builtins neutralized intentionally (comment at `builtins.rs:21`).
 **Missing/stub-only:** `%load_json`, `%file_exists`, `%get_all_theme`, `%hsl_color`, `%reverse_hsluv_color` appear in the unsupported/no-op group. `%get_all_stdlib()` now returns the deterministic local shim inventory rather than the full upstream plantuml-stdlib catalog.
 
 ### 25.13 `!log` — ✅

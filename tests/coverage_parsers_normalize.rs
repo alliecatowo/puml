@@ -445,7 +445,7 @@ A -> B : %retrieve_procedure_return()/%set_variable_value("value", "ignored")
             "true",
             "true",
             "OK",
-            "0/00000000-0000-0000-0000-000000000000/0/0",
+            "0/00000000-0000-0000-0000-000000000000/10/0",
             "/",
         ]
     );

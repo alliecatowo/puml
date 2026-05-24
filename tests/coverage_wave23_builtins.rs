@@ -506,7 +506,7 @@ A -> B : $fr
 
 #[test]
 fn builtin_deterministic_stubs_return_stable_values() {
-    // date/time/getenv return empty → strlen is 0; random returns 0
+    // date/time use the deterministic epoch clock; getenv is empty and random returns 0.
     let src = "@startuml
 !$d = %date()
 !$len_d = %strlen($d)
@@ -515,7 +515,7 @@ A -> B : $len_d
 A -> B : $r
 @enduml";
     let labels = msg_labels(src);
-    assert_eq!(labels[0], "0"); // empty date → length 0
+    assert_eq!(labels[0], "10"); // 1970-01-01
     assert_eq!(labels[1], "0");
 }
 

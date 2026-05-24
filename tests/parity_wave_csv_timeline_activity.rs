@@ -675,6 +675,36 @@ ganttscale weekly with calendar date
 }
 
 #[test]
+fn gantt_date_builtins_and_same_line_start_end_drive_task_span() {
+    let src = r#"@startgantt
+!$project = %date("YYYY-MM-dd", 1782864000)
+!$finish = %date("YYYY-MM-dd", 1783468800)
+Project starts $project
+[Date window] starts D+1 and ends $finish
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains(r#"data-gantt-start="2026-07-02""#));
+    assert!(svg.contains(r#"data-gantt-duration="6""#));
+    assert!(svg.contains("Date window"));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.project_start.as_deref(), Some("2026-07-01"));
+    let task = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Date window")
+        .expect("date-window task");
+    assert_eq!(task.start_day, model.project_start_day.unwrap() + 1);
+    assert_eq!(task.workload_days, 6);
+    assert_eq!(task.duration_days, 6);
+}
+
+#[test]
 fn gantt_ch16_completion_notes_resource_off_and_hide_options_render() {
     let src = r#"@startgantt
 Project starts 2022-06-27

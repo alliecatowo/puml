@@ -309,7 +309,41 @@ fn preprocessor_unsafe_time_env_random_helpers_follow_deterministic_policy() {
     let label = json["statements"][0]["kind"]["Message"]["label"]
         .as_str()
         .unwrap();
-    assert_eq!(label, "date=[] env=[] rand=[0]");
+    assert_eq!(label, "date=[1970-01-01] now=[0] env=[] rand=[0]");
+}
+
+#[test]
+fn preprocessor_date_builtin_formats_deterministic_epoch_and_arithmetic_offsets() {
+    let src = r#"@startuml
+!$now = %now()
+!$project = %date("YYYY-MM-dd", 1782864000)
+!$past = %date("yyyy/MM/dd HH:mm:ss", $now - 14*24*3600)
+A -> B : $project
+A -> B : $past
+@enduml
+"#;
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|stmt| {
+            stmt["kind"]["Message"]["label"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["2026-07-01", "1969/12/18 00:00:00"]);
 }
 
 #[test]

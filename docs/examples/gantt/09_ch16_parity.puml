@@ -1,7 +1,9 @@
 @startgantt
+!$project_start = %date("YYYY-MM-dd", 1600560000)
+!$print_end = %date("YYYY-MM-dd", 1601683200)
 title Chapter 16 Gantt Parity
-Project starts the 20th of september 2020
-Print between 2020-09-20 and 2020-10-03
+Project starts $project_start
+Print between $project_start and $print_end
 projectscale weekly with calendar date zoom 1.4
 hide resources footbox
 saturday are closed
