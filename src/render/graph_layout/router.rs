@@ -1,10 +1,18 @@
-use super::{EdgeSpec, NodeSize};
+use super::NodeSize;
 use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_SPACING,
-    MAX_TRACKS, PKG_HEADER_ROUTING_CLEARANCE, TRACK_SPACING,
 };
-use crate::render_core::{Point, Rect, RouteChannel, Segment};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+
+mod channels;
+mod contract;
+mod obstacles;
+
+use channels::{build_route_channels, RouteChannelBuildInput};
+#[cfg(test)]
+pub(super) use contract::RouteOptions;
+pub(super) use contract::{route_edges, ChannelRouter, RouteRequest, Router, RoutingResult};
+use obstacles::{detour_x_for_vertical_route, vertical_route_crosses_node, VerticalRouteCheck};
 
 //
 // Algorithm:
@@ -19,69 +27,6 @@ use std::collections::{BTreeMap, BTreeSet};
 //   d. Same-rank edges use a U-shape: down into channel BELOW the rank,
 //      horizontal, then back up.
 // ─────────────────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, PartialEq)]
-pub(super) struct RouteOptions {
-    pub track_spacing: f64,
-    pub max_tracks: usize,
-    pub package_header_clearance: f64,
-}
-
-impl Default for RouteOptions {
-    fn default() -> Self {
-        Self {
-            track_spacing: TRACK_SPACING,
-            max_tracks: MAX_TRACKS,
-            package_header_clearance: PKG_HEADER_ROUTING_CLEARANCE,
-        }
-    }
-}
-
-pub(super) struct RouteRequest<'a> {
-    pub nodes: &'a [NodeSize],
-    pub edges: &'a [EdgeSpec],
-    pub positions: &'a BTreeMap<String, (f64, f64)>,
-    pub reversed_edges: &'a BTreeSet<String>,
-    pub group_bounds: &'a BTreeMap<String, (f64, f64, f64, f64)>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(super) struct RoutingResult {
-    pub edge_paths: BTreeMap<String, Vec<(f64, f64)>>,
-    pub route_channels: BTreeMap<String, RouteChannel>,
-}
-
-pub(super) trait Router {
-    fn route(&self, request: RouteRequest<'_>) -> RoutingResult;
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(super) struct ChannelRouter {
-    options: RouteOptions,
-}
-
-impl ChannelRouter {
-    #[cfg(test)]
-    pub(super) fn new(options: RouteOptions) -> Self {
-        Self { options }
-    }
-}
-
-pub(super) fn route_edges(
-    nodes: &[NodeSize],
-    edges: &[EdgeSpec],
-    positions: &BTreeMap<String, (f64, f64)>,
-    reversed_edges: &BTreeSet<String>,
-    group_bounds: &BTreeMap<String, (f64, f64, f64, f64)>,
-) -> RoutingResult {
-    ChannelRouter::default().route(RouteRequest {
-        nodes,
-        edges,
-        positions,
-        reversed_edges,
-        group_bounds,
-    })
-}
 
 impl Router for ChannelRouter {
     fn route(&self, request: RouteRequest<'_>) -> RoutingResult {
@@ -647,153 +592,6 @@ impl Router for ChannelRouter {
             }),
         }
     }
-}
-
-struct RouteChannelBuildInput<'a, ChannelMidY, SymmetricOffset>
-where
-    ChannelMidY: Fn(usize) -> f64,
-    SymmetricOffset: Fn(usize, usize) -> f64,
-{
-    channel_max_track: &'a BTreeMap<usize, usize>,
-    positions: &'a BTreeMap<String, (f64, f64)>,
-    nodes: &'a [NodeSize],
-    group_bounds: &'a BTreeMap<String, (f64, f64, f64, f64)>,
-    rank_bottom_y: &'a BTreeMap<usize, f64>,
-    rank_top_y: &'a BTreeMap<usize, f64>,
-    channel_mid_y: &'a ChannelMidY,
-    symmetric_offset: &'a SymmetricOffset,
-    track_spacing: f64,
-}
-
-fn build_route_channels<ChannelMidY, SymmetricOffset>(
-    input: RouteChannelBuildInput<'_, ChannelMidY, SymmetricOffset>,
-) -> BTreeMap<String, RouteChannel>
-where
-    ChannelMidY: Fn(usize) -> f64,
-    SymmetricOffset: Fn(usize, usize) -> f64,
-{
-    let (min_x, max_x) = route_channel_x_bounds(input.positions, input.nodes, input.group_bounds);
-    let mut route_channels = BTreeMap::new();
-    for (&upper_rank, &max_track) in input.channel_max_track {
-        let bot = input.rank_bottom_y.get(&upper_rank).copied().unwrap_or(0.0);
-        let next_top = input
-            .rank_top_y
-            .get(&(upper_rank + 1))
-            .copied()
-            .unwrap_or(bot + 80.0);
-        let gap_height = (next_top - bot).max(input.track_spacing);
-        for track in 0..=max_track {
-            let id = route_channel_id(upper_rank, track);
-            let center_y =
-                (input.channel_mid_y)(upper_rank) + (input.symmetric_offset)(upper_rank, track);
-            let bounds = Rect::new(
-                min_x,
-                center_y - input.track_spacing / 2.0,
-                max_x - min_x,
-                input.track_spacing.min(gap_height),
-            );
-            route_channels.insert(id.clone(), RouteChannel { id, bounds });
-        }
-    }
-    route_channels
-}
-
-fn route_channel_id(upper_rank: usize, track: usize) -> String {
-    format!("rank:{upper_rank}:track:{track}")
-}
-
-fn route_channel_x_bounds(
-    positions: &BTreeMap<String, (f64, f64)>,
-    nodes: &[NodeSize],
-    group_bounds: &BTreeMap<String, (f64, f64, f64, f64)>,
-) -> (f64, f64) {
-    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
-    let mut min_x = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    for (node_id, &(x, _)) in positions {
-        let width = node_by_id
-            .get(node_id.as_str())
-            .map(|node| node.width)
-            .unwrap_or(COMPONENT_BOX_WIDTH as f64);
-        min_x = min_x.min(x);
-        max_x = max_x.max(x + width);
-    }
-    for &(x, _, width, _) in group_bounds.values() {
-        min_x = min_x.min(x);
-        max_x = max_x.max(x + width);
-    }
-    if min_x.is_finite() && max_x.is_finite() && max_x > min_x {
-        (min_x, max_x)
-    } else {
-        (0.0, 0.0)
-    }
-}
-
-#[derive(Clone, Copy)]
-struct VerticalRouteCheck<'a> {
-    x: f64,
-    y1: f64,
-    y2: f64,
-    source_id: &'a str,
-    target_id: &'a str,
-    nodes: &'a [NodeSize],
-    positions: &'a BTreeMap<String, (f64, f64)>,
-}
-
-fn vertical_route_crosses_node(check: VerticalRouteCheck<'_>) -> bool {
-    let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
-    check.nodes.iter().any(|node| {
-        node.id != check.source_id
-            && node.id != check.target_id
-            && node_rect(node, check.positions)
-                .is_some_and(|rect| segment_crosses_rect(route, rect))
-    })
-}
-
-fn detour_x_for_vertical_route(check: VerticalRouteCheck<'_>, clearance: f64) -> f64 {
-    let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
-    check
-        .nodes
-        .iter()
-        .filter(|node| node.id != check.source_id && node.id != check.target_id)
-        .filter_map(|node| node_rect(node, check.positions))
-        .filter(|rect| segment_crosses_rect(route, *rect))
-        .map(|rect| rect.max_x() + clearance)
-        .fold(check.x + clearance, f64::max)
-}
-
-fn node_rect(node: &NodeSize, positions: &BTreeMap<String, (f64, f64)>) -> Option<Rect> {
-    let &(x, y) = positions.get(&node.id)?;
-    Some(Rect::new(x, y, node.width, node.height))
-}
-
-fn segment_crosses_rect(segment: Segment, rect: Rect) -> bool {
-    if !segment.bounds().intersects(rect) {
-        return false;
-    }
-    let min_x = rect.min_x();
-    let max_x = rect.max_x();
-    let min_y = rect.min_y();
-    let max_y = rect.max_y();
-    if segment.is_vertical() {
-        return segment.start.x > min_x
-            && segment.start.x < max_x
-            && ranges_overlap(segment.start.y, segment.end.y, min_y, max_y);
-    }
-    if segment.is_horizontal() {
-        return segment.start.y > min_y
-            && segment.start.y < max_y
-            && ranges_overlap(segment.start.x, segment.end.x, min_x, max_x);
-    }
-    rect.contains_point(segment.start) || rect.contains_point(segment.end)
-}
-
-fn ranges_overlap(a: f64, b: f64, c: f64, d: f64) -> bool {
-    let a_min = a.min(b);
-    let a_max = a.max(b);
-    let c_min = c.min(d);
-    let c_max = c.max(d);
-    a_min < c_max && c_min < a_max
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
