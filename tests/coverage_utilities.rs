@@ -345,6 +345,31 @@ fn mermaid_flowchart_style_warnings_survive_parse_pipeline() {
 }
 
 #[test]
+fn mermaid_state_deferred_construct_reports_typed_warning() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "stateDiagram-v2\n[*] --> Open\nnote right of Open: deferred note\n";
+
+    let result = parse_with_pipeline_result_options(source, &options)
+        .expect("unsupported Mermaid state note should remain non-fatal");
+
+    assert_eq!(result.diagnostics.len(), 1);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(
+        diagnostic_code(&diagnostic.message).as_deref(),
+        Some("W_MERMAID_STATE_DEFERRED")
+    );
+    assert_eq!(diagnostic.line_col(source), Some((3, 1)));
+    assert!(!result.document.statements.is_empty());
+}
+
+#[test]
 fn mermaid_flowchart_comment_lowering_reports_original_source_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
