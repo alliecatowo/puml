@@ -1,7 +1,24 @@
 use puml::render_core::{
-    validate::GeometryMetric, Anchor, GeometryIssue, LabelBox, LabelRole, NodeBox, Point, Polyline,
-    Port, PortSide, Rect, RenderScene, SceneEdge, SceneNode,
+    validate::GeometryMetric, Anchor, BackendCapability, BackendFormat, GeometryIssue, LabelBox,
+    LabelRole, NodeBox, Point, Polyline, Port, PortSide, Rect, RenderBackend, RenderScene,
+    SceneEdge, SceneNode, SvgBackend,
 };
+
+#[test]
+fn svg_backend_contract_reports_capabilities_and_formats() {
+    let backend = SvgBackend;
+    let descriptor = backend.descriptor();
+
+    assert_eq!(descriptor.id, "svg");
+    assert_eq!(descriptor.primary_format, BackendFormat::Svg);
+    assert_eq!(BackendFormat::Svg.extension(), "svg");
+    assert_eq!(BackendFormat::Png.media_type(), "image/png");
+    assert!(backend.supports_format(BackendFormat::Svg));
+    assert!(backend.supports_format(BackendFormat::Png));
+    assert!(descriptor.has_capability(BackendCapability::VectorOutput));
+    assert!(descriptor.has_capability(BackendCapability::RasterExport));
+    assert!(descriptor.has_capability(BackendCapability::Metadata));
+}
 
 #[test]
 fn typed_scene_reports_labels_outside_viewport_without_svg_scraping() {
@@ -170,6 +187,23 @@ fn typed_scene_reports_detached_edge_endpoint() {
         ),
         "expected one detached endpoint issue, got {issues:?}"
     );
+}
+
+#[test]
+fn backend_metadata_lookup_does_not_change_public_svg_render() {
+    let source = r#"
+@startuml
+Alice -> Bob : hello
+@enduml
+"#;
+
+    let before = puml::render_source_to_svg(source).expect("sequence render should succeed");
+    assert!(SvgBackend.supports_format(BackendFormat::Svg));
+    let after = puml::render_source_to_svg(source).expect("sequence render should still succeed");
+
+    assert_eq!(before, after);
+    assert!(after.contains("<svg"));
+    assert!(after.contains("hello"));
 }
 
 #[test]

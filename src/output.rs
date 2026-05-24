@@ -1,4 +1,5 @@
 use crate::render::TextOutputMode;
+use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 
 #[cfg(feature = "cli")]
 use image::ImageEncoder as _;
@@ -34,10 +35,20 @@ impl OutputFormat {
     }
 
     pub fn uses_svg_renderer(self) -> bool {
-        matches!(
-            self,
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf
-        )
+        self.backend_format()
+            .is_some_and(|format| SvgBackend.supports_format(format))
+    }
+
+    pub fn backend_format(self) -> Option<BackendFormat> {
+        match self {
+            Self::Svg => Some(BackendFormat::Svg),
+            Self::Html => Some(BackendFormat::Html),
+            Self::Png => Some(BackendFormat::Png),
+            Self::Jpg => Some(BackendFormat::Jpg),
+            Self::Webp => Some(BackendFormat::Webp),
+            Self::Pdf => Some(BackendFormat::Pdf),
+            Self::Txt | Self::Atxt | Self::Utxt => None,
+        }
     }
 
     pub fn is_binary(self) -> bool {
@@ -311,6 +322,8 @@ mod tests {
         assert_eq!(OutputFormat::Utxt.extension(), "utxt");
 
         assert!(OutputFormat::Png.uses_svg_renderer());
+        assert_eq!(OutputFormat::Png.backend_format(), Some(BackendFormat::Png));
+        assert_eq!(OutputFormat::Txt.backend_format(), None);
         assert!(OutputFormat::Pdf.is_binary());
         assert!(OutputFormat::Txt.is_text());
         assert_eq!(OutputFormat::Utxt.text_mode(), Some(TextOutputMode::Utxt));
