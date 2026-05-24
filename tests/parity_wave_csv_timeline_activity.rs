@@ -746,6 +746,54 @@ end note
 }
 
 #[test]
+fn gantt_ch16_task_pauses_and_resource_off_days_extend_and_render() {
+    let src = r#"@startgantt
+Project starts 2026-05-04
+Print between 2026-05-04 and 2026-05-20
+projectscale daily zoom 1.3
+saturday are closed
+sunday are closed
+[Implementation] as [IMP] on {Alice} requires 5 days
+[IMP] pauses on 2026/05/06
+{Alice} is off on 2026/05/08
+then [Review] on {Alice:50%} requires 2 days
+[Review] pauses on monday
+[Release] happens at [Review]'s end
+[IMP] -> [Review]
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains(r#"class="gantt-task-pause""#));
+    assert!(svg.contains(r#"class="gantt-resource-off""#));
+    assert!(svg.contains("2026-05-06 paused"));
+    assert!(svg.contains("Alice off 2026-05-08"));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    let implementation = model
+        .tasks
+        .iter()
+        .find(|task| task.alias.as_deref() == Some("IMP"))
+        .expect("implementation task");
+    let review = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Review")
+        .expect("review task");
+    assert_eq!(implementation.pause_ranges.len(), 1);
+    assert_eq!(implementation.duration_days, 9);
+    assert_eq!(review.pause_weekdays, vec!["monday"]);
+    assert_eq!(
+        review.start_day,
+        implementation.start_day + implementation.duration_days
+    );
+    assert_eq!(review.duration_days, 7);
+}
+
+#[test]
 fn gantt_ch16_task_hyperlink_renders_anchor() {
     let src = r#"@startgantt
 [Build] requires 3 days and links to [[https://example.com/build Build docs]]

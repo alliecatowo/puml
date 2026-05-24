@@ -525,6 +525,8 @@ pub struct TimelineTask {
     pub completion_percent: Option<u32>,
     pub hyperlink: Option<String>,
     pub is_deleted: bool,
+    pub pause_weekdays: Vec<String>,
+    pub pause_ranges: Vec<TimelineTaskPauseRange>,
 }
 
 #[derive(Debug, Clone)]
@@ -583,6 +585,14 @@ pub struct TimelineDayMarker {
 #[derive(Debug, Clone)]
 pub struct TimelineResourceOffRange {
     pub resource: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineTaskPauseRange {
     pub start_date: String,
     pub end_date: String,
     pub start_day: u32,

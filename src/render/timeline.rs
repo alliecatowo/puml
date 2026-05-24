@@ -630,6 +630,23 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             deleted = task.is_deleted,
             bh = bar_height
         ));
+        for pause in gantt_task_pause_segments(
+            task,
+            &document.resource_off_ranges,
+            min_day,
+            max_day_exclusive,
+        ) {
+            let x = day_to_x(pause.day);
+            let w = (day_to_x(pause.day.saturating_add(1)) - x).max(2);
+            out.push_str(&format!(
+                "<rect class=\"{class}\" data-gantt-pause=\"{label}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{fill}\" opacity=\"0.55\"/>",
+                class = pause.class_name,
+                label = escape_text(&pause.label),
+                y = y + 1,
+                h = bar_height - 2,
+                fill = pause.fill
+            ));
+        }
         if let Some(percent) = task.completion_percent {
             let complete_w = (bw * percent.min(100) as i32) / 100;
             if complete_w > 0 {
@@ -912,6 +929,109 @@ fn gantt_task_key_ref(task: &TimelineTask) -> &str {
 
 fn gantt_task_matches(task: &TimelineTask, reference: &str) -> bool {
     task.alias.as_deref() == Some(reference) || task.name == reference
+}
+
+struct GanttTaskPauseRender {
+    day: u32,
+    label: String,
+    class_name: &'static str,
+    fill: &'static str,
+}
+
+fn gantt_task_pause_segments(
+    task: &TimelineTask,
+    resource_off_ranges: &[TimelineResourceOffRange],
+    min_day: u32,
+    max_day_exclusive: u32,
+) -> Vec<GanttTaskPauseRender> {
+    let start = task.start_day.max(min_day);
+    let end = task
+        .start_day
+        .saturating_add(task.duration_days.max(1))
+        .min(max_day_exclusive);
+    let mut segments = Vec::new();
+    let mut day = start;
+    while day < end {
+        if let Some(label) = gantt_task_pause_label(task, day) {
+            segments.push(GanttTaskPauseRender {
+                day,
+                label,
+                class_name: "gantt-task-pause",
+                fill: "#f97316",
+            });
+        } else if let Some(label) = gantt_resource_off_label(task, day, resource_off_ranges) {
+            segments.push(GanttTaskPauseRender {
+                day,
+                label,
+                class_name: "gantt-resource-off",
+                fill: "#ef4444",
+            });
+        }
+        day = day.saturating_add(1);
+    }
+    segments
+}
+
+fn gantt_task_pause_label(task: &TimelineTask, day: u32) -> Option<String> {
+    if task
+        .pause_weekdays
+        .iter()
+        .any(|weekday| is_gantt_weekday_number(day, weekday))
+    {
+        return Some(format!(
+            "{} paused",
+            format_gantt_axis_label(day, day, true)
+        ));
+    }
+    task.pause_ranges
+        .iter()
+        .find(|range| (range.start_day..=range.end_day).contains(&day))
+        .map(|range| {
+            if range.start_date == range.end_date {
+                format!("{} paused", range.start_date)
+            } else {
+                format!("{} to {} paused", range.start_date, range.end_date)
+            }
+        })
+}
+
+fn gantt_resource_off_label(
+    task: &TimelineTask,
+    day: u32,
+    resource_off_ranges: &[TimelineResourceOffRange],
+) -> Option<String> {
+    resource_off_ranges
+        .iter()
+        .find(|range| {
+            (range.start_day..=range.end_day).contains(&day)
+                && task
+                    .resource_allocations
+                    .iter()
+                    .any(|allocation| allocation.name == range.resource)
+        })
+        .map(|range| {
+            if range.start_date == range.end_date {
+                format!("{} off {}", range.resource, range.start_date)
+            } else {
+                format!(
+                    "{} off {} to {}",
+                    range.resource, range.start_date, range.end_date
+                )
+            }
+        })
+}
+
+fn is_gantt_weekday_number(day: u32, expected: &str) -> bool {
+    let weekday = match (day + 3) % 7 {
+        0 => "monday",
+        1 => "tuesday",
+        2 => "wednesday",
+        3 => "thursday",
+        4 => "friday",
+        5 => "saturday",
+        _ => "sunday",
+    };
+    weekday == expected
 }
 
 fn should_expand_gantt_task_visual_span(task: &TimelineTask) -> bool {

@@ -298,6 +298,7 @@ pub(super) fn normalize_timeline_baseline(
                 &closed_weekdays,
                 &closed_ranges,
                 &open_ranges,
+                &resource_off_ranges,
             );
             let task_end = task.start_day.saturating_add(task.duration_days);
             if task_end > cursor {
@@ -307,12 +308,22 @@ pub(super) fn normalize_timeline_baseline(
         apply_gantt_task_metadata(&mut tasks, &mut milestones, &constraints);
         apply_gantt_absolute_constraints(&mut tasks, &constraints, fallback_anchor);
         apply_gantt_start_end_duration_constraints(&mut tasks, &constraints, fallback_anchor);
+        for task in &mut tasks {
+            task.duration_days = timeline_scheduled_span_for_task(
+                task,
+                &closed_weekdays,
+                &closed_ranges,
+                &open_ranges,
+                &resource_off_ranges,
+            );
+        }
         apply_gantt_task_reference_constraints(
             &mut tasks,
             &constraints,
             &closed_weekdays,
             &closed_ranges,
             &open_ranges,
+            &resource_off_ranges,
         );
         for task in &mut tasks {
             task.duration_days = timeline_scheduled_span_for_task(
@@ -320,6 +331,7 @@ pub(super) fn normalize_timeline_baseline(
                 &closed_weekdays,
                 &closed_ranges,
                 &open_ranges,
+                &resource_off_ranges,
             );
         }
         apply_gantt_start_end_duration_constraints(&mut tasks, &constraints, fallback_anchor);
@@ -428,6 +440,8 @@ fn upsert_gantt_task(
         completion_percent: None,
         hyperlink: None,
         is_deleted: false,
+        pause_weekdays: Vec::new(),
+        pause_ranges: Vec::new(),
     });
 }
 
@@ -514,6 +528,14 @@ fn apply_gantt_compound_clauses(
             });
             continue;
         }
+        if let Some(target) = parse_gantt_pause_clause(clause) {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "pause".to_string(),
+                target,
+            });
+            continue;
+        }
         if let Some(url) = parse_gantt_link_target(clause) {
             constraints.push(TimelineConstraint {
                 subject: subject.to_string(),
@@ -582,6 +604,22 @@ fn parse_gantt_link_target(clause: &str) -> Option<String> {
     let inner = target.strip_prefix("[[")?.strip_suffix("]]")?.trim();
     let url = inner.split_whitespace().next().unwrap_or(inner).trim();
     (!url.is_empty()).then(|| url.to_string())
+}
+
+fn parse_gantt_pause_clause(clause: &str) -> Option<String> {
+    let trimmed = clause.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    lower
+        .strip_prefix("pauses on ")
+        .and_then(|_| trimmed.get("pauses on ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("pause on ")
+                .and_then(|_| trimmed.get("pause on ".len()..))
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 fn split_gantt_scale_target(target: &str) -> (String, Vec<String>) {
@@ -809,26 +847,32 @@ fn apply_gantt_start_end_duration_constraints(
     }
 }
 
-fn scheduled_gantt_span_days(
+fn scheduled_gantt_span_days_for_task(
+    task: &TimelineTask,
     start_day: u32,
     work_days: u32,
     closed_weekdays: &[String],
     closed_ranges: &[TimelineClosedRange],
     open_ranges: &[TimelineOpenRange],
+    resource_off_ranges: &[TimelineResourceOffRange],
 ) -> u32 {
-    if closed_weekdays.is_empty() && closed_ranges.is_empty() {
-        return work_days.max(1);
-    }
     let mut day = start_day;
     let mut remaining = work_days.max(1);
     let mut span = 0u32;
     while remaining > 0 {
-        if !is_gantt_closed_day(day, closed_weekdays, closed_ranges, open_ranges) {
+        if !is_gantt_non_working_day_for_task(
+            task,
+            day,
+            closed_weekdays,
+            closed_ranges,
+            open_ranges,
+            resource_off_ranges,
+        ) {
             remaining -= 1;
         }
         day = day.saturating_add(1);
         span = span.saturating_add(1);
-        if span > work_days.saturating_add(21) {
+        if span > work_days.saturating_add(120) {
             break;
         }
     }
@@ -841,6 +885,7 @@ fn apply_gantt_task_reference_constraints(
     closed_weekdays: &[String],
     closed_ranges: &[TimelineClosedRange],
     open_ranges: &[TimelineOpenRange],
+    resource_off_ranges: &[TimelineResourceOffRange],
 ) {
     for _ in 0..tasks.len().max(1) {
         let mut changed = false;
@@ -899,6 +944,7 @@ fn apply_gantt_task_reference_constraints(
                     closed_weekdays,
                     closed_ranges,
                     open_ranges,
+                    resource_off_ranges,
                 );
                 changed = true;
             }
@@ -1013,6 +1059,76 @@ fn is_gantt_closed_day(
             .any(|range| (range.start_day..=range.end_day).contains(&day))
 }
 
+fn is_gantt_non_working_day_for_task(
+    task: &TimelineTask,
+    day: u32,
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
+    resource_off_ranges: &[TimelineResourceOffRange],
+) -> bool {
+    is_gantt_closed_day(day, closed_weekdays, closed_ranges, open_ranges)
+        || is_gantt_task_paused_day(task, day)
+        || is_gantt_resource_off_day(task, day, resource_off_ranges)
+}
+
+fn is_gantt_task_paused_day(task: &TimelineTask, day: u32) -> bool {
+    task.pause_weekdays
+        .iter()
+        .any(|weekday| is_gantt_weekday(day, weekday))
+        || task
+            .pause_ranges
+            .iter()
+            .any(|range| (range.start_day..=range.end_day).contains(&day))
+}
+
+fn is_gantt_resource_off_day(
+    task: &TimelineTask,
+    day: u32,
+    resource_off_ranges: &[TimelineResourceOffRange],
+) -> bool {
+    if task.resource_allocations.is_empty() {
+        return false;
+    }
+    resource_off_ranges.iter().any(|range| {
+        (range.start_day..=range.end_day).contains(&day)
+            && task
+                .resource_allocations
+                .iter()
+                .any(|allocation| allocation.name == range.resource)
+    })
+}
+
+fn parse_gantt_pause_weekday(raw: &str) -> Option<&'static str> {
+    match raw.trim().to_ascii_lowercase().trim_end_matches('s') {
+        "monday" => Some("monday"),
+        "tuesday" => Some("tuesday"),
+        "wednesday" => Some("wednesday"),
+        "thursday" => Some("thursday"),
+        "friday" => Some("friday"),
+        "saturday" => Some("saturday"),
+        "sunday" => Some("sunday"),
+        _ => None,
+    }
+}
+
+fn parse_gantt_task_pause_range(target: &str) -> Option<TimelineTaskPauseRange> {
+    let (start_date, end_date) = parse_gantt_target_range(target)?;
+    let start_day = parse_iso_date_day(&start_date)?;
+    let end_day = parse_iso_date_day(&end_date)?;
+    let (start_date, end_date, start_day, end_day) = if start_day <= end_day {
+        (start_date, end_date, start_day, end_day)
+    } else {
+        (end_date, start_date, end_day, start_day)
+    };
+    Some(TimelineTaskPauseRange {
+        start_date,
+        end_date,
+        start_day,
+        end_day,
+    })
+}
+
 fn parse_timeline_resource_allocations(resources: &[String]) -> Vec<TimelineResourceAllocation> {
     resources
         .iter()
@@ -1067,13 +1183,16 @@ fn timeline_scheduled_span_for_task(
     closed_weekdays: &[String],
     closed_ranges: &[TimelineClosedRange],
     open_ranges: &[TimelineOpenRange],
+    resource_off_ranges: &[TimelineResourceOffRange],
 ) -> u32 {
-    scheduled_gantt_span_days(
+    scheduled_gantt_span_days_for_task(
+        task,
         task.start_day,
         resource_adjusted_work_days(task.workload_days, &task.resource_allocations),
         closed_weekdays,
         closed_ranges,
         open_ranges,
+        resource_off_ranges,
     )
 }
 
@@ -1142,6 +1261,31 @@ fn apply_gantt_task_metadata(
                 .find(|task| gantt_task_matches(task, &constraint.subject))
             {
                 task.is_deleted = true;
+            }
+        }
+        if constraint.kind.eq_ignore_ascii_case("pause") {
+            let Some(task) = tasks
+                .iter_mut()
+                .find(|task| gantt_task_matches(task, &constraint.subject))
+            else {
+                continue;
+            };
+            if let Some(weekday) = parse_gantt_pause_weekday(&constraint.target) {
+                if !task
+                    .pause_weekdays
+                    .iter()
+                    .any(|existing| existing == weekday)
+                {
+                    task.pause_weekdays.push(weekday.to_string());
+                }
+                continue;
+            }
+            if let Some(range) = parse_gantt_task_pause_range(&constraint.target) {
+                if !task.pause_ranges.iter().any(|existing| {
+                    existing.start_day == range.start_day && existing.end_day == range.end_day
+                }) {
+                    task.pause_ranges.push(range);
+                }
             }
         }
     }
@@ -1257,4 +1401,17 @@ fn is_gantt_closed_weekday(day: u32, closed_weekdays: &[String]) -> bool {
         _ => "sunday",
     };
     closed_weekdays.iter().any(|closed| closed == weekday)
+}
+
+fn is_gantt_weekday(day: u32, weekday: &str) -> bool {
+    let actual = match (day + 3) % 7 {
+        0 => "monday",
+        1 => "tuesday",
+        2 => "wednesday",
+        3 => "thursday",
+        4 => "friday",
+        5 => "saturday",
+        _ => "sunday",
+    };
+    actual == weekday
 }

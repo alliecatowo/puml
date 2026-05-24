@@ -273,6 +273,13 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             target: "true".to_string(),
         });
     }
+    if let Some(target) = parse_gantt_pause_target(rest) {
+        return Some(StatementKind::GanttConstraint {
+            subject: subject_key,
+            kind: "pause".to_string(),
+            target,
+        });
+    }
     for kind in ["starts", "ends", "requires"] {
         if lower.starts_with(kind) {
             let target = rest[kind.len()..]
@@ -563,6 +570,45 @@ fn parse_gantt_completion(rest: &str) -> Option<u32> {
         return value.parse::<u32>().ok().map(|value| value.min(100));
     }
     None
+}
+
+fn parse_gantt_pause_target(rest: &str) -> Option<String> {
+    let trimmed = rest.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let target = lower
+        .strip_prefix("pauses on ")
+        .and_then(|_| trimmed.get("pauses on ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("pause on ")
+                .and_then(|_| trimmed.get("pause on ".len()..))
+        })?
+        .trim();
+    if target.is_empty() {
+        return None;
+    }
+    if let Some((start_date, end_date)) = parse_gantt_date_range(target) {
+        return Some(if start_date == end_date {
+            start_date
+        } else {
+            format!("{start_date} to {end_date}")
+        });
+    }
+    parse_gantt_weekday_name(target).map(str::to_string)
+}
+
+fn parse_gantt_weekday_name(raw: &str) -> Option<&'static str> {
+    let lower = raw.trim().to_ascii_lowercase();
+    match lower.trim_end_matches('s') {
+        "monday" => Some("monday"),
+        "tuesday" => Some("tuesday"),
+        "wednesday" => Some("wednesday"),
+        "thursday" => Some("thursday"),
+        "friday" => Some("friday"),
+        "saturday" => Some("saturday"),
+        "sunday" => Some("sunday"),
+        _ => None,
+    }
 }
 
 fn parse_gantt_link_target(rest: &str) -> Option<String> {

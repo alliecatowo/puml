@@ -1,6 +1,6 @@
 # Chapter 16 — Gantt Chart Audit
 
-Tally: 29 ✅ / 5 🟡 / 5 ❌
+Tally: 30 ✅ / 5 🟡 / 4 ❌
 
 ### 16.1.1 Workload (requires N days/weeks) — ✅
 **Feature:** `[Task] requires N days` (also weeks; combined `1 week and 4 days`)
@@ -139,7 +139,7 @@ Tally: 29 ✅ / 5 🟡 / 5 ❌
 ### 16.19 Resource off-days `{Alice} is off on 2020-06-24 to 2020-06-26` — ✅
 **Feature:** Per-resource closed dates
 **Status:** ✅
-**Evidence:** `src/parser/gantt.rs` parses `{Resource} is off on <date/range>` into `resource_off`; `src/normalize/timeline.rs` stores `TimelineResourceOffRange`, and `src/render/timeline.rs` emits resource-off metadata/labels. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render` and `docs/examples/gantt/09_ch16_parity.puml`.
+**Evidence:** `src/parser/gantt.rs` parses `{Resource} is off on <date/range>` into `resource_off`; `src/normalize/timeline.rs` stores `TimelineResourceOffRange`, applies matching resource off-days to task scheduling, and `src/render/timeline.rs` emits visible in-bar resource-off bands plus metadata/labels. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render`, `gantt_ch16_task_pauses_and_resource_off_days_extend_and_render`, `docs/examples/gantt/09_ch16_parity.puml`, and `docs/examples/gantt/10_pauses_resource_calendars.puml`.
 
 ### 16.20 hide resources names / footbox — ✅
 **Feature:** `hide resources names`, `hide resources footbox`
@@ -178,10 +178,10 @@ Tally: 29 ✅ / 5 🟡 / 5 ❌
 **Status:** ✅
 **Evidence:** `src/normalize/timeline.rs` stores `StatementKind::Note` as `TimelineNote`, defaulting bare notes to the previous task; `src/render/timeline.rs` renders note boxes. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render`.
 
-### 16.27 Pause tasks `[T] pauses on 2018/12/13` / `pauses on monday` — ❌
+### 16.27 Pause tasks `[T] pauses on 2018/12/13` / `pauses on monday` — ✅
 **Feature:** Per-day or weekday task pauses
-**Status:** ❌
-**Evidence:** No `pauses on` parser
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` accepts task-level `pauses on <date/range>` and weekday forms; `src/normalize/timeline.rs` stores pause ranges/weekdays, expands scheduled spans around paused days, and re-applies dependent task references after pause-aware scheduling; `src/render/timeline.rs` draws in-bar pause bands. Covered by `gantt_ch16_task_pauses_and_resource_off_days_extend_and_render` and `docs/examples/gantt/10_pauses_resource_calendars.puml`.
 
 ### 16.28 Link colors `with blue dotted link` and `-[#FF00FF]->` — ❌
 **Feature:** Per-link arrow color/style
