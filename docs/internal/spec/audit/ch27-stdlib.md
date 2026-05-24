@@ -16,7 +16,7 @@ Resolution mechanism: angle-bracket form `!include <Lib/Module>` is recognised i
 
 Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility directory for `!include <awslib/...>`, `!import awslib/...`, `-stdlib`, and `%get_all_stdlib()` (`src/preproc/includes.rs`, `src/stdlib.rs`, `tests/fixtures/include/valid_awslib_ec2.puml`, `src/parser/tests.rs`, `tests/cli_stdlib.rs`, `tests/coverage_wave23_builtins.rs`). The direct `awslib14/...` path remains supported for existing fixtures.
 
-**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
+**Important caveat:** The bundled `*.puml` files are **simplified compatibility shims**, not verbatim copies of the upstream plantuml-stdlib. Sprite parsing/rendering now works (see ch23), and several local icon shims define small deterministic sprites. Bootstrap Icons is an exception: it is bundled as generated built-in SVG sprite data rather than a `stdlib/bootstrap/` directory. AWS/Azure/GCP/Office compatibility files still primarily expand to labelled/stereotyped objects rather than full upstream icon art.
 
 **Upstream comparison source:** The official `plantuml/plantuml-stdlib` README currently lists AdaML `[ada]`, Amazon Web Services `[aws]`, Amazon Labs AWS `[awslib]`, Azure `[azure]`, Bootstrap `[bootstrap]`, C4 `[C4]`, Classy `[classy]`, Classy C4 `[classy-c4]`, DomainStory `[DomainStory]`, Edgy `[edgy]`, EIP `[eip]`, Elastic `[elastic]`, GCP `[gcp]`, K8S `[k8s]`, Material `[material, material2, material7]`, Tupadr3 `[tupadr3]`, plus an ArchiMate section below the summary list.
 
@@ -50,6 +50,12 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 ### 27.5 C4 Library [C4] — 🟡
 **Feature:** `!include <C4/C4_Container>` etc.; `Person()`, `Container()`, `System()`, `Rel()`, `Rel_U()` macros.
 **Status:** 🟡 — bundled: C4.puml, C4_Component.puml, C4_Container.puml, C4_Context.puml, C4_Deployment.puml, C4_Dynamic.puml, C4_Sequence.puml. Macros expand to component/relationship calls. C4 is the most viable bundled library since it's macro-based and doesn't depend on sprites.
+
+### 27.5a Bootstrap Icons [bootstrap] — 🟡
+**Feature:** `!include <bootstrap/bootstrap>` plus `bi-` prefixed SVG sprites such as `<$bi-globe>`.
+**Status:** 🟡 — full Bootstrap Icons 1.13.1 SVG sprite art is bundled as generated built-in data and available through `<$bi-name>` / `<$bi_name>` references without an include. The `stdlib/bootstrap/` include entry point and helper macros remain unimplemented.
+**Evidence:** `src/bootstrap_icons.rs` contains 2,078 generated SVG entries; `src/sprites.rs` resolves the PlantUML stdlib `bi-` prefix; `src/render/svg.rs` includes Bootstrap Icons in `listsprites`; `tests/integration.rs` covers inline rendering and list metadata.
+**Notes:** Attribution is recorded in `THIRD_PARTY_NOTICES.md`.
 
 ### 27.6 Cloud Insight [cloudinsight] — ❌
 **Status:** ❌ — directory **not bundled**.
@@ -97,6 +103,7 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 | archimate | ❌ | — | — |
 | awslib (aliased to `awslib14`) | 🟡 | ✅ | 🟡 |
 | azure | ✅ | ✅ | 🟡 |
+| bootstrap | 🟡 | ❌ | ✅ |
 | C4 | ✅ | ✅ | N/A (macro-only) |
 | cloudinsight | ❌ | — | — |
 | cloudogu | ❌ | — | — |
@@ -113,4 +120,4 @@ Slug aliases: `awslib/...` maps to the bundled `awslib14/...` compatibility dire
 
 **Mechanics:** `stdlib` diagram ❌ · `-stdlib` CLI 🟡 local shim listing · `-extractstdlib` CLI ❌ · `listsprites` ✅ (see ch23) · angle-bracket resolver ✅ · `%get_all_stdlib` 🟡 local shim path list.
 
-**Score:** 7 of the locally tracked 16 library rows are at least partially bundled (44%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Bootstrap, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest to full intended UX because it is mostly macro-based; icon libraries are curated deterministic subsets, not full upstream art packs.
+**Score:** 8 of the locally tracked 17 library rows are at least partially bundled (47%). Against the current upstream README summary, PUML has partial coverage for `awslib`, `azure`, Bootstrap Icons, `C4`, `gcp`, `material`, and `tupadr3`, plus local-only `office`; it lacks AdaML, `aws`, Classy, Classy C4, DomainStory, Edgy, EIP, Elastic, K8S, `material2`, `material7`, and ArchiMate as bundled stdlib directories. C4 remains the closest to full intended UX because it is mostly macro-based; most icon-library directory shims are curated deterministic subsets, while Bootstrap Icons is bundled as generated SVG sprite data.

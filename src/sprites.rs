@@ -5,6 +5,7 @@ use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
+use crate::bootstrap_icons::BOOTSTRAP_ICONS_SVG;
 use crate::diagnostic::Diagnostic;
 use crate::openiconic::OPENICONIC_SVG;
 
@@ -103,6 +104,27 @@ pub fn openiconic_sprites() -> SpriteRegistry {
         .collect()
 }
 
+pub fn bootstrap_icon_sprite(name: &str) -> Option<SpriteDefinition> {
+    let normalized = normalize_bootstrap_icon_name(name)?;
+    let icon_name = normalized.strip_prefix("bi-").unwrap_or(&normalized);
+    let source = BOOTSTRAP_ICONS_SVG
+        .iter()
+        .find_map(|(name, svg)| (*name == icon_name).then_some(*svg))?;
+    parse_svg_sprite(&normalized, source).ok()
+}
+
+pub fn bootstrap_icon_sprites() -> SpriteRegistry {
+    BOOTSTRAP_ICONS_SVG
+        .iter()
+        .filter_map(|(name, svg)| {
+            let sprite_name = format!("bi-{name}");
+            parse_svg_sprite(&sprite_name, svg)
+                .ok()
+                .map(|sprite| (sprite_name, sprite))
+        })
+        .collect()
+}
+
 fn is_openiconic_icon(name: &str) -> bool {
     OPENICONIC_SVG
         .iter()
@@ -118,6 +140,14 @@ fn normalize_openiconic_name(raw: &str) -> String {
         .strip_prefix("oi-")
         .unwrap_or(&normalized)
         .to_string()
+}
+
+fn normalize_bootstrap_icon_name(raw: &str) -> Option<String> {
+    let normalized = normalize_sprite_name(raw)
+        .replace('_', "-")
+        .to_ascii_lowercase();
+    let icon_name = normalized.strip_prefix("bi-")?;
+    (!icon_name.is_empty()).then(|| format!("bi-{icon_name}"))
 }
 
 fn parse_sprite_ref_inner(inner: &str) -> Option<SpriteRef> {
@@ -777,5 +807,18 @@ mod tests {
         assert_eq!((folder.width, folder.height), (8, 8));
         assert!(matches!(folder.kind, SpriteKind::Svg { .. }));
         assert_eq!(openiconic_sprites().len(), 223);
+    }
+
+    #[test]
+    fn loads_bootstrap_icons_with_prefixed_names() {
+        let globe = bootstrap_icon_sprite("bi-globe").expect("globe icon");
+        assert_eq!((globe.width, globe.height), (16, 16));
+        assert_eq!(globe.name, "bi-globe");
+        assert!(matches!(globe.kind, SpriteKind::Svg { .. }));
+
+        let alias = bootstrap_icon_sprite("bi_bootstrap_fill").expect("underscore alias");
+        assert_eq!(alias.name, "bi-bootstrap-fill");
+        assert!(bootstrap_icon_sprite("globe").is_none());
+        assert_eq!(bootstrap_icon_sprites().len(), 2078);
     }
 }
