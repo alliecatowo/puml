@@ -25,6 +25,19 @@ The icons are real inline SVG paths, do not require an `!include`, and appear in
 
 ---
 
+## Bootstrap Icons (`<$bi-name>`)
+
+PUML bundles the full Bootstrap Icons SVG icon set as built-in `bi-` prefixed sprites, matching the PlantUML stdlib convention that avoids name collisions across icon families:
+
+```plantuml
+Alice -> Bob : Browse <$bi-globe,scale=2,color=#7952b3>
+Bob --> Alice : Ship <$bi-box-seam{scale=2,color=#0d6efd}>
+```
+
+The icons are real inline SVG paths, do not require an `!include`, accept the normal sprite `scale` and `color` parameters, normalize `bi_foo` aliases to `bi-foo`, and appear in `listsprites` output alongside Open Iconic and user-defined sprites. Bootstrap Icons is MIT licensed; see `THIRD_PARTY_NOTICES.md` for attribution.
+
+---
+
 ## C4 (`C4/`)
 
 C4 architecture diagram library (C4-PlantUML).

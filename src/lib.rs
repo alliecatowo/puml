@@ -1,4 +1,5 @@
 pub mod ast;
+mod bootstrap_icons;
 pub mod creole;
 pub mod diagnostic;
 pub mod formatter;
