@@ -113,13 +113,13 @@ See 6.6.2 — backward flattened.
 **Feature:** `split` / `split again` / `end split` for multi-start / multi-end shapes.
 **Status:** 🟡
 **Evidence:** `activity.rs:80-97` aliases split to fork. `end merge` also maps here. `layout.rs` now suppresses the synthetic `end split` join bar when every split branch terminates with `kill`/`detach`/`stop`/`end`.
-**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) remains partial. Multi-end branches ending with `kill`/`detach`/`stop`/`end` no longer connect to the synthetic join bar, and all-terminal splits no longer draw a false downstream join. Mixed live/terminal splits still share the generic fork layout.
+**Notes:** Multi-start ("input split" via `-[hidden]->` at the top) remains partial. Multi-end branches ending with `kill`/`detach`/`stop`/`end` no longer connect to the synthetic join bar, and all-terminal splits no longer draw a false downstream join. Mixed live/terminal splits now narrow and center the downstream join bar over live branches only instead of implying terminal branches synchronize.
 
 ### 6.12 Notes — 🟡
 **Feature:** `note left:`, `note right`, `floating note`, multi-line `note ... end note`, attached to actions, backward steps, partitions.
 **Status:** 🟡
 **Evidence:** `parse_activity_note_step` and `parse_activity_multiline_note_block` (activity.rs) recognize `note left/right/top/bottom`, `floating note*`, and `note ... end note` blocks. `normalize/family.rs` preserves note side/floating metadata in activity node aliases. `render/activity/layout.rs` places left/right notes beside the previous flow node, top/bottom notes above or below the anchor, and keeps floating notes out of the main-flow slot. `nodes.rs` sizes note cards from the rendered line count.
-**Notes:** Single-line and multi-line activity notes now render as folded note cards instead of fallback action boxes. Attached notes use dashed connectors; floating notes omit connectors and no longer consume flow arrows. Remaining polish: notes attached to `backward` actions/partitions and richer collision avoidance for dense top/bottom placements.
+**Notes:** Single-line and multi-line activity notes now render as folded note cards instead of fallback action boxes. Attached notes use dashed connectors; floating notes omit connectors and no longer consume flow arrows. Top/bottom notes are offset from the main vertical flow channel to avoid forcing continuation arrows to wrap around note bodies. Remaining polish: notes attached to `backward` actions/partitions and richer collision avoidance for very dense note stacks.
 
 ### 6.13 Colors (`#red:label;`, gradient) — 🟡
 **Feature:** `#HotPink:label;` per-action background; `#red/white` partition gradient; `#blue\green:` action gradient.

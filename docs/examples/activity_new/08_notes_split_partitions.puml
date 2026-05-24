@@ -1,0 +1,28 @@
+@startuml
+title Activity Notes, Split, and Partitions
+|#LightBlue|Planner|
+start
+:Gather context;
+note right
+Attach evidence without
+consuming a flow step.
+end note
+-[#green,dashed]-> evidence ready;
+#LightYellow:Review evidence;
+split
+  :archive stale worker;
+  detach
+split again
+  :fix live branch;
+  -[#blue,bold]-> continue after split;
+  :run checks;
+end split
+:merge live branch only;
+|#LightGreen|Builder|
+partition #MistyRose Build {
+  :compile release;
+  note bottom: build log path
+  :render PNG;
+}
+stop
+@enduml
