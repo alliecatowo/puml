@@ -83,7 +83,7 @@ fn render_row_background(
     layout: &TimingLayout,
     style: &crate::theme::TimingStyle,
 ) {
-    let row_bg = if row_idx % 2 == 0 {
+    let row_bg = if row_idx.is_multiple_of(2) {
         "#ffffff"
     } else {
         "#f8fafc"
