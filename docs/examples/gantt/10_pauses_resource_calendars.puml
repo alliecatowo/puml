@@ -1,0 +1,16 @@
+@startgantt
+title Gantt pauses and resource calendars
+Project starts 2026-05-04
+Print between 2026-05-04 and 2026-05-21
+projectscale daily zoom 1.3
+saturday are closed
+sunday are closed
+
+[Implementation] as [IMP] on {Alice} requires 5 days
+[IMP] pauses on 2026/05/06
+{Alice} is off on 2026/05/08
+then [Review] on {Alice:50%} requires 2 days
+[Review] pauses on monday
+[Release] happens at [Review]'s end
+[IMP] -> [Review]
+@endgantt
