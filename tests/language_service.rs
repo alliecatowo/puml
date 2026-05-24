@@ -161,3 +161,25 @@ fn diagnostics_reports_frontend_adapter_warnings_without_lsp_transport() {
     assert_eq!(diagnostic.range.unwrap().start.line, 2);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
 }
+
+#[test]
+fn diagnostics_reports_mermaid_class_adapter_warning_on_original_span() {
+    let source = "classDiagram\nclass Dog\nclick Dog callback\n";
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+
+    let report = diagnostics_with_options(source, &options);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code.as_deref(), Some("W_MERMAID_CLASS_DEFERRED"));
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.span, Some(Span::new(23, 41)));
+    assert_eq!(diagnostic.range.unwrap().start.line, 3);
+    assert_eq!(diagnostic.range.unwrap().start.column, 1);
+}

@@ -61,7 +61,7 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
             if let Some(warning) = warning {
                 out.push_diagnostic(warning);
             }
-            out.push_line(converted, span);
+            out.push_lines(converted, span);
             continue;
         }
 
@@ -75,7 +75,7 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
 
         // Try to parse as an arrow statement first.
         if let Some(converted) = adapt_flowchart_edge(line) {
-            out.push_line(converted, span);
+            out.push_lines(converted, span);
             continue;
         }
 
