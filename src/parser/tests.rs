@@ -318,6 +318,33 @@ mod tests {
     }
 
     #[test]
+    fn import_and_include_catalog_support_awslib_official_slug_alias() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("awslib14").join("Compute")).unwrap();
+        fs::write(
+            stdlib.join("awslib14").join("AWSCommon.puml"),
+            "!procedure AWSIcon($alias,$service,$label=\"\")\n$alias -> $alias : [AWS $service] $label\n!endprocedure\n",
+        )
+        .unwrap();
+        fs::write(
+            stdlib.join("awslib14").join("Compute").join("EC2.puml"),
+            "!include <awslib/AWSCommon>\n!procedure EC2($alias,$label=\"\")\nAWSIcon($alias,EC2,$label)\n!endprocedure\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!import awslib/AWSCommon\n!include <awslib/Compute/EC2>\nEC2(NodeA, \"ingress\")\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+    }
+
+    #[test]
     fn import_and_include_catalog_support_azure_and_gcp_shape_stub_surface() {
         let dir = tempdir().unwrap();
         let stdlib = dir.path().join("stdlib");

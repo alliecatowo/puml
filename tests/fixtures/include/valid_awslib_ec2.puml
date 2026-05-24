@@ -1,6 +1,6 @@
 @startuml
-!include <awslib14/Compute/EC2>
-!include <awslib14/AWSCommon>
+!include <awslib/Compute/EC2>
+!include <awslib/AWSCommon>
 
 !EC2(server, "App Server")
 !EC2(cache, "Cache Server")
