@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Default)]
 pub(super) struct ExtendedFamilyStyles {
     component_style: ComponentStyle,
     activity_style: ActivityStyle,
@@ -8,20 +9,6 @@ pub(super) struct ExtendedFamilyStyles {
     activity_monochrome_mode: Option<crate::theme::MonochromeMode>,
     timing_monochrome_mode: Option<crate::theme::MonochromeMode>,
     pub(super) sepia: bool,
-}
-
-impl Default for ExtendedFamilyStyles {
-    fn default() -> Self {
-        Self {
-            component_style: ComponentStyle::default(),
-            activity_style: ActivityStyle::default(),
-            timing_style: TimingStyle::default(),
-            component_monochrome_mode: None,
-            activity_monochrome_mode: None,
-            timing_monochrome_mode: None,
-            sepia: false,
-        }
-    }
 }
 
 impl ExtendedFamilyStyles {
