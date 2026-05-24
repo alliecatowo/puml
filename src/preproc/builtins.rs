@@ -458,6 +458,11 @@ pub(super) fn dispatch_builtin(
                     .to_string(),
             )
         }
+        "get_all_stdlib" => Some(
+            crate::stdlib::local_stdlib_inventory(None)
+                .map(|entries| crate::stdlib::stdlib_paths_json(&entries))
+                .unwrap_or_else(|_| "[]".to_string()),
+        ),
         // %newline — literal newline character (PlantUML parity)
         "newline" => Some("\n".to_string()),
         // %retrieve_procedure_return — last procedure return value (stateless in our

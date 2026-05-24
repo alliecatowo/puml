@@ -56,7 +56,7 @@ Directive dispatch: `parse_preprocess_directive` at `src/preproc/includes.rs:719
 **Status:** ✅ — broad coverage.
 **Evidence (builtins.rs):** strlen/size (51,53), splitstr (67), splitstr_regex (79), str2json (263), strpos (265), substr (277), intval (294), string (295), boolval (327), true/false (328-329), not (330), lower/upper (331-332), chr (333), dec2hex/hex2dec (343,351), ord (360), random (372), dirpath (399), filename (408), feature (427), get/set_variable_value (429,466), variable_exists (434), function_exists (439), newline (462), invoke_procedure / call_user_func (498), is_dark (562), reverse_color (563), lighten/darken (568-569).
 **Determinism stubs:** `%date %time %now %getenv` deliberately return empty (`builtins.rs:368`); `%random` returns `"0"` (`builtins.rs:372`) — non-deterministic builtins neutralized intentionally (comment at builtins.rs:21).
-**Missing/stub-only:** `%load_json`, `%file_exists`, `%get_all_theme`, `%get_all_stdlib`, `%hsl_color`, `%reverse_hsluv_color` appear in the unsupported/no-op group at `builtins.rs:381-388`.
+**Missing/stub-only:** `%load_json`, `%file_exists`, `%get_all_theme`, `%hsl_color`, `%reverse_hsluv_color` appear in the unsupported/no-op group. `%get_all_stdlib()` now returns the deterministic local shim inventory rather than the full upstream plantuml-stdlib catalog.
 
 ### 25.13 `!log` — ✅
 **Evidence:** `PreprocessDirective::Log` (`includes.rs:769`); no impact on diagram output by design.
@@ -99,8 +99,9 @@ Directive dispatch: `parse_preprocess_directive` at `src/preproc/includes.rs:719
 ### 25.26 `%get_all_theme` — ❌ (stub)
 **Evidence:** Listed in unsupported group near `builtins.rs:381-388`.
 
-### 25.27 `%get_all_stdlib` (+ detailed) — ❌ (stub)
-**Evidence:** Same unsupported group.
+### 25.27 `%get_all_stdlib` (+ detailed) — 🟡
+**Status:** 🟡 — implemented as a deterministic JSON-style list of reachable local stdlib include paths from `src/stdlib.rs`, including the `awslib/...` alias entries that map to physical `awslib14/...` files. This is intentionally a local shim inventory, not a full upstream stdlib downloader/catalog and not a detailed metadata object.
+**Evidence:** `builtins.rs` dispatches `get_all_stdlib` through `crate::stdlib::local_stdlib_inventory`; coverage in `tests/coverage_wave23_builtins.rs`.
 
 ### 25.28 `%random` — 🟡 (deterministic stub returns "0")
 **Evidence:** `builtins.rs:372`.
@@ -148,8 +149,8 @@ Directive dispatch: `parse_preprocess_directive` at `src/preproc/includes.rs:719
 | 25.23 `!define/!undef` (legacy) | ✅ |
 | 25.24-25 `%splitstr*` | ✅ |
 | 25.26 `%get_all_theme` | ❌ |
-| 25.27 `%get_all_stdlib` | ❌ |
+| 25.27 `%get_all_stdlib` | 🟡 |
 | 25.28 `%random` (determinism stub) | 🟡 |
 | 25.29 `%boolval` | ✅ |
 
-**Score:** 18 ✅ · 8 🟡 · 2 ❌ out of 28. **Preprocessor is the strongest area** — close to feature-complete with deterministic stubs for IO/time builtins.
+**Score:** 18 ✅ · 9 🟡 · 1 ❌ out of 28. **Preprocessor is the strongest area** — close to feature-complete with deterministic stubs for IO/time builtins.
