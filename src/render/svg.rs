@@ -2,7 +2,8 @@ use std::cell::RefCell;
 
 use crate::creole::{decode_unicode_escapes, render_creole_to_svg_tspans, tokenize_creole};
 use crate::sprites::{
-    parse_sprite_ref_at, render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
+    openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at, parse_sprite_ref_at,
+    render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
 };
 
 thread_local! {
@@ -19,6 +20,7 @@ pub(crate) fn with_sprite_registry<T>(sprites: &SpriteRegistry, f: impl FnOnce()
 }
 
 pub(crate) fn render_sprite_sheet(sprites: &SpriteRegistry) -> String {
+    let sprites = sprites_with_builtins(sprites);
     let count = sprites.len();
     let row_h = 44_i32;
     let width = 420_i32;
@@ -57,7 +59,7 @@ pub(crate) fn creole_text(
     label: &str,
     base_color: &str,
 ) -> String {
-    if label.contains("<$") && active_sprite_count() > 0 {
+    if label_has_inline_sprite(label) {
         return render_text_with_inline_sprites(x, y, extra_attrs, label, base_color);
     }
 
@@ -207,12 +209,49 @@ fn has_creole_block_line(label: &str) -> bool {
     })
 }
 
-fn active_sprite_count() -> usize {
-    ACTIVE_SPRITES.with(|cell| cell.borrow().len())
+fn active_sprite(name: &str) -> Option<SpriteDefinition> {
+    ACTIVE_SPRITES
+        .with(|cell| cell.borrow().get(name).cloned())
+        .or_else(|| openiconic_sprite(name))
 }
 
-fn active_sprite(name: &str) -> Option<SpriteDefinition> {
-    ACTIVE_SPRITES.with(|cell| cell.borrow().get(name).cloned())
+fn sprites_with_builtins(sprites: &SpriteRegistry) -> SpriteRegistry {
+    let mut combined = openiconic_sprites();
+    for (name, sprite) in sprites {
+        combined.insert(name.clone(), sprite.clone());
+    }
+    combined
+}
+
+fn label_has_inline_sprite(label: &str) -> bool {
+    let mut offset = 0usize;
+    while offset < label.len() {
+        if let Some((sprite_ref, _consumed)) = parse_inline_sprite_ref_at(&label[offset..]) {
+            if active_sprite(&sprite_ref.name).is_some() {
+                return true;
+            }
+        }
+        let Some(ch) = label[offset..].chars().next() else {
+            break;
+        };
+        offset += ch.len_utf8();
+    }
+    false
+}
+
+fn label_has_inline_sprite_marker(label: &str) -> bool {
+    let mut offset = 0usize;
+    while offset < label.len() {
+        let rest = &label[offset..];
+        if rest.starts_with("<$") || rest.starts_with("<&") || rest.starts_with('&') {
+            return true;
+        }
+        let Some(ch) = rest.chars().next() else {
+            break;
+        };
+        offset += ch.len_utf8();
+    }
+    false
 }
 
 fn render_text_with_inline_sprites(
@@ -230,8 +269,11 @@ fn render_text_with_inline_sprites(
         let mut i = 0usize;
         while i < line.len() {
             let rest = &line[i..];
-            if let Some((sprite_ref, consumed)) = parse_sprite_ref_at(rest) {
+            if let Some((mut sprite_ref, consumed)) = parse_inline_sprite_ref_at(rest) {
                 if let Some(sprite) = active_sprite(&sprite_ref.name) {
+                    if sprite_ref.color.is_none() && !base_color.is_empty() {
+                        sprite_ref.color = Some(base_color.to_string());
+                    }
                     let sprite_y =
                         baseline_y as f32 - (sprite.height as f32 * sprite_ref.scale) + 3.0;
                     out.push_str(&render_sprite(&sprite, cursor_x, sprite_y, &sprite_ref));
@@ -240,7 +282,7 @@ fn render_text_with_inline_sprites(
                     continue;
                 }
             }
-            let next_sprite = rest.find("<$").unwrap_or(rest.len());
+            let next_sprite = next_inline_sprite_marker(rest).unwrap_or(rest.len());
             let text = &rest[..next_sprite.max(1).min(rest.len())];
             out.push_str(&format!(
                 "<text x=\"{cursor_x:.2}\" y=\"{baseline_y}\"{}>{}</text>",
@@ -253,6 +295,20 @@ fn render_text_with_inline_sprites(
     }
     out.push_str("</g>");
     out
+}
+
+fn parse_inline_sprite_ref_at(input: &str) -> Option<(SpriteRef, usize)> {
+    parse_sprite_ref_at(input).or_else(|| parse_openiconic_ref_at(input))
+}
+
+fn next_inline_sprite_marker(input: &str) -> Option<usize> {
+    if !label_has_inline_sprite_marker(input) {
+        return None;
+    }
+    ["<$", "<&", "&"]
+        .iter()
+        .filter_map(|needle| input.find(needle))
+        .min()
 }
 
 fn normalize_sprite_text_lines(text: &str) -> Vec<String> {

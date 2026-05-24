@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-23T15:24:12Z",
+  "generated_at_utc": "2026-05-24T03:17:59Z",
   "summary": {
-    "total": 309,
-    "passed": 306,
+    "total": 314,
+    "passed": 311,
     "excluded": 3,
     "failed": 0
   },
@@ -1213,6 +1213,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/deployment/07_ch08_keyword_parity.puml",
       "artifact_svg": "docs/examples/deployment/07_ch08_keyword_parity.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/deployment/08_bare_usecase_keyword.puml",
+      "artifact_svg": "docs/examples/deployment/08_bare_usecase_keyword.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -2588,6 +2599,28 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/sprites/02_openiconic.puml",
+      "artifact_svg": "docs/examples/sprites/02_openiconic.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/sprites/03_listsprites_openiconic.puml",
+      "artifact_svg": "docs/examples/sprites/03_listsprites_openiconic.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/state/01_basic.puml",
       "artifact_svg": "docs/examples/state/01_basic.svg",
       "artifact_exists": true,
@@ -3195,6 +3228,17 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/timing/10_manual_time_axis.puml",
+      "artifact_svg": "docs/examples/timing/10_manual_time_axis.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/usecase/01_basic.puml",
       "artifact_svg": "docs/examples/usecase/01_basic.svg",
       "artifact_exists": true,
@@ -3263,6 +3307,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/usecase/07_business_variants.puml",
       "artifact_svg": "docs/examples/usecase/07_business_variants.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/usecase/08_inline_element_style.puml",
+      "artifact_svg": "docs/examples/usecase/08_inline_element_style.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

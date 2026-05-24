@@ -54,7 +54,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
 | 21 | Common Commands | 14 | 7 | 1 | [ch21-common.md](audit/ch21-common.md) |
 | 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
-| 23 | Sprites | 7 | 0 | 1 | [ch23-sprites.md](audit/ch23-sprites.md) |
+| 23 | Sprites | 8 | 0 | 1 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
 | 25 | Preprocessing | 18 | 8 | 2 | [ch25-preproc.md](audit/ch25-preproc.md) |
 | 26 | Unicode | 3 | 2 | 0 | [ch26-unicode.md](audit/ch26-unicode.md) |
@@ -92,7 +92,7 @@ closing implementation work from these notes.
 23. **Activity (new)** — 6✅/30 (20%). SDL terminators (6.21.2), kill/detach shapes (6.5, 6.20) added 2026-05-21.
 24. **Timing** — 1✅/29 (3%). MVP-only.
 25. **Activity (legacy)** — 0✅/12 (0%). Effectively unsupported — migrate to new syntax.
-26. **Sprites** — 7✅/8 (88%). Renderer and CLI sprite support have landed; only the GUI import helper is intentionally out of scope.
+26. **Sprites** — 8✅/9 (89%). Renderer and CLI sprite support have landed, including bundled OpenIconic SVG label icons; only the GUI import helper is intentionally out of scope.
 
 ## Cross-cutting findings — the patterns that explain everything
 
@@ -100,7 +100,7 @@ These themes recur across many chapters. Fixing any one of them lifts the suppor
 
 ### 1. Sprites have recently landed
 
-The initial audit found no general sprite system, but current code supports sprite definitions, `<$name>` references, `listsprites`, stdlib sprite includes, and `-encodesprite`. Treat chapter 23 as mostly implemented and check `audit/ch23-sprites.md` before opening new sprite work; remaining follow-up should focus on family-specific layout polish and macro-library behavior rather than rebuilding the core sprite parser.
+The initial audit found no general sprite system, but current code supports sprite definitions, `<$name>` references, bundled OpenIconic `<&name>` / `&name` SVG icons, `listsprites`, stdlib sprite includes, and `-encodesprite`. Treat chapter 23 as mostly implemented and check `audit/ch23-sprites.md` before opening new sprite work; remaining follow-up should focus on family-specific layout polish and macro-library behavior rather than rebuilding the core sprite parser.
 
 ### 2. `<style>` blocks partially wired
 

@@ -6,6 +6,19 @@ All files are resolved via angle-bracket includes (`!include <library/Module>`) 
 
 ---
 
+## OpenIconic (`<&name>` / `&name`)
+
+PUML also bundles the full Open Iconic SVG icon set as built-in sprite data. Use PlantUML/OpenIconic-style inline references directly in labels:
+
+```plantuml
+Alice -> Bob : Open <&folder,scale=2,color=#2563eb>
+Bob --> Alice : Upload &cloud-upload complete
+```
+
+The icons are real inline SVG paths, do not require an `!include`, and appear in `listsprites` output alongside user-defined sprites. Open Iconic is MIT licensed; see `THIRD_PARTY_NOTICES.md` for attribution.
+
+---
+
 ## C4 (`C4/`)
 
 C4 architecture diagram library (C4-PlantUML).
