@@ -24,6 +24,7 @@ use super::layout_constants::{
     DEFAULT_NODE_SEPARATION, DEFAULT_RANK_SEPARATION,
 };
 use crate::render_core::RenderScene;
+use crate::render_core::RouteChannel;
 use std::collections::BTreeMap;
 
 /// Size specification for one node.
@@ -57,6 +58,9 @@ pub struct GraphLayout {
     /// Will be used by Stage 3 orthogonal routing.
     #[allow(dead_code)]
     pub edge_paths: BTreeMap<String, Vec<(f64, f64)>>,
+    /// Deterministic channel bands used by routed edge tracks.
+    #[allow(dead_code)]
+    pub route_channels: BTreeMap<String, RouteChannel>,
     /// Map group id → bounding rect (x, y, w, h).
     pub group_bounds: BTreeMap<String, (f64, f64, f64, f64)>,
     /// Total canvas width.
@@ -140,7 +144,7 @@ pub fn layout_hierarchical(
     let group_bounds = groups::compute_group_bounds(nodes, &node_positions, options);
 
     // Step 5 — Orthogonal edge routing (Stage 3: channel-based)
-    let edge_paths = router::route_edges(
+    let routing = router::route_edges(
         nodes,
         edges,
         &node_positions,
@@ -148,20 +152,22 @@ pub fn layout_hierarchical(
         &group_bounds,
     );
 
-    let scene = scene::build_render_scene(
+    let scene = scene::build_render_scene(scene::SceneBuildInput {
         nodes,
         edges,
-        &node_positions,
-        &edge_paths,
-        &group_bounds,
+        node_positions: &node_positions,
+        edge_paths: &routing.edge_paths,
+        route_channels: &routing.route_channels,
+        group_bounds: &group_bounds,
         canvas_width,
         canvas_height,
-    );
+    });
 
     GraphLayout {
         node_positions,
         node_ranks: ranks,
-        edge_paths,
+        edge_paths: routing.edge_paths,
+        route_channels: routing.route_channels,
         group_bounds,
         canvas_width,
         canvas_height,
