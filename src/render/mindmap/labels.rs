@@ -9,7 +9,6 @@ fn mindmap_max_chars(maximum_width: Option<i32>) -> Option<usize> {
 }
 
 /// Word-wrap `text` at `max_chars` per line (monospace heuristic, 7px/char).
-
 fn wrap_mindmap_label(text: &str, max_chars: usize) -> String {
     text.split('\n')
         .flat_map(|line| wrap_mindmap_line(line, max_chars))
@@ -97,7 +96,6 @@ fn mindmap_label_attrs(font_size: i32, font_family: &str, font_weight: &str) -> 
 }
 
 /// Emit a centered multi-line `<text>` element with Creole markup support.
-
 pub(super) fn render_mindmap_node_label(
     x: i32,
     y_center: i32,
@@ -141,7 +139,6 @@ fn render_creole_line_to_tspans_inline(
 }
 
 /// Width of a multi-line label = the longest line, in monospace char units.
-
 pub(super) fn multiline_char_width(text: &str) -> i32 {
     text.split('\n')
         .map(|s| s.chars().count() as i32)
@@ -150,7 +147,6 @@ pub(super) fn multiline_char_width(text: &str) -> i32 {
 }
 
 /// Number of lines in a (possibly multi-line) label.
-
 pub(super) fn multiline_line_count(text: &str) -> i32 {
     text.split('\n').count() as i32
 }
