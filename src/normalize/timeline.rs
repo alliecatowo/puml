@@ -261,7 +261,11 @@ pub(super) fn normalize_timeline_baseline(
                 "resources footbox" | "resource footbox" => hide_resource_footbox = true,
                 _ => {}
             },
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
             _ => {

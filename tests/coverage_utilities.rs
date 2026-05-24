@@ -302,6 +302,28 @@ note A,B : shared context
 }
 
 #[test]
+fn mermaid_flowchart_comment_lowering_reports_original_source_span() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "flowchart TD\nA --> B\nclick A \"https://example.test\"\n";
+
+    let err = parse_with_pipeline_options(source, &options)
+        .expect_err("unsupported Mermaid click action must not disappear as a comment");
+
+    assert!(err.message.contains("E_MERMAID_FEATURE_LOSS"));
+    assert_eq!(err.line_col(source), Some((3, 1)));
+    assert_eq!(
+        err.span.map(|span| &source[span.start..span.end]),
+        Some("click A \"https://example.test\"")
+    );
+}
+
+#[test]
 fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,

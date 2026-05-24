@@ -485,7 +485,13 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     fill_color: None,
                 });
             }
-            StatementKind::Unknown(line) if family_kind == DiagramKind::Salt => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line)
+                if family_kind == DiagramKind::Salt =>
+            {
                 if line.trim() == "---" {
                     continue;
                 }
@@ -502,7 +508,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     fill_color: None,
                 });
             }
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 // Handle `left to right direction` / `top to bottom direction`
                 if let Some(dir) = parse_family_orientation_directive(&line) {
                     orientation = dir;
@@ -1399,7 +1409,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     right_lollipop: rel.right_lollipop,
                 });
             }
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 if line.trim().is_empty() {
                     continue;
                 }
@@ -2713,7 +2727,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     });
                 }
             }
-            StatementKind::Unknown(line) => {
+            StatementKind::Unknown(line)
+            | StatementKind::UnsupportedSyntax(line)
+            | StatementKind::DeferredRaw(line)
+            | StatementKind::CommentLowered(line)
+            | StatementKind::MalformedSyntax(line) => {
                 // Handle `left to right direction` / `top to bottom direction`
                 // (and reverse variants) for component/state/activity diagrams.
                 if let Some(dir) = parse_family_orientation_directive(&line) {

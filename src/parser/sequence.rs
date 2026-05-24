@@ -273,7 +273,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower.starts_with("!pragma") {
         let body = line[7..].trim();
         if body.is_empty() {
-            return Some(StatementKind::Unknown(
+            return Some(StatementKind::MalformedSyntax(
                 "[E_PRAGMA_INVALID] malformed pragma syntax: missing pragma body".to_string(),
             ));
         }
@@ -376,7 +376,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if let Some(note_kw) = note_kw {
         let tail = note_line[note_kw.len()..].trim();
         if tail.is_empty() {
-            return Some(StatementKind::Unknown(
+            return Some(StatementKind::MalformedSyntax(
                 "[E_NOTE_INVALID] malformed note syntax: missing note head".to_string(),
             ));
         }
@@ -387,7 +387,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             parse_note_head(head)
         };
         if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
-            return Some(StatementKind::Unknown(format!(
+            return Some(StatementKind::MalformedSyntax(format!(
                 "[E_NOTE_INVALID] malformed note syntax: `{}`",
                 note_line
             )));
@@ -404,7 +404,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         let tail = line[4..].trim();
         let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
         if head.is_empty() || text.trim().is_empty() {
-            return Some(StatementKind::Unknown(format!(
+            return Some(StatementKind::MalformedSyntax(format!(
                 "[E_REF_INVALID] malformed ref syntax: `{}`",
                 line
             )));

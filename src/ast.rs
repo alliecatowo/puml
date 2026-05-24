@@ -197,6 +197,10 @@ pub enum StatementKind {
     },
     SpriteDef(SpriteDefinition),
     ListSprites,
+    UnsupportedSyntax(String),
+    DeferredRaw(String),
+    CommentLowered(String),
+    MalformedSyntax(String),
     Unknown(String),
 }
 

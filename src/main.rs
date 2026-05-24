@@ -2718,6 +2718,10 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
             }
         }),
         StatementKind::ListSprites => json!("ListSprites"),
+        StatementKind::UnsupportedSyntax(v) => json!({"UnsupportedSyntax": v}),
+        StatementKind::DeferredRaw(v) => json!({"DeferredRaw": v}),
+        StatementKind::CommentLowered(v) => json!({"CommentLowered": v}),
+        StatementKind::MalformedSyntax(v) => json!({"MalformedSyntax": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::JsonProjection { alias, body } => json!({
             "JsonProjection": {"alias": alias, "body": body}

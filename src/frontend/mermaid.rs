@@ -1,8 +1,9 @@
+use super::{FrontendBuilder, FrontendResult, SourceMap};
 use crate::{source::Span, Diagnostic};
 
 /// Top-level Mermaid → PlantUML adapter.  Inspects the leading directive and
 /// routes to the appropriate family-specific sub-adapter.
-pub(crate) fn adapt_to_plantuml(source: &str) -> Result<String, Diagnostic> {
+pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
     // Scan for the first non-empty, non-comment line to detect the family.
     let mut first_directive: Option<(&str, Span)> = None;
     let mut offset = 0usize;
@@ -30,19 +31,21 @@ pub(crate) fn adapt_to_plantuml(source: &str) -> Result<String, Diagnostic> {
     let lower = directive.to_ascii_lowercase();
     // Route by leading directive keyword.
     if lower == "sequencediagram" {
-        return adapt_mermaid_sequence(source);
+        return adapt_mermaid_sequence(source).map(|adapted| result_from_adapted(source, adapted));
     }
     if lower.starts_with("flowchart ") || lower.starts_with("graph ") {
         return adapt_mermaid_flowchart(source);
     }
     if lower == "classdiagram" {
-        return adapt_mermaid_classdiagram(source);
+        return adapt_mermaid_classdiagram(source)
+            .map(|adapted| result_from_adapted(source, adapted));
     }
     if lower == "statediagram" || lower == "statediagram-v2" {
-        return adapt_mermaid_statediagram(source);
+        return adapt_mermaid_statediagram(source)
+            .map(|adapted| result_from_adapted(source, adapted));
     }
     if lower == "erdiagram" {
-        return adapt_mermaid_erdiagram(source);
+        return adapt_mermaid_erdiagram(source).map(|adapted| result_from_adapted(source, adapted));
     }
 
     Err(Diagnostic::error_code(
@@ -53,6 +56,11 @@ pub(crate) fn adapt_to_plantuml(source: &str) -> Result<String, Diagnostic> {
         ),
     )
     .with_span(directive_span))
+}
+
+fn result_from_adapted(original: &str, adapted: String) -> FrontendResult {
+    let source_map = SourceMap::line_map(original, &adapted);
+    FrontendResult::new(adapted, source_map)
 }
 
 fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
@@ -190,21 +198,26 @@ fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
 ///   `A --> B`           → `A --> B`
 ///   `A -->|cond| B`     → `A --> B : cond`
 ///   `A -- text --> B`   → `A --> B : text`
-fn adapt_mermaid_flowchart(source: &str) -> Result<String, Diagnostic> {
+fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Diagnostic> {
     use std::collections::BTreeMap;
 
-    let mut out = Vec::new();
-    out.push("@startuml".to_string());
+    let mut out = FrontendBuilder::new();
     let mut first = true;
+    let mut directive_span = Span::new(0, 0);
     let mut class_defs: BTreeMap<String, String> = BTreeMap::new();
+    let mut offset = 0usize;
 
     for raw_line in source.lines() {
+        let span = Span::new(offset, offset + raw_line.len());
+        offset += raw_line.len() + 1;
         let line = strip_mermaid_comment(raw_line).trim();
         if line.is_empty() || line.starts_with("%%") {
             continue;
         }
         if first {
             first = false;
+            directive_span = span;
+            out.push_line("@startuml", span);
             // Skip the `flowchart TD` / `graph TD` directive line.
             continue;
         }
@@ -215,40 +228,59 @@ fn adapt_mermaid_flowchart(source: &str) -> Result<String, Diagnostic> {
         }
 
         if let Some(converted) = adapt_flowchart_style(line, &class_defs) {
-            out.push(converted);
+            out.push_line(converted, span);
             continue;
+        }
+
+        if is_unsupported_flowchart_directive(line) {
+            return Err(Diagnostic::error_code(
+                "E_MERMAID_FEATURE_LOSS",
+                format!("unsupported mermaid flowchart construct would be dropped: `{line}`"),
+            )
+            .with_span(span));
         }
 
         // Try to parse as an arrow statement first.
         if let Some(converted) = adapt_flowchart_edge(line) {
-            out.push(converted);
+            out.push_line(converted, span);
             continue;
         }
 
         // Node declaration: `ID[Label]`, `ID{Label}`, `ID(Label)`, bare `ID`.
         if let Some(converted) = adapt_flowchart_node(line) {
-            out.push(converted);
+            out.push_line(converted, span);
             continue;
         }
 
         // Subgraph / end – map to `package`/`end`.
         if let Some(rest) = line.strip_prefix("subgraph ") {
             let label = rest.trim().trim_matches('"');
-            out.push(format!("package \"{label}\" {{"));
+            out.push_line(format!("package \"{label}\" {{"), span);
             continue;
         }
         let lower = line.to_ascii_lowercase();
         if lower == "end" || lower == "end subgraph" {
-            out.push("}".to_string());
+            out.push_line("}", span);
             continue;
         }
 
-        // Unknown line — emit as comment so the parse still succeeds.
-        out.push(format!("' [flowchart] {line}"));
+        return Err(Diagnostic::error_code(
+            "E_MERMAID_FEATURE_LOSS",
+            format!("unsupported mermaid flowchart construct would be dropped: `{line}`"),
+        )
+        .with_span(span));
     }
 
-    out.push("@enduml".to_string());
-    Ok(out.join("\n"))
+    out.push_line("@enduml", directive_span);
+    Ok(out.finish())
+}
+
+fn is_unsupported_flowchart_directive(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    matches!(
+        lower.split_ascii_whitespace().next(),
+        Some("click" | "linkstyle" | "accdescr" | "acctitle")
+    )
 }
 
 /// Extract a node's canonical id and optional label from Mermaid node syntax.
