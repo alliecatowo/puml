@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::*;
+use crate::creole::tokenize_creole;
 use crate::model::{NwdiagNetwork, NwdiagNode};
 
 /// A rendered node bounding box (may appear in multiple network rows).
@@ -97,11 +98,10 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             }
         }
     }
-    let net_rows: i32 = document.networks.len() as i32;
     let network_height = if document.networks.is_empty() {
         24
     } else {
-        net_rows * 102
+        document.networks.iter().map(network_row_step).sum()
     };
     let top_level_row_height = if rendered_top_level_names.is_empty() {
         0
@@ -136,6 +136,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                     continue;
                 }
                 let x = column_x.get(&node.name).copied().unwrap_or(56);
+                let h = node_height(node);
                 node_rects
                     .entry(node.name.clone())
                     .or_default()
@@ -143,10 +144,10 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                         x,
                         y: node_y,
                         w: node_width(node),
-                        h: 28,
+                        h,
                     });
             }
-            scan_y = node_y + 52;
+            scan_y = node_y + network_after_node_gap(net);
         }
         let top_level_node_y = scan_y + 8;
         for name in &rendered_top_level_names {
@@ -158,11 +159,17 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 .map(node_width)
                 .or_else(|| column_widths.get(name).copied())
                 .unwrap_or(140);
+            let height = document
+                .top_level_nodes
+                .iter()
+                .find(|node| &node.name == name)
+                .map(node_height)
+                .unwrap_or(28);
             node_rects.entry(name.clone()).or_default().push(NodeRect {
                 x,
                 y: top_level_node_y,
                 w: width,
-                h: 28,
+                h: height,
             });
         }
         top_level_node_y
@@ -344,8 +351,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             ));
             if !node.addresses.is_empty() {
                 out.push_str(&format!(
-                    "<text class=\"nwdiag-address\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
-                    connector_x,
+                    "<text class=\"nwdiag-address\" x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                    connector_x - 6,
                     node_y - 8,
                     escape_text(&node.addresses.join(", "))
                 ));
@@ -359,7 +366,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                         "<line class=\"nwdiag-jump-line\" data-nwdiag-node=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#0284c7\" stroke-width=\"2\" stroke-dasharray=\"3 3\" />",
                         escape_text(&node.name),
                         connector_x,
-                        node_y + 28,
+                        node_y + node_height(node),
                         connector_x,
                         span.y + span.h
                     ));
@@ -373,8 +380,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             } else {
                 ""
             };
+            let render_height = shared_span
+                .map(|span| span.h)
+                .unwrap_or_else(|| node_height(node));
             out.push_str(&format!(
-                "<rect class=\"nwdiag-node{}\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1.5\"{}/>",
+                "<rect class=\"nwdiag-node{}\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1.5\"{}/>",
                 shared_class,
                 escape_text(&node.name),
                 escape_text(&data_addresses),
@@ -383,28 +393,16 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 x,
                 node_y,
                 node_width,
+                render_height,
                 radius,
                 radius,
                 escape_text(node_fill),
                 dash
             ));
-            let display = shared_span
-                .map(|span| span.label.as_str())
-                .or(node.label.as_deref())
-                .unwrap_or(&node.name);
-            let label = if node.addresses.is_empty() || shared_span.is_some() {
-                display.to_string()
-            } else {
-                format!("{} [{}]", display, node.addresses.join(", "))
-            };
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
-                x + (node_width / 2),
-                node_y + 18,
-                escape_text(&label)
-            ));
+            let label = node_render_label(node, shared_span);
+            render_nwdiag_node_label(&mut out, x, node_y, node_width, &label);
         }
-        y = node_y + 52;
+        y = node_y + network_after_node_gap(net);
     }
 
     let mut rendered_stub_names = BTreeSet::new();
@@ -414,6 +412,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let style = node.style.as_deref().unwrap_or("solid");
         let dash = nwdiag_stroke_dash(style);
         let node_width = node_width(node);
+        let node_height = node_height(node);
         let radius =
             if shape.eq_ignore_ascii_case("roundedbox") || shape.eq_ignore_ascii_case("cloud") {
                 10
@@ -422,7 +421,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             };
         let x = column_x.get(&node.name).copied().unwrap_or(56);
         out.push_str(&format!(
-            "<rect class=\"nwdiag-node nwdiag-toplevel\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"28\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#475569\" stroke-width=\"1.5\"{}/>",
+            "<rect class=\"nwdiag-node nwdiag-toplevel\" data-nwdiag-name=\"{}\" data-nwdiag-addresses=\"{}\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#475569\" stroke-width=\"1.5\"{}/>",
             escape_text(&node.name),
             escape_text(&node.addresses.join(", ")),
             escape_text(shape),
@@ -430,23 +429,14 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             x,
             top_level_node_y,
             node_width,
+            node_height,
             radius,
             radius,
             escape_text(node_fill),
             dash
         ));
-        let display = node.label.as_deref().unwrap_or(&node.name);
-        let label = if node.addresses.is_empty() {
-            display.to_string()
-        } else {
-            format!("{} [{}]", display, node.addresses.join(", "))
-        };
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
-            x + (node_width / 2),
-            top_level_node_y + 18,
-            escape_text(&label)
-        ));
+        let label = node_render_label(node, None);
+        render_nwdiag_node_label(&mut out, x, top_level_node_y, node_width, &label);
         rendered_stub_names.insert(node.name.clone());
     }
     for name in &rendered_top_level_names {
@@ -479,8 +469,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         };
         let from_x = from_rect.x + (from_rect.w / 2);
         let to_x = to_rect.x + (to_rect.w / 2);
-        let from_y = from_rect.y + 14;
-        let to_y = to_rect.y + 14;
+        let from_y = from_rect.y + from_rect.h;
+        let to_y = to_rect.y + to_rect.h;
         let link_y = from_y.max(to_y) + 18;
         out.push_str(&format!(
             "<path class=\"nwdiag-peer-link\" data-nwdiag-peer-a=\"{}\" data-nwdiag-peer-b=\"{}\" d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"#475569\" stroke-width=\"2\" stroke-dasharray=\"4 2\" />",
@@ -512,10 +502,91 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
 }
 
 fn node_width(node: &NwdiagNode) -> i32 {
-    node.width
-        .and_then(|width| i32::try_from(width).ok())
-        .unwrap_or(140)
-        .clamp(120, 240)
+    if let Some(width) = node.width.and_then(|width| i32::try_from(width).ok()) {
+        return width.clamp(120, 240);
+    }
+
+    let label = node_render_label(node, None);
+    let label_width = normalized_label_lines(&label)
+        .into_iter()
+        .map(|line| {
+            let sprite_padding = if label_contains_inline_sprite(&line) {
+                22
+            } else {
+                0
+            };
+            text_width(&line, 12) + sprite_padding + 24
+        })
+        .max()
+        .unwrap_or(140);
+    label_width.clamp(120, 260)
+}
+
+fn node_height(node: &NwdiagNode) -> i32 {
+    let label = node_render_label(node, None);
+    let lines = normalized_label_lines(&label).len().max(1) as i32;
+    (lines * 16 + 12).max(28)
+}
+
+fn network_row_step(network: &NwdiagNetwork) -> i32 {
+    24 + 30 + network_max_node_height(network) + 24
+}
+
+fn network_after_node_gap(network: &NwdiagNetwork) -> i32 {
+    network_max_node_height(network) + 24
+}
+
+fn network_max_node_height(network: &NwdiagNetwork) -> i32 {
+    network.nodes.iter().map(node_height).max().unwrap_or(28)
+}
+
+fn node_render_label(node: &NwdiagNode, shared_span: Option<&SharedNodeSpan>) -> String {
+    let display = shared_span
+        .map(|span| span.label.as_str())
+        .or(node.label.as_deref())
+        .unwrap_or(&node.name);
+    if node.addresses.is_empty() || shared_span.is_some() || label_needs_rich_layout(display) {
+        display.to_string()
+    } else {
+        format!("{} [{}]", display, node.addresses.join(", "))
+    }
+}
+
+fn render_nwdiag_node_label(out: &mut String, x: i32, y: i32, width: i32, label: &str) {
+    let extra_attrs =
+        "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\"";
+    if label_contains_inline_sprite(label) {
+        out.push_str(&super::super::svg::creole_text(
+            x + 10,
+            y + 18,
+            "font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\"",
+            label,
+            "#0f172a",
+        ));
+    } else {
+        out.push_str(&super::super::svg::creole_text(
+            x + (width / 2),
+            y + 18,
+            extra_attrs,
+            label,
+            "#0f172a",
+        ));
+    }
+}
+
+fn normalized_label_lines(label: &str) -> Vec<String> {
+    tokenize_creole(label)
+        .into_iter()
+        .map(|line| line.into_iter().map(|span| span.text).collect::<String>())
+        .collect()
+}
+
+fn label_contains_inline_sprite(label: &str) -> bool {
+    label.contains("<$") || label.contains("<&") || label.contains('&')
+}
+
+fn label_needs_rich_layout(label: &str) -> bool {
+    normalized_label_lines(label).len() > 1 || label_contains_inline_sprite(label)
 }
 
 fn shared_node_spans(
@@ -542,7 +613,7 @@ fn shared_node_spans(
             spans
                 .entry(node.name.clone())
                 .and_modify(|span| {
-                    span.h = ((bar_y + 12) - span.y).max(28);
+                    span.h = ((bar_y + 12) - span.y).max(span.h).max(node_height(node));
                     append_unique_addresses(&mut span.addresses, &node.addresses);
                     if span.color.is_none() {
                         span.color = node.color.clone();
@@ -558,7 +629,7 @@ fn shared_node_spans(
                     x,
                     y: node_y,
                     w: width,
-                    h: 28,
+                    h: node_height(node),
                     addresses: node.addresses.clone(),
                     label: node.label.clone().unwrap_or_else(|| node.name.clone()),
                     color: node.color.clone(),
@@ -566,7 +637,7 @@ fn shared_node_spans(
                     style: node.style.clone(),
                 });
         }
-        scan_y = node_y + 52;
+        scan_y = node_y + network_after_node_gap(net);
     }
     spans
 }

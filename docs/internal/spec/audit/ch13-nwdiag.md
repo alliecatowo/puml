@@ -46,17 +46,17 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 **Status:** ✅
 **Evidence:** `src/normalize/nwdiag.rs:85-94` network-level color/description/shape/style; `:186-198` node-level color/shape/style/label. `src/render/specialized/nwdiag.rs` renders `style = "dashed"` and `style = "dotted"` as visible stroke patterns for network/group/node outlines and node connectors.
 
-### 13.5 Sprites (`<$application_server>` in description) — 🟡
+### 13.5 Sprites (`<$application_server>` in description) — ✅
 **Feature:** Sprite references inside `description = "<$sprite>\n web01"`.
-**Status:** 🟡
-**Evidence:** description string is captured (`src/normalize/nwdiag.rs:190`), but sprite-token rendering in nwdiag node bodies is not visible in `src/render/specialized/nwdiag.rs`. Likely emitted as literal text.
-**Notes:** `!include <office/...>` may parse via preproc; sprite-into-svg substitution for nwdiag specifically — unverified, suspect text-only.
+**Status:** ✅
+**Evidence:** description string is captured (`src/normalize/nwdiag.rs:190`); nwdiag node labels route through the shared inline sprite/Creole renderer (`src/render/specialized/nwdiag.rs`) with focused coverage in `tests/ch13_nwdiag_parity.rs` and `docs/examples/nwdiag/04_icons_multiline.puml`.
+**Notes:** Built-in sprite/icon references render as inline SVG instead of escaped literal text; multiline descriptions resize node boxes.
 
-### 13.6 OpenIconic in descriptions (`<&clock>`, `<&cog*4>`) — 🟡
+### 13.6 OpenIconic in descriptions (`<&clock>`, `<&cog*4>`) — ✅
 **Feature:** OpenIconic icon refs + size multiplier in `description`.
-**Status:** 🟡
-**Evidence:** Captured as raw text; no OpenIconic inline-run renderer hook found in nwdiag specialized path.
-**Notes:** Same text-only limitation as 13.5.
+**Status:** ✅
+**Evidence:** OpenIconic markers in nwdiag descriptions are rendered by the shared inline sprite path (`src/render/specialized/nwdiag.rs`), including the regression fixture in `tests/ch13_nwdiag_parity.rs`.
+**Notes:** Verified visually with `/tmp/puml-nwdiag-after/04_icons_multiline.png`.
 
 ### 13.7 Same nodes on more than two networks (`jump line`) — ✅
 **Feature:** A node defined in 3+ networks should draw vertical jump connectors.
@@ -115,4 +115,4 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 
 ---
 
-**Tally ch13 (17 subsections audited):** ✅ 12 · 🟡 3 · ❌ 2
+**Tally ch13 (19 subsections audited):** ✅ 15 · 🟡 2 · ❌ 2

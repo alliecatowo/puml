@@ -1,0 +1,17 @@
+@startnwdiag
+nwdiag {
+  group services {
+    color = "#fef3c7"
+    api; db;
+  }
+  internet [shape = cloud, description = "<&cloud> Internet"];
+  network public {
+    address = "203.0.113.0/24"
+    api [address = "203.0.113.10", description = "<&globe> API\nedge gateway", color = "#ffffff", shape = "roundedbox"];
+  }
+  network data {
+    db [address = "10.0.0.20", description = "<&hard-drive> DB<br/>primary", color = "#f8fafc", shape = "database"];
+  }
+  internet -- api;
+}
+@endnwdiag
