@@ -6,6 +6,12 @@
 GitHub Project (v2) board up to date by transitioning items linked to closed
 issues from "In Progress" (or uncategorised) to "Done".
 
+This is a maintainer-only workflow unless the agent environment already has a
+token with GitHub Projects v2 read/write scope. Normal implementation agents
+should use `gh issue list`, `gh issue view`, and focused issue labels. They
+should not block, retry, or invent workarounds when `gh project` reports missing
+`project` / `read:project` scope.
+
 `.github/workflows/project-sync.yml` and `scripts/project-v2-event-sync.sh` are
 the event-driven fallback automation for the PUML board. GitHub's GraphQL API
 can list Projects v2 workflows, but it does not currently expose create/update
@@ -15,7 +21,7 @@ only the existing `Status` and `Priority` fields on issue/PR events.
 ## Prerequisites
 
 - `gh` CLI >= 2.40 installed and authenticated (`gh auth login`)
-- Write access to the GitHub Project board
+- Write access to the GitHub Project board. Repository issue access is not enough.
 - The project must use a **Single Select** status field with an option named **"Done"**
 
 ## Live board state checked

@@ -29,7 +29,7 @@ stdlib/                 Bundled PlantUML stdlib skins
 site/                   In-browser editor (TypeScript + Vite)
 extensions/             VS Code extension
 agent-pack/             MCP server, agent skills, smoke tests
-docs/                   Architecture docs, examples, parity tracking, visual audits
+docs/                   Architecture docs, examples, compatibility notes, visual QA docs
 scripts/                CI/automation helpers
 tests/                  Integration tests + visual_baselines/
 ```
@@ -144,8 +144,8 @@ When you receive an issue number, execute these steps in order:
   `./target/release/puml --format png <file>.puml -o /tmp/v.png`
   Then `Read /tmp/v.png`.
 - Visual audit findings should become live GitHub issues, regression fixtures,
-  visual baselines, or updates to the spec audits. Do not keep dated wave logs
-  around after triage; stale visual-audit notes are pre-v1 clutter.
+  visual baselines, or updates to current architecture docs. Do not keep dated
+  wave logs around after triage; stale visual-audit notes are pre-v1 clutter.
 
 ---
 
@@ -189,7 +189,8 @@ Do not do these:
 | What you need | Where to find it |
 |---|---|
 | **PlantUML language reference (canonical)** | `docs/internal/spec/PlantUML_Language_Reference_Guide_v1.2025.0.pdf` — the upstream spec PDF; read this for any syntax question, color/icon example, or rendered-output comparison |
-| **PlantUML support matrix + audit** | `docs/internal/spec/plantuml-spec.md` — per-chapter ✅/🟡/❌ status with file:line evidence in `docs/internal/spec/audit/chXX-*.md` |
+| Renderer refactor roadmap | `docs/internal/architecture/renderer-refactor-roadmap.md` |
+| PlantUML reference material | `docs/internal/spec/PlantUML_Language_Reference_Guide_v1.2025.0.pdf` and `docs/internal/spec/plantuml-spec.md` — useful references, not automatic assignment sources |
 | Agent runbook (deep) | `docs/internal/agents/codex-workflow.md` |
 | Autonomous workflow cookbook | `docs/internal/agents/autonomous-workflow-cookbook.md` |
 | Architecture + layout engine plan | `docs/internal/architecture/layout-engine-vision.md` |
@@ -197,14 +198,18 @@ Do not do these:
 | Human + agent contribution guide | `CONTRIBUTING.md` |
 | Release checklist | `docs/release-checklist.md` |
 
-### Always check the spec before implementing
+### Always check current evidence before implementing
 
 Before touching parser, normalize, or render code for any diagram family, read:
-1. The matching chapter in **`docs/internal/spec/plantuml-spec.md`** for current support status + known gaps
-2. The matching section of the **upstream PDF** at `docs/internal/spec/PlantUML_Language_Reference_Guide_v1.2025.0.pdf` for canonical syntax and rendered-output examples
-3. The per-chapter audit file under `docs/internal/spec/audit/` for file:line evidence
+1. The owning GitHub issue body and acceptance criteria
+2. The relevant tests/fixtures/examples that already exercise the behavior
+3. The matching section of the upstream PlantUML reference when parity matters
+4. `docs/internal/architecture/renderer-refactor-roadmap.md` for renderer,
+   frontend, source-map, scene, geometry, and invariant work
 
-After landing a feature, bump the relevant audit entry from ❌→🟡 or 🟡→✅ and update the headline counts in `plantuml-spec.md`.
+Do not treat legacy parity ledgers or dated audit notes as assignment truth.
+If they conflict with tests, examples, or current issues, fix or retire the stale
+doc instead of coding to it.
 
 ---
 
@@ -276,11 +281,10 @@ Required green markers before any merge to main:
 
 | Epic | Title |
 |---|---|
-| [#82](https://github.com/alliecatowo/puml/issues/82) | Truth-reset parity |
 | [#88](https://github.com/alliecatowo/puml/issues/88) | Oracle conformance |
 | [#89](https://github.com/alliecatowo/puml/issues/89) | CI hardening |
 | [#399](https://github.com/alliecatowo/puml/issues/399) | Language service |
-| [#590](https://github.com/alliecatowo/puml/issues/590) | Layout engine (stages 1-4) |
+| [#590](https://github.com/alliecatowo/puml/issues/590) | Renderer architecture and layout |
 
 Check the epic body for child issues — that's where active implementation work is tracked.
 
@@ -291,10 +295,11 @@ Check the epic body for child issues — that's where active implementation work
 This section is the authoritative encyclopedia of the flows this project uses. When in
 doubt about which flow to use, read the "when to use" note for each.
 
-### Flow A: Walk-the-board → file → fix → close
+### Flow A: Issue queue → file → fix → close
 
-**When:** Standing audit loop; the orchestrator or an assigned triage agent walks the
-open issue board between waves.
+**When:** Standing triage loop; the orchestrator or an assigned triage agent walks
+current GitHub issues between waves. Project board access requires a maintainer
+token and is optional. Do not block implementation on `gh project` access.
 
 1. `gh issue list --state open --label P0 --limit 30` — find high-priority open work
 2. `gh issue view <N>` — read full body + acceptance criteria
@@ -374,15 +379,16 @@ every swarm wave" directive.
 **When:** After a render change, or on a scheduled visual-quality wave.
 
 1. Regenerate PNG corpus: `python3 scripts/render_corpus.py --force`
-2. Multimodal audit: spawn 3-4 Sonnet agents, each reads ~25 PNGs, files GH issues per
-   visual flaw found
+2. Multimodal audit: spawn focused agents that inspect PNGs and report concrete
+   fixture paths, file references, and suggested invariant tickets
 3. Convert confirmed findings into live GitHub issues, regression fixtures, or
-   spec-audit updates
+   architecture/visual-regression docs
 4. Fire implementer wave (Flow B), grouped by file locality
 5. After merges land, regenerate corpus, re-audit, loop until pixel-perfect
 
-Do not retain dated wave-log notes after triage. They go stale quickly; the live
-board, visual regression manifest, and spec audits are the source of truth.
+Do not retain dated wave-log notes after triage. They go stale quickly. Current
+GitHub issues, tests, fixtures, visual baselines, and architecture docs are the
+actionable record.
 
 ---
 
@@ -433,8 +439,8 @@ Diagnose with coords, then re-verify the fix with PNG Read.
 
 - Orchestrator memory: `/home/Allie/.claude/projects/-home-Allie-develop-puml/memory/`
 - Visual audit findings belong in GitHub issues, focused fixtures, blessed visual
-  baselines, or spec-audit updates. Avoid persistent dated wave logs unless the
-  orchestrator explicitly asks for a short-lived scratch note.
+  baselines, or current architecture docs. Avoid persistent dated wave logs unless
+  the orchestrator explicitly asks for a short-lived scratch note.
 - Per-agent memory links are in `memory/MEMORY.md`; read before spawning subagents
 
 ---

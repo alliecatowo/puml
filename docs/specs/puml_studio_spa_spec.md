@@ -270,8 +270,8 @@ Rules:
 The sections above describe the target Studio runtime. The current contract that
 already exists in the Rust runtime and is safe for Studio integration is narrower
 than the target editor/designer feature list, but broader than the original
-sequence-only scaffold. Treat the parity source-of-truth audit as the current
-family support table.
+sequence-only scaffold. Treat focused issues, executable tests, and examples as
+the current support evidence.
 
 ### Rust library surface available now
 

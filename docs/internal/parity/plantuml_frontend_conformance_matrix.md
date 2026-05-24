@@ -1,11 +1,10 @@
 # PlantUML Frontend Conformance Matrix
 
-> **Scope-narrowed.** Broad PlantUML language support is now tracked in
-> [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md) and
-> [`docs/internal/spec/audit/`](../spec/audit/). This matrix is retained as a
-> deterministic runtime contract for the implemented frontend slice (block
-> boundaries, directives, comments, multi-block extraction) and is enforced by
-> `tests/plantuml_frontend_conformance_audit.rs`.
+> **Scope-narrowed.** This matrix is retained as a deterministic runtime
+> contract for the implemented frontend slice: block boundaries, directives,
+> comments, and multi-block extraction. It is enforced by
+> `tests/plantuml_frontend_conformance_audit.rs` and should not be used as a
+> broad language-support ledger.
 
 Issue lane: #130  
 Last updated: 2026-05-17 (America/Los_Angeles)
@@ -15,12 +14,8 @@ directive handling edges, comments/quoted-text behavior, and multi-block extract
 It is scoped to exercised frontend behaviors only. `puml` is the Rust renderer
 binary/engine, PlantUML is the compatibility target, PicoUML is the project-owned
 frontend surface, and Mermaid is an adapter frontend for selected families. This
-matrix does not assert full PlantUML 1:1 parity; use
-[`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md) and the
-per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/) as the
-authoritative implemented/partial/missing status. Rows here are runtime contract
-checks for selected frontend behavior, not a broader language support source of
-truth.
+matrix does not assert full PlantUML 1:1 parity. Rows here are runtime contract
+checks for selected frontend behavior, not broader language-support status.
 
 ## Matrix
 
@@ -66,4 +61,4 @@ truth.
 - Fixture and example coverage here should be treated as coverage seeds, not exhaustive parity proof.
 - Oracle and benchmark rows are executable evidence hooks only. Generated
   artifacts under `docs/benchmarks/` are snapshots of specific runs, not the
-  source of truth for PlantUML support status.
+  PlantUML support-status record.

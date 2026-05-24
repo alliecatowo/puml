@@ -291,8 +291,8 @@ tracked separately.)*
 families render well today; some advanced features are partial and tracked openly.
 
 Run `puml --check` on your files and compare output when pixel-perfect parity matters.
-The feature-by-feature status lives in
-[`docs/internal/parity/plantuml_parity_source_of_truth.md`](docs/internal/parity/plantuml_parity_source_of_truth.md).
+Current compatibility work is tracked through focused GitHub issues, executable
+fixtures, and the roadmap in [`docs/parity-roadmap.md`](docs/parity-roadmap.md).
 
 </details>
 
@@ -306,11 +306,10 @@ Baseline rendering across all major diagram families landed in the parity blitz
 (May 2025); advanced feature depth is an ongoing effort.
 
 Active epics:
-- [#82](https://github.com/alliecatowo/puml/issues/82) — Truth-reset parity
 - [#88](https://github.com/alliecatowo/puml/issues/88) — Oracle conformance suite
 - [#89](https://github.com/alliecatowo/puml/issues/89) — CI hardening
 - [#399](https://github.com/alliecatowo/puml/issues/399) — Language service
-- [#590](https://github.com/alliecatowo/puml/issues/590) — Layout engine (stages 1-4)
+- [#590](https://github.com/alliecatowo/puml/issues/590) — Renderer architecture and layout
 
 See the [GitHub milestone view](https://github.com/alliecatowo/puml/milestones) for
 what is planned next.

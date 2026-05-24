@@ -4,10 +4,8 @@ PlantUML, Mermaid, and `puml` solve overlapping problems with different tradeoff
 This page is intentionally practical: choose the tool whose constraints match your
 team rather than treating any one renderer as universally best.
 
-For detailed PlantUML compatibility status, see the internal support matrix at
-[`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md) and the parity
-source of truth at
-[`docs/internal/parity/plantuml_parity_source_of_truth.md`](internal/parity/plantuml_parity_source_of_truth.md).
+For detailed PlantUML compatibility status, start with focused GitHub issues,
+executable fixtures, and [`docs/parity-roadmap.md`](parity-roadmap.md).
 
 ---
 

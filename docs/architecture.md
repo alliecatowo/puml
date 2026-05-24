@@ -10,7 +10,7 @@ This page documents the internal structure of `puml` using diagrams that were au
 
 **What it shows.** The three-layer architecture: Frontends at the top, the Pipeline Core in the middle, and Transports at the bottom, with Shared Services on the side. Arrows trace data flow from source text through preprocessing, parsing, normalization, and rendering to output formats.
 
-**Why it matters.** Every transport — CLI, LSP, WASM — drives the same pipeline. Adding a new frontend (e.g. a future Graphviz adapter) means implementing a translation layer that emits PlantUML-shaped text; the rest of the engine is untouched. This separation is enforced at the module level: `src/frontend/` contains all such adapters and nothing outside that directory performs dialect-specific translation.
+**Why it matters.** Every transport — CLI, LSP, WASM — should drive the same pipeline. The current Mermaid and PicoUML adapters still lower through PlantUML-shaped text; the next architecture step is a typed frontend result plus source map so each input language can preserve diagnostics and feature-loss reporting.
 
 **Key files.** `src/frontend/mermaid.rs`, `src/frontend/picouml.rs`, `src/parser.rs`, `src/normalize/`, `src/render/`, `src/theme.rs`, `src/diagnostic.rs`, `src/bin/puml-lsp.rs`, `crates/puml-wasm/`.
 
@@ -64,7 +64,7 @@ This page documents the internal structure of `puml` using diagrams that were au
 
 **Why it matters.** The honest status map is the single most useful communication tool for contributors and users. It sets expectations, identifies where help is most needed, and acts as a regression anchor — if a family moves backward in depth, that should be visible here.
 
-**Key files.** `docs/internal/spec/plantuml-spec.md` (canonical support matrix), `docs/internal/spec/audit/` (per-chapter audits), `src/normalize/family.rs`, `src/parser/family.rs`.
+**Key files.** `docs/internal/architecture/renderer-refactor-roadmap.md`, `docs/parity-roadmap.md`, `src/normalize/family.rs`, `src/parser/family.rs`, `src/render/family.rs`, `src/render/graph_layout.rs`.
 
 ---
 
