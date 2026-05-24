@@ -6,12 +6,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut relations = Vec::new();
     let mut groups = Vec::new();
     let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
-    let mut title = None;
-    let mut header = None;
-    let mut footer = None;
-    let mut caption = None;
-    let mut legend = None;
-    let mut mainframe = None;
+    let mut common = CommonDirectives::default();
     let mut hide_options: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut activity_step_counter: usize = 0;
     let mut activity_active_partition: Option<String> = None;
@@ -591,14 +586,14 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     });
                 }
             }
-            StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => header = Some(v),
-            StatementKind::Footer(v) => footer = Some(v),
-            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Title(v) => common.title(v),
+            StatementKind::Header(v) => common.raw_header(v),
+            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => {
-                legend = Some(sequence::strip_legend_pos_prefix(&v));
+                common.legend(v, LegendTextMode::StripPackedPosition);
             }
-            StatementKind::Mainframe(v) => mainframe = Some(v),
+            StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
                 let mut handled = false;
                 if key.trim().eq_ignore_ascii_case("monochrome") {
@@ -941,12 +936,12 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         kind: family_kind,
         nodes,
         relations,
-        title,
-        header,
-        footer,
-        caption,
-        legend,
-        mainframe,
+        title: common.title,
+        header: common.header,
+        footer: common.footer,
+        caption: common.caption,
+        legend: common.legend,
+        mainframe: common.mainframe,
         orientation,
         style: SequenceStyle {
             sepia,

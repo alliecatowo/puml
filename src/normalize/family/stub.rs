@@ -20,12 +20,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
     let mut hide_options = std::collections::BTreeSet::new();
     let mut namespace_separator: Option<String> = None;
-    let mut title = None;
-    let mut header = None;
-    let mut footer = None;
-    let mut caption = None;
-    let mut legend = None;
-    let mut mainframe = None;
+    let mut common = CommonDirectives::default();
     let mut class_style = ClassStyle::default();
     let mut class_monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
@@ -433,12 +428,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::HideOption(opt) => {
                 hide_options.insert(opt.to_ascii_lowercase());
             }
-            StatementKind::Title(v) => title = Some(v),
-            StatementKind::Header(v) => header = Some(v),
-            StatementKind::Footer(v) => footer = Some(v),
-            StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::Mainframe(v) => mainframe = Some(v),
+            StatementKind::Title(v) => common.title(v),
+            StatementKind::Header(v) => common.raw_header(v),
+            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Caption(v) => common.caption(v),
+            StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
+            StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::Theme(value) => {
                 class_style = class_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(&value)
@@ -573,12 +568,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         json_projections,
         hide_options,
         namespace_separator,
-        title,
-        header,
-        footer,
-        caption,
-        legend,
-        mainframe,
+        title: common.title,
+        header: common.header,
+        footer: common.footer,
+        caption: common.caption,
+        legend: common.legend,
+        mainframe: common.mainframe,
         orientation,
         style: SequenceStyle {
             sepia,

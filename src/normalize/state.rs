@@ -1,13 +1,10 @@
+use super::common::{self, CommonDirectives, LegendTextMode};
 use super::*;
 
 pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
     let mut nodes: Vec<StateNode> = Vec::new();
     let mut transitions: Vec<ModelStateTransition> = Vec::new();
-    let mut title = None;
-    let mut header = None;
-    let mut footer = None;
-    let mut caption = None;
-    let mut legend = None;
+    let mut common = CommonDirectives::default();
     let mut state_style = StateStyle::default();
     let mut hide_empty_description = false;
     let mut monochrome_mode = None;
@@ -152,11 +149,13 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     regions: Vec::new(),
                 });
             }
-            StatementKind::Title(v) => title = Some(v.clone()),
-            StatementKind::Header(v) => header = Some(v.clone()),
-            StatementKind::Footer(v) => footer = Some(v.clone()),
-            StatementKind::Caption(v) => caption = Some(v.clone()),
-            StatementKind::Legend(v) => legend = Some(v.clone()),
+            StatementKind::Title(v) => common.title(v.clone()),
+            StatementKind::Header(v) => common.raw_header(v.clone()),
+            StatementKind::Footer(v) => common.raw_footer(v.clone()),
+            StatementKind::Caption(v) => common.caption(v.clone()),
+            StatementKind::Legend(v) => {
+                common.legend(v.clone(), LegendTextMode::Raw);
+            }
             StatementKind::SkinParam { key, value } => {
                 if key.trim().eq_ignore_ascii_case("monochrome") {
                     match classify_sequence_skinparam(key, value) {
@@ -164,13 +163,9 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         SequenceSkinParamSupport::SupportedWithValue(
                             SequenceSkinParamValue::Monochrome(mode),
                         ) => monochrome_mode = Some(mode),
-                        _ => warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        ),
+                        _ => warnings.push(common::unsupported_skinparam_value_warning(
+                            key, value, stmt.span,
+                        )),
                     }
                     continue;
                 }
@@ -180,13 +175,9 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         | SequenceSkinParamSupport::SupportedWithValue(
                             SequenceSkinParamValue::Handwritten(_),
                         ) => {}
-                        _ => warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        ),
+                        _ => warnings.push(common::unsupported_skinparam_value_warning(
+                            key, value, stmt.span,
+                        )),
                     }
                     continue;
                 }
@@ -214,22 +205,12 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         }
                     },
                     SkinParamSupport::UnsupportedKey => {
-                        warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
-                                key
-                            ))
-                            .with_span(stmt.span),
-                        );
+                        warnings.push(common::unsupported_skinparam_warning(key, stmt.span));
                     }
                     SkinParamSupport::UnsupportedValue => {
-                        warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        );
+                        warnings.push(common::unsupported_skinparam_value_warning(
+                            key, value, stmt.span,
+                        ));
                     }
                 }
             }
@@ -314,11 +295,11 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         kind: document.kind,
         nodes,
         transitions,
-        title,
-        header,
-        footer,
-        caption,
-        legend,
+        title: common.title,
+        header: common.header,
+        footer: common.footer,
+        caption: common.caption,
+        legend: common.legend,
         state_style,
         hide_empty_description,
         warnings,
