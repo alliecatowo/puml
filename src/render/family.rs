@@ -2552,6 +2552,9 @@ fn parse_member_modifiers(text: &str) -> (&'static str, &str) {
 }
 
 pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
+    if let Some(spec) = crate::registry::graph_element_for_family_node_kind(kind) {
+        return spec.renderer_label;
+    }
     match kind {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",

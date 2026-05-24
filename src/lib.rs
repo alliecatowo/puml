@@ -16,6 +16,7 @@ mod openiconic;
 pub mod output;
 pub mod parser;
 mod preproc;
+pub mod registry;
 pub mod render;
 pub mod render_core;
 pub mod scene;
@@ -525,14 +526,17 @@ pub fn render_family_document_svg(family: &FamilyDocument) -> String {
         if family.list_sprites {
             return render::render_sprite_sheet(&family.sprites);
         }
-        match family.kind {
-            ast::DiagramKind::Salt => render::render_salt_svg(family),
-            ast::DiagramKind::Component => render::render_component_svg(family),
-            ast::DiagramKind::Deployment => render::render_deployment_svg(family),
-            ast::DiagramKind::Activity => render::render_activity_svg(family),
-            ast::DiagramKind::Timing => render::render_timing_svg(family),
-            ast::DiagramKind::MindMap => render::render_mindmap_svg(family),
-            ast::DiagramKind::Wbs => render::render_wbs_svg(family),
+        match registry::family_spec_by_ast(family.kind)
+            .map(|spec| spec.render_kind)
+            .unwrap_or(registry::FamilyRenderKind::Unsupported)
+        {
+            registry::FamilyRenderKind::Salt => render::render_salt_svg(family),
+            registry::FamilyRenderKind::Component => render::render_component_svg(family),
+            registry::FamilyRenderKind::Deployment => render::render_deployment_svg(family),
+            registry::FamilyRenderKind::Activity => render::render_activity_svg(family),
+            registry::FamilyRenderKind::Timing => render::render_timing_svg(family),
+            registry::FamilyRenderKind::MindMap => render::render_mindmap_svg(family),
+            registry::FamilyRenderKind::Wbs => render::render_wbs_svg(family),
             _ => render::render_family_stub_svg(family),
         }
     });
@@ -549,33 +553,7 @@ pub fn render_family_document_svg(family: &FamilyDocument) -> String {
 }
 
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
-    match kind {
-        ast::DiagramKind::Sequence => DiagramFamily::Sequence,
-        ast::DiagramKind::Class => DiagramFamily::Class,
-        ast::DiagramKind::Object => DiagramFamily::Object,
-        ast::DiagramKind::UseCase => DiagramFamily::UseCase,
-        ast::DiagramKind::MindMap => DiagramFamily::MindMap,
-        ast::DiagramKind::Wbs => DiagramFamily::Wbs,
-        ast::DiagramKind::Gantt => DiagramFamily::Gantt,
-        ast::DiagramKind::Chronology => DiagramFamily::Chronology,
-        ast::DiagramKind::Component => DiagramFamily::Component,
-        ast::DiagramKind::Deployment => DiagramFamily::Deployment,
-        ast::DiagramKind::State => DiagramFamily::State,
-        ast::DiagramKind::Activity => DiagramFamily::Activity,
-        ast::DiagramKind::Timing => DiagramFamily::Timing,
-        ast::DiagramKind::Salt => DiagramFamily::Salt,
-        ast::DiagramKind::Json => DiagramFamily::Json,
-        ast::DiagramKind::Yaml => DiagramFamily::Yaml,
-        ast::DiagramKind::Nwdiag => DiagramFamily::Nwdiag,
-        ast::DiagramKind::Archimate => DiagramFamily::Archimate,
-        ast::DiagramKind::Regex => DiagramFamily::Regex,
-        ast::DiagramKind::Ebnf => DiagramFamily::Ebnf,
-        ast::DiagramKind::Math => DiagramFamily::Math,
-        ast::DiagramKind::Sdl => DiagramFamily::Sdl,
-        ast::DiagramKind::Ditaa => DiagramFamily::Ditaa,
-        ast::DiagramKind::Chart => DiagramFamily::Chart,
-        ast::DiagramKind::Unknown => DiagramFamily::Unknown,
-    }
+    registry::diagram_family_for_ast(kind)
 }
 
 /// Returns the LSP server capabilities object that `puml-lsp` advertises

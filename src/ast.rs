@@ -177,6 +177,7 @@ pub enum StatementKind {
     },
     HideOption(String),
     HideUnlinked,
+    AllowMixing,
     /// `mainframe <title>` — draws a UML mainframe border around the whole diagram.
     Mainframe(String),
     /// `json $alias { ... }` inline block inside a `@startuml`/`@enduml` block.

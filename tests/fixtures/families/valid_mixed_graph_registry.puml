@@ -1,0 +1,12 @@
+@startuml
+allowmixing
+component API
+database DB
+class Order
+actor User
+usecase Checkout
+User --> Checkout
+Checkout --> API
+API --> Order
+API --> DB
+@enduml

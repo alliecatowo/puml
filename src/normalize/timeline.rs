@@ -254,6 +254,7 @@ pub(super) fn normalize_timeline_baseline(
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
+            | StatementKind::AllowMixing
             | StatementKind::LegendPos(_)
             | StatementKind::SetOption { .. } => {}
             StatementKind::HideOption(option) => match option.as_str() {

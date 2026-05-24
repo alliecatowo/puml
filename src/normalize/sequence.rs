@@ -730,7 +730,10 @@ pub(super) fn normalize_with_options(
                     kind: infer_return_event(stmt.span, v, &mut activation_stack, &last_message)?,
                 })
             }
-            StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
+            StatementKind::AllowMixing
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
             }
             StatementKind::RawBlockContent(_) => {

@@ -209,6 +209,37 @@ fn render_component_style_oracle_slice_exposes_relation_dom_semantics() {
 }
 
 #[test]
+fn render_mixed_graph_registry_fixture_routes_class_usecase_and_deployment_nodes() {
+    let src = fixture("families/valid_mixed_graph_registry.puml");
+    let parsed = puml::parse(&src).expect("mixed graph fixture should parse");
+    assert_eq!(parsed.kind, puml::ast::DiagramKind::Deployment);
+
+    let model = puml::normalize_family(parsed).expect("mixed graph fixture should normalize");
+    let puml::model::NormalizedDocument::Family(family) = model else {
+        panic!("mixed graph fixture should normalize as a family graph");
+    };
+
+    assert!(family.nodes.iter().any(|node| {
+        matches!(node.kind, puml::model::FamilyNodeKind::Class) && node.name == "Order"
+    }));
+    assert!(family.nodes.iter().any(|node| {
+        matches!(node.kind, puml::model::FamilyNodeKind::UseCaseDeployment)
+            && node.name == "Checkout"
+    }));
+    assert!(family.nodes.iter().any(|node| {
+        matches!(node.kind, puml::model::FamilyNodeKind::Database) && node.name == "DB"
+    }));
+
+    let svg = puml::render_family_document_svg(&family);
+    for label in ["API", "Order", "Checkout", "DB"] {
+        assert!(
+            svg.contains(label),
+            "mixed graph render should include `{label}`"
+        );
+    }
+}
+
+#[test]
 fn render_activity_if_else_branches_use_distinct_columns() {
     let svg = puml::render_source_to_svg(include_str!(
         "../docs/examples/activity/02_if_then_else.puml"
