@@ -1,6 +1,6 @@
 # Chapter 16 — Gantt Chart Audit
 
-Tally: 18 ✅ / 11 🟡 / 10 ❌
+Tally: 29 ✅ / 5 🟡 / 5 ❌
 
 ### 16.1.1 Workload (requires N days/weeks) — ✅
 **Feature:** `[Task] requires N days` (also weeks; combined `1 week and 4 days`)
@@ -9,12 +9,12 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Evidence:** src/parser/gantt.rs:349-378 (parse_gantt_duration_clause); supports day/days/week/weeks/month/months
 **Notes:** Month unit (30 days) supported in parser but spec only lists day+week.
 
-### 16.1.2 Start verb (absolute date + D+n) — 🟡
+### 16.1.2 Start verb (absolute date + D+n) — ✅
 **Feature:** `[Task] starts YYYY-MM-DD` and `[Task] starts D+15` relative-to-project-start
 **Syntax example:** `[Prototype design] starts D+0`
-**Status:** 🟡
-**Evidence:** gantt.rs:186-200 generic starts constraint; gantt.rs:335-347 parses ISO date only
-**Notes:** `D+15` form not parsed by `parse_gantt_start_date_clause` (requires `is_iso_date_literal`). D+n stored as raw constraint target but no resolver.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` `parse_gantt_start_date_clause` accepts ISO/slash/verbal dates and `D+n`; `src/normalize/timeline.rs` resolves `D+n` relative to the project/anchor day in `resolve_gantt_absolute_day`. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render` and `gantt_date_builtins_and_same_line_start_end_drive_task_span` in `tests/parity_wave_csv_timeline_activity.rs`.
+**Notes:** Relative `D+n` is deterministic and works in task declarations and compound clauses.
 
 ### 16.1.3 Ends verb — ✅
 **Feature:** `[Task] ends YYYY-MM-DD`
@@ -28,11 +28,11 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Status:** ✅
 **Evidence:** timeline.rs:368-426 reference constraints resolver; multiple constraints on same subject re-applied
 
-### 16.2 One-line with `and` conjunction — 🟡
+### 16.2 One-line with `and` conjunction — ✅
 **Feature:** `[T] starts 2020-07-01 and ends 2020-07-15` / `starts X and requires N days`
-**Status:** 🟡
-**Evidence:** gantt.rs:319-333 parse_gantt_start_and_duration supports `and lasts` / `and requires`; no handler for `starts X and ends Y` (different second clause)
-**Notes:** `and is colored in`, `and starts N days after [T]`, `and ends at [T]'s end` (16.23 complex example) all unsupported as conjunctions.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` routes `and` clauses through `GanttCompound`, `src/normalize/timeline.rs` splits and applies duration/color/completion/link/baseline/deleted/start/end/require clauses, and paired absolute `starts`+`ends` now derive task duration. Covered by `gantt_date_builtins_and_same_line_start_end_drive_task_span`, `gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render`, and `gantt_ch16_same_display_name_aliases_remain_distinct` in `tests/parity_wave_csv_timeline_activity.rs`.
+**Notes:** Per-link visual styling remains tracked separately in 16.28.
 
 ### 16.3 Constraints `starts at [T]'s end` — ✅
 **Feature:** Task relative to another task's start/end
@@ -46,12 +46,12 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Evidence:** parser handles `[name] as [alias]` through bracket-subject parsing; tasks indexed by name allowing alias references in subsequent constraints.
 **Notes:** Verify in src/parser/blocks/bracket_subject.
 
-### 16.5 Tasks with same name — 🟡
+### 16.5 Tasks with same name — ✅
 **Feature:** Multiple tasks with same display name, distinguished by alias
 **Syntax example:** `[SameTaskName] as [T1] lasts 7 days`
-**Status:** 🟡
-**Evidence:** timeline.rs:36-51 upserts by name (merges duplicates rather than creating second task)
-**Notes:** Same-name + alias must create distinct tasks; current logic UPDATES first match → second `[SameTaskName] as [T2]` would overwrite, not split.
+**Status:** ✅
+**Evidence:** `src/normalize/timeline.rs` keys task updates by alias when present (`gantt_task_ref` / `gantt_task_matches`), and `tests/parity_wave_csv_timeline_activity.rs::gantt_ch16_same_display_name_aliases_remain_distinct` verifies two same-display-name tasks retain distinct aliases, colors, and dependency endpoints.
+**Notes:** Display names can repeat when aliases differ.
 
 ### 16.6 / 16.34 is colored in (task bars; legend color partial) — ✅/🟡
 **Feature:** `[Task] is colored in Fuchsia/FireBrick`
@@ -121,31 +121,30 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Status:** 🟡
 **Evidence:** scheduled_gantt_span_days (timeline.rs:342-366) iterates closed days but `parse_gantt_duration_clause` treats weeks as fixed 7 days for the workload — the closed-day adjustment expands the calendar span, not the underlying workload definition.
 
-### 16.17 Working days offset `2 working days after [T]'s end` — ❌
+### 16.17 Working days offset `2 working days after [T]'s end` — ✅
 **Feature:** `[task2] starts 2 working days after [task1]'s end and requires 3 days`
-**Status:** ❌
-**Evidence:** parse_gantt_reference_day_offset (timeline.rs:428-446) handles `days/day after/before`, not `working days`.
+**Status:** ✅
+**Evidence:** `src/normalize/timeline.rs` parses `working day(s) after/before` in `parse_gantt_reference_day_offset` and skips closed weekdays/date ranges via `add_gantt_working_days`. Covered by `gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render` and `gantt_ch16_completion_notes_resource_off_and_hide_options_render`.
 
-### 16.18 then keyword (succession) — 🟡
+### 16.18 then keyword (succession) — ✅
 **Feature:** `then [Task] requires 4 days` continuation
-**Status:** 🟡
-**Evidence:** Not seen in parser; `then` keyword may be handled at higher dispatcher. grep showed no `"then "` branch in gantt.rs.
-**Notes:** Likely treated as unknown statement → [E_GANTT_UNSUPPORTED]. Spec heavily relies on `then`.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` parses `then [Task] ...` into a `GanttCompound` with `after_previous=true`; `src/normalize/timeline.rs` turns it into a start-at-previous-end constraint. Covered by `gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render`.
 
 ### 16.19 Resources `[T] on {Alice}` (incl. `{Bob:50%}`, multi) — ✅
 **Feature:** Task assignment to resources with optional load percent
 **Status:** ✅
 **Evidence:** gantt.rs:380-431 extract_gantt_resources; timeline.rs:490-537 allocation parsing & load adjustment
 
-### 16.19 Resource off-days `{Alice} is off on 2020-06-24 to 2020-06-26` — ❌
+### 16.19 Resource off-days `{Alice} is off on 2020-06-24 to 2020-06-26` — ✅
 **Feature:** Per-resource closed dates
-**Status:** ❌
-**Evidence:** No parser for `{...} is off on`
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` parses `{Resource} is off on <date/range>` into `resource_off`; `src/normalize/timeline.rs` stores `TimelineResourceOffRange`, and `src/render/timeline.rs` emits resource-off metadata/labels. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render` and `docs/examples/gantt/09_ch16_parity.puml`.
 
-### 16.20 hide resources names / footbox — ❌
+### 16.20 hide resources names / footbox — ✅
 **Feature:** `hide resources names`, `hide resources footbox`
-**Status:** ❌
-**Evidence:** No parser branch (only `hide footbox` for sequence at sequence.rs:263)
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` maps `hide resources names` and `hide resources footbox` to `HideOption`; `src/normalize/timeline.rs` stores the flags, and `src/render/timeline.rs` emits `data-gantt-hide-resource-*` metadata. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render`.
 
 ### 16.21 Horizontal separator `-- Phase Two --` — ✅
 **Feature:** Section separator between task groups
@@ -158,11 +157,11 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Evidence:** gantt.rs:291-307 + timeline.rs:93-100 stash separator constraint
 **Notes:** `Separator just 2 days after [T]'s end` form — relative offset stored as raw target string; no resolver.
 
-### 16.23 Complex one-line with delays — 🟡
+### 16.23 Complex one-line with delays — ✅
 **Feature:** `requires 9 days and is colored in Coral/Green and starts 3 days after [T]'s start`
-**Status:** 🟡
-**Evidence:** parse_gantt_start_and_duration only supports two conjuncts (and lasts / and requires)
-**Notes:** Multi-conjunction chains drop later clauses.
+**Status:** ✅
+**Evidence:** `src/normalize/timeline.rs` applies multi-conjunction `GanttCompound` clauses for workload, color, completion, link, baseline, deleted, and start/end/reference constraints. Covered by `gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render`, `gantt_ch16_completion_notes_resource_off_and_hide_options_render`, and `gantt_date_builtins_and_same_line_start_end_drive_task_span`.
+**Notes:** Link color/style suffixes remain separate 16.28 work.
 
 ### 16.24 Comments `'` and `/' ... '/` — ✅
 **Feature:** Single and block comments
@@ -174,11 +173,10 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Status:** 🟡
 **Evidence:** Style blocks parsed generically; gantt render does not consume per-section style overrides (uses fixed colors in render/timeline.rs).
 
-### 16.26 Notes `note bottom ... end note` — 🟡
+### 16.26 Notes `note bottom ... end note` — ✅
 **Feature:** Per-task notes
-**Status:** 🟡
-**Evidence:** `StatementKind::Note` is part of grammar but timeline normalize loop doesn't add note → falls to `_ => return Err(...)` at timeline.rs:197.
-**Notes:** Will likely fail with E_TIMELINE_BASELINE_UNSUPPORTED.
+**Status:** ✅
+**Evidence:** `src/normalize/timeline.rs` stores `StatementKind::Note` as `TimelineNote`, defaulting bare notes to the previous task; `src/render/timeline.rs` renders note boxes. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render`.
 
 ### 16.27 Pause tasks `[T] pauses on 2018/12/13` / `pauses on monday` — ❌
 **Feature:** Per-day or weekday task pauses
@@ -227,15 +225,16 @@ Tally: 18 ✅ / 11 🟡 / 10 ❌
 **Status:** ❌
 **Evidence:** No `language XX` parser
 
-### 16.37 Mark tasks as `is deleted` — ❌
+### 16.37 Mark tasks as `is deleted` — ✅
 **Feature:** `[T] is deleted`
-**Status:** ❌
-**Evidence:** No deleted-status parser; no deleted field on TimelineTask.
+**Status:** ✅
+**Evidence:** `src/parser/gantt.rs` parses `is deleted`; `src/normalize/timeline.rs` sets `TimelineTask::is_deleted`; `src/render/timeline.rs` emits deleted metadata/strike-through. Covered by `gantt_ch16_completion_notes_resource_off_and_hide_options_render`.
 
-### 16.38 %now / %date builtin functions — ❌
+### 16.38 %now / %date builtin functions — ✅
 **Feature:** `!$past = %date("YYYY-MM-dd", $now - 14*24*3600)` etc.
-**Status:** ❌
-**Evidence:** No %now/%date builtin in preproc/builtins.rs.
+**Status:** ✅
+**Evidence:** `src/preproc/builtins.rs` implements deterministic `%now()` and `%date(format, epoch_seconds_expr)` using a reproducible UTC epoch clock (`PUML_NOW` injection override); `tests/integration/preprocessor.rs::preprocessor_date_builtin_formats_deterministic_epoch_and_arithmetic_offsets` verifies format tokens and arithmetic offsets. `tests/parity_wave_csv_timeline_activity.rs::gantt_date_builtins_and_same_line_start_end_drive_task_span` verifies `%date` output drives Gantt project/task dates.
+**Notes:** `%now()` intentionally does not read the host wall clock; this preserves strict same-input/same-output determinism.
 
 ### 16.39 Label position `Label on first column and left aligned` — ❌
 **Feature:** Reposition task label column

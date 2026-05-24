@@ -306,6 +306,7 @@ pub(super) fn normalize_timeline_baseline(
         }
         apply_gantt_task_metadata(&mut tasks, &mut milestones, &constraints);
         apply_gantt_absolute_constraints(&mut tasks, &constraints, fallback_anchor);
+        apply_gantt_start_end_duration_constraints(&mut tasks, &constraints, fallback_anchor);
         apply_gantt_task_reference_constraints(
             &mut tasks,
             &constraints,
@@ -321,6 +322,7 @@ pub(super) fn normalize_timeline_baseline(
                 &open_ranges,
             );
         }
+        apply_gantt_start_end_duration_constraints(&mut tasks, &constraints, fallback_anchor);
         if constraints.iter().any(|c| {
             c.subject.eq_ignore_ascii_case("Project")
                 && (c.kind.eq_ignore_ascii_case("criticalPath")
@@ -773,6 +775,37 @@ fn apply_gantt_absolute_constraints(
         } else {
             day
         };
+    }
+}
+
+fn apply_gantt_start_end_duration_constraints(
+    tasks: &mut [TimelineTask],
+    constraints: &[TimelineConstraint],
+    anchor_day: u32,
+) {
+    for task in tasks {
+        let mut start_day = None;
+        let mut end_day = None;
+        for constraint in constraints
+            .iter()
+            .filter(|constraint| gantt_task_matches(task, &constraint.subject))
+        {
+            if constraint.kind.eq_ignore_ascii_case("starts") {
+                start_day = resolve_gantt_absolute_day(&constraint.target, anchor_day);
+            } else if constraint.kind.eq_ignore_ascii_case("ends") {
+                end_day = resolve_gantt_absolute_day(&constraint.target, anchor_day);
+            }
+        }
+        let (Some(start_day), Some(end_day)) = (start_day, end_day) else {
+            continue;
+        };
+        if end_day <= start_day {
+            continue;
+        }
+        let span_days = end_day.saturating_sub(start_day).max(1);
+        task.start_day = start_day;
+        task.workload_days = span_days;
+        task.duration_days = span_days;
     }
 }
 

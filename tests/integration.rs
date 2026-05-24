@@ -9314,7 +9314,7 @@ fn preprocessor_scoped_globals_range_and_safe_aliases_expand() {
         labels,
         vec![
             "local",
-            "outer/1-2-3/Ada/true//0/00000000-0000-0000-0000-000000000000",
+            "outer/1-2-3/Ada/true/0/0/00000000-0000-0000-0000-000000000000",
         ]
     );
 }

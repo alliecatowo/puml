@@ -479,9 +479,13 @@ pub(super) fn preprocess_text(
                                 // If the resolved value is a simple integer arithmetic
                                 // expression (e.g. "0 + 1", "3 - 1"), evaluate it so
                                 // that !while loop counters increment correctly.
-                                let final_val = eval_simple_arithmetic(resolved)
-                                    .map(|n| n.to_string())
-                                    .unwrap_or_else(|| resolved.to_string());
+                                let final_val = if looks_like_iso_date_value(resolved) {
+                                    None
+                                } else {
+                                    eval_simple_arithmetic(resolved)
+                                }
+                                .map(|n| n.to_string())
+                                .unwrap_or_else(|| resolved.to_string());
                                 state.vars.insert(name, final_val);
                             }
                             if scope == PreprocVariableScope::Global {
@@ -687,6 +691,21 @@ pub(super) fn preprocess_text(
 
 fn is_active(conditionals: &[ConditionalFrame]) -> bool {
     conditionals.iter().all(|f| f.current_active)
+}
+
+fn looks_like_iso_date_value(value: &str) -> bool {
+    let date = value.split_whitespace().next().unwrap_or(value).trim();
+    let mut parts = date.split('-');
+    let (Some(year), Some(month), Some(day)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    parts.next().is_none()
+        && year.len() == 4
+        && month.len() == 2
+        && day.len() == 2
+        && year.chars().all(|ch| ch.is_ascii_digit())
+        && month.chars().all(|ch| ch.is_ascii_digit())
+        && day.chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[allow(clippy::too_many_arguments)]
