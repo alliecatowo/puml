@@ -1,0 +1,27 @@
+@startuml
+<style>
+activityDiagram {
+  ArrowColor #1d4ed8
+  activity {
+    BackgroundColor #eff6ff
+    BorderColor #2563eb
+    FontColor #1e3a8a
+  }
+  diamond {
+    BackgroundColor #fef3c7
+  }
+  bar {
+    BackgroundColor #7c2d12
+  }
+}
+</style>
+
+start
+:Receive request;
+if (ready?) then (yes)
+  :Ship order;
+else (no)
+  :Queue retry;
+endif
+stop
+@enduml
