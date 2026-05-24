@@ -113,6 +113,19 @@ pub(super) fn unsupported_skinparam_value_warning(
     .with_span(span)
 }
 
+pub(super) fn unsupported_style_warning(
+    selector: Option<&str>,
+    property: &str,
+    span: crate::source::Span,
+) -> Diagnostic {
+    let selector = selector.unwrap_or("<diagram>");
+    Diagnostic::warning(format!(
+        "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
+        property, selector
+    ))
+    .with_span(span)
+}
+
 pub(super) fn unsupported_pragma_warning(value: &str, span: crate::source::Span) -> Diagnostic {
     Diagnostic::warning(format!(
         "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",

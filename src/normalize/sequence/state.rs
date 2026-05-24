@@ -85,6 +85,22 @@ impl SequenceNormalizeState {
             StatementKind::Caption(v) => self.common.caption(v),
             StatementKind::Legend(v) => self.common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::SkinParam { key, value } => self.handle_skinparam(stmt.span, key, value),
+            StatementKind::StyleParam {
+                selector,
+                property,
+                key,
+                value,
+            } => {
+                if let Some(key) = key {
+                    self.handle_skinparam(stmt.span, key, value);
+                } else {
+                    self.warnings.push(common::unsupported_style_warning(
+                        selector.as_deref(),
+                        &property,
+                        stmt.span,
+                    ));
+                }
+            }
             StatementKind::Theme(name) => self.handle_theme(stmt.span, name)?,
             StatementKind::Pragma(value) => self.handle_pragma(stmt.span, value),
             StatementKind::Footbox(v) => {

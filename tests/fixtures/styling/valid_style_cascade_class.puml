@@ -1,0 +1,28 @@
+@startuml
+!theme spacelab-white
+skinparam ClassBackgroundColor #fee2e2
+skinparam ClassBorderColor #991b1b
+
+<style>
+classDiagram {
+  class {
+    BackgroundColor #dbeafe
+    BorderColor #1d4ed8
+    HeaderBackgroundColor #bfdbfe
+    FontColor #111827
+  }
+  class<<service>> {
+    BackgroundColor #dcfce7
+    BorderColor #15803d
+    HeaderBackgroundColor #bbf7d0
+    FontColor #14532d
+  }
+}
+</style>
+
+class Api <<service>> {
+  +ping()
+}
+class Plain
+Plain --> Api
+@enduml

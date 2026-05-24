@@ -135,6 +135,12 @@ pub enum StatementKind {
         key: String,
         value: String,
     },
+    StyleParam {
+        selector: Option<String>,
+        property: String,
+        key: Option<String>,
+        value: String,
+    },
     Theme(String),
     Pragma(String),
     Footbox(bool),
