@@ -1,5 +1,6 @@
 use super::*;
-use crate::normalize::common::{CommonDirectives, LegendTextMode};
+use crate::ast::RawSyntaxCategory;
+use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
@@ -277,24 +278,29 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     right_lollipop: rel.right_lollipop,
                 });
             }
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                if raw.category == RawSyntaxCategory::Malformed {
+                    return Err(common::raw_syntax_diagnostic(
+                        raw,
+                        stmt.span,
+                        RawSyntaxContext::Family(family_kind),
+                    ));
+                }
+                let line = raw.line;
                 if line.trim().is_empty() {
                     continue;
                 }
                 if family_kind == DiagramKind::MindMap
                     && collect_mindmap_style_line(
-                        &line,
+                        line,
                         &mut mindmap_style_block,
                         &mut mindmap_style,
                     )
                 {
                     continue;
                 }
-                if let Some(value) = parse_family_orientation_directive(&line) {
+                if let Some(value) = parse_family_orientation_directive(line) {
                     orientation = value;
                     continue;
                 }
@@ -311,13 +317,13 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     }
                 }
                 if let Some(ref mut draft) = mindmap_multiline {
-                    if let Some(node) = draft.append_line(&line) {
+                    if let Some(node) = draft.append_line(line) {
                         nodes.push(node);
                         mindmap_multiline = None;
                     }
                     continue;
                 }
-                if let Some(mut node_info) = parse_mindmap_or_wbs_node(&line) {
+                if let Some(mut node_info) = parse_mindmap_or_wbs_node(line) {
                     let kind = match family_kind {
                         DiagramKind::MindMap => FamilyNodeKind::MindMap,
                         DiagramKind::Wbs => FamilyNodeKind::Wbs,
@@ -362,11 +368,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     });
                     continue;
                 }
-                return Err(Diagnostic::error(format!(
-                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
-                    line
-                ))
-                .with_span(stmt.span));
+                return Err(common::raw_syntax_diagnostic(
+                    raw,
+                    stmt.span,
+                    RawSyntaxContext::Family(family_kind),
+                ));
             }
             _ => {
                 return Err(Diagnostic::error(format!(

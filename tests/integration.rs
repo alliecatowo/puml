@@ -4803,6 +4803,81 @@ fn check_fixture_with_json_diagnostics_emits_warning_payload() {
 }
 
 #[test]
+fn cli_json_distinguishes_state_unsupported_and_deferred_raw() {
+    let unsupported = "@startuml\nstate Idle\nunknown state syntax\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--diagnostics", "json", "-"])
+        .write_stdin(unsupported)
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+    let json: Value = serde_json::from_slice(&out).expect("valid json diagnostics");
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["code"], "E_STATE_UNSUPPORTED_SYNTAX");
+    assert_eq!(first["line"], 3);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "unknown state syntax");
+
+    let deferred = "@startuml\nstate Idle\n<style>\nfoo\n</style>\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--diagnostics", "json", "-"])
+        .write_stdin(deferred)
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+    let json: Value = serde_json::from_slice(&out).expect("valid json diagnostics");
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["code"], "E_STATE_DEFERRED_RAW");
+    assert_eq!(first["line"], 3);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "<style>");
+}
+
+#[test]
+fn cli_json_keeps_malformed_and_salt_passthrough_distinct() {
+    let malformed = "@startuml\nA -x B: malformed\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--diagnostics", "json", "-"])
+        .write_stdin(malformed)
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+    let json: Value = serde_json::from_slice(&out).expect("valid json diagnostics");
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["code"], "E_ARROW_INVALID");
+    assert_eq!(first["line"], 2);
+    assert_eq!(first["snippet"], "A -x B: malformed");
+
+    let salt = "@startsalt\nplain label\n@endsalt\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", "-"])
+        .write_stdin(salt)
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).expect("valid model json");
+    assert_eq!(json["kind"], "Salt");
+    assert_eq!(json["nodes"][0]["name"], "SALT_ROW\u{1f}L:plain label");
+    assert_eq!(json["warnings"], serde_json::json!([]));
+}
+
+#[test]
 fn diagnostics_json_writes_only_to_stderr_and_not_stdout() {
     Command::cargo_bin("puml")
         .expect("binary")

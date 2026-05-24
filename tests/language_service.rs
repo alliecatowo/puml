@@ -141,6 +141,24 @@ fn diagnostics_reports_normalization_warnings_without_lsp_transport() {
 }
 
 #[test]
+fn diagnostics_reports_typed_state_unsupported_code_without_lsp_transport() {
+    let source = "@startuml\nstate Idle\nunknown state syntax\n@enduml\n";
+
+    let report = diagnostics(source);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(
+        diagnostic.code.as_deref(),
+        Some("E_STATE_UNSUPPORTED_SYNTAX")
+    );
+    assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.span, Some(Span::new(21, 41)));
+    assert_eq!(diagnostic.range.unwrap().start.line, 3);
+    assert_eq!(diagnostic.range.unwrap().start.column, 1);
+}
+
+#[test]
 fn diagnostics_reports_frontend_adapter_warnings_without_lsp_transport() {
     let source = "flowchart LR\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot --> B\n";
     let options = ParsePipelineOptions {

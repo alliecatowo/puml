@@ -1,4 +1,4 @@
-use super::common::{self, CommonDirectives, LegendTextMode};
+use super::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 use super::*;
 
 pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
@@ -232,16 +232,13 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
             StatementKind::StateRegionDivider => {}
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
-                return Err(Diagnostic::error(format!(
-                    "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
-                    line
-                ))
-                .with_span(stmt.span));
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                return Err(common::raw_syntax_diagnostic(
+                    raw,
+                    stmt.span,
+                    RawSyntaxContext::State,
+                ));
             }
             _ => {
                 return Err(Diagnostic::error(
