@@ -8,7 +8,7 @@ use super::text_specialized::{
 };
 use crate::model::{
     FamilyDocument, NormalizedDocument, ParticipantRole, SequenceEventKind, SequencePage,
-    StateDocument, StateNode, TimelineDocument, VirtualEndpointKind, WbsCheckbox,
+    StateDocument, StateNode, StdlibDocument, TimelineDocument, VirtualEndpointKind, WbsCheckbox,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,7 +47,39 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
         NormalizedDocument::Sdl(doc) => vec![render_sdl_text(doc, mode)],
         NormalizedDocument::Ditaa(doc) => vec![render_ditaa_text(doc, mode)],
         NormalizedDocument::Chart(doc) => vec![render_chart_text(doc, mode)],
+        NormalizedDocument::Stdlib(doc) => vec![render_stdlib_text(doc, mode)],
     }
+}
+
+fn render_stdlib_text(doc: &StdlibDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    lines.push("stdlib".to_string());
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    push_meta(&mut lines, "root", Some(&doc.root), mode);
+    lines.push(format!("entries ({})", doc.entries.len()));
+    lines.push("packs".to_string());
+    for pack in &doc.packs {
+        let status = match pack.status {
+            crate::stdlib::StdlibPackStatus::Available => "available",
+            crate::stdlib::StdlibPackStatus::Unavailable => "unavailable",
+        };
+        lines.push(format!(
+            "  {} {} files={} aliases={}",
+            status,
+            text_value(&pack.name, mode),
+            pack.files,
+            pack.aliases
+        ));
+    }
+    lines.push("aliases".to_string());
+    for (slug, target) in &doc.aliases {
+        lines.push(format!(
+            "  {} -> {}",
+            text_value(slug, mode),
+            text_value(target, mode)
+        ));
+    }
+    finish_text(lines)
 }
 
 fn render_sequence_text(page: &SequencePage, mode: TextOutputMode) -> String {

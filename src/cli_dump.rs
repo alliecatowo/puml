@@ -59,6 +59,14 @@ pub(crate) fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sdl(doc) => json!({"kind": "Sdl", "warnings": doc.warnings.len()}),
         NormalizedDocument::Ditaa(doc) => json!({"kind": "Ditaa", "warnings": doc.warnings.len()}),
         NormalizedDocument::Chart(doc) => json!({"kind": "Chart", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Stdlib(doc) => json!({
+            "kind": "Stdlib",
+            "entries": doc.entries.len(),
+            "packs": doc.packs.len(),
+            "aliases": doc.aliases.len(),
+            "missing_packs": doc.missing_packs,
+            "warnings": doc.warnings.len()
+        }),
     }
 }
 

@@ -1,0 +1,4 @@
+@startuml
+!include <bootstrap/bootstrap>
+Alice -> Bob : never reached
+@enduml

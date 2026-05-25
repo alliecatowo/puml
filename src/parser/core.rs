@@ -58,6 +58,19 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
+        if line.eq_ignore_ascii_case("stdlib") {
+            detected_kind = Some(select_diagram_kind(
+                detected_kind,
+                DiagramKind::Stdlib,
+                span,
+            )?);
+            statements.push(Statement {
+                span,
+                kind: StatementKind::StdlibInventory,
+            });
+            i += 1;
+            continue;
+        }
         if parse_block_boundary_line(
             &mut statements,
             line,

@@ -285,6 +285,19 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
             ],
             &mut counts,
         ),
+        NormalizedDocument::Stdlib(doc) => metadata_for_simple(
+            "stdlib",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("entries", doc.entries.len()),
+                ("packs", doc.packs.len()),
+                ("aliases", doc.aliases.len()),
+                ("missing_packs", doc.missing_packs.len()),
+            ],
+            &mut counts,
+        ),
     };
 
     DiagramMetadata {

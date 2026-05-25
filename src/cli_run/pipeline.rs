@@ -3,7 +3,7 @@ use crate::cli::{
 };
 use puml::{
     preprocess_with_pipeline_options, CompatMode, DeterminismMode, Diagnostic, Document,
-    FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
+    FrontendSelection, NormalizedDocument, ParsePipelineOptions, ParsePipelineResult,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -86,6 +86,16 @@ pub(super) fn preprocess_for_cli(
         inject_vars,
     };
     preprocess_with_pipeline_options(source, &options)
+}
+
+pub(super) fn normalize_for_cli(
+    document: Document,
+    include_root: Option<PathBuf>,
+) -> Result<NormalizedDocument, Diagnostic> {
+    puml::normalize::normalize_family_with_options(
+        document,
+        &puml::normalize::NormalizeOptions { include_root },
+    )
 }
 
 fn map_frontend(

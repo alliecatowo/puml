@@ -2,6 +2,7 @@ mod common;
 mod family;
 mod sequence;
 mod state;
+mod stdlib;
 mod structured;
 
 pub use common::{LegendHAlign, LegendVAlign, MetadataHAlign, ScaleSpec};
@@ -17,6 +18,7 @@ pub use sequence::{
 pub use state::{
     StateDocument, StateInternalAction, StateNode, StateNodeKind, StateNodeStyle, StateTransition,
 };
+pub use stdlib::StdlibDocument;
 pub use structured::{
     ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAnnotation, ChartAxis,
     ChartDocument, ChartLabelMode, ChartLegend, ChartPoint, ChartSeries, ChartSubtype,
@@ -47,6 +49,7 @@ pub enum NormalizedDocument {
     Sdl(SdlDocument),
     Ditaa(DitaaDocument),
     Chart(ChartDocument),
+    Stdlib(StdlibDocument),
 }
 
 #[cfg(test)]

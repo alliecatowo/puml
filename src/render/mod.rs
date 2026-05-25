@@ -21,6 +21,7 @@ mod salt;
 mod sequence;
 mod specialized;
 mod state;
+mod stdlib;
 mod svg;
 mod text;
 pub(crate) mod text_metrics;
@@ -72,6 +73,7 @@ pub use specialized::{
     render_nwdiag_svg, render_regex_svg, render_sdl_svg,
 };
 pub use state::render_state_svg;
+pub use stdlib::render_stdlib_svg;
 pub use text::{render_text_pages, TextOutputMode};
 pub use timeline::{render_timeline_stub_svg, render_timeline_svg};
 pub use timing::render_timing_svg;

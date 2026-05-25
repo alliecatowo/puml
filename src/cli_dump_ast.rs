@@ -31,6 +31,7 @@ pub(crate) fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::Sdl => "Sdl",
             DiagramKind::Ditaa => "Ditaa",
             DiagramKind::Chart => "Chart",
+            DiagramKind::Stdlib => "Stdlib",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -164,6 +165,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
             }
         }),
         StatementKind::ListSprites => json!("ListSprites"),
+        StatementKind::StdlibInventory => json!("StdlibInventory"),
         StatementKind::UnsupportedSyntax(v) => json!({"UnsupportedSyntax": v}),
         StatementKind::DeferredRaw(v) => json!({"DeferredRaw": v}),
         StatementKind::CommentLowered(v) => json!({"CommentLowered": v}),

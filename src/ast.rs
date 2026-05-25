@@ -33,6 +33,7 @@ pub enum DiagramKind {
     Sdl,
     Ditaa,
     Chart,
+    Stdlib,
     Unknown,
 }
 
@@ -198,6 +199,7 @@ pub enum StatementKind {
     },
     SpriteDef(SpriteDefinition),
     ListSprites,
+    StdlibInventory,
     UnsupportedSyntax(String),
     DeferredRaw(String),
     CommentLowered(String),

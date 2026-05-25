@@ -16,6 +16,20 @@ pub struct StdlibEntry {
     pub alias: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StdlibPackSummary {
+    pub name: String,
+    pub status: StdlibPackStatus,
+    pub files: usize,
+    pub aliases: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StdlibPackStatus {
+    Available,
+    Unavailable,
+}
+
 pub const STDLIB_ALIASES: &[StdlibAlias] = &[
     StdlibAlias {
         slug: "awslib",
@@ -47,6 +61,7 @@ pub const MISSING_UPSTREAM_STDLIB_PACKS: &[&str] = &[
     "elastic",
     "k8s",
     "material7",
+    "openiconic",
 ];
 
 pub fn apply_stdlib_path_alias(path: PathBuf) -> PathBuf {
@@ -140,6 +155,69 @@ pub fn inventory_from_root(root: &Path) -> Result<Vec<StdlibEntry>, String> {
     Ok(entries)
 }
 
+pub fn stdlib_pack_summaries(entries: &[StdlibEntry]) -> Vec<StdlibPackSummary> {
+    let mut packs: std::collections::BTreeMap<String, StdlibPackSummary> =
+        std::collections::BTreeMap::new();
+    for entry in entries {
+        let Some(pack_name) = stdlib_path_pack(&entry.path) else {
+            continue;
+        };
+        let pack = packs
+            .entry(pack_name.to_string())
+            .or_insert_with(|| StdlibPackSummary {
+                name: pack_name.to_string(),
+                status: StdlibPackStatus::Available,
+                files: 0,
+                aliases: 0,
+            });
+        if entry.alias {
+            pack.aliases += 1;
+        } else {
+            pack.files += 1;
+        }
+    }
+
+    for pack in sorted_missing_stdlib_packs() {
+        packs
+            .entry(pack.to_string())
+            .or_insert_with(|| StdlibPackSummary {
+                name: pack.to_string(),
+                status: StdlibPackStatus::Unavailable,
+                files: 0,
+                aliases: 0,
+            });
+    }
+
+    packs.into_values().collect()
+}
+
+pub fn available_stdlib_packs(entries: &[StdlibEntry]) -> Vec<String> {
+    stdlib_pack_summaries(entries)
+        .into_iter()
+        .filter(|pack| pack.status == StdlibPackStatus::Available)
+        .map(|pack| pack.name)
+        .collect()
+}
+
+pub fn sorted_missing_stdlib_packs() -> Vec<&'static str> {
+    let mut packs = MISSING_UPSTREAM_STDLIB_PACKS.to_vec();
+    packs.sort_unstable();
+    packs.dedup();
+    packs
+}
+
+pub fn stdlib_path_pack(path: &str) -> Option<&str> {
+    path.split('/')
+        .next()
+        .filter(|pack| !pack.is_empty() && *pack != "." && *pack != "..")
+}
+
+pub fn is_known_missing_stdlib_pack(pack: &str) -> bool {
+    MISSING_UPSTREAM_STDLIB_PACKS
+        .iter()
+        .any(|missing| missing.eq_ignore_ascii_case(pack))
+}
+
 fn collect_puml_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
     let mut children = std::fs::read_dir(dir)
         .map_err(|e| format!("failed to read stdlib directory '{}': {e}", dir.display()))?
@@ -194,7 +272,7 @@ pub fn format_stdlib_listing(root: &Path, entries: &[StdlibEntry]) -> String {
     }
     out.push_str(&format!(
         "# missing upstream packs: {}\n",
-        MISSING_UPSTREAM_STDLIB_PACKS.join(", ")
+        sorted_missing_stdlib_packs().join(", ")
     ));
     for entry in entries {
         if entry.alias {

@@ -1,4 +1,8 @@
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
+    if line.eq_ignore_ascii_case("stdlib") {
+        return Some(DiagramKind::Stdlib);
+    }
+
     if line.starts_with("component ")
         || line.starts_with("interface ")
         || line.starts_with("port ")

@@ -50,6 +50,7 @@ mod regex;
 mod sdl;
 mod sequence;
 mod state;
+mod stdlib;
 mod structured;
 mod timeline;
 
@@ -99,6 +100,9 @@ pub fn normalize_family_with_options(
         DiagramKind::Sdl => sdl::normalize_sdl(document).map(NormalizedDocument::Sdl),
         DiagramKind::Ditaa => raw::normalize_ditaa(document).map(NormalizedDocument::Ditaa),
         DiagramKind::Chart => chart::normalize_chart(document).map(NormalizedDocument::Chart),
+        DiagramKind::Stdlib => {
+            stdlib::normalize_stdlib_catalog(document, options).map(NormalizedDocument::Stdlib)
+        }
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity

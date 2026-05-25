@@ -164,6 +164,7 @@ pub fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sdl(doc) => &doc.warnings,
         NormalizedDocument::Ditaa(doc) => &doc.warnings,
         NormalizedDocument::Chart(doc) => &doc.warnings,
+        NormalizedDocument::Stdlib(doc) => &doc.warnings,
     }
 }
 

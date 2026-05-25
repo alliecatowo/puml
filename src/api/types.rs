@@ -30,6 +30,7 @@ pub enum DiagramFamily {
     Sdl,
     Ditaa,
     Chart,
+    Stdlib,
     Unknown,
 }
 
@@ -60,6 +61,7 @@ impl DiagramFamily {
             Self::Sdl => "sdl",
             Self::Ditaa => "ditaa",
             Self::Chart => "chart",
+            Self::Stdlib => "stdlib",
             Self::Unknown => "unknown",
         }
     }

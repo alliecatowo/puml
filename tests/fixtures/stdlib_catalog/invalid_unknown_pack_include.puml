@@ -1,0 +1,4 @@
+@startuml
+!include <does-not-exist/example>
+Alice -> Bob : never reached
+@enduml

@@ -56,7 +56,16 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
         ));
     };
 
-    let resolved = resolve_import_path(&stdlib_root, &path)?;
+    let resolved = if stdlib_root.join(&path).exists() {
+        resolve_import_path(&stdlib_root, &path)?
+    } else {
+        return Err(stdlib_not_found_diagnostic(
+            &stdlib_root,
+            target.requested_pack.as_deref(),
+            inner,
+            &path,
+        ));
+    };
 
     // Angle-bracket includes are always treated as include-once (stdlib files are idempotent).
     if !include_once_seen.insert(resolved.clone()) {
@@ -113,6 +122,7 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
 struct StdlibAngleIncludeTarget {
     path: PathBuf,
     display_name: String,
+    requested_pack: Option<String>,
     tag: Option<String>,
 }
 
@@ -164,6 +174,7 @@ fn parse_stdlib_angle_include_target(
         ));
     };
 
+    let requested_pack = crate::stdlib::stdlib_path_pack(inner).map(str::to_string);
     let mut path = PathBuf::from(inner);
     if path.extension().is_none() {
         path.set_extension("puml");
@@ -173,8 +184,45 @@ fn parse_stdlib_angle_include_target(
     Ok(StdlibAngleIncludeTarget {
         path,
         display_name: inner.to_string(),
+        requested_pack,
         tag,
     })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn stdlib_not_found_diagnostic(
+    stdlib_root: &std::path::Path,
+    requested_pack: Option<&str>,
+    display_name: &str,
+    resolved_path: &std::path::Path,
+) -> Diagnostic {
+    let entries = crate::stdlib::inventory_from_root(stdlib_root).unwrap_or_default();
+    let available = crate::stdlib::available_stdlib_packs(&entries).join(", ");
+    let unavailable = crate::stdlib::sorted_missing_stdlib_packs().join(", ");
+    let pack = requested_pack
+        .or_else(|| {
+            resolved_path
+                .to_str()
+                .and_then(crate::stdlib::stdlib_path_pack)
+        })
+        .unwrap_or(display_name);
+
+    if crate::stdlib::is_known_missing_stdlib_pack(pack) {
+        return Diagnostic::error_code(
+            "E_INCLUDE_STDLIB_PACK_UNAVAILABLE",
+            format!(
+                "stdlib pack '{pack}' is not bundled; available packs: {available}; known unavailable upstream packs: {unavailable}"
+            ),
+        );
+    }
+
+    Diagnostic::error_code(
+        "E_INCLUDE_STDLIB_NOT_FOUND",
+        format!(
+            "stdlib include '<{display_name}>' was not found as '{}'; available packs: {available}; known unavailable upstream packs: {unavailable}",
+            resolved_path.display()
+        ),
+    )
 }
 
 #[cfg(not(target_arch = "wasm32"))]

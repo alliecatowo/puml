@@ -1,0 +1,4 @@
+@startuml
+title Local stdlib inventory
+stdlib
+@enduml
