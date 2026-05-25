@@ -1,7 +1,7 @@
 # Dependabot configuration for PUML.
 # - Cargo (Rust): weekly updates with grouped patches for minor versions.
 # - GitHub Actions: weekly updates (covers actions in .github/workflows + .github/actions).
-# - npm (Studio SPA / VS Code extension, if present).
+# - npm (VS Code extension).
 #
 # Strategy: group minor + patch bumps to reduce PR churn; surface majors
 # individually so they can be reviewed deliberately.
@@ -59,28 +59,6 @@ updates:
         update-types:
           - patch
           - minor
-
-  # npm for Studio SPA site (if/when package.json appears)
-  - package-ecosystem: npm
-    directory: /site
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: America/Los_Angeles
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - npm
-      - site
-    commit-message:
-      prefix: "site"
-      include: scope
-    groups:
-      patch-updates:
-        update-types: [patch]
-      minor-updates:
-        update-types: [minor]
 
   # npm for VS Code extension
   - package-ecosystem: npm

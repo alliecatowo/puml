@@ -4,9 +4,12 @@ members = ["crates/puml-wasm"]
 [profile.release]
 # Default profile shared by the workspace; the wasm crate wants tight
 # binaries (opt-level = "z" + lto) but the puml CLI release profile is
-# unchanged for everyday development.
+# otherwise tuned for runtime speed. Strip symbols so benchmark and main-gate
+# binary-size checks measure the shipped CLI artifact instead of debug metadata.
 opt-level = 3
-lto = false
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
 
 [package]
 name = "puml"
