@@ -53,7 +53,7 @@ examples are executable visual gates.
 | [Activity Old](activity_old/) | 4 | [01_basic](activity_old/01_basic.puml) / [svg](activity_old/01_basic.svg) | Legacy activity syntax examples. | No PNG baseline yet. |
 | [Timing](timing/) | 10 | [04_binary](timing/04_binary.puml) / [svg](timing/04_binary.svg) | Concise, robust, binary, clock, and manual-axis timing diagrams. | 2 PNG baselines; richer message-arrow baseline tracked by #434. |
 | [Gantt](gantt/) | 10 | [01_basic](gantt/01_basic.puml) / [svg](gantt/01_basic.svg) | Tasks, constraints, lags, holidays, milestones, and critical path. | 1 PNG baseline. |
-| [Chronology](chronology/) | 3 | [01_events](chronology/01_events.puml) / [svg](chronology/01_events.svg) | Event timelines and release-history views. | No PNG baseline yet. |
+| [Chronology](chronology/) | 5 | [05_calendar_depth](chronology/05_calendar_depth.puml) / [svg](chronology/05_calendar_depth.svg) | Event timelines, eras, bracket annotations, and calendar precision. | No PNG baseline yet. |
 | [Mindmap](mindmap/) | 7 | [01_basic](mindmap/01_basic.puml) / [svg](mindmap/01_basic.svg) | Tree-style mindmaps, colors, depth, and multiline labels. | 1 PNG baseline. |
 | [WBS](wbs/) | 7 | [01_basic](wbs/01_basic.puml) / [svg](wbs/01_basic.svg) | Work breakdown trees, checkboxes, arrows, and themes. | 1 PNG baseline. |
 | [Salt](salt/) | 5 | [01_basic_widgets](salt/01_basic_widgets.puml) / [svg](salt/01_basic_widgets.svg) | Wireframe widgets, frames, separators, tabs, and settings forms. | No PNG baseline yet. |

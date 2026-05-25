@@ -241,7 +241,17 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "chronology_events": model
             .chronology_events
             .iter()
-            .map(|e| json!({"subject": e.subject, "when": e.when, "end": e.end, "color": e.color, "bracket": e.bracket}))
+            .map(|e| json!({
+                "subject": e.subject,
+                "when": e.when,
+                "end": e.end,
+                "color": e.color,
+                "bracket": e.bracket,
+                "start_day": e.start_day,
+                "end_day": e.end_day,
+                "date_precision": e.date_precision.map(|p| p.as_str()),
+                "end_date_precision": e.end_date_precision.map(|p| p.as_str())
+            }))
             .collect::<Vec<_>>(),
         "project_start": model.project_start,
         "project_start_day": model.project_start_day,
@@ -471,7 +481,17 @@ pub(crate) fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "closed_weekdays": timeline.closed_weekdays,
                 "closed_ranges": timeline.closed_ranges.iter().map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day})).collect::<Vec<_>>(),
                 "open_ranges": timeline.open_ranges.iter().map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day})).collect::<Vec<_>>(),
-                "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when, "end": e.end, "color": e.color, "bracket": e.bracket})).collect::<Vec<_>>(),
+                "chronology_events": timeline.chronology_events.iter().map(|e| json!({
+                    "subject": e.subject,
+                    "when": e.when,
+                    "end": e.end,
+                    "color": e.color,
+                    "bracket": e.bracket,
+                    "start_day": e.start_day,
+                    "end_day": e.end_day,
+                    "date_precision": e.date_precision.map(|p| p.as_str()),
+                    "end_date_precision": e.end_date_precision.map(|p| p.as_str())
+                })).collect::<Vec<_>>(),
                 "project_start": timeline.project_start,
                 "project_start_day": timeline.project_start_day,
                 "print_start": timeline.print_start,

@@ -31,8 +31,8 @@ pub use structured::{
     FilesDocument, JsonDocument, JsonTreeNode, MathDocument, NwdiagDocument, NwdiagGroup,
     NwdiagNetwork, NwdiagNode, NwdiagPeerLink, RegexDocument, RegexPattern, RegexToken, RepeatKind,
     SdlDocument, SdlState, SdlStateKind, SdlTransition, TimelineChronologyEvent,
-    TimelineClosedRange, TimelineConstraint, TimelineDayMarker, TimelineDocument,
-    TimelineMilestone, TimelineNamedDate, TimelineNote, TimelineOpenRange,
+    TimelineClosedRange, TimelineConstraint, TimelineDatePrecision, TimelineDayMarker,
+    TimelineDocument, TimelineMilestone, TimelineNamedDate, TimelineNote, TimelineOpenRange,
     TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
     TimelineTaskPauseRange, YamlDocument, YamlTreeNode,
 };

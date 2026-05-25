@@ -5,8 +5,8 @@ pub(crate) use crate::model::{
     FamilyOrientation, FileTreeNode, FilesDocument, JsonDocument, LegendHAlign, LegendVAlign,
     MathDocument, MindMapSide, NwdiagDocument, RegexDocument, RegexToken, RepeatKind, SdlDocument,
     SdlStateKind, StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent,
-    TimelineDocument, TimelineMilestone, TimelineResourceOffRange, TimelineTask, WbsCheckbox,
-    YamlDocument,
+    TimelineDatePrecision, TimelineDocument, TimelineMilestone, TimelineResourceOffRange,
+    TimelineTask, WbsCheckbox, YamlDocument,
 };
 pub(crate) use std::collections::BTreeMap;
 
