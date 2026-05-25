@@ -1,5 +1,5 @@
 use super::FrontendResult;
-use crate::frontend::SourceMap;
+use crate::source::SourceMap;
 
 pub(super) fn result_from_adapted(original: &str, adapted: String) -> FrontendResult {
     let source_map = SourceMap::line_map(original, &adapted);

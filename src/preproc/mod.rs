@@ -9,7 +9,9 @@ mod control;
 mod includes;
 mod macros;
 
+use crate::source::SourceMap;
 pub(crate) use control::preprocess;
+pub(crate) use control::preprocess_with_map;
 
 const MAX_INCLUDE_DEPTH: usize = 32;
 const MAX_PREPROC_WHILE_ITERATIONS: usize = 10_000;
@@ -36,6 +38,12 @@ pub struct ParseOptions {
     /// flags). These behave like `!set VAR = VALUE` declarations at the top of
     /// the source and are accessible via `$VAR` in the diagram.
     pub inject_vars: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreprocessResult {
+    pub source: String,
+    pub source_map: SourceMap,
 }
 
 #[derive(Debug, Clone)]

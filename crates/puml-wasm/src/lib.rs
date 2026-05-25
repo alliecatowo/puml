@@ -321,6 +321,9 @@ fn language_diagnostic_json(
         "code": diagnostic.code,
         "severity": severity_name(diagnostic.severity),
         "message": diagnostic.message,
+        "file": diagnostic.file,
+        "source": diagnostic.source,
+        "includeStack": diagnostic.include_stack,
         "span": diagnostic.span.map(|span| serde_json::json!({
             "start": span.start,
             "end": span.end,

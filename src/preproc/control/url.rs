@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
+use crate::source::MappedSpan;
 
 use super::super::{ParseOptions, PreprocState};
 use super::preprocess_text;
@@ -16,6 +17,7 @@ pub(super) fn process_include_url(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     if !options.allow_url_includes {
         return Err(Diagnostic::error_code(
@@ -40,6 +42,7 @@ pub(super) fn process_include_url(
             depth + 1,
             call_depth,
             out,
+            mappings,
         )
     }
     #[cfg(target_arch = "wasm32")]

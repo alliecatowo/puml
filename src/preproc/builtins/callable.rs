@@ -8,6 +8,7 @@ use crate::preproc::{
     ParseOptions, PreprocCallable, PreprocCallableKind, PreprocParam, PreprocState,
     MAX_PREPROC_CALL_DEPTH,
 };
+use crate::source::MappedSpan;
 
 use super::strip_quotes;
 
@@ -252,6 +253,7 @@ pub(in crate::preproc) fn execute_function_call(
                 0,
                 call_depth + 1,
                 &mut local_out,
+                &mut Vec::new(),
             )?;
             continue;
         }
@@ -279,6 +281,7 @@ pub(in crate::preproc) fn execute_procedure_call(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     if call_depth > MAX_PREPROC_CALL_DEPTH {
         return Err(Diagnostic::error_code(
@@ -324,6 +327,7 @@ pub(in crate::preproc) fn execute_procedure_call(
             depth,
             call_depth + 1,
             out,
+            mappings,
         )?;
         if local_state.loop_signal.is_some() {
             state.loop_signal = local_state.loop_signal.take();
@@ -356,6 +360,7 @@ pub(in crate::preproc) fn invoke_dynamic_procedure(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     let trimmed = raw.trim();
     let lower = trimmed.to_ascii_lowercase();
@@ -404,5 +409,6 @@ pub(in crate::preproc) fn invoke_dynamic_procedure(
         depth,
         call_depth + 1,
         out,
+        mappings,
     )
 }

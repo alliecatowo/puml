@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostic::Diagnostic;
 use crate::preproc::control::preprocess_text;
 use crate::preproc::{ParseOptions, PreprocState};
+use crate::source::MappedSpan;
 
 use super::diagnostics::{include_path_required, stack_cycle, url_includes_disabled};
 use super::paths::{
@@ -34,6 +35,7 @@ pub(in crate::preproc) fn process_include_directive(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     if raw_target.is_empty() {
         return Err(include_path_required(directive_name));
@@ -56,6 +58,7 @@ pub(in crate::preproc) fn process_include_directive(
             depth + 1,
             call_depth,
             out,
+            mappings,
         );
     }
 
@@ -73,6 +76,7 @@ pub(in crate::preproc) fn process_include_directive(
             depth,
             call_depth,
             out,
+            mappings,
         );
     }
 
@@ -143,6 +147,7 @@ pub(in crate::preproc) fn process_include_directive(
         depth + 1,
         call_depth,
         out,
+        mappings,
     )?;
     include_stack.pop();
     Ok(())
@@ -163,6 +168,7 @@ pub(in crate::preproc) fn process_include_many_directive(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     if raw_target.is_empty() {
         return Err(Diagnostic::error_code(
@@ -185,6 +191,7 @@ pub(in crate::preproc) fn process_include_many_directive(
             depth + 1,
             call_depth,
             out,
+            mappings,
         );
     }
 
@@ -217,6 +224,7 @@ pub(in crate::preproc) fn process_include_many_directive(
             depth,
             call_depth,
             out,
+            mappings,
         );
     }
 
@@ -332,6 +340,7 @@ pub(in crate::preproc) fn process_include_many_directive(
             depth + 1,
             call_depth,
             out,
+            mappings,
         )?;
         include_stack.pop();
     }
@@ -345,6 +354,7 @@ pub(in crate::preproc) struct ImportDirectiveContext<'a> {
     pub(in crate::preproc) depth: usize,
     pub(in crate::preproc) call_depth: usize,
     pub(in crate::preproc) out: &'a mut String,
+    pub(in crate::preproc) mappings: &'a mut Vec<MappedSpan>,
 }
 
 pub(in crate::preproc) fn process_import_directive(
@@ -372,6 +382,7 @@ pub(in crate::preproc) fn process_import_directive(
             ctx.depth + 1,
             ctx.call_depth,
             ctx.out,
+            ctx.mappings,
         );
     }
 
@@ -401,6 +412,7 @@ pub(in crate::preproc) fn process_import_directive(
             ctx.depth,
             ctx.call_depth,
             ctx.out,
+            ctx.mappings,
         );
     }
 
@@ -452,6 +464,7 @@ pub(in crate::preproc) fn process_import_directive(
         ctx.depth + 1,
         ctx.call_depth,
         ctx.out,
+        ctx.mappings,
     )?;
     ctx.include_stack.pop();
     Ok(())

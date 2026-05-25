@@ -6,6 +6,8 @@ use puml::language_service::{
 };
 use puml::source::Span;
 use puml::{CompatMode, DeterminismMode, FrontendSelection, ParsePipelineOptions};
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn document_symbols_are_available_without_lsp_transport() {
@@ -80,6 +82,32 @@ fn language_service_surface_is_registry_backed_for_editor_adapters() {
                 .as_str()
                 .expect("documentation")
                 .contains("Value type: color")));
+}
+
+#[test]
+fn diagnostics_report_include_origin_for_included_parse_errors() {
+    let dir = tempdir().unwrap();
+    let child = dir.path().join("broken.puml");
+    fs::write(&child, "A -x B\n").unwrap();
+    let options = ParsePipelineOptions {
+        include_root: Some(dir.path().to_path_buf()),
+        ..ParsePipelineOptions::default()
+    };
+
+    let report = diagnostics_with_options("@startuml\n!include broken.puml\n@enduml\n", &options);
+    let diagnostic = report.diagnostics.first().expect("diagnostic");
+
+    assert_eq!(diagnostic.code.as_deref(), Some("E_ARROW_INVALID"));
+    assert!(diagnostic.file.as_ref().unwrap().ends_with("broken.puml"));
+    assert!(diagnostic.source.as_ref().unwrap().ends_with("broken.puml"));
+    assert!(diagnostic
+        .include_stack
+        .first()
+        .unwrap()
+        .ends_with("broken.puml"));
+    let range = diagnostic.range.expect("included range");
+    assert_eq!(range.start.line, 1);
+    assert_eq!(range.start.column, 1);
 }
 
 #[test]

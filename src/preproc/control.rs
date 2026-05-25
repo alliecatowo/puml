@@ -2,41 +2,50 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
+use crate::source::{line_spans, MappedSpan, SourceMap, Span};
 
 #[path = "control/callables.rs"]
 mod callables;
 #[path = "control/flow.rs"]
 mod flow;
+#[path = "control/source_map.rs"]
+mod source_map;
 #[path = "control/url.rs"]
 mod url;
 use callables::define_callable_block;
 use flow::{
     check_include_depth, ensure_conditionals_closed, is_active, looks_like_iso_date_value,
-    preprocess_loop_block, strip_block_comments,
+    preprocess_foreach_directive, preprocess_while_directive, strip_block_comments,
 };
+use source_map::{annotate_preproc_diagnostic, preproc_source, push_mapped_line};
 use url::process_include_url;
 
-use super::builtins::{
-    execute_procedure_call, invoke_dynamic_procedure, preprocessor_foreach_bindings,
-};
+use super::builtins::{execute_procedure_call, invoke_dynamic_procedure};
 use super::includes::{
     eval_simple_arithmetic, evaluate_assert_expression, evaluate_preprocess_expr,
-    find_matching_endfor, find_matching_endwhile, parse_preprocess_directive,
-    process_import_directive, process_include_directive, process_include_many_directive,
-    ImportDirectiveContext,
+    parse_preprocess_directive, process_import_directive, process_include_directive,
+    process_include_many_directive, ImportDirectiveContext,
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
 use super::{
     ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, MAX_PREPROC_WHILE_ITERATIONS,
+    PreprocVariableScope, PreprocessDirective, PreprocessResult,
 };
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
+    preprocess_with_map(source, options).map(|result| result.source)
+}
+
+pub(crate) fn preprocess_with_map(
+    source: &str,
+    options: &ParseOptions,
+) -> Result<PreprocessResult, Diagnostic> {
     let mut state = PreprocState::default();
     state.vars.extend(options.inject_vars.clone());
     let mut include_stack = Vec::new();
     let mut include_once_seen = BTreeSet::new();
     let mut expanded = String::new();
+    let mut mappings = Vec::new();
 
     // Strip PlantUML block comments (`/' ... '/`) before line-by-line processing.
     // Block comments can span multiple lines; we replace consumed content with
@@ -52,9 +61,13 @@ pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String,
         0,
         0,
         &mut expanded,
+        &mut mappings,
     )?;
 
-    Ok(expanded)
+    Ok(PreprocessResult {
+        source: expanded,
+        source_map: SourceMap::new(mappings),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -67,15 +80,18 @@ pub(super) fn preprocess_text(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     check_include_depth(depth)?;
 
     let lines = source.lines().collect::<Vec<_>>();
+    let spans = line_spans(source);
     let mut i = 0usize;
     let mut conditionals = Vec::<ConditionalFrame>::new();
 
     while i < lines.len() {
         let raw_line = lines[i];
+        let raw_span = spans.get(i).copied().unwrap_or_else(|| Span::new(0, 0));
         let line = raw_line.trim();
         let active = is_active(&conditionals);
 
@@ -154,37 +170,20 @@ pub(super) fn preprocess_text(
                     }
                 }
                 PreprocessDirective::While(expr) => {
-                    let endwhile = find_matching_endwhile(&lines, i)?;
-                    if active {
-                        let block = lines[i + 1..endwhile].join("\n");
-                        let mut iterations = 0usize;
-                        while evaluate_preprocess_expr(&expr, state)? {
-                            iterations += 1;
-                            if iterations > MAX_PREPROC_WHILE_ITERATIONS {
-                                return Err(Diagnostic::error_code(
-                                    "E_PREPROC_WHILE_LIMIT",
-                                    format!(
-                                        "`!while` iteration limit exceeded ({MAX_PREPROC_WHILE_ITERATIONS})"
-                                    ),
-                                ));
-                            }
-                            let signal = preprocess_loop_block(
-                                &block,
-                                options,
-                                state,
-                                include_stack,
-                                include_once_seen,
-                                depth,
-                                call_depth,
-                                out,
-                            )?;
-                            match signal {
-                                Some(PreprocLoopSignal::Break) => break,
-                                Some(PreprocLoopSignal::Continue) | None => {}
-                            }
-                        }
-                    }
-                    i = endwhile + 1;
+                    i = preprocess_while_directive(
+                        &expr,
+                        &lines,
+                        i,
+                        active,
+                        options,
+                        state,
+                        include_stack,
+                        include_once_seen,
+                        depth,
+                        call_depth,
+                        out,
+                        mappings,
+                    )?;
                     continue;
                 }
                 PreprocessDirective::EndWhile => {
@@ -194,78 +193,20 @@ pub(super) fn preprocess_text(
                     ));
                 }
                 PreprocessDirective::Foreach(spec) => {
-                    let endfor = find_matching_endfor(&lines, i)?;
-                    if active {
-                        // Expected forms:
-                        //   `$var in val1, val2, val3`
-                        //   `$var in $listvar`
-                        //   `$key, $value in $mapvar`
-                        // For two loop variables, JSON objects iterate
-                        // key/value pairs and JSON arrays iterate index/value
-                        // pairs. This keeps common PlantUML map/list loops
-                        // deterministic without adding runtime dependencies.
-                        let parts: Vec<&str> = spec.splitn(2, " in ").collect();
-                        if parts.len() != 2 {
-                            return Err(Diagnostic::error_code(
-                                "E_PREPROC_FOREACH_FORM",
-                                "`!foreach` requires form `$var in val1, val2, ...`",
-                            ));
-                        }
-                        let var_names = parts[0]
-                            .split(',')
-                            .map(|name| name.trim().trim_start_matches('$').to_string())
-                            .filter(|name| !name.is_empty())
-                            .collect::<Vec<_>>();
-                        if var_names.is_empty() {
-                            return Err(Diagnostic::error_code(
-                                "E_PREPROC_FOREACH_FORM",
-                                "`!foreach` requires at least one loop variable",
-                            ));
-                        }
-                        let rhs = expand_preprocessor_text(parts[1].trim(), state, 0)?;
-                        let bindings = preprocessor_foreach_bindings(&var_names, &rhs);
-                        let block = lines[i + 1..endfor].join("\n");
-                        let prev = var_names
-                            .iter()
-                            .map(|name| (name.clone(), state.vars.get(name).cloned()))
-                            .collect::<Vec<_>>();
-                        let mut should_break = false;
-                        for row in bindings {
-                            for (name, value) in row {
-                                state.vars.insert(name, value);
-                            }
-                            let signal = preprocess_loop_block(
-                                &block,
-                                options,
-                                state,
-                                include_stack,
-                                include_once_seen,
-                                depth,
-                                call_depth,
-                                out,
-                            )?;
-                            match signal {
-                                Some(PreprocLoopSignal::Break) => {
-                                    should_break = true;
-                                }
-                                Some(PreprocLoopSignal::Continue) | None => {}
-                            }
-                            if should_break {
-                                break;
-                            }
-                        }
-                        for (name, value) in prev {
-                            match value {
-                                Some(v) => {
-                                    state.vars.insert(name, v);
-                                }
-                                None => {
-                                    state.vars.remove(&name);
-                                }
-                            }
-                        }
-                    }
-                    i = endfor + 1;
+                    i = preprocess_foreach_directive(
+                        &spec,
+                        &lines,
+                        i,
+                        active,
+                        options,
+                        state,
+                        include_stack,
+                        include_once_seen,
+                        depth,
+                        call_depth,
+                        out,
+                        mappings,
+                    )?;
                     continue;
                 }
                 PreprocessDirective::Break => {
@@ -322,12 +263,18 @@ pub(super) fn preprocess_text(
                     if active {
                         // Expand for diagnostics parity; result is discarded
                         // because we are a deterministic offline renderer.
-                        let _ = expand_preprocessor_text(&payload, state, call_depth)?;
+                        let _ =
+                            expand_preprocessor_text(&payload, state, call_depth).map_err(|d| {
+                                annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                            })?;
                     }
                 }
                 PreprocessDirective::DumpMemory(payload) => {
                     if active {
-                        let _ = expand_preprocessor_text(&payload, state, call_depth)?;
+                        let _ =
+                            expand_preprocessor_text(&payload, state, call_depth).map_err(|d| {
+                                annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                            })?;
                     }
                 }
                 PreprocessDirective::DynamicInvocation(raw) => {
@@ -341,7 +288,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::JsonPreproc(raw) => {
@@ -409,7 +360,15 @@ pub(super) fn preprocess_text(
                                 // whitespace for determinism.
                                 state.vars.insert(name, value.trim().to_string());
                             } else {
-                                let rendered = expand_preprocessor_text(&value, state, call_depth)?;
+                                let rendered = expand_preprocessor_text(&value, state, call_depth)
+                                    .map_err(|d| {
+                                        annotate_preproc_diagnostic(
+                                            d,
+                                            source,
+                                            raw_span,
+                                            include_stack,
+                                        )
+                                    })?;
                                 let resolved = rendered.trim();
                                 // If the resolved value is a simple integer arithmetic
                                 // expression (e.g. "0 + 1", "3 - 1"), evaluate it so
@@ -443,7 +402,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::IncludeOnce(raw_target) => {
@@ -460,7 +423,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::IncludeMany(raw_target) => {
@@ -474,7 +441,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::IncludeSub(raw_target) => {
@@ -491,7 +462,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::IncludeUrl(raw_target) => {
@@ -505,7 +480,11 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
-                        )?;
+                            mappings,
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::Import(raw_target) => {
@@ -520,8 +499,12 @@ pub(super) fn preprocess_text(
                                 depth,
                                 call_depth,
                                 out,
+                                mappings,
                             },
-                        )?;
+                        )
+                        .map_err(|d| {
+                            annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                        })?;
                     }
                 }
                 PreprocessDirective::ProcedureCall { name, args } => {
@@ -536,6 +519,7 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
+                            mappings,
                         )?;
                         if state.loop_signal.is_some() {
                             return Ok(());
@@ -544,16 +528,21 @@ pub(super) fn preprocess_text(
                 }
                 PreprocessDirective::Unsupported(name) => {
                     if active {
-                        return Err(Diagnostic::error_code(
+                        let diagnostic = Diagnostic::error_code(
                             "E_PREPROC_UNSUPPORTED",
                             format!("unsupported preprocessor directive `!{name}`"),
-                        ));
+                        )
+                        .with_span(raw_span);
+                        return Err(if include_stack.is_empty() {
+                            diagnostic
+                        } else {
+                            diagnostic.with_source(preproc_source(source, raw_span, include_stack))
+                        });
                     }
                 }
                 PreprocessDirective::Passthrough(line) => {
                     if active {
-                        out.push_str(&line);
-                        out.push('\n');
+                        push_mapped_line(out, mappings, &line, source, raw_span, include_stack);
                     }
                 }
                 PreprocessDirective::NoOp => {
@@ -578,6 +567,7 @@ pub(super) fn preprocess_text(
                             depth,
                             call_depth,
                             out,
+                            mappings,
                         )?;
                         if state.loop_signal.is_some() {
                             return Ok(());
@@ -587,9 +577,16 @@ pub(super) fn preprocess_text(
                     }
                 }
             }
-            let expanded_line = expand_preprocessor_text(raw_line, state, call_depth)?;
-            out.push_str(&expanded_line);
-            out.push('\n');
+            let expanded_line = expand_preprocessor_text(raw_line, state, call_depth)
+                .map_err(|d| annotate_preproc_diagnostic(d, source, raw_span, include_stack))?;
+            push_mapped_line(
+                out,
+                mappings,
+                &expanded_line,
+                source,
+                raw_span,
+                include_stack,
+            );
         }
         i += 1;
     }

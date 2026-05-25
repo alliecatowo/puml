@@ -54,3 +54,4 @@ pub use output::{
 };
 pub use render::TextOutputMode;
 pub use scene::{LayoutOptions, Scene};
+pub use source::{DiagnosticSource, MappedSpan, SourceMap};

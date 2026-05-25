@@ -52,7 +52,10 @@ pub(super) fn diagnostic_stdrpt(d: &Diagnostic, source: &str) -> String {
     let json = d.to_json_with_source(source);
     let code = json.code.unwrap_or_default();
     let location = match (json.line, json.column) {
-        (Some(line), Some(col)) => format!("-:{line}:{col}"),
+        (Some(line), Some(col)) => {
+            let file = json.file.unwrap_or_else(|| "-".to_string());
+            format!("{file}:{line}:{col}")
+        }
         _ => "-".to_string(),
     };
     format!("{}\t{}\t{}\t{}", json.severity, code, location, d.message)

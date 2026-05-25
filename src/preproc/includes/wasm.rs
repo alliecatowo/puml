@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
 use crate::preproc::{ParseOptions, PreprocState};
+use crate::source::MappedSpan;
 
 /// On `wasm32` there is no filesystem available, so the entire `!include` /
 /// `!includesub` / `!include_many` / `!import` family returns a friendly error
@@ -32,6 +33,7 @@ pub(in crate::preproc) fn process_include_directive(
     _depth: usize,
     _call_depth: usize,
     _out: &mut String,
+    _mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     Err(include_not_supported_in_wasm(directive_name))
 }
@@ -47,6 +49,7 @@ pub(in crate::preproc) fn process_include_many_directive(
     _depth: usize,
     _call_depth: usize,
     _out: &mut String,
+    _mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     Err(include_not_supported_in_wasm("!include_many"))
 }
@@ -60,6 +63,7 @@ pub(in crate::preproc) struct ImportDirectiveContext<'a> {
     pub(in crate::preproc) depth: usize,
     pub(in crate::preproc) call_depth: usize,
     pub(in crate::preproc) out: &'a mut String,
+    pub(in crate::preproc) mappings: &'a mut Vec<MappedSpan>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -75,6 +79,7 @@ pub(in crate::preproc) fn process_import_directive(
         depth,
         call_depth,
         out,
+        mappings,
     } = ctx;
     let _ = (
         options,
@@ -84,6 +89,7 @@ pub(in crate::preproc) fn process_import_directive(
         depth,
         call_depth,
         out,
+        mappings,
     );
     Err(include_not_supported_in_wasm("!import"))
 }
