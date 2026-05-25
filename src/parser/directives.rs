@@ -67,6 +67,7 @@ fn parse_skinparam_block(
 /// - `usecaseDiagram { usecase { ... } actor { ... } }`
 /// - `componentDiagram { component { ... } }`
 /// - `deploymentDiagram { node { ... } }`
+/// - `saltDiagram { button/input/menu/tab/... { ... } }`
 /// - declarations in `Property Value` or `Property: Value;` form
 fn parse_style_block(
     lines: &[(&str, Span)],
@@ -99,6 +100,7 @@ fn parse_style_block(
     let mut kinds: Vec<StatementKind> = Vec::new();
     let mut in_target = false;
     let mut nested_selector: Option<String> = None;
+    let mut salt_external_selector = false;
 
     for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
         let inner = strip_inline_plantuml_comment(raw).trim();
@@ -111,11 +113,22 @@ fn parse_style_block(
         if target.matches_open_selector(inner) {
             in_target = true;
             nested_selector = None;
+            salt_external_selector = false;
+            continue;
+        }
+        if !in_target && matches!(target, StyleBlockTarget::Salt) && inner.ends_with('{') {
+            nested_selector = Some(inner.trim_end_matches('{').trim().to_ascii_lowercase());
+            in_target = true;
+            salt_external_selector = true;
             continue;
         }
         if inner == "}" {
             if nested_selector.is_some() {
                 nested_selector = None;
+                if salt_external_selector {
+                    in_target = false;
+                    salt_external_selector = false;
+                }
             } else {
                 in_target = false;
             }
@@ -127,6 +140,7 @@ fn parse_style_block(
         if inner.ends_with('{') {
             let selector = inner.trim_end_matches('{').trim().to_ascii_lowercase();
             nested_selector = Some(selector);
+            salt_external_selector = false;
             continue;
         }
 
@@ -167,6 +181,7 @@ enum StyleBlockTarget {
     Deployment,
     State,
     Activity,
+    Salt,
 }
 
 impl StyleBlockTarget {
@@ -180,6 +195,7 @@ impl StyleBlockTarget {
             Self::Deployment => selector.eq_ignore_ascii_case("deploymentDiagram"),
             Self::State => selector.eq_ignore_ascii_case("stateDiagram"),
             Self::Activity => selector.eq_ignore_ascii_case("activityDiagram"),
+            Self::Salt => selector.eq_ignore_ascii_case("saltDiagram"),
         }
     }
 
@@ -192,6 +208,7 @@ impl StyleBlockTarget {
             Self::Deployment => deployment_style_skinparam_key(nested_selector, &key),
             Self::State => state_style_skinparam_key(nested_selector, &key),
             Self::Activity => activity_style_skinparam_key(nested_selector, &key),
+            Self::Salt => salt_style_skinparam_key(nested_selector, &key),
         }
     }
 }
@@ -226,6 +243,9 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
         }
         if selector.eq_ignore_ascii_case("activityDiagram") {
             return Some(StyleBlockTarget::Activity);
+        }
+        if selector.eq_ignore_ascii_case("saltDiagram") {
+            return Some(StyleBlockTarget::Salt);
         }
         return None;
     }
@@ -267,6 +287,55 @@ fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Opt
             "bordercolor" => Some("GroupBorderColor".to_string()),
             "headerfontcolor" => Some("GroupHeaderFontColor".to_string()),
             "headerfontstyle" => Some("GroupHeaderFontStyle".to_string()),
+            _ => None,
+        },
+        Some(_) => None,
+    }
+}
+
+fn salt_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        None => match key {
+            "backgroundcolor" => Some("SaltBackgroundColor".to_string()),
+            "fontcolor" => Some("SaltFontColor".to_string()),
+            "linecolor" | "bordercolor" => Some("SaltBorderColor".to_string()),
+            "gridcolor" => Some("SaltGridColor".to_string()),
+            "accentcolor" => Some("SaltAccentColor".to_string()),
+            _ => None,
+        },
+        Some("button") => match key {
+            "backgroundcolor" => Some("SaltButtonBackgroundColor".to_string()),
+            "fontcolor" => Some("SaltButtonFontColor".to_string()),
+            _ => None,
+        },
+        Some("input" | "textfield" | "textarea") => match key {
+            "backgroundcolor" => Some("SaltInputBackgroundColor".to_string()),
+            "fontcolor" => Some("SaltInputFontColor".to_string()),
+            _ => None,
+        },
+        Some("header") => match key {
+            "backgroundcolor" => Some("SaltHeaderColor".to_string()),
+            "fontcolor" => Some("SaltHeaderFontColor".to_string()),
+            _ => None,
+        },
+        Some("menu") => match key {
+            "backgroundcolor" => Some("SaltMenuBackgroundColor".to_string()),
+            _ => None,
+        },
+        Some("tab") => match key {
+            "backgroundcolor" => Some("SaltTabBackgroundColor".to_string()),
+            _ => None,
+        },
+        Some("scrollbar") => match key {
+            "backgroundcolor" => Some("SaltScrollbarColor".to_string()),
+            _ => None,
+        },
+        Some("checkbox") => match key {
+            "backgroundcolor" => Some("SaltCheckboxColor".to_string()),
+            _ => None,
+        },
+        Some("radio") => match key {
+            "backgroundcolor" => Some("SaltRadioColor".to_string()),
             _ => None,
         },
         Some(_) => None,

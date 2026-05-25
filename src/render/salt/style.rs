@@ -1,3 +1,5 @@
+use crate::theme::SaltStyle;
+
 pub(super) struct SaltRenderStyle {
     pub(super) canvas_fill: String,
     pub(super) panel_fill: String,
@@ -17,31 +19,37 @@ pub(super) struct SaltRenderStyle {
     pub(super) input_text_color: String,
     pub(super) button_text_color: String,
     pub(super) muted_text_color: String,
-    pub(super) font_family: &'static str,
+    pub(super) font_family: String,
 }
 
 impl Default for SaltRenderStyle {
     fn default() -> Self {
+        SaltStyle::default().into()
+    }
+}
+
+impl From<SaltStyle> for SaltRenderStyle {
+    fn from(style: SaltStyle) -> Self {
         Self {
-            canvas_fill: "white".to_string(),
-            panel_fill: "white".to_string(),
-            header_fill: "#e2e8f0".to_string(),
-            input_fill: "white".to_string(),
-            button_fill: "#e8e8e8".to_string(),
-            menu_fill: "#eef2ff".to_string(),
-            tab_fill: "#eef2ff".to_string(),
-            scroll_fill: "#eef2ff".to_string(),
-            checkbox_fill: "white".to_string(),
-            radio_fill: "white".to_string(),
-            accent_fill: "#eef2ff".to_string(),
-            border_color: "#555".to_string(),
-            grid_color: "#ccc".to_string(),
-            text_color: "#222".to_string(),
-            header_text_color: "#222".to_string(),
-            input_text_color: "#222".to_string(),
-            button_text_color: "#222".to_string(),
-            muted_text_color: "#aaa".to_string(),
-            font_family: "monospace",
+            canvas_fill: style.canvas_fill,
+            panel_fill: style.panel_fill,
+            header_fill: style.header_fill,
+            input_fill: style.input_fill,
+            button_fill: style.button_fill,
+            menu_fill: style.menu_fill,
+            tab_fill: style.tab_fill,
+            scroll_fill: style.scroll_fill,
+            checkbox_fill: style.checkbox_fill,
+            radio_fill: style.radio_fill,
+            accent_fill: style.accent_fill,
+            border_color: style.border_color,
+            grid_color: style.grid_color,
+            text_color: style.text_color,
+            header_text_color: style.header_text_color,
+            input_text_color: style.input_text_color,
+            button_text_color: style.button_text_color,
+            muted_text_color: style.muted_text_color,
+            font_family: style.font_family,
         }
     }
 }
@@ -123,7 +131,7 @@ impl SaltRenderStyle {
                 true
             }
             "handwritten" if value.eq_ignore_ascii_case("true") => {
-                self.font_family = "Comic Sans MS, cursive";
+                self.font_family = "Comic Sans MS, cursive".to_string();
                 true
             }
             _ => false,

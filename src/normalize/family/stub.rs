@@ -30,6 +30,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         _ => crate::theme::GraphStyleFamily::Class,
     };
     let mut style_cascade = crate::theme::GraphStyleCascade::new(graph_family);
+    let mut salt_style = crate::theme::SaltStyle::default();
     let mut style_params: Vec<StyleParamRecord> = Vec::new();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
@@ -48,17 +49,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             StatementKind::SkinParam { key, value } => {
                 if family_kind == DiagramKind::Salt {
-                    nodes.push(FamilyNode {
-                        kind: FamilyNodeKind::Salt,
-                        name: format!("SALT_ROW\x1fL:saltstyle {key} {value}"),
-                        alias: None,
-                        members: Vec::new(),
-                        depth: 0,
-                        label: None,
-                        mindmap_side: MindMapSide::Right,
-                        wbs_checkbox: None,
-                        fill_color: None,
-                    });
+                    salt_style.apply_key(&key, &value);
                     continue;
                 }
                 style_cascade.apply_skinparam(&key, &value, stmt.span, &mut warnings);
@@ -351,6 +342,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::Scale(body) => common.scale(&body),
             StatementKind::Theme(value) => {
+                if family_kind == DiagramKind::Salt {
+                    let preset = crate::theme::resolve_sequence_theme_preset(&value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?;
+                    salt_style = crate::theme::salt_style_from_sequence_theme(&preset.style);
+                    continue;
+                }
                 style_cascade.apply_theme(&value, stmt.span)?;
             }
             StatementKind::Pragma(_)
@@ -477,18 +474,40 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
     for param in style_params {
-        style_cascade.apply_style_param(
-            param.selector.as_deref(),
-            &param.property,
-            param.key.as_deref(),
-            &param.value,
-            param.span,
-            &mut warnings,
-        );
+        if family_kind == DiagramKind::Salt {
+            let applied = if let Some(key) = param.key.as_deref() {
+                salt_style.apply_key(key, &param.value)
+            } else {
+                salt_style.apply_property(param.selector.as_deref(), &param.property, &param.value)
+            };
+            if !applied {
+                warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
+                        param.property,
+                        param.selector.as_deref().unwrap_or("saltDiagram")
+                    ))
+                    .with_span(param.span),
+                );
+            }
+        } else {
+            style_cascade.apply_style_param(
+                param.selector.as_deref(),
+                &param.property,
+                param.key.as_deref(),
+                &param.value,
+                param.span,
+                &mut warnings,
+            );
+        }
     }
     common::sort_diagnostics_by_message_and_span(&mut warnings);
     let sepia = style_cascade.sepia();
-    let family_style = style_cascade.into_family_style();
+    let family_style = if family_kind == DiagramKind::Salt {
+        crate::model::FamilyStyle::Salt(Box::new(salt_style))
+    } else {
+        style_cascade.into_family_style()
+    };
 
     Ok(FamilyDocument {
         kind: family_kind,

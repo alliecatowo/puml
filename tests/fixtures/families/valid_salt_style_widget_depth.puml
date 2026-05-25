@@ -1,0 +1,47 @@
+@startsalt
+<style>
+saltDiagram {
+  BackgroundColor #f8fafc
+  FontColor #0f172a
+  LineColor #334155
+  AccentColor #bae6fd
+}
+button {
+  BackgroundColor #fed7aa
+  FontColor #7c2d12
+}
+input {
+  BackgroundColor #ecfeff
+  FontColor #155e75
+}
+menu {
+  BackgroundColor #ede9fe
+}
+tab {
+  BackgroundColor #fef3c7
+}
+header {
+  BackgroundColor #ccfbf1
+}
+</style>
+{
+{^ Application Shell}
+{^ Credentials}
+{* File | Edit | View | Tools | Help}
+{/ General | **Security** | Audit}
+<<shield
+.XX.
+XXXX
+>>
+{#
+= Field | = Widget | = Notes
+Owner <&person> | "Allie" | **primary**
+Role | ^Admin^^Reader^^Writer^ | *
+Icon | <<shield>> | <color:blue>sprite</color>
+Action | [Save <&account-login>] | Done
+}
+{SI
+<&person> Review scoped access before inviting guests
+}
+}
+@endsalt

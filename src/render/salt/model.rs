@@ -142,6 +142,7 @@ impl SaltCellRender {
                     8 + (line_count as i32 * 14)
                 }
             }
+            Self::MenuBar(items) if items.len() > 4 => 24 + ((items.len() - 1) as i32 * 16),
             _ => 20,
         }
     }
