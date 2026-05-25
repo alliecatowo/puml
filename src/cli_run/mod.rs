@@ -1,5 +1,6 @@
 mod diagnostics;
 mod encodesprite;
+mod extract;
 mod format;
 mod input;
 mod lint;
@@ -16,6 +17,7 @@ use diagnostics::{
     emit_warnings_for_model_label, should_color_human_diagnostics, DiagnosticOutput,
 };
 use encodesprite::run_encodesprite;
+use extract::run_extract_mode;
 use format::run_format_command;
 use input::{frontend_hint_for_path, read_input, should_extract_markdown, split_diagrams};
 use lint::{is_lint_mode_enabled, run_lint_mode, run_lint_subcommand, LintSubcommandContext};
@@ -24,9 +26,11 @@ use pipeline::{
 };
 use puml::diagnostic::normalized_warnings;
 use puml::extract_metadata;
+use regex::Regex;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 use std::time::Instant;
 
 const EXIT_VALIDATION: u8 = 1;
@@ -90,22 +94,6 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             ),
         ));
     }
-    if cli.extract {
-        return Err((
-            EXIT_IO,
-            "[E_FLAG_UNSUPPORTED] --extract is parsed for PlantUML CLI parity but is not implemented; render multi-diagram inputs normally or use --from-markdown for fenced extraction"
-                .to_string(),
-        ));
-    }
-    if let Some(pattern) = &cli.pattern {
-        return Err((
-            EXIT_IO,
-            format!(
-                "[E_FLAG_UNSUPPORTED] --pattern is parsed for PlantUML CLI parity but is not implemented; received pattern `{pattern}`"
-            ),
-        ));
-    }
-
     if !cli.charset.eq_ignore_ascii_case("utf-8") {
         return Err((
             EXIT_VALIDATION,
@@ -179,6 +167,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if is_lint_mode_enabled(&cli) {
         return run_lint_mode(&cli);
     }
+    validate_single_input_pattern(cli.pattern.as_deref(), cli.input.as_deref())?;
 
     let input_arg = if cli.pipe { None } else { cli.input.as_deref() };
     let (_input_name, raw, input_path) = read_input(input_arg)?;
@@ -213,11 +202,15 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    if input_path.is_none() && diagrams.len() > 1 && !cli.multi && !cli.metadata {
+    if input_path.is_none() && diagrams.len() > 1 && !cli.multi && !cli.metadata && !cli.extract {
         return Err((
             EXIT_VALIDATION,
             "multiple diagrams detected; rerun with --multi".to_string(),
         ));
+    }
+
+    if cli.extract {
+        return run_extract_mode(&cli, &diagrams, input_path);
     }
 
     if cli.preproc {
@@ -525,4 +518,38 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
 
 fn lsp_capabilities_manifest() -> Value {
     puml::lsp_capabilities()
+}
+
+fn validate_single_input_pattern(
+    pattern: Option<&str>,
+    input: Option<&Path>,
+) -> Result<(), (u8, String)> {
+    let Some(pattern) = pattern else {
+        return Ok(());
+    };
+    let Some(input) = input.filter(|path| *path != Path::new("-")) else {
+        return Err((
+            EXIT_VALIDATION,
+            "--pattern requires a file path, --lint-input, or --lint-glob; stdin cannot be matched"
+                .to_string(),
+        ));
+    };
+    let regex = Regex::new(pattern).map_err(|e| {
+        (
+            EXIT_VALIDATION,
+            format!("invalid --pattern regex '{pattern}': {e}"),
+        )
+    })?;
+    let input_label = input.to_string_lossy();
+    if regex.is_match(&input_label) {
+        Ok(())
+    } else {
+        Err((
+            EXIT_VALIDATION,
+            format!(
+                "input '{}' did not match --pattern; no files selected",
+                input.display()
+            ),
+        ))
+    }
 }

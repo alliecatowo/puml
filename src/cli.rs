@@ -190,7 +190,7 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub htmlcss: bool,
 
-    /// No-op PlantUML compatibility flag; rendering remains deterministic and single-threaded.
+    /// PlantUML compatibility thread-count hint; execution remains deterministic.
     #[arg(long, value_name = "N", default_value_t = 1, value_parser = parse_threads)]
     pub threads: usize,
 
@@ -198,11 +198,15 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub failfast2: bool,
 
-    /// Unsupported PlantUML compatibility flag for extracting diagrams to files.
-    #[arg(long, action = ArgAction::SetTrue)]
+    /// Split a multi-diagram input into deterministic .puml source files.
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        conflicts_with_all = ["check", "check_syntax", "dump", "metadata", "preproc"]
+    )]
     pub extract: bool,
 
-    /// Unsupported PlantUML compatibility flag for filtering input file paths.
+    /// Regex filter applied to lint/check file selection.
     #[arg(long, value_name = "REGEX")]
     pub pattern: Option<String>,
 

@@ -90,6 +90,20 @@ such as `-thtml`, `-tpng`, `-ttxt`, and `-tutxt` are also accepted for supported
 formats. LaTeX aliases (`-tlatex`, `-tlatex:nopreamble`) are parsed for parity but
 currently return a deterministic unsupported-format diagnostic.
 
+For PlantUML-compatible batch selection, `--pattern` filters lint/check file
+paths after `--lint-input` and `--lint-glob` expansion:
+
+```bash
+puml --check --lint-glob 'docs/**/*.puml' --pattern '/sequence/'
+```
+
+Use `--extract` to split a multi-diagram source file into deterministic `.puml`
+files without rendering:
+
+```bash
+puml --extract batch.puml
+```
+
 PNG defaults to 96 DPI. Increase it for high-DPI screenshots or docs uploads:
 
 ```bash

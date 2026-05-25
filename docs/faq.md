@@ -43,6 +43,8 @@ The CLI help on current main lists these render formats:
 accepted where puml has an equivalent renderer, including `-thtml`, `-tpng`,
 `-ttxt`, and `-tutxt`. Unsupported parity aliases such as `-tlatex` and
 `-tlatex:nopreamble` exit with code `2` and list the supported formats.
+`--pattern` filters lint/check file paths after glob expansion, and `--extract`
+splits multi-diagram source files into `.puml` files without rendering.
 
 PNG supports `--dpi`, for example:
 

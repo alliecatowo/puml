@@ -29,7 +29,20 @@ Compatibility flags:
 | `--preproc` | Print preprocessed source after include and macro expansion. |
 | `--htmlcss` | No-op; HTML output is already self-contained. |
 | `--metadata` | Print structured JSON metadata after parse and normalization. |
-| `--threads N` | Accepted no-op; rendering remains deterministic. |
+| `--threads N` | Accepted as a worker-count hint; output ordering remains deterministic. |
 | `--failfast2` | Accepted no-op; fatal CLI errors already stop the run. |
-| `--extract` | Parsed for parity, currently unsupported with exit code `2`. |
-| `--pattern REGEX` | Parsed for parity, currently unsupported with exit code `2`. |
+| `--extract` | Split a multi-diagram input into deterministic `.puml` source files; stdin writes split sources to stdout. |
+| `--pattern REGEX` | Filter lint/check file selection by regex over resolved paths. |
+
+For batch syntax checks, combine glob expansion with PlantUML-compatible path
+filtering:
+
+```bash
+puml --check --lint-glob 'docs/**/*.puml' --pattern '/sequence/'
+```
+
+To split a file containing several `@startuml` blocks without rendering:
+
+```bash
+puml --extract diagrams/batch.puml
+```
