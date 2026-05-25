@@ -54,13 +54,10 @@ fn split_state_label_explicit_lines(label: &str) -> Vec<String> {
 
     while let Some(ch) = chars.next() {
         if ch == '\\' {
-            match chars.peek().copied() {
-                Some('n' | 'r' | 'l') => {
-                    chars.next();
-                    lines.push(std::mem::take(&mut current));
-                    continue;
-                }
-                _ => {}
+            if let Some('n' | 'r' | 'l') = chars.peek().copied() {
+                chars.next();
+                lines.push(std::mem::take(&mut current));
+                continue;
             }
         }
         current.push(ch);
