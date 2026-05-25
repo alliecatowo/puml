@@ -1,3 +1,5 @@
+use super::completion_extra::{extra_completion_specs, resolve_extra_completion_item};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
     pub label: &'static str,
@@ -597,4 +599,3 @@ mod tests {
         assert!(labels.contains(&"-->>"));
     }
 }
-use super::completion_extra::{extra_completion_specs, resolve_extra_completion_item};
