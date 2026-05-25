@@ -1,16 +1,22 @@
 ---
 source: tests/integration.rs
-assertion_line: 1141
+assertion_line: 1174
 expression: json
 ---
 {
   "caption": null,
   "chronology_events": [
     {
+      "bracket": false,
+      "color": null,
+      "end": null,
       "subject": "Phase 1",
       "when": "2026-05-10"
     },
     {
+      "bracket": false,
+      "color": null,
+      "end": null,
       "subject": "Phase 2",
       "when": "2026-06-01"
     }

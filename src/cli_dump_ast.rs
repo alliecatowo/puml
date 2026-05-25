@@ -125,8 +125,14 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::GanttNamedDate { date, label } => {
             json!({"GanttNamedDate": {"date": date, "label": label}})
         }
-        StatementKind::ChronologyHappensOn { subject, when } => {
-            json!({"ChronologyHappensOn": {"subject": subject, "when": when}})
+        StatementKind::ChronologyHappensOn {
+            subject,
+            when,
+            end,
+            color,
+            bracket,
+        } => {
+            json!({"ChronologyHappensOn": {"subject": subject, "when": when, "end": end, "color": color, "bracket": bracket}})
         }
         StatementKind::Note(n) => json!({"Note": note_to_json(n)}),
         StatementKind::Group(g) => json!({"Group": group_to_json(g)}),

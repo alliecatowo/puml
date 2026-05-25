@@ -160,6 +160,37 @@ fn parses_chronology_happens_on_baseline_statement() {
     ));
 }
 
+#[test]
+fn parses_chronology_ranges_eras_and_brackets() {
+    let doc = parse_with_options(
+        "@startchronology\n[Exploration] happens from 2026-01-01 to 2026-03-31 is colored in #bfdbfe\nRelease window spans 2026-04-01 to 2026-04-15\nbracket FY26 from 2026-01-01 to 2026-12-31\n@endchronology\n",
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(doc.kind, DiagramKind::Chronology);
+    assert!(matches!(
+        doc.statements[0].kind,
+        StatementKind::ChronologyHappensOn {
+            ref subject,
+            ref when,
+            ref end,
+            ref color,
+            bracket: false,
+        } if subject == "Exploration"
+            && when == "2026-01-01"
+            && end.as_deref() == Some("2026-03-31")
+            && color.as_deref() == Some("#bfdbfe")
+    ));
+    assert!(matches!(
+        doc.statements[2].kind,
+        StatementKind::ChronologyHappensOn {
+            ref subject,
+            bracket: true,
+            ..
+        } if subject == "FY26"
+    ));
+}
+
 
 #[test]
 fn start_end_timeline_markers_accept_optional_block_suffixes() {

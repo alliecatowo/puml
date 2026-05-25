@@ -453,4 +453,7 @@ pub struct TimelineResourceAllocation {
 pub struct TimelineChronologyEvent {
     pub subject: String,
     pub when: String,
+    pub end: Option<String>,
+    pub color: Option<String>,
+    pub bracket: bool,
 }

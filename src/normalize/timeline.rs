@@ -227,9 +227,19 @@ pub(super) fn normalize_timeline_baseline(
                     }
                 }
             }
-            StatementKind::ChronologyHappensOn { subject, when } => {
-                chronology_events.push(TimelineChronologyEvent { subject, when })
-            }
+            StatementKind::ChronologyHappensOn {
+                subject,
+                when,
+                end,
+                color,
+                bracket,
+            } => chronology_events.push(TimelineChronologyEvent {
+                subject,
+                when,
+                end,
+                color,
+                bracket,
+            }),
             StatementKind::Title(v) => common.title(v),
             StatementKind::Header(v) => common.raw_header(v),
             StatementKind::Footer(v) => common.raw_footer(v),
