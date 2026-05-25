@@ -343,6 +343,59 @@ fn graph_family_artifact_runs_typed_scene_validation_for_component() {
 }
 
 #[test]
+fn model_render_artifacts_carry_svg_metadata_diagnostics_and_typed_scene() {
+    let source = r#"
+@startuml
+skinparam UnknownXyzKey value
+class A
+class B
+A --> B
+@enduml
+"#;
+    let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");
+    assert_eq!(artifacts.len(), 1);
+
+    let artifact = &artifacts[0];
+    assert_eq!(artifact.svg, render_to_svg(source));
+    assert_eq!(artifact.media_type(), "image/svg+xml");
+    assert!(artifact
+        .dimensions
+        .is_some_and(|dimensions| dimensions.width > 0.0 && dimensions.height > 0.0));
+    assert!(
+        artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("W_SKINPARAM_UNSUPPORTED")),
+        "artifact should retain normalizer diagnostics for callers that do not own the model"
+    );
+    assert!(
+        artifact.scene.is_some(),
+        "graph-family artifact should expose the typed scene"
+    );
+    assert!(
+        artifact.invariant_report.is_some(),
+        "graph-family artifact should retain the validation report from the same render pass"
+    );
+}
+
+#[test]
+fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
+    let source = "@startuml\nAlice -> Bob : hello\n@enduml\n";
+    let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");
+    assert_eq!(artifacts.len(), 1);
+
+    let artifact = &artifacts[0];
+    assert_eq!(artifact.svg, render_to_svg(source));
+    assert!(artifact
+        .dimensions
+        .is_some_and(|dimensions| dimensions.view_box.is_some()));
+    assert!(
+        artifact.scene.is_none(),
+        "sequence still lacks a typed RenderScene bridge and should say so explicitly"
+    );
+}
+
+#[test]
 fn graph_family_artifacts_preserve_svg_api_for_class_and_deployment() {
     let fixtures = [
         include_str!("../docs/examples/class/32_association_class_deep_packages.puml"),

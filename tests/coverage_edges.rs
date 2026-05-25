@@ -1457,8 +1457,50 @@ fn normalize_sequence_reports_typed_unsupported_syntax() {
     };
 
     let err = normalize::normalize(doc).expect_err("unsupported syntax should fail");
-    assert!(err.message.contains("E_PARSE_UNSUPPORTED"));
+    assert!(err.message.contains("E_SEQUENCE_UNSUPPORTED_SYNTAX"));
     assert!(!err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
+fn normalize_sequence_distinguishes_raw_syntax_categories() {
+    for (kind, expected_code) in [
+        (
+            puml::ast::StatementKind::UnsupportedSyntax("box over A".to_string()),
+            "E_SEQUENCE_UNSUPPORTED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::MalformedSyntax("Alice ->".to_string()),
+            "E_SEQUENCE_MALFORMED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+            "E_SEQUENCE_DEFERRED_RAW",
+        ),
+        (
+            puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
+            "E_SEQUENCE_COMMENT_LOWERED",
+        ),
+        (
+            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
+            "E_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::Sequence,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(2, 12),
+                kind,
+            }],
+        };
+
+        let err = normalize::normalize(doc).expect_err("raw sequence syntax should fail");
+        assert!(
+            err.message.contains(expected_code),
+            "expected {expected_code}, got {}",
+            err.message
+        );
+        assert_eq!(err.span, Some(Span::new(2, 12)));
+    }
 }
 
 #[test]

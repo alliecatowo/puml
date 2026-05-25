@@ -274,16 +274,21 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 
 #[test]
 fn render_for_unsupported_families_reports_specific_codes() {
-    // MindMap and WBS are now implemented; only Unknown should error.
+    // MindMap and WBS are now implemented; unknown authored source should fail
+    // at the typed family detection boundary before any renderer fallback.
     let cases = [(
         "@startuml\nfoo bar\n@enduml\n",
         DiagramFamily::Unknown,
-        "E_RENDER_FAMILY_UNSUPPORTED",
+        "E_FAMILY_UNKNOWN",
     )];
 
     for (src, family, code) in cases {
         let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
-        assert!(err.message.contains(code), "missing code {code}");
+        assert!(
+            err.message.contains(code),
+            "missing code {code}: {}",
+            err.message
+        );
     }
 
     // MindMap and WBS now render successfully.

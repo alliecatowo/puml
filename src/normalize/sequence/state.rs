@@ -148,14 +148,9 @@ impl SequenceNormalizeState {
                 self.common.legend_position(&pos);
             }
             StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
-            StatementKind::Unknown(line) => reject_unknown_sequence_syntax(stmt.span, &line)?,
-            StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line) => {
-                reject_unsupported_sequence_syntax(stmt.span, &line)?
-            }
-            StatementKind::MalformedSyntax(line) => {
-                reject_malformed_sequence_syntax(stmt.span, &line)?
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                handle_sequence_raw_syntax(stmt.span, raw)?
             }
             _ => {
                 return Err(Diagnostic::error(
@@ -224,40 +219,16 @@ impl SequenceNormalizeState {
     }
 }
 
-fn reject_unknown_sequence_syntax(span: crate::source::Span, line: &str) -> Result<(), Diagnostic> {
-    if line.trim() == "---" {
-        return Ok(());
-    }
-    Err(
-        Diagnostic::error(format!("[E_PARSE_UNKNOWN] unsupported syntax: `{line}`"))
-            .with_span(span),
-    )
-}
-
-fn reject_unsupported_sequence_syntax(
+fn handle_sequence_raw_syntax(
     span: crate::source::Span,
-    line: &str,
+    raw: crate::ast::RawSyntax<'_>,
 ) -> Result<(), Diagnostic> {
-    if line.trim() == "---" {
+    if raw.line.trim() == "---" {
         return Ok(());
     }
-    Err(Diagnostic::error(format!(
-        "[E_PARSE_UNSUPPORTED] unsupported syntax: `{line}`"
+    Err(common::raw_syntax_diagnostic(
+        raw,
+        span,
+        common::RawSyntaxContext::Sequence,
     ))
-    .with_span(span))
-}
-
-fn reject_malformed_sequence_syntax(
-    span: crate::source::Span,
-    line: &str,
-) -> Result<(), Diagnostic> {
-    if line.trim() == "---" {
-        return Ok(());
-    }
-    let message = if line.starts_with("[E_") {
-        line.to_string()
-    } else {
-        format!("[E_PARSE_MALFORMED] malformed syntax: `{line}`")
-    };
-    Err(Diagnostic::error(message).with_span(span))
 }
