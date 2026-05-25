@@ -1,4 +1,5 @@
-use crate::render::TextOutputMode;
+use crate::model::NormalizedDocument;
+use crate::render::{self, RenderArtifact, TextOutputMode};
 use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 
 mod contract;
@@ -81,6 +82,21 @@ pub struct RenderedOutput {
 }
 
 #[derive(Debug, Clone)]
+pub struct RenderedArtifactOutput {
+    pub name_hint: Option<String>,
+    pub content: String,
+    pub artifact: Option<RenderArtifactOutputMetadata>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RenderArtifactOutputMetadata {
+    pub format: BackendFormat,
+    pub dimensions: Option<crate::render::RenderArtifactDimensions>,
+    pub scene_availability: crate::render_core::SceneAvailability,
+    pub diagnostics: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct RenderedBinaryOutput {
     pub name_hint: Option<String>,
     pub bytes: Vec<u8>,
@@ -132,6 +148,69 @@ pub fn render_svg_export_content(svg: &str, format: OutputFormat) -> String {
     }
 }
 
+pub fn render_artifact_export_content(artifact: &RenderArtifact, format: OutputFormat) -> String {
+    render_svg_export_content(&artifact.svg, format)
+}
+
+pub fn render_output_pages_from_artifacts(
+    model: &NormalizedDocument,
+    artifacts: &[RenderArtifact],
+    format: OutputFormat,
+    name_base: Option<&str>,
+) -> Vec<RenderedArtifactOutput> {
+    match format.text_mode() {
+        Some(mode) => render::render_text_pages(model, mode)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, content)| RenderedArtifactOutput {
+                name_hint: output_name_hint(name_base, idx, artifacts.len(), format),
+                content,
+                artifact: None,
+            })
+            .collect(),
+        None => artifacts
+            .iter()
+            .enumerate()
+            .map(|(idx, artifact)| RenderedArtifactOutput {
+                name_hint: output_name_hint(name_base, idx, artifacts.len(), format),
+                content: render_artifact_export_content(artifact, format),
+                artifact: Some(RenderArtifactOutputMetadata {
+                    format: artifact.format,
+                    dimensions: artifact.dimensions,
+                    scene_availability: artifact.scene_availability,
+                    diagnostics: artifact.diagnostics.len(),
+                }),
+            })
+            .collect(),
+    }
+}
+
+pub fn rendered_artifact_outputs_to_plain(
+    outputs: &[RenderedArtifactOutput],
+) -> Vec<RenderedOutput> {
+    outputs
+        .iter()
+        .map(|output| RenderedOutput {
+            name_hint: output.name_hint.clone(),
+            content: output.content.clone(),
+        })
+        .collect()
+}
+
+fn output_name_hint(
+    name_base: Option<&str>,
+    page_idx: usize,
+    page_count: usize,
+    format: OutputFormat,
+) -> Option<String> {
+    let base = name_base?;
+    if page_count == 1 {
+        Some(format!("{base}.{}", format.extension()))
+    } else {
+        Some(format!("{base}-{}.{}", page_idx + 1, format.extension()))
+    }
+}
+
 pub fn svg_to_html_document(svg: &str) -> String {
     format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>puml diagram</title>\n<style>html,body{{margin:0;min-height:100%;background:#fff;}}body{{display:flex;align-items:flex-start;justify-content:center;padding:16px;box-sizing:border-box;}}svg{{max-width:100%;height:auto;}}</style>\n</head>\n<body>\n{svg}\n</body>\n</html>"
@@ -159,6 +238,22 @@ pub fn render_output_bytes(
         name_hint: output.name_hint.clone(),
         bytes,
     })
+}
+
+#[cfg(feature = "cli")]
+pub fn render_artifact_output_bytes(
+    output: &RenderedArtifactOutput,
+    format: OutputFormat,
+    dpi: f32,
+) -> Result<RenderedBinaryOutput, OutputError> {
+    render_output_bytes(
+        &RenderedOutput {
+            name_hint: output.name_hint.clone(),
+            content: output.content.clone(),
+        },
+        format,
+        dpi,
+    )
 }
 
 #[cfg(feature = "cli")]
@@ -341,6 +436,25 @@ mod tests {
         let html = render_svg_export_content(svg, OutputFormat::Html);
         assert!(html.starts_with("<!doctype html>"));
         assert!(html.contains(svg));
+    }
+
+    #[test]
+    fn artifact_output_pages_preserve_metadata_and_names() {
+        let source = "@startuml\nclass A\nnewpage second\nclass B\n@enduml\n";
+        let document = crate::parse(source).expect("parse");
+        let model = crate::normalize_family(document).expect("normalize");
+        let artifacts = crate::render_artifact_pages_from_model(&model);
+
+        let outputs =
+            render_output_pages_from_artifacts(&model, &artifacts, OutputFormat::Html, Some("doc"));
+
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs[0].name_hint.as_deref(), Some("doc-1.html"));
+        assert_eq!(outputs[1].name_hint.as_deref(), Some("doc-2.html"));
+        assert!(outputs[0].content.starts_with("<!doctype html>"));
+        let artifact = outputs[0].artifact.expect("artifact metadata");
+        assert_eq!(artifact.format, BackendFormat::Svg);
+        assert!(artifact.dimensions.is_some());
     }
 
     #[cfg(feature = "cli")]

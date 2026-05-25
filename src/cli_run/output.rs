@@ -1,7 +1,10 @@
 use super::{EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION};
 use crate::cli::OutputFormat;
-use puml::output::{render_svg_export_content, OutputError, OutputErrorKind, RenderedBinaryOutput};
-use puml::{render, render_artifact_pages_from_model, NormalizedDocument};
+use puml::output::{
+    render_output_pages_from_artifacts, OutputError, OutputErrorKind, RenderedArtifactOutput,
+    RenderedBinaryOutput,
+};
+use puml::{render_artifact_pages_from_model, NormalizedDocument};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,14 +23,9 @@ pub(super) struct MultiSvgOut {
 pub(super) fn render_pages_from_model(
     model: &NormalizedDocument,
     format: OutputFormat,
-) -> Vec<String> {
-    match format.text_mode() {
-        Some(mode) => render::render_text_pages(model, mode),
-        None => render_artifact_pages_from_model(model)
-            .into_iter()
-            .map(|artifact| render_svg_export_content(&artifact.svg, format))
-            .collect(),
-    }
+) -> Vec<RenderedArtifactOutput> {
+    let artifacts = render_artifact_pages_from_model(model);
+    render_output_pages_from_artifacts(model, &artifacts, format, None)
 }
 
 pub(super) fn output_err(error: OutputError) -> (u8, String) {
