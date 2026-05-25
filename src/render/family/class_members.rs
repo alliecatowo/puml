@@ -172,18 +172,6 @@ pub(super) fn count_header_stereotype_members(members: &[crate::ast::ClassMember
     skip
 }
 
-pub(super) fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> {
-    node.members.iter().find_map(|member| {
-        let text = member.text.trim();
-        is_user_stereotype(text).then(|| {
-            text.trim_start_matches("<<")
-                .trim_end_matches(">>")
-                .trim()
-                .to_ascii_lowercase()
-        })
-    })
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(super) struct MapRow<'a> {
     pub(super) key: &'a str,
@@ -283,33 +271,6 @@ pub(super) fn render_map_rows(
             escape_text(row.value)
         ));
     }
-}
-
-#[derive(Default)]
-pub(super) struct FamilyNodeInlineStyle {
-    pub(super) border_color: Option<String>,
-    pub(super) text_color: Option<String>,
-    pub(super) border_dashed: bool,
-    pub(super) border_thickness: Option<f32>,
-}
-
-pub(super) fn family_node_inline_style(node: &crate::model::FamilyNode) -> FamilyNodeInlineStyle {
-    let mut style = FamilyNodeInlineStyle::default();
-    for member in &node.members {
-        let text = member.text.trim();
-        if let Some(color) = text.strip_prefix("\x1fstyle:border:") {
-            style.border_color = Some(color.trim().to_string());
-        } else if let Some(color) = text.strip_prefix("\x1fstyle:text:") {
-            style.text_color = Some(color.trim().to_string());
-        } else if text == "\x1fstyle:border-dashed" {
-            style.border_dashed = true;
-        } else if let Some(width) = text.strip_prefix("\x1fstyle:border-thickness:") {
-            if let Ok(width) = width.trim().parse::<f32>() {
-                style.border_thickness = Some(width.clamp(1.0, 8.0));
-            }
-        }
-    }
-    style
 }
 
 pub(super) fn is_family_style_member(text: &str) -> bool {

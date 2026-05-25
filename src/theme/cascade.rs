@@ -1,5 +1,5 @@
 use crate::diagnostic::Diagnostic;
-use crate::model::FamilyStyle;
+use crate::model::{FamilyNode, FamilyStyle};
 use crate::source::Span;
 
 use super::{
@@ -38,6 +38,128 @@ pub struct GraphStyleCascade {
     class_monochrome_mode: Option<MonochromeMode>,
     component_monochrome_mode: Option<MonochromeMode>,
     sepia: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FamilyNodeInlineStyle {
+    pub border_color: Option<String>,
+    pub text_color: Option<String>,
+    pub border_dashed: bool,
+    pub border_thickness: Option<f32>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EffectiveClassNodeStyle {
+    pub fill: String,
+    pub stroke: String,
+    pub font_color: String,
+    pub member_color: String,
+    pub header_color: String,
+    pub border_dashed: bool,
+    pub stroke_width: f32,
+    pub font_family: String,
+    pub title_font_size: u32,
+    pub member_font_size: u32,
+}
+
+pub fn family_node_inline_style(node: &FamilyNode) -> FamilyNodeInlineStyle {
+    let mut style = FamilyNodeInlineStyle::default();
+    for member in &node.members {
+        let text = member.text.trim();
+        if let Some(color) = text.strip_prefix("\x1fstyle:border:") {
+            style.border_color = Some(color.trim().to_string());
+        } else if let Some(color) = text.strip_prefix("\x1fstyle:text:") {
+            style.text_color = Some(color.trim().to_string());
+        } else if text == "\x1fstyle:border-dashed" {
+            style.border_dashed = true;
+        } else if let Some(width) = text.strip_prefix("\x1fstyle:border-thickness:") {
+            if let Ok(width) = width.trim().parse::<f32>() {
+                style.border_thickness = Some(width.clamp(1.0, 8.0));
+            }
+        }
+    }
+    style
+}
+
+pub fn family_node_stereotype_key(node: &FamilyNode) -> Option<String> {
+    node.members.iter().find_map(|member| {
+        let text = member.text.trim();
+        is_user_stereotype_marker(text).then(|| {
+            text.trim_start_matches("<<")
+                .trim_end_matches(">>")
+                .trim()
+                .to_ascii_lowercase()
+        })
+    })
+}
+
+pub fn effective_class_node_style(
+    class_style: &ClassStyle,
+    node: &FamilyNode,
+) -> EffectiveClassNodeStyle {
+    let scoped_style =
+        family_node_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
+    let inline_style = family_node_inline_style(node);
+    let scoped_font_color = scoped_style
+        .and_then(|style| style.font_color.as_deref())
+        .filter(|color| !color.is_empty());
+    let title_font_size = class_style.font_size.unwrap_or(13);
+
+    EffectiveClassNodeStyle {
+        fill: node
+            .fill_color
+            .as_deref()
+            .or_else(|| scoped_style.and_then(|style| style.background_color.as_deref()))
+            .unwrap_or(&class_style.background_color)
+            .to_string(),
+        stroke: inline_style
+            .border_color
+            .as_deref()
+            .or_else(|| scoped_style.and_then(|style| style.border_color.as_deref()))
+            .unwrap_or(&class_style.border_color)
+            .to_string(),
+        font_color: inline_style
+            .text_color
+            .as_deref()
+            .or(scoped_font_color)
+            .unwrap_or(&class_style.font_color)
+            .to_string(),
+        member_color: inline_style
+            .text_color
+            .as_deref()
+            .or(scoped_font_color)
+            .unwrap_or(class_style.member_color.as_str())
+            .to_string(),
+        header_color: scoped_style
+            .and_then(|style| style.header_color.as_deref())
+            .unwrap_or(class_style.header_color.as_str())
+            .to_string(),
+        border_dashed: inline_style.border_dashed,
+        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
+        font_family: class_style
+            .font_name
+            .clone()
+            .unwrap_or_else(|| "monospace".to_string()),
+        title_font_size,
+        member_font_size: title_font_size.saturating_sub(2).max(9),
+    }
+}
+
+fn is_user_stereotype_marker(text: &str) -> bool {
+    text.starts_with("<<") && text.ends_with(">>") && !is_builtin_type_stereotype_marker(text)
+}
+
+fn is_builtin_type_stereotype_marker(text: &str) -> bool {
+    matches!(
+        text,
+        "<<enum>>"
+            | "<<interface>>"
+            | "<<abstract>>"
+            | "<<abstract class>>"
+            | "<<annotation>>"
+            | "<<protocol>>"
+            | "<<struct>>"
+    )
 }
 
 impl GraphStyleCascade {
