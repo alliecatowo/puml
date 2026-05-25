@@ -10,7 +10,8 @@ use super::diagnostics::{include_path_required, stack_cycle, url_includes_disabl
 use super::paths::{normalize_path, resolve_import_path, resolve_include_path};
 use super::stdlib::{
     extract_include_tag, is_angle_bracket_include, is_stdlib_catalog_target,
-    process_stdlib_angle_include, resolve_stdlib_root,
+    process_builtin_stdlib_include, process_stdlib_angle_include, resolve_stdlib_root,
+    stdlib_not_found_diagnostic,
 };
 use super::target::{glob_matches, parse_import_target, parse_include_target};
 use super::url::{extract_url, fetch_url_include, is_url_include_target};
@@ -381,7 +382,30 @@ pub(in crate::preproc) fn process_import_directive(
         ));
     }
 
+    if let Some(builtin) = crate::stdlib::resolve_builtin_stdlib_include(&target) {
+        return process_builtin_stdlib_include(
+            builtin,
+            None,
+            "!import",
+            ctx.options,
+            ctx.state,
+            ctx.include_stack,
+            ctx.include_once_seen,
+            ctx.depth,
+            ctx.call_depth,
+            ctx.out,
+        );
+    }
+
     let stdlib_root = resolve_stdlib_root(ctx.options, ctx.include_stack)?;
+    if !stdlib_root.join(&target).exists() {
+        return Err(stdlib_not_found_diagnostic(
+            &stdlib_root,
+            target.to_str().and_then(crate::stdlib::stdlib_path_pack),
+            &target.display().to_string(),
+            &target,
+        ));
+    }
     let resolved = resolve_import_path(&stdlib_root, &target)?;
     if !ctx.include_once_seen.insert(resolved.clone()) {
         return Ok(());

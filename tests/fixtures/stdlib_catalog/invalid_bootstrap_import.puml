@@ -1,0 +1,4 @@
+@startuml
+!import bootstrap/bootstrap
+Bob -> Alice : unreachable
+@enduml

@@ -27,7 +27,22 @@ pub struct StdlibPackSummary {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StdlibPackStatus {
     Available,
+    Builtin,
     Unavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StdlibBuiltinIncludeKind {
+    OpenIconicSprite,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StdlibBuiltinInclude {
+    pub logical_path: String,
+    pub pack: String,
+    pub symbol: String,
+    pub kind: StdlibBuiltinIncludeKind,
+    pub content: String,
 }
 
 pub const STDLIB_ALIASES: &[StdlibAlias] = &[
@@ -61,8 +76,9 @@ pub const MISSING_UPSTREAM_STDLIB_PACKS: &[&str] = &[
     "elastic",
     "k8s",
     "material7",
-    "openiconic",
 ];
+
+pub const BUILTIN_STDLIB_PACKS: &[&str] = &["openiconic"];
 
 pub fn apply_stdlib_path_alias(path: PathBuf) -> PathBuf {
     let mut components = path.components();
@@ -187,6 +203,16 @@ pub fn stdlib_pack_summaries(entries: &[StdlibEntry]) -> Vec<StdlibPackSummary> 
                 aliases: 0,
             });
     }
+    for pack in sorted_builtin_stdlib_packs() {
+        packs
+            .entry(pack.to_string())
+            .or_insert_with(|| StdlibPackSummary {
+                name: pack.to_string(),
+                status: StdlibPackStatus::Builtin,
+                files: 0,
+                aliases: 0,
+            });
+    }
 
     packs.into_values().collect()
 }
@@ -194,9 +220,21 @@ pub fn stdlib_pack_summaries(entries: &[StdlibEntry]) -> Vec<StdlibPackSummary> 
 pub fn available_stdlib_packs(entries: &[StdlibEntry]) -> Vec<String> {
     stdlib_pack_summaries(entries)
         .into_iter()
-        .filter(|pack| pack.status == StdlibPackStatus::Available)
+        .filter(|pack| {
+            matches!(
+                pack.status,
+                StdlibPackStatus::Available | StdlibPackStatus::Builtin
+            )
+        })
         .map(|pack| pack.name)
         .collect()
+}
+
+pub fn sorted_builtin_stdlib_packs() -> Vec<&'static str> {
+    let mut packs = BUILTIN_STDLIB_PACKS.to_vec();
+    packs.sort_unstable();
+    packs.dedup();
+    packs
 }
 
 pub fn sorted_missing_stdlib_packs() -> Vec<&'static str> {
@@ -216,6 +254,36 @@ pub fn is_known_missing_stdlib_pack(pack: &str) -> bool {
     MISSING_UPSTREAM_STDLIB_PACKS
         .iter()
         .any(|missing| missing.eq_ignore_ascii_case(pack))
+}
+
+pub fn is_builtin_stdlib_pack(pack: &str) -> bool {
+    BUILTIN_STDLIB_PACKS
+        .iter()
+        .any(|builtin| builtin.eq_ignore_ascii_case(pack))
+}
+
+pub fn resolve_builtin_stdlib_include(path: &Path) -> Option<StdlibBuiltinInclude> {
+    let logical_path = path_to_slash_string(path);
+    let pack = stdlib_path_pack(&logical_path)?;
+    if !pack.eq_ignore_ascii_case("openiconic") {
+        return None;
+    }
+
+    let icon_name = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())?;
+    let (symbol, svg) = crate::sprites::openiconic_svg_source(icon_name)?;
+    let content = format!(
+        "' synthetic stdlib include <{logical_path}> resolved from built-in OpenIconic icons\nsprite ${symbol} {svg}\n"
+    );
+    Some(StdlibBuiltinInclude {
+        logical_path,
+        pack: "openiconic".to_string(),
+        symbol,
+        kind: StdlibBuiltinIncludeKind::OpenIconicSprite,
+        content,
+    })
 }
 
 fn collect_puml_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
@@ -274,6 +342,10 @@ pub fn format_stdlib_listing(root: &Path, entries: &[StdlibEntry]) -> String {
         "# missing upstream packs: {}\n",
         sorted_missing_stdlib_packs().join(", ")
     ));
+    out.push_str(&format!(
+        "# builtin packs: {}\n",
+        sorted_builtin_stdlib_packs().join(", ")
+    ));
     for entry in entries {
         if entry.alias {
             out.push_str(&format!("{} -> {}\n", entry.path, entry.physical_path));
@@ -307,5 +379,35 @@ mod tests {
         let mut sorted = paths.clone();
         sorted.sort();
         assert_eq!(paths, sorted);
+    }
+
+    #[test]
+    fn builtin_openiconic_include_resolves_without_filesystem_entry() {
+        let builtin = resolve_builtin_stdlib_include(Path::new("openiconic/folder.puml"))
+            .expect("openiconic folder should resolve as built-in include");
+
+        assert_eq!(builtin.pack, "openiconic");
+        assert_eq!(builtin.symbol, "folder");
+        assert_eq!(builtin.kind, StdlibBuiltinIncludeKind::OpenIconicSprite);
+        assert!(builtin.content.contains("sprite $folder <svg"));
+    }
+
+    #[test]
+    fn pack_summaries_classify_builtin_and_missing_packs_separately() {
+        let root = resolve_local_stdlib_root(None).expect("stdlib root");
+        let entries = inventory_from_root(&root).expect("inventory");
+        let packs = stdlib_pack_summaries(&entries);
+
+        let openiconic = packs
+            .iter()
+            .find(|pack| pack.name == "openiconic")
+            .expect("openiconic pack summary");
+        assert_eq!(openiconic.status, StdlibPackStatus::Builtin);
+
+        let bootstrap = packs
+            .iter()
+            .find(|pack| pack.name == "bootstrap")
+            .expect("bootstrap pack summary");
+        assert_eq!(bootstrap.status, StdlibPackStatus::Unavailable);
     }
 }

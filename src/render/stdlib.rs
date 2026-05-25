@@ -14,7 +14,12 @@ pub fn render_stdlib_svg(doc: &StdlibDocument) -> String {
     let available_count = doc
         .packs
         .iter()
-        .filter(|pack| pack.status == StdlibPackStatus::Available)
+        .filter(|pack| {
+            matches!(
+                pack.status,
+                StdlibPackStatus::Available | StdlibPackStatus::Builtin
+            )
+        })
         .count();
     let unavailable_count = doc.packs.len().saturating_sub(available_count);
 
@@ -48,10 +53,12 @@ pub fn render_stdlib_svg(doc: &StdlibDocument) -> String {
         for pack in &doc.packs {
             let status = match pack.status {
                 StdlibPackStatus::Available => "available",
+                StdlibPackStatus::Builtin => "builtin",
                 StdlibPackStatus::Unavailable => "unavailable",
             };
             let color = match pack.status {
                 StdlibPackStatus::Available => "#166534",
+                StdlibPackStatus::Builtin => "#0369a1",
                 StdlibPackStatus::Unavailable => "#991b1b",
             };
             text_row(

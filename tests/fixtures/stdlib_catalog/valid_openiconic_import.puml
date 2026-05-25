@@ -1,0 +1,4 @@
+@startuml
+!import openiconic/folder
+Alice -> Bob : Imported <$folder,scale=2,color=#0f766e>
+@enduml
