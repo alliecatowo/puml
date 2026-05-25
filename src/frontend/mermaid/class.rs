@@ -265,26 +265,6 @@ fn adapt_inline_class_block(rest: &str, span: Span) -> Option<GeneratedBlock> {
     Some(format_class_block(class_name, &members, span))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn classdiagram_uses_original_span_for_deferred_lines() {
-        let source = "classDiagram\nclass Dog\nclick Dog callback\n";
-        let result = adapt_mermaid_classdiagram(source).expect("class adapter");
-
-        assert_eq!(result.diagnostics.len(), 1);
-        let diagnostic = &result.diagnostics[0];
-        assert!(diagnostic.message.contains("W_MERMAID_CLASS_DEFERRED"));
-        assert_eq!(diagnostic.line_col(source), Some((3, 1)));
-        assert_eq!(
-            diagnostic.span.map(|span| &source[span.start..span.end]),
-            Some("click Dog callback")
-        );
-    }
-}
-
 /// Parse a `ClassName : member` line.  Returns `(class_name, member)`.
 fn adapt_classdiagram_member_line(line: &str) -> Option<(String, String)> {
     // Must not look like a relation (no `<`, `>`, `--`).
@@ -341,5 +321,25 @@ fn adapt_classdiagram_relation(line: &str) -> Option<String> {
         Some(format!("{core} : {lbl}"))
     } else {
         Some(core.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classdiagram_uses_original_span_for_deferred_lines() {
+        let source = "classDiagram\nclass Dog\nclick Dog callback\n";
+        let result = adapt_mermaid_classdiagram(source).expect("class adapter");
+
+        assert_eq!(result.diagnostics.len(), 1);
+        let diagnostic = &result.diagnostics[0];
+        assert!(diagnostic.message.contains("W_MERMAID_CLASS_DEFERRED"));
+        assert_eq!(diagnostic.line_col(source), Some((3, 1)));
+        assert_eq!(
+            diagnostic.span.map(|span| &source[span.start..span.end]),
+            Some("click Dog callback")
+        );
     }
 }
