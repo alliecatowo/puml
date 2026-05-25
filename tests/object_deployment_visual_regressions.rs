@@ -103,6 +103,44 @@ fn object_fork_nonparallel_edges_share_midpoint_channel() {
     );
 }
 
+#[test]
+fn deployment_exotic_arrow_endpoints_use_distinct_markers() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+node A
+node B
+node C
+node D
+node E
+node F
+A --0 B
+B --@ C
+C --# D
+D --+ E
+E -->> F
+@enduml
+"#,
+    )
+    .expect("deployment exotic arrows should render");
+
+    for (arrow, marker) in [
+        ("--0", "arrow-circle-open"),
+        ("--@", "arrow-circle-filled"),
+        ("--#", "arrow-box-filled"),
+        ("--+", "arrow-plus"),
+        ("--&gt;&gt;", "arrow-double-open"),
+    ] {
+        assert!(
+            svg.contains(&format!("data-uml-arrow=\"{arrow}\"")),
+            "relation should preserve exotic arrow token {arrow}"
+        );
+        assert!(
+            svg.contains(&format!("marker-end=\"url(#{marker})\"")),
+            "relation {arrow} should use marker {marker}"
+        );
+    }
+}
+
 /// Regression test for #478: alias identifiers ('as UC1', 'as MP') must not appear as
 /// visible text in the rendered usecase SVG. Only the human-readable name should render.
 #[test]

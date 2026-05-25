@@ -11,6 +11,7 @@ use crate::theme::ComponentStyle;
 
 use super::box_grid_edges::render_box_grid_relations_and_labels;
 use super::box_grid_frames::{render_box_grid_package_frames, BoxGridPackageFrameInputs};
+use super::box_grid_ports::apply_boundary_port_positions;
 use super::node_shapes::{render_family_node_shape_styled, DeploymentShapeBounds};
 use super::projections::{family_projection_extra_height, render_family_projection_boxes};
 
@@ -366,6 +367,15 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     let pkg_frame_widths: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_w).collect();
     let pkg_frame_heights: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_h).collect();
 
+    apply_boundary_port_positions(
+        doc,
+        &mut positions,
+        &pkg_layouts,
+        &pkg_frame_widths,
+        &pkg_frame_heights,
+        pkg_tab,
+    );
+
     // Ungrouped nodes (not placed by layout — place them below the canvas)
     let ungrouped: Vec<&crate::model::FamilyNode> = doc
         .nodes
@@ -550,14 +560,8 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Collect all obstacle boxes for collision detection.
-    // `all_boxes` holds individual node boxes (used for all arrows).
-    // `pkg_boxes` holds package frames with a list of member node IDs, so we
-    // can exclude a package from blocking an arrow that starts or ends inside it.
-    // ─────────────────────────────────────────────────────────────────────────
+    // Collect obstacle boxes for relation collision detection.
     let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
-    // Package frames: (rect, member_node_ids)
     type PkgFrameBox<'a> = ((i32, i32, i32, i32), &'a [String]);
     let pkg_frame_boxes: Vec<PkgFrameBox> = pkg_layouts
         .iter()
@@ -569,9 +573,6 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         })
         .collect();
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 2+3: Relation routing and label de-collision (extracted helper)
-    // ─────────────────────────────────────────────────────────────────────────
     render_box_grid_relations_and_labels(
         &mut out,
         doc,

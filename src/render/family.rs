@@ -2,6 +2,7 @@ mod box_grid;
 mod box_grid_edges;
 mod box_grid_frames;
 mod box_grid_labels;
+mod box_grid_ports;
 mod c4_nodes;
 mod class_layout;
 mod class_members;
