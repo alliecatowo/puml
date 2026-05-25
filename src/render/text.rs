@@ -496,10 +496,24 @@ fn render_timeline_text(doc: &TimelineDocument, mode: TextOutputMode) -> String 
     if !doc.chronology_events.is_empty() {
         lines.push(format!("events ({})", doc.chronology_events.len()));
         for event in &doc.chronology_events {
+            let range = event
+                .end
+                .as_deref()
+                .map(|end| format!(" to {}", text_value(end, mode)))
+                .unwrap_or_default();
+            let color = event
+                .color
+                .as_deref()
+                .map(|color| format!(" color={}", text_value(color, mode)))
+                .unwrap_or_default();
+            let bracket = if event.bracket { " bracket" } else { "" };
             lines.push(format!(
-                "  {} happens {}",
+                "  {} happens {}{}{}{}",
                 text_value(&event.subject, mode),
-                text_value(&event.when, mode)
+                text_value(&event.when, mode),
+                range,
+                color,
+                bracket
             ));
         }
     }

@@ -5,7 +5,12 @@ pub(super) fn parse_relative_day(raw: &str) -> Option<u32> {
 }
 
 pub(super) fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
-    let normalized = raw.trim().replace('/', "-");
+    let normalized = raw
+        .trim()
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .replace('/', "-");
     let mut parts = normalized.split('-');
     let y = parts.next()?.parse::<i32>().ok()?;
     let m = parts.next()?.parse::<i32>().ok()?;

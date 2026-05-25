@@ -104,6 +104,9 @@ pub enum StatementKind {
     ChronologyHappensOn {
         subject: String,
         when: String,
+        end: Option<String>,
+        color: Option<String>,
+        bracket: bool,
     },
     ComponentDecl {
         kind: ComponentNodeKind,

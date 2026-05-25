@@ -1,0 +1,6 @@
+@startchronology
+title Bracketed Fiscal Years
+bracket FY25 from 2025-01-01 to 2025-12-31 is colored in #f97316
+bracket FY26 from 2026-01-01 to 2026-12-31 is colored in #2563eb
+GA happens on 2026-10-01
+@endchronology

@@ -865,6 +865,64 @@ Beta happens on 2026-08-01
 }
 
 #[test]
+fn chronology_renders_ranges_eras_brackets_and_colored_spans() {
+    let src = r##"@startchronology
+title Chronology Depth
+era Discovery from 2026-01-01 to 2026-03-31 is colored in #bfdbfe
+[Implementation] happens from 2026-04-01 to 2026-06-30 is colored in #bbf7d0
+bracket FY26 from 2026-01-01 to 2026-12-31 is colored in #f97316
+GA happens on 2026-10-01
+@endchronology
+"##;
+    let svg = puml::render_source_to_svg(src).expect("chronology render");
+    assert!(svg.contains("data-chronology-renderer=\"vertical-axis\""));
+    assert!(svg.contains("class=\"chronology-era\""));
+    assert!(svg.contains("class=\"chronology-bracket\""));
+    assert!(svg.contains("fill=\"#bfdbfe\""));
+    assert!(svg.contains("fill=\"#bbf7d0\""));
+    assert!(svg.contains("2026-04-01 to 2026-06-30"));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse chronology");
+    let NormalizedDocument::Timeline(model) =
+        puml::normalize_family(doc).expect("normalize chronology")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.chronology_events.len(), 4);
+    assert!(model
+        .chronology_events
+        .iter()
+        .any(|event| event.subject == "FY26" && event.bracket));
+    assert!(model
+        .chronology_events
+        .iter()
+        .any(|event| event.subject == "Implementation"
+            && event.end.as_deref() == Some("2026-06-30")
+            && event.color.as_deref() == Some("#bbf7d0")));
+}
+
+#[test]
+fn chronology_depth_fixtures_render_without_gantt_task_bars() {
+    for fixture_name in [
+        "valid_chronology_ranges.puml",
+        "valid_chronology_eras.puml",
+        "valid_chronology_brackets.puml",
+        "valid_chronology_spans.puml",
+    ] {
+        let src = fs::read_to_string(timeline_fixture(fixture_name)).expect("read fixture");
+        let svg = puml::render_source_to_svg(&src).expect("render chronology fixture");
+        assert!(
+            svg.contains("data-chronology-renderer=\"vertical-axis\""),
+            "missing chronology renderer marker in {fixture_name}"
+        );
+        assert!(
+            !svg.contains("class=\"gantt-task"),
+            "chronology fixture should not render as a Gantt task variant: {fixture_name}"
+        );
+    }
+}
+
+#[test]
 fn wbs_orientation_directives_affect_svg_layout_metadata() {
     let src = r#"@startwbs
 left to right direction
