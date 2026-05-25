@@ -21,8 +21,8 @@ pub(super) fn render_box_grid_relations_and_labels(
 ) {
     use crate::render::geometry::{compute_edge_anchors_for_direction, pick_port};
     use crate::render::relation::{
-        normalize_relation, render_lollipop_endpoint, render_relation_marker_defs_with_prefix,
-        usecase_dependency_label,
+        arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
+        render_relation_marker_defs_with_prefix, usecase_dependency_label,
     };
 
     let mut pending_labels: Vec<BoxGridPendingLabel> = Vec::new();
@@ -61,10 +61,8 @@ pub(super) fn render_box_grid_relations_and_labels(
         };
 
     for (rel_idx, rel) in doc.relations.iter().enumerate() {
-        let normalized_relation = normalize_relation(&rel.from, &rel.to, &rel.arrow);
-        let from_name = normalized_relation.from;
-        let to_name = normalized_relation.to;
-        let normalized_arrow = normalized_relation.arrow;
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
         let from_box = positions.get(&from_name);
         let to_box = positions.get(&to_name);
         let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
@@ -88,7 +86,7 @@ pub(super) fn render_box_grid_relations_and_labels(
             }
         }
 
-        let style = normalized_arrow.style();
+        let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
         let marker_prefix = if rel.line_color.is_some() && relation_color != comp_style.arrow_color
         {
@@ -110,10 +108,10 @@ pub(super) fn render_box_grid_relations_and_labels(
             ""
         };
         let mut markers = String::new();
-        if let Some(end) = style.end_marker.svg_marker_id() {
+        if let Some(end) = style.end_marker {
             markers.push_str(&format!(" marker-end=\"url(#{marker_prefix}{end})\""));
         }
-        if let Some(start) = style.start_marker.svg_marker_id() {
+        if let Some(start) = style.start_marker {
             markers.push_str(&format!(" marker-start=\"url(#{marker_prefix}{start})\""));
         }
         let direction_attr = rel
