@@ -9,6 +9,8 @@ pub(super) struct NodeRect {
     pub(super) y: i32,
     pub(super) w: i32,
     pub(super) h: i32,
+    pub(super) network: Option<String>,
+    pub(super) physical: bool,
 }
 
 pub(super) struct BoxSpan {
@@ -26,6 +28,34 @@ pub(super) struct SharedNodeSpan {
     pub(super) color: Option<String>,
     pub(super) shape: Option<String>,
     pub(super) style: Option<String>,
+}
+
+pub(super) struct GroupOverlay {
+    pub(super) id: String,
+    pub(super) x: i32,
+    pub(super) y: i32,
+    pub(super) w: i32,
+    pub(super) h: i32,
+    pub(super) color: String,
+    pub(super) style: String,
+    pub(super) label: String,
+    pub(super) shape: String,
+    pub(super) connector_xs: Vec<i32>,
+    pub(super) child_node_ids: Vec<String>,
+}
+
+pub(super) struct NetworkLaneGeom {
+    pub(super) id: String,
+    pub(super) label: String,
+    pub(super) bounds: (i32, i32, i32, i32),
+    pub(super) bus: (i32, i32, i32, i32),
+}
+
+pub(super) struct PeerRouteGeom {
+    pub(super) id: String,
+    pub(super) from: String,
+    pub(super) to: String,
+    pub(super) path: Vec<(i32, i32)>,
 }
 pub(super) fn node_render_label(node: &NwdiagNode, shared_span: Option<&SharedNodeSpan>) -> String {
     let display = shared_span

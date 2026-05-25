@@ -4,7 +4,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
     let (raw, title) = collect_raw_block(&document);
     let mut networks: Vec<NwdiagNetwork> = Vec::new();
     let mut groups: Vec<NwdiagGroup> = Vec::new();
-    let mut peer_links: Vec<(String, String)> = Vec::new();
+    let mut peer_links: Vec<NwdiagPeerLink> = Vec::new();
     let mut top_level_nodes: Vec<NwdiagNode> = Vec::new();
     let mut current: Option<NwdiagNetwork> = None;
     let mut current_group: Option<NwdiagGroup> = None;
@@ -40,9 +40,6 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix("group") {
-            if let Some(net) = current.take() {
-                networks.push(net);
-            }
             if let Some(group) = current_group.take() {
                 groups.push(group);
             }
@@ -58,6 +55,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                 } else {
                     name
                 },
+                network: current.as_ref().map(|network| network.name.clone()),
                 label: None,
                 color: None,
                 shape: None,
@@ -68,9 +66,48 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
         }
         if trimmed == "}" {
             if let Some(net) = current.take() {
-                networks.push(net);
+                if let Some(group) = current_group.take() {
+                    groups.push(group);
+                    current = Some(net);
+                } else {
+                    networks.push(net);
+                }
             } else if let Some(group) = current_group.take() {
                 groups.push(group);
+            }
+            continue;
+        }
+        if let Some(group) = current_group.as_mut() {
+            if let Some((key, value)) = parse_nwdiag_assignment(trimmed) {
+                match key.as_str() {
+                    "color" => group.color = Some(value),
+                    "description" | "label" => group.label = Some(value),
+                    "shape" => group.shape = Some(value),
+                    "style" => group.style = Some(value),
+                    _ => {}
+                }
+                continue;
+            }
+            let scope = group.network.clone();
+            if let Some(links) = parse_nwdiag_peer_links(trimmed, scope.clone()) {
+                for link in links {
+                    add_group_member(group, &link.from);
+                    add_group_member(group, &link.to);
+                    if let Some(net) = current.as_mut() {
+                        upsert_nwdiag_node(&mut net.nodes, NwdiagNode::named(link.from.clone()));
+                        upsert_nwdiag_node(&mut net.nodes, NwdiagNode::named(link.to.clone()));
+                    }
+                    peer_links.push(link);
+                }
+                continue;
+            }
+            for entry in split_nwdiag_entries(trimmed) {
+                if let Some(node) = parse_nwdiag_node_entry(&entry) {
+                    add_group_member(group, &node.name);
+                    if let Some(net) = current.as_mut() {
+                        upsert_nwdiag_node(&mut net.nodes, node);
+                    }
+                }
             }
             continue;
         }
@@ -96,33 +133,17 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                 }
                 continue;
             }
-            for entry in split_nwdiag_entries(trimmed) {
-                if let Some(node) = parse_nwdiag_node_entry(&entry) {
-                    net.nodes.push(node);
-                }
-            }
-            continue;
-        }
-        if let Some(group) = current_group.as_mut() {
-            if let Some((key, value)) = parse_nwdiag_assignment(trimmed) {
-                match key.as_str() {
-                    "color" => group.color = Some(value),
-                    "description" | "label" => group.label = Some(value),
-                    "shape" => group.shape = Some(value),
-                    "style" => group.style = Some(value),
-                    _ => {}
+            if let Some(links) = parse_nwdiag_peer_links(trimmed, Some(net.name.clone())) {
+                for link in links {
+                    upsert_nwdiag_node(&mut net.nodes, NwdiagNode::named(link.from.clone()));
+                    upsert_nwdiag_node(&mut net.nodes, NwdiagNode::named(link.to.clone()));
+                    peer_links.push(link);
                 }
                 continue;
             }
             for entry in split_nwdiag_entries(trimmed) {
-                let name = entry
-                    .split_once('[')
-                    .map(|(name, _)| name)
-                    .unwrap_or(entry.as_str())
-                    .trim()
-                    .trim_matches('"');
-                if !name.is_empty() && !group.nodes.iter().any(|n| n == name) {
-                    group.nodes.push(name.to_string());
+                if let Some(node) = parse_nwdiag_node_entry(&entry) {
+                    upsert_nwdiag_node(&mut net.nodes, node);
                 }
             }
             continue;
@@ -133,15 +154,8 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
             continue;
         }
 
-        if stmt.contains(" -- ") {
-            let parts: Vec<&str> = stmt.split(" -- ").map(str::trim).collect();
-            for pair in parts.windows(2) {
-                let from = peer_link_name(pair[0]);
-                let to = peer_link_name(pair[1]);
-                if !from.is_empty() && !to.is_empty() {
-                    peer_links.push((from.to_string(), to.to_string()));
-                }
-            }
+        if let Some(links) = parse_nwdiag_peer_links(stmt, None) {
+            peer_links.extend(links);
             continue;
         }
 
@@ -173,6 +187,61 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
         title,
         warnings: Vec::new(),
     })
+}
+
+impl NwdiagNode {
+    fn named(name: String) -> Self {
+        Self {
+            name,
+            address: None,
+            addresses: Vec::new(),
+            label: None,
+            color: None,
+            shape: None,
+            style: None,
+            width: None,
+        }
+    }
+}
+
+fn upsert_nwdiag_node(nodes: &mut Vec<NwdiagNode>, node: NwdiagNode) {
+    if let Some(existing) = nodes.iter_mut().find(|existing| existing.name == node.name) {
+        merge_nwdiag_node(existing, node);
+    } else {
+        nodes.push(node);
+    }
+}
+
+fn merge_nwdiag_node(existing: &mut NwdiagNode, incoming: NwdiagNode) {
+    if incoming.address.is_some() {
+        existing.address = incoming.address;
+    }
+    for address in incoming.addresses {
+        if !existing.addresses.iter().any(|current| current == &address) {
+            existing.addresses.push(address);
+        }
+    }
+    if incoming.label.is_some() {
+        existing.label = incoming.label;
+    }
+    if incoming.color.is_some() {
+        existing.color = incoming.color;
+    }
+    if incoming.shape.is_some() {
+        existing.shape = incoming.shape;
+    }
+    if incoming.style.is_some() {
+        existing.style = incoming.style;
+    }
+    if incoming.width.is_some() {
+        existing.width = incoming.width;
+    }
+}
+
+fn add_group_member(group: &mut NwdiagGroup, name: &str) {
+    if !name.is_empty() && !group.nodes.iter().any(|member| member == name) {
+        group.nodes.push(name.to_string());
+    }
 }
 
 fn parse_nwdiag_assignment(line: &str) -> Option<(String, String)> {
@@ -246,6 +315,87 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
         style,
         width,
     })
+}
+
+fn parse_nwdiag_peer_links(line: &str, network: Option<String>) -> Option<Vec<NwdiagPeerLink>> {
+    let parts = split_nwdiag_peer_chain(line.trim_end_matches(';').trim());
+    if parts.len() < 2 {
+        return None;
+    }
+    let mut links = Vec::new();
+    for pair in parts.windows(2) {
+        let from = peer_link_name(&pair[0]);
+        let to = peer_link_name(&pair[1]);
+        if !from.is_empty() && !to.is_empty() {
+            links.push(NwdiagPeerLink {
+                from: from.to_string(),
+                to: to.to_string(),
+                network: network.clone(),
+            });
+        }
+    }
+    (!links.is_empty()).then_some(links)
+}
+
+fn split_nwdiag_peer_chain(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    let mut bracket_depth = 0usize;
+    let mut ix = 0usize;
+    while ix < line.len() {
+        let rest = &line[ix..];
+        let Some(ch) = rest.chars().next() else {
+            break;
+        };
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+                cur.push(ch);
+                ix += ch.len_utf8();
+            }
+            '[' if !in_quotes => {
+                bracket_depth += 1;
+                cur.push(ch);
+                ix += ch.len_utf8();
+            }
+            ']' if !in_quotes => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                cur.push(ch);
+                ix += ch.len_utf8();
+            }
+            _ if !in_quotes && bracket_depth == 0 => {
+                if let Some(token_len) = nwdiag_peer_arrow_len(rest) {
+                    let item = cur.trim();
+                    if !item.is_empty() {
+                        out.push(item.to_string());
+                    }
+                    cur.clear();
+                    ix += token_len;
+                } else {
+                    cur.push(ch);
+                    ix += ch.len_utf8();
+                }
+            }
+            _ => {
+                cur.push(ch);
+                ix += ch.len_utf8();
+            }
+        }
+    }
+    let item = cur.trim();
+    if !item.is_empty() {
+        out.push(item.to_string());
+    }
+    out
+}
+
+fn nwdiag_peer_arrow_len(s: &str) -> Option<usize> {
+    [
+        "<-->", "<->", "-->", "<--", "--", "<..>", "..>", "<..", "..",
+    ]
+    .into_iter()
+    .find_map(|token| s.starts_with(token).then_some(token.len()))
 }
 
 fn parse_nwdiag_addresses(address: Option<&str>) -> Vec<String> {
