@@ -257,6 +257,7 @@ pub(super) fn normalize_timeline_baseline(
                 hide_footbox = !show;
             }
             StatementKind::SkinParam { .. }
+            | StatementKind::StyleParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::AllowMixing

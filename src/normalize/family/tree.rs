@@ -227,6 +227,31 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     }
                 }
             }
+            StatementKind::StyleParam {
+                selector,
+                property,
+                key,
+                value,
+            } => {
+                if let Some(key) = key {
+                    match classify_sequence_skinparam(&key, &value) {
+                        SequenceSkinParamSupport::SupportedNoop
+                        | SequenceSkinParamSupport::SupportedWithValue(_) => {}
+                        SequenceSkinParamSupport::UnsupportedValue => warnings.push(
+                            common::unsupported_skinparam_value_warning(&key, &value, stmt.span),
+                        ),
+                        SequenceSkinParamSupport::UnsupportedKey => {
+                            warnings.push(common::unsupported_skinparam_warning(&key, stmt.span))
+                        }
+                    }
+                } else {
+                    warnings.push(common::unsupported_style_warning(
+                        selector.as_deref(),
+                        &property,
+                        stmt.span,
+                    ));
+                }
+            }
             StatementKind::Theme(value) => {
                 style = resolve_sequence_theme_preset(&value)
                     .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?

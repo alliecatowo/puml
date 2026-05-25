@@ -26,15 +26,12 @@ use crate::model::{
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
     activity_style_from_sequence_theme, apply_monochrome_to_activity_style,
-    apply_monochrome_to_chart_style, apply_monochrome_to_class_style,
-    apply_monochrome_to_component_style, apply_monochrome_to_sequence_style,
+    apply_monochrome_to_chart_style, apply_monochrome_to_sequence_style,
     apply_monochrome_to_state_style, apply_monochrome_to_timing_style,
-    chart_style_from_sequence_theme, class_style_from_sequence_theme, classify_activity_skinparam,
-    classify_chart_skinparam, classify_class_skinparam, classify_component_skinparam,
+    chart_style_from_sequence_theme, classify_activity_skinparam, classify_chart_skinparam,
     classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
-    component_style_from_sequence_theme, mindmap_style_from_sequence_theme,
-    resolve_sequence_theme_preset, state_style_from_sequence_theme,
-    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
+    mindmap_style_from_sequence_theme, resolve_sequence_theme_preset,
+    state_style_from_sequence_theme, timing_style_from_sequence_theme, ActivityStyle, ChartStyle,
     MindMapDepthStyle, MindMapStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
     SequenceStyle, SkinParamSupport, StateStyle, TimingStyle,
 };
@@ -188,6 +185,7 @@ fn is_family_page_common_statement(kind: &StatementKind) -> bool {
             | StatementKind::Caption(_)
             | StatementKind::Legend(_)
             | StatementKind::SkinParam { .. }
+            | StatementKind::StyleParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::AllowMixing

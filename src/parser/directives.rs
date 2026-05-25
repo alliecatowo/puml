@@ -54,7 +54,8 @@ fn parse_skinparam_block(
 }
 
 /// Parse a minimal PlantUML `<style>...</style>` block and map supported style
-/// rules to equivalent `SkinParam` statements.
+/// rules to explicit style declarations. Normalization applies these after
+/// themes and skinparams so the style cascade does not depend on source order.
 ///
 /// Supported subset:
 /// - `sequenceDiagram { ... }`
@@ -62,7 +63,9 @@ fn parse_skinparam_block(
 ///   - `participant { ... }`
 ///   - `note { ... }`
 ///   - `group { ... }`
+/// - `classDiagram { class { ... } }`
 /// - `componentDiagram { component { ... } }`
+/// - `deploymentDiagram { node { ... } }`
 /// - declarations in `Property Value` or `Property: Value;` form
 fn parse_style_block(
     lines: &[(&str, Span)],
@@ -140,13 +143,12 @@ fn parse_style_block(
         }
 
         let key = target.skinparam_key(nested_selector.as_deref(), raw_key);
-
-        if let Some(key) = key {
-            kinds.push(StatementKind::SkinParam {
-                key,
-                value: value.to_string(),
-            });
-        }
+        kinds.push(StatementKind::StyleParam {
+            selector: nested_selector.clone(),
+            property: raw_key.to_string(),
+            key,
+            value: value.to_string(),
+        });
     }
 
     Err(Diagnostic::error(
@@ -158,7 +160,9 @@ fn parse_style_block(
 #[derive(Clone, Copy)]
 enum StyleBlockTarget {
     Sequence,
+    Class,
     Component,
+    Deployment,
     State,
     Activity,
 }
@@ -168,7 +172,9 @@ impl StyleBlockTarget {
         let selector = line.trim_end_matches('{').trim();
         match self {
             Self::Sequence => selector.eq_ignore_ascii_case("sequenceDiagram"),
+            Self::Class => selector.eq_ignore_ascii_case("classDiagram"),
             Self::Component => selector.eq_ignore_ascii_case("componentDiagram"),
+            Self::Deployment => selector.eq_ignore_ascii_case("deploymentDiagram"),
             Self::State => selector.eq_ignore_ascii_case("stateDiagram"),
             Self::Activity => selector.eq_ignore_ascii_case("activityDiagram"),
         }
@@ -178,7 +184,9 @@ impl StyleBlockTarget {
         let key = raw_key.to_ascii_lowercase();
         match self {
             Self::Sequence => sequence_style_skinparam_key(nested_selector, &key),
+            Self::Class => class_style_skinparam_key(nested_selector, &key),
             Self::Component => component_style_skinparam_key(nested_selector, &key),
+            Self::Deployment => deployment_style_skinparam_key(nested_selector, &key),
             Self::State => state_style_skinparam_key(nested_selector, &key),
             Self::Activity => activity_style_skinparam_key(nested_selector, &key),
         }
@@ -198,8 +206,14 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
         if selector.eq_ignore_ascii_case("sequenceDiagram") {
             return Some(StyleBlockTarget::Sequence);
         }
+        if selector.eq_ignore_ascii_case("classDiagram") {
+            return Some(StyleBlockTarget::Class);
+        }
         if selector.eq_ignore_ascii_case("componentDiagram") {
             return Some(StyleBlockTarget::Component);
+        }
+        if selector.eq_ignore_ascii_case("deploymentDiagram") {
+            return Some(StyleBlockTarget::Deployment);
         }
         if selector.eq_ignore_ascii_case("stateDiagram") {
             return Some(StyleBlockTarget::State);
@@ -210,6 +224,17 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
         return None;
     }
     None
+}
+
+fn style_selector_stereotype(selector: &str, prefix: &str) -> Option<String> {
+    let trimmed = selector.trim();
+    let rest = trimmed.strip_prefix(prefix)?.trim();
+    let stereotype = rest.strip_prefix("<<")?.strip_suffix(">>")?.trim();
+    if stereotype.is_empty() {
+        None
+    } else {
+        Some(stereotype.to_string())
+    }
 }
 
 fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
@@ -242,12 +267,114 @@ fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Opt
     }
 }
 
+fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    let Some(selector) = nested_selector else {
+        return match key {
+            "arrowcolor" | "linecolor" => Some("ClassArrowColor".to_string()),
+            _ => None,
+        };
+    };
+    let selector = selector.trim();
+    let scope = style_selector_stereotype(selector, "class");
+    let scoped_key = |base: &str| {
+        scope
+            .as_ref()
+            .map(|stereotype| format!("{base}<<{stereotype}>>"))
+            .unwrap_or_else(|| base.to_string())
+    };
+    if selector == "arrow" || selector == "relation" {
+        return match key {
+            "linecolor" | "arrowcolor" | "bordercolor" => Some("ClassArrowColor".to_string()),
+            _ => None,
+        };
+    }
+    if selector == "class" || selector.starts_with("class<<") {
+        return match key {
+            "backgroundcolor" => Some(scoped_key("ClassBackgroundColor")),
+            "bordercolor" | "linecolor" => Some(scoped_key("ClassBorderColor")),
+            "headerbackgroundcolor" => Some(scoped_key("ClassHeaderBackgroundColor")),
+            "fontcolor" => Some(scoped_key("ClassFontColor")),
+            "fontsize" => Some("ClassFontSize".to_string()),
+            "fontname" => Some("ClassFontName".to_string()),
+            _ => None,
+        };
+    }
+    match selector {
+        "object" => match key {
+            "backgroundcolor" => Some("ObjectBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("ObjectBorderColor".to_string()),
+            "fontcolor" => Some("ObjectFontColor".to_string()),
+            "fontsize" => Some("ObjectFontSize".to_string()),
+            "fontname" => Some("ObjectFontName".to_string()),
+            _ => None,
+        },
+        "usecase" => match key {
+            "backgroundcolor" => Some("UseCaseBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("UseCaseBorderColor".to_string()),
+            "fontcolor" => Some("UseCaseFontColor".to_string()),
+            "fontsize" => Some("UseCaseFontSize".to_string()),
+            "fontname" => Some("UseCaseFontName".to_string()),
+            _ => None,
+        },
+        "actor" => match key {
+            "backgroundcolor" => Some("ActorBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("ActorBorderColor".to_string()),
+            "fontcolor" => Some("ActorFontColor".to_string()),
+            "fontsize" => Some("ActorFontSize".to_string()),
+            "fontname" => Some("ActorFontName".to_string()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
     match nested_selector {
         Some("component") => match key {
             "backgroundcolor" => Some("ComponentBackgroundColor".to_string()),
-            "bordercolor" => Some("ComponentBorderColor".to_string()),
+            "bordercolor" | "linecolor" => Some("ComponentBorderColor".to_string()),
             "fontcolor" => Some("ComponentFontColor".to_string()),
+            _ => None,
+        },
+        Some("interface") => match key {
+            "backgroundcolor" | "color" => Some("InterfaceBackgroundColor".to_string()),
+            "fontcolor" => Some("InterfaceFontColor".to_string()),
+            _ => None,
+        },
+        Some("arrow") | Some("relation") => match key {
+            "linecolor" | "arrowcolor" | "bordercolor" => Some("ComponentArrowColor".to_string()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+    match nested_selector {
+        Some("node") => match key {
+            "backgroundcolor" => Some("NodeBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("NodeBorderColor".to_string()),
+            "fontcolor" => Some("NodeFontColor".to_string()),
+            _ => None,
+        },
+        Some("artifact") => match key {
+            "backgroundcolor" => Some("ArtifactBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("ArtifactBorderColor".to_string()),
+            "fontcolor" => Some("ArtifactFontColor".to_string()),
+            _ => None,
+        },
+        Some("database") => match key {
+            "backgroundcolor" => Some("DatabaseBackgroundColor".to_string()),
+            "bordercolor" | "linecolor" => Some("DatabaseBorderColor".to_string()),
+            "fontcolor" => Some("DatabaseFontColor".to_string()),
+            _ => None,
+        },
+        Some("component") => component_style_skinparam_key(Some("component"), key),
+        Some("interface") => component_style_skinparam_key(Some("interface"), key),
+        Some("arrow") | Some("relation") => match key {
+            "linecolor" | "arrowcolor" | "bordercolor" => {
+                Some("DeploymentArrowColor".to_string())
+            }
             _ => None,
         },
         _ => None,

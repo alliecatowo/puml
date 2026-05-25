@@ -207,6 +207,95 @@ Customer -[#green,dashed,thickness=3]-> User : owns\n\
 }
 
 #[test]
+fn class_style_cascade_applies_theme_skinparam_style_and_stereotype_to_svg() {
+    let src = include_str!("fixtures/styling/valid_style_cascade_class.puml");
+    let doc = parse(src).expect("class style cascade should parse");
+    let normalized = normalize_family(doc).expect("class style cascade should normalize");
+    let NormalizedDocument::Family(family) = normalized else {
+        panic!("expected family document");
+    };
+    let Some(puml::model::FamilyStyle::Class(style)) = &family.family_style else {
+        panic!("expected class family style");
+    };
+    assert_eq!(style.background_color, "#dbeafe");
+    assert_eq!(style.border_color, "#1d4ed8");
+    let service = style
+        .stereotype_styles
+        .get("service")
+        .expect("style block stereotype selector should be retained");
+    assert_eq!(service.background_color.as_deref(), Some("#dcfce7"));
+    assert_eq!(service.border_color.as_deref(), Some("#15803d"));
+    assert_eq!(service.header_color.as_deref(), Some("#bbf7d0"));
+    assert_eq!(service.font_color.as_deref(), Some("#14532d"));
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Class)
+        .expect("class style cascade should render");
+    assert!(
+        svg.contains("#dbeafe"),
+        "plain class style should reach SVG"
+    );
+    assert!(
+        svg.contains("#dcfce7"),
+        "stereotype-scoped class fill should reach SVG"
+    );
+    assert!(
+        svg.contains("#bbf7d0"),
+        "stereotype-scoped class header should reach SVG"
+    );
+    assert!(
+        svg.contains("#14532d"),
+        "stereotype-scoped class font should reach SVG"
+    );
+}
+
+#[test]
+fn deployment_style_cascade_applies_theme_skinparam_and_style_to_svg() {
+    let src = include_str!("fixtures/styling/valid_style_cascade_deployment.puml");
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Deployment)
+        .expect("deployment style cascade should render");
+    assert!(svg.contains("#ecfeff"), "node style fill should reach SVG");
+    assert!(
+        svg.contains("#0891b2"),
+        "node style border should reach SVG"
+    );
+    assert!(
+        svg.contains("#0f766e"),
+        "style-block arrow color should reach SVG marker/edge output"
+    );
+    assert!(
+        !svg.contains("#fee2e2"),
+        "style block should override earlier deployment skinparam"
+    );
+}
+
+#[test]
+fn graph_style_unsupported_rules_warn_deterministically_but_render() {
+    let src = "@startuml\n\
+<style>\n\
+classDiagram {\n\
+  class {\n\
+    TotallyMadeUp #123456\n\
+  }\n\
+}\n\
+</style>\n\
+class A\n\
+@enduml\n";
+    let doc = parse(src).expect("unsupported graph style should parse");
+    let normalized = normalize_family(doc).expect("unsupported graph style should normalize");
+    let NormalizedDocument::Family(family) = normalized else {
+        panic!("expected family document");
+    };
+    assert_eq!(family.warnings.len(), 1);
+    assert_eq!(
+        family.warnings[0].message,
+        "[W_STYLE_UNSUPPORTED] unsupported style `TotallyMadeUp` in selector `class`"
+    );
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Class)
+        .expect("unsupported graph style should still render");
+    assert!(svg.contains(">A<"));
+}
+
+#[test]
 fn family_renderers_expose_style_relation_and_marker_branches_deterministically() {
     let component = "@startuml\n\
 skinparam componentStyle rectangle\n\

@@ -214,6 +214,53 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     }
                 }
             }
+            StatementKind::StyleParam {
+                selector,
+                property,
+                key,
+                value,
+            } => {
+                if let Some(key) = key {
+                    use crate::theme::StateSkinParamValue;
+                    match classify_state_skinparam(key, value) {
+                        SkinParamSupport::SupportedNoop => {}
+                        SkinParamSupport::SupportedWithValue(v) => match v {
+                            StateSkinParamValue::BackgroundColor(c) => {
+                                state_style.background_color = c;
+                            }
+                            StateSkinParamValue::BorderColor(c) => {
+                                state_style.border_color = c;
+                            }
+                            StateSkinParamValue::ArrowColor(c) => {
+                                state_style.arrow_color = c;
+                            }
+                            StateSkinParamValue::StartColor(c) => {
+                                state_style.start_color = c;
+                            }
+                            StateSkinParamValue::FontColor(c) => {
+                                state_style.font_color = c;
+                            }
+                            StateSkinParamValue::FontSize(n) => {
+                                state_style.font_size = Some(n);
+                            }
+                        },
+                        SkinParamSupport::UnsupportedKey => {
+                            warnings.push(common::unsupported_skinparam_warning(key, stmt.span));
+                        }
+                        SkinParamSupport::UnsupportedValue => {
+                            warnings.push(common::unsupported_skinparam_value_warning(
+                                key, value, stmt.span,
+                            ));
+                        }
+                    }
+                } else {
+                    warnings.push(common::unsupported_style_warning(
+                        selector.as_deref(),
+                        property,
+                        stmt.span,
+                    ));
+                }
+            }
             StatementKind::Theme(value) => {
                 state_style = state_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(value)

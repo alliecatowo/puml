@@ -23,15 +23,20 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut hide_options = std::collections::BTreeSet::new();
     let mut namespace_separator: Option<String> = None;
     let mut common = CommonDirectives::default();
-    let mut class_style = ClassStyle::default();
-    let mut class_monochrome_mode = None;
+    let graph_family = match family_kind {
+        DiagramKind::Class => crate::theme::GraphStyleFamily::Class,
+        DiagramKind::Object => crate::theme::GraphStyleFamily::Object,
+        DiagramKind::UseCase => crate::theme::GraphStyleFamily::UseCase,
+        _ => crate::theme::GraphStyleFamily::Class,
+    };
+    let mut style_cascade = crate::theme::GraphStyleCascade::new(graph_family);
+    let mut style_params: Vec<StyleParamRecord> = Vec::new();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut last_relation: Option<(String, String)> = None;
     let mut orientation = FamilyOrientation::TopToBottom;
-    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -56,113 +61,21 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     });
                     continue;
                 }
-                match classify_class_skinparam(&key, &value) {
-                    SkinParamSupport::SupportedNoop => {}
-                    SkinParamSupport::SupportedWithValue(v) => {
-                        use crate::theme::ClassSkinParamValue;
-                        match v {
-                            ClassSkinParamValue::BackgroundColor(c) => {
-                                class_style.background_color = c;
-                            }
-                            ClassSkinParamValue::BorderColor(c) => {
-                                class_style.border_color = c;
-                            }
-                            ClassSkinParamValue::HeaderBackgroundColor(c) => {
-                                class_style.header_color = c;
-                            }
-                            ClassSkinParamValue::MemberFontColor(c) => {
-                                class_style.member_color = c;
-                            }
-                            ClassSkinParamValue::FontColor(c) => {
-                                class_style.font_color = c;
-                            }
-                            ClassSkinParamValue::ArrowColor(c) => {
-                                class_style.arrow_color = c;
-                            }
-                            ClassSkinParamValue::FontSize(n) => {
-                                class_style.font_size = Some(n);
-                            }
-                            ClassSkinParamValue::FontName(n) => {
-                                class_style.font_name = Some(n);
-                            }
-                            ClassSkinParamValue::ActorStyle(style) => {
-                                class_style.actor_style = style;
-                            }
-                            ClassSkinParamValue::AttributeIcons(enabled) => {
-                                class_style.attribute_icons = enabled;
-                            }
-                            ClassSkinParamValue::Monochrome(mode) => {
-                                class_monochrome_mode = Some(mode);
-                            }
-                            ClassSkinParamValue::StereotypeBackgroundColor(stereotype, c) => {
-                                class_style
-                                    .stereotype_styles
-                                    .entry(stereotype)
-                                    .or_default()
-                                    .background_color = Some(c);
-                            }
-                            ClassSkinParamValue::StereotypeBorderColor(stereotype, c) => {
-                                class_style
-                                    .stereotype_styles
-                                    .entry(stereotype)
-                                    .or_default()
-                                    .border_color = Some(c);
-                            }
-                            ClassSkinParamValue::StereotypeHeaderBackgroundColor(stereotype, c) => {
-                                class_style
-                                    .stereotype_styles
-                                    .entry(stereotype)
-                                    .or_default()
-                                    .header_color = Some(c);
-                            }
-                            ClassSkinParamValue::StereotypeFontColor(stereotype, c) => {
-                                class_style
-                                    .stereotype_styles
-                                    .entry(stereotype)
-                                    .or_default()
-                                    .font_color = Some(c);
-                            }
-                        }
-                    }
-                    SkinParamSupport::UnsupportedKey => {
-                        // Class diagrams accept generic sequence keys silently
-                        // (PlantUML applies them across all families).
-                        use crate::theme::{
-                            classify_sequence_skinparam, SequenceSkinParamSupport,
-                            SequenceSkinParamValue,
-                        };
-                        if key.trim().eq_ignore_ascii_case("sepia") {
-                            if let SequenceSkinParamSupport::SupportedWithValue(
-                                SequenceSkinParamValue::Sepia(enabled),
-                            ) = classify_sequence_skinparam(&key, &value)
-                            {
-                                sepia = enabled;
-                            }
-                        } else if !matches!(
-                            classify_sequence_skinparam(&key, &value),
-                            SequenceSkinParamSupport::UnsupportedKey
-                        ) {
-                            // Recognized sequence key — no warning.
-                        } else {
-                            warnings.push(
-                                Diagnostic::warning(format!(
-                                    "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
-                                    key
-                                ))
-                                .with_span(stmt.span),
-                            );
-                        }
-                    }
-                    SkinParamSupport::UnsupportedValue => {
-                        warnings.push(
-                            Diagnostic::warning(format!(
-                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
-                                value, key
-                            ))
-                            .with_span(stmt.span),
-                        );
-                    }
-                }
+                style_cascade.apply_skinparam(&key, &value, stmt.span, &mut warnings);
+            }
+            StatementKind::StyleParam {
+                selector,
+                property,
+                key,
+                value,
+            } => {
+                style_params.push(StyleParamRecord {
+                    selector,
+                    property,
+                    key,
+                    value,
+                    span: stmt.span,
+                });
             }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection {
@@ -437,11 +350,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::Theme(value) => {
-                class_style = class_style_from_sequence_theme(
-                    &resolve_sequence_theme_preset(&value)
-                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
-                        .style,
-                );
+                style_cascade.apply_theme(&value, stmt.span)?;
             }
             StatementKind::Pragma(_)
             | StatementKind::AllowMixing
@@ -566,9 +475,19 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
-    if let Some(mode) = class_monochrome_mode {
-        apply_monochrome_to_class_style(&mut class_style, mode);
+    for param in style_params {
+        style_cascade.apply_style_param(
+            param.selector.as_deref(),
+            &param.property,
+            param.key.as_deref(),
+            &param.value,
+            param.span,
+            &mut warnings,
+        );
     }
+    common::sort_diagnostics_by_message_and_span(&mut warnings);
+    let sepia = style_cascade.sepia();
+    let family_style = style_cascade.into_family_style();
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -589,11 +508,19 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             sepia,
             ..SequenceStyle::default()
         },
-        family_style: Some(FamilyStyle::Class(class_style)),
+        family_style: Some(family_style),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         maximum_width: None,
         sprites,
         list_sprites,
         warnings,
     })
+}
+
+struct StyleParamRecord {
+    selector: Option<String>,
+    property: String,
+    key: Option<String>,
+    value: String,
+    span: crate::source::Span,
 }

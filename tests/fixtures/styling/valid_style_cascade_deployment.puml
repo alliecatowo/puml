@@ -1,0 +1,22 @@
+@startuml
+!theme spacelab-white
+skinparam NodeBackgroundColor #fee2e2
+skinparam NodeBorderColor #991b1b
+
+<style>
+deploymentDiagram {
+  node {
+    BackgroundColor #ecfeff
+    BorderColor #0891b2
+    FontColor #164e63
+  }
+  arrow {
+    LineColor #0f766e
+  }
+}
+</style>
+
+node Web
+database DB
+Web --> DB : reads
+@enduml

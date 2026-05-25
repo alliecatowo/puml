@@ -1,17 +1,44 @@
 use super::*;
 
-#[derive(Default)]
+pub(super) struct StyleParamInput<'a> {
+    pub family_kind: DiagramKind,
+    pub selector: Option<&'a str>,
+    pub property: &'a str,
+    pub key: Option<&'a str>,
+    pub value: &'a str,
+    pub span: crate::source::Span,
+    pub warnings: &'a mut Vec<Diagnostic>,
+}
+
 pub(super) struct ExtendedFamilyStyles {
-    component_style: ComponentStyle,
+    graph_style: crate::theme::GraphStyleCascade,
     activity_style: ActivityStyle,
     timing_style: TimingStyle,
-    component_monochrome_mode: Option<crate::theme::MonochromeMode>,
     activity_monochrome_mode: Option<crate::theme::MonochromeMode>,
     timing_monochrome_mode: Option<crate::theme::MonochromeMode>,
-    pub(super) sepia: bool,
+    sepia: bool,
 }
 
 impl ExtendedFamilyStyles {
+    pub(super) fn new(family_kind: DiagramKind) -> Self {
+        let graph_family = match family_kind {
+            DiagramKind::Deployment => crate::theme::GraphStyleFamily::Deployment,
+            _ => crate::theme::GraphStyleFamily::Component,
+        };
+        Self {
+            graph_style: crate::theme::GraphStyleCascade::new(graph_family),
+            activity_style: ActivityStyle::default(),
+            timing_style: TimingStyle::default(),
+            activity_monochrome_mode: None,
+            timing_monochrome_mode: None,
+            sepia: false,
+        }
+    }
+
+    pub(super) fn sepia(&self) -> bool {
+        self.sepia || self.graph_style.sepia()
+    }
+
     pub(super) fn handle_skinparam(
         &mut self,
         family_kind: DiagramKind,
@@ -29,7 +56,7 @@ impl ExtendedFamilyStyles {
                     SequenceSkinParamValue::Monochrome(mode),
                 ) => match family_kind {
                     DiagramKind::Component | DiagramKind::Deployment => {
-                        self.component_monochrome_mode = Some(mode);
+                        self.graph_style.apply_skinparam(key, value, span, warnings);
                     }
                     DiagramKind::Activity => {
                         self.activity_monochrome_mode = Some(mode);
@@ -63,40 +90,8 @@ impl ExtendedFamilyStyles {
             family_kind,
             DiagramKind::Component | DiagramKind::Deployment
         ) {
-            use crate::theme::ComponentSkinParamValue;
-            match classify_component_skinparam(key, value) {
-                SkinParamSupport::SupportedNoop => {
-                    handled = true;
-                }
-                SkinParamSupport::SupportedWithValue(v) => {
-                    handled = true;
-                    match v {
-                        ComponentSkinParamValue::BackgroundColor(c) => {
-                            self.component_style.background_color = c;
-                        }
-                        ComponentSkinParamValue::BorderColor(c) => {
-                            self.component_style.border_color = c;
-                        }
-                        ComponentSkinParamValue::InterfaceColor(c) => {
-                            self.component_style.interface_color = c;
-                        }
-                        ComponentSkinParamValue::FontColor(c) => {
-                            self.component_style.font_color = c;
-                        }
-                        ComponentSkinParamValue::ArrowColor(c) => {
-                            self.component_style.arrow_color = c;
-                        }
-                        ComponentSkinParamValue::StyleMode(mode) => {
-                            self.component_style.component_style_mode = mode;
-                        }
-                    }
-                }
-                SkinParamSupport::UnsupportedKey => {}
-                SkinParamSupport::UnsupportedValue => {
-                    handled = true;
-                    warnings.push(unsupported_value_warning(key, value).with_span(span));
-                }
-            }
+            self.graph_style.apply_skinparam(key, value, span, warnings);
+            return;
         }
         if !handled && matches!(family_kind, DiagramKind::Activity) {
             use crate::theme::ActivitySkinParamValue;
@@ -195,7 +190,7 @@ impl ExtendedFamilyStyles {
             .style;
         match family_kind {
             DiagramKind::Component | DiagramKind::Deployment => {
-                self.component_style = component_style_from_sequence_theme(&style);
+                self.graph_style.apply_theme(value, span)?;
             }
             DiagramKind::Activity => {
                 self.activity_style = activity_style_from_sequence_theme(&style);
@@ -208,13 +203,40 @@ impl ExtendedFamilyStyles {
         Ok(())
     }
 
+    pub(super) fn handle_style_param(&mut self, input: StyleParamInput<'_>) {
+        let StyleParamInput {
+            family_kind,
+            selector,
+            property,
+            key,
+            value,
+            span,
+            warnings,
+        } = input;
+        if matches!(
+            family_kind,
+            DiagramKind::Component | DiagramKind::Deployment
+        ) {
+            self.graph_style
+                .apply_style_param(selector, property, key, value, span, warnings);
+        } else if let Some(key) = key {
+            self.handle_skinparam(family_kind, key, value, span, warnings);
+        } else {
+            warnings.push(
+                Diagnostic::warning(format!(
+                    "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
+                    property,
+                    selector.unwrap_or("<diagram>")
+                ))
+                .with_span(span),
+            );
+        }
+    }
+
     pub(super) fn into_family_style(mut self, family_kind: DiagramKind) -> Option<FamilyStyle> {
         match family_kind {
             DiagramKind::Component | DiagramKind::Deployment => {
-                if let Some(mode) = self.component_monochrome_mode {
-                    apply_monochrome_to_component_style(&mut self.component_style, mode);
-                }
-                Some(FamilyStyle::Component(self.component_style))
+                Some(self.graph_style.into_family_style())
             }
             DiagramKind::Activity => {
                 if let Some(mode) = self.activity_monochrome_mode {
