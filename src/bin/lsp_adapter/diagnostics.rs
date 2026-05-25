@@ -7,7 +7,11 @@ use std::io::{self, Write};
 
 pub fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {
     let report = diagnostics_with_options(src, &ParsePipelineOptions::default());
-    let ds = report.diagnostics.iter().map(diag).collect::<Vec<_>>();
+    let ds = report
+        .diagnostics
+        .iter()
+        .map(language_diagnostic_to_lsp_value)
+        .collect::<Vec<_>>();
     notif(
         w,
         "textDocument/publishDiagnostics",
@@ -15,7 +19,9 @@ pub fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Resul
     )
 }
 
-fn diag(diagnostic: &puml::language_service::LanguageDiagnostic) -> Value {
+pub fn language_diagnostic_to_lsp_value(
+    diagnostic: &puml::language_service::LanguageDiagnostic,
+) -> Value {
     let range = diagnostic
         .range
         .map(|range| {

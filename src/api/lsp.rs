@@ -22,7 +22,7 @@ pub fn lsp_capabilities() -> serde_json::Value {
         "documentLinkProvider":{},
         "colorProvider":true,
         "codeActionProvider":true,
-        "executeCommandProvider":{"commands":["puml.applyFormat","puml.renderSvg"]},
+        "executeCommandProvider":{"commands":["puml.applyFormat","puml.renderSvg","puml.renderScene","puml.export","puml.explainDiagnostic"]},
         "workspace":{"workspaceFolders":{"supported":true,"changeNotifications":true}}
     })
 }

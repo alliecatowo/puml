@@ -6,5 +6,8 @@ didSave
 textDocument/semanticTokens/full
 puml.applyFormat
 puml.renderSvg
+puml.renderScene
+puml.export
+puml.explainDiagnostic
 --dump-capabilities
 server: "puml-lsp"
