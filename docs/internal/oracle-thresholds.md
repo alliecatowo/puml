@@ -48,7 +48,15 @@ gap; it does not enable a fallback renderer.
 The broad oracle corpus remains advisory except for the below-50% match hard
 failure described later in this document. A smaller promoted fixture list in
 `tests/oracle_promoted_fixtures.json` is the blocking parity contract: every
-promoted fixture defaults to `allowed_categories: ["match"]`.
+promoted fixture defaults to `allowed_categories: ["match"]` and
+`gate: "blocking"`.
+
+The same manifest also carries the first visual/oracle parity matrix. Rows that
+are high-value but not ready to block merges use `gate: "report"`. Report-mode
+rows are still evaluated against their `allowed_categories`, but unexpected
+categories are emitted as `advisories` instead of `violations`. This keeps
+family/style/stdlib/icon/preprocessor/CLI-compatible coverage visible in CI
+without blessing known visual or layout debt as passing parity.
 
 Validate the promoted manifest without Java, PlantUML, or an oracle report:
 
@@ -71,7 +79,15 @@ Intentional promoted gaps must be explicit in the manifest, for example:
 ```json
 {
   "path": "tests/fixtures/basic/some_fixture.puml",
+  "gate": "report",
   "allowed_categories": ["match", "drift"],
+  "family": "component",
+  "matrix_tags": ["oracle", "visual-semantic", "known-visual-debt"],
+  "evidence": {
+    "visual_gate": "typed-or-fallback-invariants",
+    "png_status": "inspected-pr-evidence"
+  },
+  "issue": 594,
   "reason": "tracked layout-only drift while semantic parity work continues"
 }
 ```
@@ -79,8 +95,9 @@ Intentional promoted gaps must be explicit in the manifest, for example:
 That explicit allowance is for fixtures that are still important enough to keep
 promoted, but whose current oracle category is a known and reviewed exception.
 The exploratory full-corpus oracle report still lists all drift, JAR-only,
-puml-only, and parse-fail categories for triage; those rows are advisory unless
-they are also in the promoted manifest without an explicit expectation.
+puml-only, and parse-fail categories for triage. Promoted report-mode rows add a
+smaller, curated advisory matrix with linked issues and visual evidence; promoted
+blocking rows remain the hard contract.
 
 ## Dry-run schema
 

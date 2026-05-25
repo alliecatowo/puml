@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List
 
 VALID_CATEGORIES = {"match", "drift", "puml-only", "jar-only", "both-fail"}
 CATEGORY_ALIASES = {"parse-fail": "both-fail"}
+VALID_GATES = {"blocking", "report"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,10 +86,31 @@ def promoted_entries(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
         allowed = normalize_allowed(
             entry.get("allowed_categories", entry.get("expected_category"))
         )
+        gate = str(entry.get("gate", "blocking")).strip() or "blocking"
+        if gate not in VALID_GATES:
+            raise ValueError(f"unknown promoted fixture gate mode: {gate}")
+
+        matrix_tags = entry.get("matrix_tags", [])
+        if isinstance(matrix_tags, str):
+            matrix_tags = [matrix_tags]
+        if not isinstance(matrix_tags, list):
+            raise ValueError("matrix_tags must be a list when present")
+
+        evidence = entry.get("evidence", {})
+        if evidence is None:
+            evidence = {}
+        if not isinstance(evidence, dict):
+            raise ValueError("evidence must be an object when present")
+
         entries.append(
             {
                 "path": path,
+                "family": entry.get("family"),
+                "gate": gate,
                 "allowed_categories": allowed,
+                "matrix_tags": sorted({str(tag) for tag in matrix_tags if str(tag).strip()}),
+                "evidence": evidence,
+                "issue": entry.get("issue"),
                 "reason": entry.get("reason"),
             }
         )
@@ -99,6 +121,7 @@ def validate_manifest(manifest: Dict[str, Any], repo_root: Path | None = None) -
     entries = promoted_entries(manifest)
     seen = set()
     errors = []
+    strict_matrix = bool(manifest.get("coverage_goals")) or manifest.get("schema_version") != "1.0"
 
     for entry in entries:
         path = entry["path"]
@@ -114,7 +137,36 @@ def validate_manifest(manifest: Dict[str, Any], repo_root: Path | None = None) -
         if repo_root is not None and not (repo_root / fixture_path).is_file():
             errors.append({"path": path, "error": "promoted fixture path does not exist"})
 
+        if entry["gate"] == "report":
+            if not entry.get("issue"):
+                errors.append({"path": path, "error": "report-mode entries must link an issue"})
+            if not str(entry.get("reason") or "").strip():
+                errors.append({"path": path, "error": "report-mode entries must explain why they are non-blocking"})
+
+        if strict_matrix and not entry["matrix_tags"]:
+            errors.append({"path": path, "error": "promoted fixture entry must include at least one matrix tag"})
+
+        if strict_matrix and not entry["evidence"]:
+            errors.append({"path": path, "error": "promoted fixture entry must include evidence metadata"})
+
     return errors
+
+
+def summarize_matrix(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    by_gate: Dict[str, int] = {}
+    by_family: Dict[str, int] = {}
+    by_tag: Dict[str, int] = {}
+    for entry in entries:
+        by_gate[entry["gate"]] = by_gate.get(entry["gate"], 0) + 1
+        family = str(entry.get("family") or "unspecified")
+        by_family[family] = by_family.get(family, 0) + 1
+        for tag in entry["matrix_tags"]:
+            by_tag[tag] = by_tag.get(tag, 0) + 1
+    return {
+        "by_gate": dict(sorted(by_gate.items())),
+        "by_family": dict(sorted(by_family.items())),
+        "by_tag": dict(sorted(by_tag.items())),
+    }
 
 
 def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]:
@@ -136,6 +188,7 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
     promoted = promoted_entries(manifest)
     checks = []
     violations = []
+    advisories = []
     for entry in promoted:
         path = entry["path"]
         actual = fixtures_by_path.get(path, "missing")
@@ -143,10 +196,18 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
         passed = actual in allowed
         check = {
             "path": path,
+            "family": entry.get("family"),
+            "gate": entry["gate"],
             "actual_category": actual,
             "allowed_categories": allowed,
             "passed": passed,
         }
+        if entry.get("issue"):
+            check["issue"] = entry["issue"]
+        if entry.get("matrix_tags"):
+            check["matrix_tags"] = entry["matrix_tags"]
+        if entry.get("evidence"):
+            check["evidence"] = entry["evidence"]
         if entry.get("reason"):
             check["reason"] = entry["reason"]
         checks.append(check)
@@ -161,7 +222,13 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
                 violation["regression_kind"] = "unknown-category"
             else:
                 violation["regression_kind"] = actual
-            violations.append(violation)
+            if entry["gate"] == "report":
+                advisories.append(violation)
+            else:
+                violations.append(violation)
+
+    blocking_checks = [check for check in checks if check["gate"] == "blocking"]
+    report_checks = [check for check in checks if check["gate"] == "report"]
 
     return {
         "schema_version": "1.0",
@@ -169,7 +236,14 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
         "manifest": manifest.get("name", "promoted oracle fixtures"),
         "total": len(checks),
         "passed": len([check for check in checks if check["passed"]]),
+        "blocking_total": len(blocking_checks),
+        "blocking_passed": len([check for check in blocking_checks if check["passed"]]),
+        "report_total": len(report_checks),
+        "report_passed": len([check for check in report_checks if check["passed"]]),
+        "advisory_count": len(advisories),
         "violations": violations,
+        "advisories": advisories,
+        "matrix_summary": summarize_matrix(promoted),
         "checks": checks,
     }
 
@@ -203,6 +277,7 @@ def main() -> int:
                     "status": "pass",
                     "manifest": manifest.get("name", "promoted oracle fixtures"),
                     "total": len(promoted_entries(manifest)),
+                    "matrix_summary": summarize_matrix(promoted_entries(manifest)),
                 },
                 indent=2,
                 sort_keys=True,

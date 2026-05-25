@@ -378,6 +378,98 @@ fn oracle_promoted_fixture_gate_blocks_missing_and_unknown_report_categories() {
 }
 
 #[test]
+fn oracle_promoted_fixture_gate_reports_non_blocking_matrix_debt() {
+    ensure_target_dir();
+    let report_file = repo_path("target/oracle_promoted_gate_report_only_report.json");
+    let manifest_file = repo_path("target/oracle_promoted_gate_report_only_manifest.json");
+
+    let report = serde_json::json!({
+        "schema_version": "1.0",
+        "timestamp": "2026-05-25T00:00:00Z",
+        "jar_version": "PlantUML version 1.2026.3",
+        "summary": {
+            "total": 2,
+            "match": 1,
+            "drift": 1,
+            "puml_only": 0,
+            "jar_only": 0,
+            "both_fail": 0
+        },
+        "fixtures": [
+            {"path": "tests/fixtures/basic/hello.puml", "category": "match", "metrics": {}},
+            {"path": "docs/examples/component/07_ports_lollipop_interfaces.puml", "category": "drift", "metrics": {}}
+        ]
+    });
+    let manifest = serde_json::json!({
+        "schema_version": "1.1",
+        "name": "report-only visual matrix sample",
+        "coverage_goals": ["visual report mode"],
+        "promoted_fixtures": [
+            {
+                "path": "tests/fixtures/basic/hello.puml",
+                "gate": "blocking",
+                "allowed_categories": ["match"],
+                "family": "sequence",
+                "matrix_tags": ["oracle"],
+                "evidence": {"visual_gate": "semantic-svg"}
+            },
+            {
+                "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+                "gate": "report",
+                "allowed_categories": ["match"],
+                "family": "component",
+                "matrix_tags": ["oracle", "visual-semantic"],
+                "evidence": {"visual_gate": "typed-or-fallback-invariants"},
+                "issue": 594,
+                "reason": "known visual debt should be visible without blocking the first matrix expansion"
+            }
+        ]
+    });
+    std::fs::write(
+        &report_file,
+        serde_json::to_string_pretty(&report).expect("sample report should serialize"),
+    )
+    .expect("sample report should be writable");
+    std::fs::write(
+        &manifest_file,
+        serde_json::to_string_pretty(&manifest).expect("sample manifest should serialize"),
+    )
+    .expect("sample manifest should be writable");
+
+    let output = Command::new("python3")
+        .arg(oracle_promoted_gate_script())
+        .arg("--report")
+        .arg(&report_file)
+        .arg("--manifest")
+        .arg(&manifest_file)
+        .arg("--write")
+        .output()
+        .expect("failed to invoke oracle_promoted_gate.py");
+
+    assert!(
+        output.status.success(),
+        "report-mode oracle drift should be advisory, not blocking; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let written = std::fs::read_to_string(&report_file)
+        .expect("annotated promoted gate report should be readable");
+    let annotated: serde_json::Value =
+        serde_json::from_str(&written).expect("annotated promoted gate report should parse");
+    let gate = &annotated["promoted_gate"];
+    assert_eq!(gate["status"].as_str(), Some("pass"));
+    assert_eq!(gate["blocking_total"].as_u64(), Some(1));
+    assert_eq!(gate["blocking_passed"].as_u64(), Some(1));
+    assert_eq!(gate["report_total"].as_u64(), Some(1));
+    assert_eq!(gate["report_passed"].as_u64(), Some(0));
+    assert_eq!(gate["advisory_count"].as_u64(), Some(1));
+    assert_eq!(
+        gate["advisories"][0]["regression_kind"].as_str(),
+        Some("drift")
+    );
+}
+
+#[test]
 fn oracle_promoted_fixture_manifest_validates_without_jar_or_report() {
     let output = Command::new("python3")
         .arg(oracle_promoted_gate_script())
@@ -400,9 +492,46 @@ fn oracle_promoted_fixture_manifest_validates_without_jar_or_report() {
         serde_json::from_str(stdout.trim()).expect("validation output should be JSON");
     assert_eq!(v["status"].as_str(), Some("pass"));
     assert!(
-        v["total"].as_u64().unwrap_or(0) >= 2,
-        "expected checked-in promoted fixture manifest to contain promoted rows"
+        v["total"].as_u64().unwrap_or(0) >= 20,
+        "expected checked-in promoted fixture manifest to contain a broad parity matrix"
     );
+    assert!(
+        v["matrix_summary"]["by_gate"]["report"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 18,
+        "expected most expanded matrix rows to start in report mode"
+    );
+    for family in [
+        "sequence",
+        "class",
+        "component",
+        "deployment",
+        "state",
+        "activity",
+        "timing",
+        "gantt",
+        "chronology",
+        "salt",
+        "nwdiag",
+        "json",
+        "yaml",
+        "chart",
+        "stdlib",
+        "sprites",
+        "preprocessor",
+        "style",
+        "skinparam",
+        "cli",
+    ] {
+        assert!(
+            v["matrix_summary"]["by_family"][family]
+                .as_u64()
+                .unwrap_or(0)
+                >= 1,
+            "promoted oracle matrix should include family/category {family}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
