@@ -8,8 +8,9 @@ use super::text_specialized::{
 };
 use super::text_timeline::render_timeline_text;
 use crate::model::{
-    FamilyDocument, NormalizedDocument, ParticipantRole, SequenceEventKind, SequencePage,
-    StateDocument, StateNode, StdlibDocument, VirtualEndpointKind, WbsCheckbox,
+    BoardDocument, FamilyDocument, FileTreeNode, FilesDocument, NormalizedDocument,
+    ParticipantRole, SequenceEventKind, SequencePage, StateDocument, StateNode, StdlibDocument,
+    VirtualEndpointKind, WbsCheckbox,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,69 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
         NormalizedDocument::Chart(doc) => vec![render_chart_text(doc, mode)],
         NormalizedDocument::Stdlib(doc) => vec![render_stdlib_text(doc, mode)],
         NormalizedDocument::Chen(doc) => vec![render_chen_text(doc, mode)],
+        NormalizedDocument::Board(doc) => vec![render_board_text(doc, mode)],
+        NormalizedDocument::Files(doc) => vec![render_files_text(doc, mode)],
+    }
+}
+
+fn render_board_text(doc: &BoardDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    lines.push("board".to_string());
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    for column in &doc.columns {
+        lines.push(format!("column {}", text_value(&column.title, mode)));
+        for card in &column.cards {
+            let tags = if card.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" #{}", card.tags.join(" #"))
+            };
+            lines.push(format!(
+                "{}{}{}",
+                spaces(card.depth),
+                text_value(&card.title, mode),
+                tags
+            ));
+        }
+    }
+    finish_text(lines)
+}
+
+fn render_files_text(doc: &FilesDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    lines.push("files".to_string());
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    for note in &doc.top_notes {
+        lines.push(format!("note {}", text_value(note, mode)));
+    }
+    for node in &doc.roots {
+        push_file_text_node(&mut lines, node, 0, mode);
+    }
+    finish_text(lines)
+}
+
+fn push_file_text_node(
+    lines: &mut Vec<String>,
+    node: &FileTreeNode,
+    depth: usize,
+    mode: TextOutputMode,
+) {
+    let kind = if node.is_dir { "dir" } else { "file" };
+    lines.push(format!(
+        "{}{} {}",
+        spaces(depth + 1),
+        kind,
+        text_value(&node.name, mode)
+    ));
+    for note in &node.notes {
+        lines.push(format!(
+            "{}note {}",
+            spaces(depth + 2),
+            text_value(note, mode)
+        ));
+    }
+    for child in &node.children {
+        push_file_text_node(lines, child, depth + 1, mode);
     }
 }
 

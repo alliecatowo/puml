@@ -1,0 +1,14 @@
+@startfiles
+title Repository tree
+<note>
+top-level repository note
+</note>
+/.github/
+/src/render/board_files.rs
+/src/normalize/board_files.rs
+<note>
+first Board/Files family slice
+</note>
+/tests/board_files_family.rs
+/README.md
+@endfiles

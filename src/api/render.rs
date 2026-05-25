@@ -158,6 +158,18 @@ fn render_document_for_family(
             "E_FAMILY_STUB_INTERNAL",
             render::render_chart_svg,
         ),
+        DiagramFamily::Board => render_structured(
+            document,
+            "board",
+            "E_FAMILY_BOARD_INTERNAL",
+            render::render_board_svg,
+        ),
+        DiagramFamily::Files => render_structured(
+            document,
+            "files",
+            "E_FAMILY_FILES_INTERNAL",
+            render::render_files_svg,
+        ),
         DiagramFamily::Stdlib => render_stdlib(document),
         DiagramFamily::Chen => render_chen(document),
         DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
@@ -297,6 +309,8 @@ structured_variant!(model::SdlDocument, Sdl);
 structured_variant!(model::DitaaDocument, Ditaa);
 structured_variant!(model::ChartDocument, Chart);
 structured_variant!(model::ChenDocument, Chen);
+structured_variant!(model::BoardDocument, Board);
+structured_variant!(model::FilesDocument, Files);
 
 fn render_family_with(
     document: Document,
@@ -367,6 +381,8 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
         NormalizedDocument::Stdlib(doc) => vec![render::render_stdlib_svg(doc)],
         NormalizedDocument::Chen(doc) => vec![render::render_chen_svg(doc)],
+        NormalizedDocument::Board(doc) => vec![render::render_board_svg(doc)],
+        NormalizedDocument::Files(doc) => vec![render::render_files_svg(doc)],
     }
 }
 

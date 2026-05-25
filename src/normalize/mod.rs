@@ -7,15 +7,15 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
 use crate::model::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAnnotation, ChartAxis,
-    ChartDocument, ChartLegend, ChartPoint, ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument,
-    EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind,
-    FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
-    LegendHAlign, LegendVAlign, MathDocument, MetadataHAlign, MindMapSide, NormalizedDocument,
-    NwdiagDocument, NwdiagGroup, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
-    RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState,
-    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind,
-    SequenceMessageStyle, SequencePage, StateDocument,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, BoardCard, BoardColumn, BoardDocument,
+    ChartAnnotation, ChartAxis, ChartDocument, ChartLegend, ChartPoint, ChartSeries, ChartSubtype,
+    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode,
+    FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation, FileTreeNode,
+    FilesDocument, JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument,
+    MetadataHAlign, MindMapSide, NormalizedDocument, NwdiagDocument, NwdiagGroup, NwdiagNetwork,
+    NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern, RegexToken, RepeatKind,
+    ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent,
+    SequenceEventKind, SequenceMessageStyle, SequencePage, StateDocument,
     StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind, StateNodeStyle,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
     TimelineConstraint, TimelineDayMarker, TimelineDocument, TimelineMilestone, TimelineNamedDate,
@@ -37,6 +37,7 @@ use crate::theme::{
 };
 
 mod archimate;
+mod board_files;
 mod chart;
 mod chen;
 mod common;
@@ -102,6 +103,8 @@ pub fn normalize_family_with_options(
             stdlib::normalize_stdlib_catalog(document, options).map(NormalizedDocument::Stdlib)
         }
         DiagramKind::Chen => chen::normalize_chen(document).map(NormalizedDocument::Chen),
+        DiagramKind::Board => board_files::normalize_board(document).map(NormalizedDocument::Board),
+        DiagramKind::Files => board_files::normalize_files(document).map(NormalizedDocument::Files),
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity

@@ -32,6 +32,8 @@ pub enum DiagramFamily {
     Chart,
     Stdlib,
     Chen,
+    Board,
+    Files,
     Unknown,
 }
 
@@ -64,6 +66,8 @@ impl DiagramFamily {
             Self::Chart => "chart",
             Self::Stdlib => "stdlib",
             Self::Chen => "chen",
+            Self::Board => "board",
+            Self::Files => "files",
             Self::Unknown => "unknown",
         }
     }

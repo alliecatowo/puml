@@ -74,6 +74,17 @@ pub(crate) fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
             "inheritances": doc.inheritances.len(),
             "warnings": doc.warnings.len()
         }),
+        NormalizedDocument::Board(doc) => json!({
+            "kind": "Board",
+            "columns": doc.columns.len(),
+            "cards": doc.columns.iter().map(|column| column.cards.len()).sum::<usize>(),
+            "warnings": doc.warnings.len()
+        }),
+        NormalizedDocument::Files(doc) => json!({
+            "kind": "Files",
+            "roots": doc.roots.len(),
+            "warnings": doc.warnings.len()
+        }),
     }
 }
 
