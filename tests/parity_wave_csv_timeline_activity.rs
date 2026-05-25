@@ -902,12 +902,69 @@ GA happens on 2026-10-01
 }
 
 #[test]
+fn chronology_normalizes_calendar_precision_and_renders_bracket_labels() {
+    let src = r##"@startchronology
+title Calendar Depth
+bracket 20th century from 20th century to 20th century is colored in #2563eb
+bracket 1990s between 1990 and 1999 is colored in #f97316
+Research happens from 2026-02 to 2026-04 is colored in #bfdbfe
+[A: 2024-01-15 01:08:12] happens on 2024-01-15 01:08:12
+[B: 2024-01-15 13:08:12] happens on 2024-01-15 13:08:12
+@endchronology
+"##;
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse chronology");
+    let NormalizedDocument::Timeline(model) =
+        puml::normalize_family(doc).expect("normalize chronology")
+    else {
+        panic!("expected timeline model");
+    };
+    let century = model
+        .chronology_events
+        .iter()
+        .find(|event| event.subject == "20th century")
+        .expect("century bracket");
+    assert_eq!(century.date_precision.map(|p| p.as_str()), Some("century"));
+    assert!(century.start_day.unwrap() < century.end_day.unwrap());
+
+    let decade = model
+        .chronology_events
+        .iter()
+        .find(|event| event.subject == "1990s")
+        .expect("decade bracket");
+    assert_eq!(decade.date_precision.map(|p| p.as_str()), Some("year"));
+    assert_eq!(decade.end_date_precision.map(|p| p.as_str()), Some("year"));
+    assert!(decade.start_day.unwrap() < decade.end_day.unwrap());
+
+    let month_range = model
+        .chronology_events
+        .iter()
+        .find(|event| event.subject == "Research")
+        .expect("month range");
+    assert_eq!(
+        month_range.date_precision.map(|p| p.as_str()),
+        Some("month")
+    );
+    assert_eq!(
+        month_range.end_date_precision.map(|p| p.as_str()),
+        Some("month")
+    );
+
+    let svg = puml::render_source_to_svg(src).expect("chronology render");
+    assert!(svg.contains("class=\"chronology-bracket-label\""));
+    assert!(svg.contains("data-chronology-date-precision=\"century\""));
+    assert!(svg.contains("data-chronology-start-day=\""));
+    assert!(svg.contains("A: 2024-01-15 01:08:12"));
+}
+
+#[test]
 fn chronology_depth_fixtures_render_without_gantt_task_bars() {
     for fixture_name in [
         "valid_chronology_ranges.puml",
         "valid_chronology_eras.puml",
         "valid_chronology_brackets.puml",
         "valid_chronology_spans.puml",
+        "valid_chronology_calendar_depth.puml",
     ] {
         let src = fs::read_to_string(timeline_fixture(fixture_name)).expect("read fixture");
         let svg = puml::render_source_to_svg(&src).expect("render chronology fixture");

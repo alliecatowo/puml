@@ -191,6 +191,34 @@ fn parses_chronology_ranges_eras_and_brackets() {
     ));
 }
 
+#[test]
+fn parses_chronology_between_years_and_datetime_subjects() {
+    let doc = parse_with_options(
+        "@startchronology\nbracket 1990s between 1990 and 1999 is colored in #f97316\n[A: 2024-01-15 01:08:12] happens on 2024-01-15 01:08:12\n@endchronology\n",
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(doc.kind, DiagramKind::Chronology);
+    assert!(matches!(
+        doc.statements[0].kind,
+        StatementKind::ChronologyHappensOn {
+            ref subject,
+            ref when,
+            ref end,
+            bracket: true,
+            ..
+        } if subject == "1990s" && when == "1990" && end.as_deref() == Some("1999")
+    ));
+    assert!(matches!(
+        doc.statements[1].kind,
+        StatementKind::ChronologyHappensOn {
+            ref subject,
+            ref when,
+            ..
+        } if subject == "A: 2024-01-15 01:08:12" && when == "2024-01-15 01:08:12"
+    ));
+}
+
 
 #[test]
 fn start_end_timeline_markers_accept_optional_block_suffixes() {

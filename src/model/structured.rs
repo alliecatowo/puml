@@ -494,6 +494,27 @@ pub struct TimelineResourceAllocation {
     pub load_percent: Option<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineDatePrecision {
+    Day,
+    Month,
+    Year,
+    Decade,
+    Century,
+}
+
+impl TimelineDatePrecision {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Day => "day",
+            Self::Month => "month",
+            Self::Year => "year",
+            Self::Decade => "decade",
+            Self::Century => "century",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TimelineChronologyEvent {
     pub subject: String,
@@ -501,4 +522,8 @@ pub struct TimelineChronologyEvent {
     pub end: Option<String>,
     pub color: Option<String>,
     pub bracket: bool,
+    pub start_day: Option<i32>,
+    pub end_day: Option<i32>,
+    pub date_precision: Option<TimelineDatePrecision>,
+    pub end_date_precision: Option<TimelineDatePrecision>,
 }

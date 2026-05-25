@@ -2,8 +2,14 @@ use super::*;
 
 struct ChronologyRenderEvent<'a> {
     event: &'a TimelineChronologyEvent,
-    start_day: Option<u32>,
-    end_day: Option<u32>,
+    start_day: Option<i32>,
+    end_day: Option<i32>,
+}
+
+struct ChronologyPlacedEvent<'a> {
+    entry: ChronologyRenderEvent<'a>,
+    start_y: i32,
+    label_y: i32,
 }
 
 pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
@@ -25,20 +31,22 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
         .chronology_events
         .iter()
         .map(|event| ChronologyRenderEvent {
-            start_day: parse_iso_date_day_number(&event.when),
-            end_day: event.end.as_deref().and_then(parse_iso_date_day_number),
+            start_day: event.start_day,
+            end_day: event.end_day,
             event,
         })
         .collect();
     events.sort_by(|a, b| {
         (
-            a.start_day.unwrap_or(u32::MAX),
-            a.end_day.unwrap_or(a.start_day.unwrap_or(u32::MAX)),
+            a.start_day.unwrap_or(i32::MAX),
+            a.event.when.as_str(),
+            a.end_day.unwrap_or(a.start_day.unwrap_or(i32::MAX)),
             a.event.subject.as_str(),
         )
             .cmp(&(
-                b.start_day.unwrap_or(u32::MAX),
-                b.end_day.unwrap_or(b.start_day.unwrap_or(u32::MAX)),
+                b.start_day.unwrap_or(i32::MAX),
+                b.event.when.as_str(),
+                b.end_day.unwrap_or(b.start_day.unwrap_or(i32::MAX)),
                 b.event.subject.as_str(),
             ))
     });
@@ -52,8 +60,29 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
     let max_day = dated_days.iter().copied().max();
     let total_rows = events.len().max(1) as i32;
     let axis_h = (total_rows * row_gap).max(300);
-    let total_h = axis_top + axis_h + 72;
     let axis_bottom = axis_top + axis_h;
+
+    let mut last_label_y = axis_top - row_gap;
+    let mut placed_events = Vec::new();
+    for (idx, entry) in events.into_iter().enumerate() {
+        let start_y = entry
+            .start_day
+            .map(|day| chronology_y_for_day(day, min_day, max_day, axis_top, axis_h))
+            .unwrap_or(axis_top + idx as i32 * row_gap + row_gap / 2);
+        let label_y = start_y.max(last_label_y + row_gap);
+        last_label_y = label_y;
+        placed_events.push(ChronologyPlacedEvent {
+            entry,
+            start_y,
+            label_y,
+        });
+    }
+    let total_h = placed_events
+        .iter()
+        .map(|placed| placed.label_y + 54)
+        .max()
+        .unwrap_or(axis_bottom + 72)
+        .max(axis_bottom + 72);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -94,32 +123,32 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
         y2 = axis_bottom
     ));
     if let (Some(min_day), Some(max_day)) = (min_day, max_day) {
-        if let Some(start) = day_number_to_iso(min_day) {
+        let start = chronology_day_number_to_iso(min_day);
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"#64748b\">{txt}</text>",
+            x = axis_x - 70,
+            y = axis_top + 4,
+            txt = escape_text(&start)
+        ));
+        if min_day != max_day {
+            let end = chronology_day_number_to_iso(max_day);
             out.push_str(&format!(
                 "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"#64748b\">{txt}</text>",
                 x = axis_x - 70,
-                y = axis_top + 4,
-                txt = escape_text(&start)
+                y = axis_bottom + 4,
+                txt = escape_text(&end)
             ));
-        }
-        if min_day != max_day {
-            if let Some(end) = day_number_to_iso(max_day) {
-                out.push_str(&format!(
-                    "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"#64748b\">{txt}</text>",
-                    x = axis_x - 70,
-                    y = axis_bottom + 4,
-                    txt = escape_text(&end)
-                ));
-            }
         }
     }
 
-    for entry in &events {
+    for placed in &placed_events {
+        let entry = &placed.entry;
         if let (Some(start), Some(end)) = (entry.start_day, entry.end_day) {
             let y1 = chronology_y_for_day(start.min(end), min_day, max_day, axis_top, axis_h);
             let y2 = chronology_y_for_day(start.max(end), min_day, max_day, axis_top, axis_h);
             let color = entry.event.color.as_deref().unwrap_or("#38bdf8");
             if entry.event.bracket {
+                let label_y = y1 + (y2 - y1) / 2;
                 out.push_str(&format!(
                     "<path class=\"chronology-bracket\" d=\"M{x1},{y1} h22 M{x1},{y2} h22 M{x1},{y1} V{y2}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"3\" stroke-linecap=\"round\" data-chronology-label=\"{label}\"/>",
                     x1 = axis_x - 42,
@@ -127,6 +156,13 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
                     y2 = y2,
                     color = escape_text(color),
                     label = escape_text(&entry.event.subject)
+                ));
+                out.push_str(&format!(
+                    "<text class=\"chronology-bracket-label\" x=\"{x}\" y=\"{y}\" text-anchor=\"end\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{color}\">{txt}</text>",
+                    x = axis_x - 52,
+                    y = label_y,
+                    color = escape_text(color),
+                    txt = escape_text(&entry.event.subject)
                 ));
             } else {
                 out.push_str(&format!(
@@ -141,17 +177,28 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
         }
     }
 
-    let mut last_label_y = axis_top - row_gap;
-    for (idx, entry) in events.iter().enumerate() {
-        let start_y = entry
-            .start_day
-            .map(|day| chronology_y_for_day(day, min_day, max_day, axis_top, axis_h))
-            .unwrap_or(axis_top + idx as i32 * row_gap + row_gap / 2);
-        let label_y = start_y.max(last_label_y + row_gap);
-        last_label_y = label_y;
+    for (idx, placed) in placed_events.iter().enumerate() {
+        let entry = &placed.entry;
+        let start_y = placed.start_y;
+        let label_y = placed.label_y;
         let card_y = label_y - 22;
         let dot_color = entry.event.color.as_deref().unwrap_or("#2563eb");
         let date_label = chronology_date_label(entry.event);
+        let start_day = entry
+            .event
+            .start_day
+            .map(|day| day.to_string())
+            .unwrap_or_default();
+        let end_day = entry
+            .event
+            .end_day
+            .map(|day| day.to_string())
+            .unwrap_or_default();
+        let precision = entry
+            .event
+            .date_precision
+            .map(TimelineDatePrecision::as_str)
+            .unwrap_or("unknown");
         out.push_str(&format!(
             "<line class=\"chronology-connector\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#cbd5e1\" stroke-width=\"1.5\"/>",
             x1 = axis_x,
@@ -166,10 +213,13 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
             color = escape_text(dot_color)
         ));
         out.push_str(&format!(
-            "<rect class=\"chronology-event-card\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"44\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#cbd5e1\" stroke-width=\"1\" filter=\"url(#chronology-card-shadow)\" data-chronology-index=\"{idx}\"/>",
+            "<rect class=\"chronology-event-card\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"44\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#cbd5e1\" stroke-width=\"1\" filter=\"url(#chronology-card-shadow)\" data-chronology-index=\"{idx}\" data-chronology-start-day=\"{start_day}\" data-chronology-end-day=\"{end_day}\" data-chronology-date-precision=\"{precision}\"/>",
             x = card_x,
             y = card_y,
-            w = card_w
+            w = card_w,
+            start_day = escape_text(&start_day),
+            end_day = escape_text(&end_day),
+            precision = escape_text(precision)
         ));
         out.push_str(&format!(
             "<rect class=\"chronology-event-accent\" x=\"{x}\" y=\"{y}\" width=\"5\" height=\"44\" rx=\"2\" ry=\"2\" fill=\"{color}\"/>",
@@ -196,9 +246,9 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
 }
 
 fn chronology_y_for_day(
-    day: u32,
-    min_day: Option<u32>,
-    max_day: Option<u32>,
+    day: i32,
+    min_day: Option<i32>,
+    max_day: Option<i32>,
     axis_top: i32,
     axis_h: i32,
 ) -> i32 {
@@ -208,15 +258,36 @@ fn chronology_y_for_day(
     if min_day == max_day {
         return axis_top + axis_h / 2;
     }
-    let span = u64::from(max_day - min_day);
-    let offset = u64::from(day.saturating_sub(min_day));
-    axis_top + ((offset * axis_h as u64) / span) as i32
+    let span = i64::from(max_day - min_day);
+    let offset = i64::from(day - min_day);
+    axis_top + ((offset * i64::from(axis_h)) / span) as i32
 }
 
 fn chronology_date_label(event: &TimelineChronologyEvent) -> String {
     event
         .end
         .as_deref()
-        .map(|end| format!("{} to {end}", event.when))
+        .map(|end| {
+            if end == event.when {
+                event.when.clone()
+            } else {
+                format!("{} to {end}", event.when)
+            }
+        })
         .unwrap_or_else(|| event.when.clone())
+}
+
+fn chronology_day_number_to_iso(day: i32) -> String {
+    let z = i64::from(day) + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let day_of_era = z - era * 146097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    year += if month <= 2 { 1 } else { 0 };
+    format!("{year:04}-{month:02}-{day:02}")
 }

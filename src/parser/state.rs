@@ -152,6 +152,11 @@ fn parse_chronology_time_tail(
             trimmed[..idx].trim().to_string(),
             Some(trimmed[idx + " until ".len()..].trim().to_string()),
         )
+    } else if let Some(idx) = lower.find(" and ") {
+        (
+            trimmed[..idx].trim().to_string(),
+            Some(trimmed[idx + " and ".len()..].trim().to_string()),
+        )
     } else {
         (trimmed.to_string(), None)
     };

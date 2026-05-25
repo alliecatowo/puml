@@ -1,6 +1,6 @@
 ---
 source: tests/integration.rs
-assertion_line: 1174
+assertion_line: 1204
 expression: json
 ---
 {
@@ -9,14 +9,22 @@ expression: json
     {
       "bracket": false,
       "color": null,
+      "date_precision": "day",
       "end": null,
+      "end_date_precision": null,
+      "end_day": null,
+      "start_day": 20583,
       "subject": "Phase 1",
       "when": "2026-05-10"
     },
     {
       "bracket": false,
       "color": null,
+      "date_precision": "day",
       "end": null,
+      "end_date_precision": null,
+      "end_day": null,
+      "start_day": 20605,
       "subject": "Phase 2",
       "when": "2026-06-01"
     }

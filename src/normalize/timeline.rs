@@ -2,11 +2,13 @@ use super::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 use super::*;
 
 mod calendar;
+mod chronology;
 mod dates;
 mod schedule;
 mod tasks;
 
 use calendar::*;
+use chronology::*;
 use dates::*;
 use schedule::*;
 use tasks::*;
@@ -233,13 +235,9 @@ pub(super) fn normalize_timeline_baseline(
                 end,
                 color,
                 bracket,
-            } => chronology_events.push(TimelineChronologyEvent {
-                subject,
-                when,
-                end,
-                color,
-                bracket,
-            }),
+            } => chronology_events.push(normalize_chronology_event(
+                subject, when, end, color, bracket,
+            )),
             StatementKind::Title(v) => common.title(v),
             StatementKind::Header(v) => common.raw_header(v),
             StatementKind::Footer(v) => common.raw_footer(v),
