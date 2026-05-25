@@ -135,7 +135,7 @@ fn nodes_in_lane(node_rects: &BTreeMap<String, Vec<NodeRect>>, lane_id: &str) ->
     for (name, rects) in node_rects {
         if rects
             .iter()
-            .any(|rect| rect.network.as_deref() == Some(network))
+            .any(|rect| rect.physical && rect.network.as_deref() == Some(network))
         {
             nodes.push(name.clone());
         }
