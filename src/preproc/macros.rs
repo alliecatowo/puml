@@ -193,6 +193,9 @@ pub(super) fn substitute_vars(line: &str, vars: &BTreeMap<String, String>) -> St
                     continue;
                 }
                 out.push_str(value);
+            } else if let Some((prefix, value)) = longest_variable_prefix(&name, vars) {
+                out.push_str(value);
+                out.push_str(&name[prefix.len()..]);
             } else {
                 out.push('$');
                 out.push_str(&name);
@@ -204,6 +207,26 @@ pub(super) fn substitute_vars(line: &str, vars: &BTreeMap<String, String>) -> St
         i += 1;
     }
     out
+}
+
+fn longest_variable_prefix<'a>(
+    name: &'a str,
+    vars: &'a BTreeMap<String, String>,
+) -> Option<(&'a str, &'a str)> {
+    let mut candidates = name
+        .char_indices()
+        .map(|(idx, _)| idx)
+        .filter(|idx| *idx > 0)
+        .collect::<Vec<_>>();
+    candidates.push(name.len());
+    candidates.sort_unstable_by(|a, b| b.cmp(a));
+    for end in candidates {
+        let prefix = &name[..end];
+        if let Some(value) = vars.get(prefix) {
+            return Some((prefix, value.as_str()));
+        }
+    }
+    None
 }
 
 pub(super) fn collect_json_path_suffix(chars: &[char], start: usize) -> (String, usize) {
@@ -301,9 +324,22 @@ pub(super) fn parse_variable_assignment_with_scope(
     raw: &str,
     scope: PreprocVariableScope,
 ) -> Option<PreprocessDirective> {
-    let var = name.strip_prefix('$')?.trim().to_string();
+    let name_body = name.strip_prefix('$')?.trim();
+    let (name_body, inline_value) = name_body
+        .split_once('=')
+        .map(|(left, right)| (left.trim(), Some(right.trim())))
+        .unwrap_or((name_body, None));
+    let var = name_body.to_string();
     if var.is_empty() {
         return Some(PreprocessDirective::JsonPreproc(raw.to_string()));
+    }
+    if let Some(value) = inline_value {
+        return Some(PreprocessDirective::VariableAssign {
+            name: var,
+            value: value.to_string(),
+            conditional: false,
+            scope,
+        });
     }
     if let Some(value) = arg.strip_prefix("?=") {
         return Some(PreprocessDirective::VariableAssign {

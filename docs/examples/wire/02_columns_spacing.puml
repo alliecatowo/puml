@@ -1,0 +1,10 @@
+@startwire
+title Column layout with spacing
+component InputBank [130x110] right:I1,I2,I3
+vspace 24
+component ServicePort [130x60] right:USB
+--
+component MCU [150x150] left:I1,I2,I3,USB right:TX,RX
+InputBank.I1 -- MCU.I1
+ServicePort.USB --> MCU.USB : debug
+@endwire

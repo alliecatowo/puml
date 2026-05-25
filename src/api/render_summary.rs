@@ -76,6 +76,14 @@ pub fn normalized_model_summary_to_json(model: &NormalizedDocument) -> Value {
             "warnings": doc.warnings.len(),
             "title": doc.title
         }),
+        NormalizedDocument::Wire(doc) => json!({
+            "kind": "Wire",
+            "components": doc.components.len(),
+            "ports": doc.components.iter().map(|component| component.ports.len()).sum::<usize>(),
+            "links": doc.links.len(),
+            "warnings": doc.warnings.len(),
+            "title": doc.title
+        }),
     }
 }
 

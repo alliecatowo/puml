@@ -339,6 +339,24 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
             ],
             &mut counts,
         ),
+        NormalizedDocument::Wire(doc) => metadata_for_simple(
+            "wire",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("components", doc.components.len()),
+                (
+                    "ports",
+                    doc.components
+                        .iter()
+                        .map(|component| component.ports.len())
+                        .sum(),
+                ),
+                ("links", doc.links.len()),
+            ],
+            &mut counts,
+        ),
     };
 
     DiagramMetadata {

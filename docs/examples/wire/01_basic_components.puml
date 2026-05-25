@@ -1,0 +1,9 @@
+@startwire
+title Wire harness controller
+component Panel [120x90] right:POWER,DATA bottom:GND
+--
+component Controller [150x110] left:POWER,DATA right:OUT1,OUT2
+Panel.POWER -- Controller.POWER : 24V
+Panel.DATA --> Controller.DATA : signal
+caption Basic wire component ports
+@endwire

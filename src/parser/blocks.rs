@@ -39,6 +39,7 @@ enum BlockKind {
     Chen,
     Board,
     Files,
+    Wire,
 }
 
 /// Like `parse_block_marker_kind`, but also returns the trimmed text that
@@ -62,6 +63,7 @@ fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)
         ("@startchen", BlockKind::Chen),
         ("@startboard", BlockKind::Board),
         ("@startfiles", BlockKind::Files),
+        ("@startwire", BlockKind::Wire),
         ("@startsdl", BlockKind::Sdl),
         ("@startgantt", BlockKind::Gantt),
         ("@startwbs", BlockKind::Wbs),
@@ -103,6 +105,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startchen", BlockKind::Chen),
             ("@startboard", BlockKind::Board),
             ("@startfiles", BlockKind::Files),
+            ("@startwire", BlockKind::Wire),
             ("@startsdl", BlockKind::Sdl),
             ("@startgantt", BlockKind::Gantt),
             ("@startwbs", BlockKind::Wbs),
@@ -126,6 +129,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@endchen", BlockKind::Chen),
             ("@endboard", BlockKind::Board),
             ("@endfiles", BlockKind::Files),
+            ("@endwire", BlockKind::Wire),
             ("@endsdl", BlockKind::Sdl),
             ("@endgantt", BlockKind::Gantt),
             ("@endwbs", BlockKind::Wbs),
@@ -165,6 +169,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Chen => Some(DiagramKind::Chen),
         BlockKind::Board => Some(DiagramKind::Board),
         BlockKind::Files => Some(DiagramKind::Files),
+        BlockKind::Wire => Some(DiagramKind::Wire),
     }
 }
 
@@ -189,6 +194,7 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Chen => "chen",
         BlockKind::Board => "board",
         BlockKind::Files => "files",
+        BlockKind::Wire => "wire",
     }
 }
 
@@ -210,6 +216,7 @@ fn block_kind_is_raw_body(kind: BlockKind) -> bool {
             | BlockKind::Chart
             | BlockKind::Board
             | BlockKind::Files
+            | BlockKind::Wire
     )
 }
 
@@ -297,6 +304,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Chen => "chen",
         DiagramKind::Board => "board",
         DiagramKind::Files => "files",
+        DiagramKind::Wire => "wire",
         DiagramKind::Unknown => "unknown",
     }
 }

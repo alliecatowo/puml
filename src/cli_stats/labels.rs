@@ -124,6 +124,7 @@ pub(super) fn diagram_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Chen => "chen",
         DiagramKind::Board => "board",
         DiagramKind::Files => "files",
+        DiagramKind::Wire => "wire",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -272,6 +273,7 @@ mod tests {
             (DiagramKind::Chen, "chen"),
             (DiagramKind::Board, "board"),
             (DiagramKind::Files, "files"),
+            (DiagramKind::Wire, "wire"),
             (DiagramKind::Unknown, "unknown"),
         ];
 

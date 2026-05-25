@@ -10,7 +10,7 @@ use super::text_timeline::render_timeline_text;
 use crate::model::{
     BoardDocument, FamilyDocument, FileTreeNode, FilesDocument, NormalizedDocument,
     ParticipantRole, SequenceEventKind, SequencePage, StateDocument, StateNode, StdlibDocument,
-    VirtualEndpointKind, WbsCheckbox,
+    VirtualEndpointKind, WbsCheckbox, WireDocument,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +53,7 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
         NormalizedDocument::Chen(doc) => vec![render_chen_text(doc, mode)],
         NormalizedDocument::Board(doc) => vec![render_board_text(doc, mode)],
         NormalizedDocument::Files(doc) => vec![render_files_text(doc, mode)],
+        NormalizedDocument::Wire(doc) => vec![render_wire_text(doc, mode)],
     }
 }
 
@@ -114,6 +115,52 @@ fn push_file_text_node(
     }
     for child in &node.children {
         push_file_text_node(lines, child, depth + 1, mode);
+    }
+}
+
+fn render_wire_text(doc: &WireDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    lines.push("wire".to_string());
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    lines.push(format!("components ({})", doc.components.len()));
+    for component in &doc.components {
+        lines.push(format!(
+            "  {} [{:.0}x{:.0}] at {:.0},{:.0}",
+            text_value(&component.label, mode),
+            component.width,
+            component.height,
+            component.x,
+            component.y
+        ));
+        for port in &component.ports {
+            lines.push(format!(
+                "    {} {}",
+                port.side.as_str(),
+                text_value(&port.label, mode)
+            ));
+        }
+    }
+    lines.push(format!("links ({})", doc.links.len()));
+    for link in &doc.links {
+        let arrow = if link.directed { "-->" } else { "--" };
+        let label = optional_label(link.label.as_deref(), mode);
+        lines.push(format!(
+            "  {} {arrow} {}{label}",
+            wire_endpoint_text(&link.from, mode),
+            wire_endpoint_text(&link.to, mode)
+        ));
+    }
+    finish_text(lines)
+}
+
+fn wire_endpoint_text(endpoint: &crate::model::WireEndpoint, mode: TextOutputMode) -> String {
+    match &endpoint.port {
+        Some(port) => format!(
+            "{}.{}",
+            text_value(&endpoint.component, mode),
+            text_value(port, mode)
+        ),
+        None => text_value(&endpoint.component, mode),
     }
 }
 

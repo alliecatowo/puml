@@ -52,6 +52,7 @@ mod state;
 mod stdlib;
 mod structured;
 mod timeline;
+mod wire;
 
 #[derive(Debug, Clone, Default)]
 pub struct NormalizeOptions {
@@ -105,6 +106,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Chen => chen::normalize_chen(document).map(NormalizedDocument::Chen),
         DiagramKind::Board => board_files::normalize_board(document).map(NormalizedDocument::Board),
         DiagramKind::Files => board_files::normalize_files(document).map(NormalizedDocument::Files),
+        DiagramKind::Wire => wire::normalize_wire(document).map(NormalizedDocument::Wire),
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity

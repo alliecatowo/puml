@@ -746,6 +746,11 @@ Bob --> Alice : reply
             "chart",
             "data_points",
         ),
+        (
+            "@startwire\ncomponent Panel [80x60] right:P\n@endwire\n",
+            "wire",
+            "components",
+        ),
     ];
     for (src, family, count_key) in cases {
         let metadata = metadata_for(src);

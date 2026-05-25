@@ -128,6 +128,7 @@ fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Wbs.as_str(), "wbs");
     assert_eq!(DiagramFamily::Gantt.as_str(), "gantt");
     assert_eq!(DiagramFamily::Chronology.as_str(), "chronology");
+    assert_eq!(DiagramFamily::Wire.as_str(), "wire");
     assert_eq!(DiagramFamily::Unknown.as_str(), "unknown");
 }
 
@@ -566,6 +567,11 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     assert_eq!(
         detect_diagram_family("@startsalt\nwidget\n@endsalt\n").expect("salt family"),
         DiagramFamily::Salt
+    );
+    assert_eq!(
+        detect_diagram_family("@startwire\ncomponent Panel [80x60]\n@endwire\n")
+            .expect("wire family"),
+        DiagramFamily::Wire
     );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";

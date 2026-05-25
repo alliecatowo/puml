@@ -239,6 +239,13 @@ const FAMILY_SPECS: &[DiagramFamilySpec] = &[
         PLANTUML_ONLY,
     ),
     family(
+        DiagramKind::Wire,
+        DiagramFamily::Wire,
+        "wire",
+        FamilyRenderKind::Wire,
+        PLANTUML_ONLY,
+    ),
+    family(
         DiagramKind::Unknown,
         DiagramFamily::Unknown,
         "unknown",

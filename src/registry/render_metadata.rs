@@ -25,5 +25,6 @@ pub enum FamilyRenderKind {
     Chen,
     Board,
     Files,
+    Wire,
     Unsupported,
 }

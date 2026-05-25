@@ -85,6 +85,13 @@ pub(crate) fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
             "roots": doc.roots.len(),
             "warnings": doc.warnings.len()
         }),
+        NormalizedDocument::Wire(doc) => json!({
+            "kind": "Wire",
+            "components": doc.components.len(),
+            "ports": doc.components.iter().map(|component| component.ports.len()).sum::<usize>(),
+            "links": doc.links.len(),
+            "warnings": doc.warnings.len()
+        }),
     }
 }
 
@@ -487,6 +494,32 @@ pub(crate) fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "nodes": state.nodes.len(),
                 "transitions": state.transitions.len(),
                 "svg_preview": svg
+            })
+        }
+        NormalizedDocument::Wire(wire) => {
+            let artifact = puml::render::render_wire_artifact(wire);
+            json!({
+                "kind": "WireDiagram",
+                "components": wire.components.iter().map(|component| json!({
+                    "id": component.id,
+                    "label": component.label,
+                    "x": component.x,
+                    "y": component.y,
+                    "width": component.width,
+                    "height": component.height,
+                    "ports": component.ports.iter().map(|port| json!({
+                        "id": port.id,
+                        "label": port.label,
+                        "side": port.side.as_str(),
+                    })).collect::<Vec<_>>()
+                })).collect::<Vec<_>>(),
+                "links": wire.links.len(),
+                "scene": artifact.scene.as_ref().map(|scene| json!({
+                    "nodes": scene.nodes.len(),
+                    "edges": scene.edges.len(),
+                    "labels": scene.labels.len(),
+                })),
+                "svg_preview": artifact.svg
             })
         }
         other => normalized_model_to_json(other),
