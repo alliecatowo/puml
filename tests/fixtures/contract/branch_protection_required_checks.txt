@@ -1,1 +1,2 @@
 fmt-clippy-test-coverage-quick
+differential-svg-oracle

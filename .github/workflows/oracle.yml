@@ -115,6 +115,14 @@ jobs:
         run: |
           echo "No code, renderer, fixture, stdlib, or docs/example changes detected; skipping pinned PlantUML JAR oracle."
 
+      - name: Validate promoted oracle fixture manifest
+        if: steps.changes.outputs.run_oracle == 'true'
+        run: |
+          python3 scripts/oracle_promoted_gate.py \
+            --manifest tests/oracle_promoted_fixtures.json \
+            --validate-manifest-only \
+            --repo-root .
+
       # JDK 17 (Temurin LTS) — required to run the PlantUML reference JAR.
       # Not a runtime or build dependency of puml; CI-only for oracle comparison.
       - name: Setup JDK 17 (Temurin)

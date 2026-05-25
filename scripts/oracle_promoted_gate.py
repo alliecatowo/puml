@@ -11,23 +11,35 @@ from typing import Any, Dict, Iterable, List
 
 VALID_CATEGORIES = {"match", "drift", "puml-only", "jar-only", "both-fail"}
 CATEGORY_ALIASES = {"parse-fail": "both-fail"}
-BLOCKING_CATEGORIES = {"drift", "puml-only", "jar-only", "both-fail", "missing"}
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--report", required=True, help="oracle_report.json path")
+    parser.add_argument("--report", help="oracle_report.json path")
     parser.add_argument("--manifest", required=True, help="promoted fixture manifest JSON")
     parser.add_argument(
         "--write",
         action="store_true",
         help="annotate the report with promoted_gate results",
     )
+    parser.add_argument(
+        "--validate-manifest-only",
+        action="store_true",
+        help="validate the promoted fixture manifest without requiring an oracle report",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="repository root used to verify promoted fixture paths exist",
+    )
     return parser.parse_args()
 
 
 def read_json(path: Path) -> Dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value
 
 
 def normalize_category(category: str) -> str:
@@ -83,6 +95,28 @@ def promoted_entries(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
+def validate_manifest(manifest: Dict[str, Any], repo_root: Path | None = None) -> List[Dict[str, Any]]:
+    entries = promoted_entries(manifest)
+    seen = set()
+    errors = []
+
+    for entry in entries:
+        path = entry["path"]
+        if path in seen:
+            errors.append({"path": path, "error": "duplicate promoted fixture path"})
+        seen.add(path)
+
+        fixture_path = Path(path)
+        if fixture_path.is_absolute() or ".." in fixture_path.parts:
+            errors.append({"path": path, "error": "promoted fixture paths must be repo-relative"})
+            continue
+
+        if repo_root is not None and not (repo_root / fixture_path).is_file():
+            errors.append({"path": path, "error": "promoted fixture path does not exist"})
+
+    return errors
+
+
 def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]:
     if report.get("skipped"):
         return {
@@ -117,10 +151,14 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
             check["reason"] = entry["reason"]
         checks.append(check)
 
-        if not passed and actual in BLOCKING_CATEGORIES:
+        if not passed:
             violation = dict(check)
             if actual == "both-fail":
                 violation["regression_kind"] = "parse-fail"
+            elif actual == "missing":
+                violation["regression_kind"] = "missing"
+            elif actual not in VALID_CATEGORIES:
+                violation["regression_kind"] = "unknown-category"
             else:
                 violation["regression_kind"] = actual
             violations.append(violation)
@@ -138,11 +176,45 @@ def evaluate(report: Dict[str, Any], manifest: Dict[str, Any]) -> Dict[str, Any]
 
 def main() -> int:
     args = parse_args()
-    report_path = Path(args.report)
     manifest_path = Path(args.manifest)
 
-    report = read_json(report_path)
     manifest = read_json(manifest_path)
+    manifest_errors = validate_manifest(manifest, args.repo_root)
+    if manifest_errors:
+        print(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "status": "fail",
+                    "manifest": manifest.get("name", "promoted oracle fixtures"),
+                    "errors": manifest_errors,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 3
+
+    if args.validate_manifest_only:
+        print(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "status": "pass",
+                    "manifest": manifest.get("name", "promoted oracle fixtures"),
+                    "total": len(promoted_entries(manifest)),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if not args.report:
+        raise ValueError("--report is required unless --validate-manifest-only is set")
+
+    report_path = Path(args.report)
+    report = read_json(report_path)
     gate = evaluate(report, manifest)
 
     if args.write:

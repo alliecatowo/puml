@@ -107,8 +107,10 @@ ORACLE_PREFIXES = (
 
 # Paths that additionally trigger the oracle_smoke sentinel test run.
 ORACLE_SMOKE_EXACT = {
+    "tests/oracle_promoted_fixtures.json",
     "tests/oracle_smoke.rs",
     "scripts/oracle.sh",
+    "scripts/oracle_promoted_gate.py",
     "scripts/oracle_report_summary.py",
     "scripts/ci-classify-changes.py",
     ".github/workflows/oracle.yml",
