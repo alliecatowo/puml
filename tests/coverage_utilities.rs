@@ -28,15 +28,8 @@ fn effective_class_node_style_resolves_base_stereotype_and_inline_precedence() {
         effective_class_node_style, ClassStereotypeStyle, ClassStyle, FamilyNodeInlineStyle,
     };
 
-    let mut class_style = ClassStyle::default();
-    class_style.background_color = "#base-bg".to_string();
-    class_style.border_color = "#base-border".to_string();
-    class_style.header_color = "#base-header".to_string();
-    class_style.font_color = "#base-font".to_string();
-    class_style.member_color = "#base-member".to_string();
-    class_style.font_name = Some("FiraCode".to_string());
-    class_style.font_size = Some(16);
-    class_style.stereotype_styles.insert(
+    let mut stereotype_styles = std::collections::BTreeMap::new();
+    stereotype_styles.insert(
         "service".to_string(),
         ClassStereotypeStyle {
             background_color: Some("#stereo-bg".to_string()),
@@ -45,6 +38,17 @@ fn effective_class_node_style_resolves_base_stereotype_and_inline_precedence() {
             font_color: Some("#stereo-font".to_string()),
         },
     );
+    let class_style = ClassStyle {
+        background_color: "#base-bg".to_string(),
+        border_color: "#base-border".to_string(),
+        header_color: "#base-header".to_string(),
+        font_color: "#base-font".to_string(),
+        member_color: "#base-member".to_string(),
+        font_name: Some("FiraCode".to_string()),
+        font_size: Some(16),
+        stereotype_styles,
+        ..Default::default()
+    };
 
     let node = FamilyNode {
         kind: FamilyNodeKind::Class,
