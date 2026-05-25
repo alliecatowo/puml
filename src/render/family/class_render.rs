@@ -1,6 +1,6 @@
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
 use crate::render::relation::{
-    has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
+    normalize_relation, normalize_relation_endpoints, render_ie_marker_defs,
 };
 use crate::render::svg::escape_text;
 use crate::render::RenderArtifact;
@@ -246,11 +246,11 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
-    if document
-        .relations
-        .iter()
-        .any(|relation| has_ie_endpoint_marker(&relation.arrow))
-    {
+    if document.relations.iter().any(|relation| {
+        normalize_relation(&relation.from, &relation.to, &relation.arrow)
+            .arrow
+            .has_information_engineering_endpoint()
+    }) {
         render_ie_marker_defs(&mut out, arrow_stroke);
     }
     out.push_str("</defs>");
