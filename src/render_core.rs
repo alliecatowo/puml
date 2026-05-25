@@ -7,12 +7,14 @@
 use std::collections::BTreeMap;
 
 pub mod backend;
+mod issues;
 pub mod validate;
 
 pub use backend::{
     BackendCapability, BackendDescriptor, BackendFormat, RenderBackend, SceneAvailability,
     SvgBackend, SVG_BACKEND_DESCRIPTOR,
 };
+pub use issues::GeometryIssue;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
@@ -294,6 +296,41 @@ pub struct LaneFrame {
 pub struct RouteChannel {
     pub id: String,
     pub bounds: Rect,
+    pub upper_rank: Option<usize>,
+    pub track_index: Option<usize>,
+    pub spacing: f64,
+    pub owner_edge_ids: Vec<String>,
+    pub boundary_group_ids: Vec<String>,
+}
+
+impl RouteChannel {
+    pub fn new(id: impl Into<String>, bounds: Rect) -> Self {
+        Self {
+            id: id.into(),
+            bounds,
+            upper_rank: None,
+            track_index: None,
+            spacing: 0.0,
+            owner_edge_ids: Vec::new(),
+            boundary_group_ids: Vec::new(),
+        }
+    }
+
+    pub fn with_graph_channel_metadata(
+        mut self,
+        upper_rank: usize,
+        track_index: usize,
+        spacing: f64,
+        owner_edge_ids: Vec<String>,
+        boundary_group_ids: Vec<String>,
+    ) -> Self {
+        self.upper_rank = Some(upper_rank);
+        self.track_index = Some(track_index);
+        self.spacing = spacing;
+        self.owner_edge_ids = owner_edge_ids;
+        self.boundary_group_ids = boundary_group_ids;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -433,75 +470,4 @@ impl Default for RenderScene {
     fn default() -> Self {
         Self::new(Rect::new(0.0, 0.0, 0.0, 0.0))
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GeometryIssue {
-    NodeOutsideViewport {
-        node_id: String,
-        bounds: Rect,
-        viewport: Rect,
-    },
-    GroupOutsideViewport {
-        group_id: String,
-        bounds: Rect,
-        viewport: Rect,
-    },
-    LaneOutsideViewport {
-        lane_id: String,
-        bounds: Rect,
-        viewport: Rect,
-    },
-    LabelOutsideViewport {
-        label_id: String,
-        bounds: Rect,
-        viewport: Rect,
-    },
-    EdgeMissingRoute {
-        edge_id: String,
-    },
-    EdgeEndpointDetached {
-        edge_id: String,
-        anchor_id: String,
-        expected: Point,
-        actual: Point,
-    },
-    EdgeCrossesNode {
-        edge_id: String,
-        node_id: String,
-        segment: Segment,
-        node_bounds: Rect,
-    },
-    EdgeCrossesGroupHeader {
-        edge_id: String,
-        group_id: String,
-        segment: Segment,
-        header_bounds: Rect,
-    },
-    EdgeLabelDetached {
-        edge_id: String,
-        label_id: String,
-        bounds: Rect,
-        min_distance: f64,
-        max_distance: f64,
-    },
-    EdgeAnchorOwnerMismatch {
-        edge_id: String,
-        anchor_id: String,
-        expected_node_id: String,
-        actual_owner_id: String,
-    },
-    EdgeEndpointMissingDeclaredPort {
-        edge_id: String,
-        anchor_id: String,
-        node_id: String,
-        position: Point,
-    },
-    EdgeAnchorPortMismatch {
-        edge_id: String,
-        anchor_id: String,
-        port_id: String,
-        expected: Point,
-        actual: Point,
-    },
 }

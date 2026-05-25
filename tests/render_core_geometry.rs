@@ -235,10 +235,8 @@ fn typed_scene_reports_route_channel_metrics() {
     scene.add_node(node("A", Rect::new(20.0, 10.0, 40.0, 30.0), Vec::new()));
     scene.route_channels.insert(
         "rank:0:track:0".to_string(),
-        puml::render_core::RouteChannel {
-            id: "rank:0:track:0".to_string(),
-            bounds: Rect::new(20.0, 60.0, 160.0, 12.0),
-        },
+        puml::render_core::RouteChannel::new("rank:0:track:0", Rect::new(20.0, 60.0, 160.0, 12.0))
+            .with_graph_channel_metadata(0, 0, 12.0, vec!["e1".to_string()], Vec::new()),
     );
 
     let report = scene.validate_scene();
@@ -250,6 +248,36 @@ fn typed_scene_reports_route_channel_metrics() {
         )),
         "expected route-channel metric, got {:?}",
         report.metrics
+    );
+}
+
+#[test]
+fn typed_scene_reports_horizontal_route_outside_owned_channel() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 220.0, 120.0));
+    scene.add_node(node("A", Rect::new(10.0, 40.0, 30.0, 30.0), Vec::new()));
+    scene.add_node(node("B", Rect::new(170.0, 40.0, 30.0, 30.0), Vec::new()));
+    scene.route_channels.insert(
+        "rank:0:track:0".to_string(),
+        puml::render_core::RouteChannel::new("rank:0:track:0", Rect::new(40.0, 80.0, 130.0, 12.0))
+            .with_graph_channel_metadata(0, 0, 12.0, vec!["e1".to_string()], Vec::new()),
+    );
+    scene.add_edge(SceneEdge {
+        id: "e1".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::new(vec![Point::new(40.0, 55.0), Point::new(170.0, 55.0)]),
+        source_anchor: anchor("e1:source", "A", 40.0, 55.0),
+        target_anchor: anchor("e1:target", "B", 170.0, 55.0),
+        labels: Vec::new(),
+    });
+
+    let issues = scene.validate_geometry();
+    assert!(
+        matches!(
+            issues.as_slice(),
+            [GeometryIssue::EdgeRouteOutsideChannel { edge_id, .. }] if edge_id == "e1"
+        ),
+        "expected route-channel ownership issue, got {issues:?}"
     );
 }
 

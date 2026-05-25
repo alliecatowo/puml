@@ -36,6 +36,16 @@ fn make_edge(id: &str, from: &str, to: &str) -> EdgeSpec {
         id: id.to_string(),
         from: from.to_string(),
         to: to.to_string(),
+        label: None,
+    }
+}
+
+fn make_labeled_edge(id: &str, from: &str, to: &str, label: &str) -> EdgeSpec {
+    EdgeSpec {
+        id: id.to_string(),
+        from: from.to_string(),
+        to: to.to_string(),
+        label: Some(label.to_string()),
     }
 }
 
@@ -103,7 +113,7 @@ fn group_bounds_are_computed() {
 #[test]
 fn render_scene_exposes_graph_layout_geometry() {
     let nodes = vec![make_node("A", Some("G1")), make_node("B", Some("G1"))];
-    let edges = vec![make_edge("e1", "A", "B")];
+    let edges = vec![make_labeled_edge("e1", "A", "B", "uses")];
     let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
 
     assert_eq!(layout.scene.nodes.len(), 2);
@@ -120,6 +130,8 @@ fn render_scene_exposes_graph_layout_geometry() {
     let edge = layout.scene.edges.get("e1").expect("typed edge e1");
     assert_eq!(edge.from, "A");
     assert_eq!(edge.to, "B");
+    assert_eq!(edge.labels.len(), 1);
+    assert_eq!(edge.labels[0].text, "uses");
     assert!(
         edge.source_anchor.port.is_some(),
         "source anchor should resolve to a typed node port"
@@ -216,6 +228,34 @@ fn shared_router_channels_are_ordered_deterministically() {
     );
     assert_eq!(first.route_channels, second.route_channels);
     assert_eq!(first.edge_paths, second.edge_paths);
+    let channel = first
+        .route_channels
+        .get("rank:0:track:0")
+        .expect("first rank channel");
+    assert_eq!(channel.upper_rank, Some(0));
+    assert_eq!(channel.track_index, Some(0));
+    assert!(channel.spacing > 0.0);
+    assert!(
+        channel.owner_edge_ids.iter().any(|edge_id| edge_id == "e1"),
+        "channel should record owning edge ids, got {:?}",
+        channel.owner_edge_ids
+    );
+}
+
+#[test]
+fn shared_router_channels_record_group_boundary_semantics() {
+    let nodes = vec![make_node("A", Some("G")), make_node("B", Some("G"))];
+    let edges = vec![make_edge("e1", "A", "B")];
+    let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
+
+    assert!(
+        layout
+            .route_channels
+            .values()
+            .any(|channel| channel.boundary_group_ids.iter().any(|id| id == "G")),
+        "route channels should expose group-boundary overlap metadata: {:?}",
+        layout.route_channels
+    );
 }
 
 #[test]
