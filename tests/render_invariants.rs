@@ -8,6 +8,7 @@
 //! round-trip: parse → normalize → render → SVG post-processing.
 
 use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
+use puml::render::RenderValidationState;
 use puml::render_core::validate::GeometryMetric;
 use puml::render_core::{
     Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneAvailability,
@@ -370,7 +371,7 @@ A --> B
         "artifact should retain normalizer diagnostics for callers that do not own the model"
     );
     assert!(
-        artifact.scene.is_some(),
+        artifact.typed_scene().is_some(),
         "graph-family artifact should expose the typed scene"
     );
     assert!(
@@ -389,9 +390,19 @@ A --> B
         SceneAvailability::TypedScene,
         "graph-family artifact should make typed scene availability explicit"
     );
+    assert_eq!(
+        artifact.scene_availability(),
+        SceneAvailability::TypedScene,
+        "scene availability should also be available through the artifact contract"
+    );
     assert!(
         artifact.invariant_report.is_some(),
         "graph-family artifact should retain the validation report from the same render pass"
+    );
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::TypedScene,
+        "graph-family artifact validation should be explicitly tied to the typed scene"
     );
 }
 
@@ -425,6 +436,11 @@ fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
         artifact.scene_availability,
         SceneAvailability::NotMigrated,
         "unmigrated renderers must be explicit instead of silent scene=None"
+    );
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::NotRun,
+        "unmigrated non-family artifacts should expose that no scene validation ran"
     );
 }
 

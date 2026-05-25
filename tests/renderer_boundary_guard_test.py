@@ -87,6 +87,19 @@ class RendererBoundaryGuardTest(unittest.TestCase):
             self.assertEqual(len(violations), 1)
             self.assertEqual(violations[0].rule, "artifact-constructor-boundary")
 
+    def test_artifact_scene_and_validation_state_writes_stay_behind_lifecycle_methods(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            write(root, "src/output/contract.rs", "self.scene_availability = availability;\n")
+            write(root, "src/render/mod.rs", "artifact.invariant_report = Some(report);\n")
+            write(root, "src/api/render.rs", "artifact.scene_availability = SceneAvailability::TypedScene;\n")
+
+            violations = check_renderer_boundaries.collect_violations(root)
+
+            self.assertEqual(len(violations), 1)
+            self.assertEqual(violations[0].rule, "artifact-state-boundary")
+            self.assertEqual(violations[0].path, "src/api/render.rs")
+
     def test_enforced_mode_returns_failure_for_violations(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

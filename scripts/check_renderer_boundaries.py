@@ -26,6 +26,7 @@ RENDER_CORE_FORBIDDEN = re.compile(
 SVG_PAGE_API = re.compile(r"\brender_svg_pages_from_model\b")
 DIRECT_RENDER_SVG = re.compile(r"\brender::render_[A-Za-z0-9_]+_svg\b")
 RENDER_ARTIFACT_LITERAL = re.compile(r"(?:=|return)\s*RenderArtifact\s*\{")
+RENDER_ARTIFACT_STATE_WRITE = re.compile(r"\.\s*(?:scene_availability|invariant_report)\s*=")
 
 DEFAULT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -43,6 +44,11 @@ DIRECT_RENDER_SVG_ALLOWLIST = {
 
 RENDER_ARTIFACT_LITERAL_ALLOWLIST = {
     "src/output/contract.rs": "RenderArtifact constructors live in the output contract",
+}
+
+RENDER_ARTIFACT_STATE_WRITE_ALLOWLIST = {
+    "src/output/contract.rs": "RenderArtifact constructors and lifecycle methods live in the output contract",
+    "src/render/mod.rs": "RenderArtifact lifecycle methods own scene/validation state transitions",
 }
 
 SKIP_DIRS = {
@@ -152,6 +158,25 @@ def check_render_artifact_literals(root: pathlib.Path, path: pathlib.Path) -> li
     ]
 
 
+def check_render_artifact_state_writes(root: pathlib.Path, path: pathlib.Path) -> list[Violation]:
+    rel = path.relative_to(root).as_posix()
+    text = path.read_text(encoding="utf-8")
+    if (
+        not RENDER_ARTIFACT_STATE_WRITE.search(text)
+        or rel in RENDER_ARTIFACT_STATE_WRITE_ALLOWLIST
+    ):
+        return []
+    return [
+        Violation(
+            "artifact-state-boundary",
+            rel,
+            line,
+            "update RenderArtifact scene/validation state through its lifecycle methods",
+        )
+        for line in line_matches(RENDER_ARTIFACT_STATE_WRITE, text)
+    ]
+
+
 def collect_violations(root: pathlib.Path) -> list[Violation]:
     violations: list[Violation] = []
     for path in iter_rust_files(root):
@@ -159,6 +184,7 @@ def collect_violations(root: pathlib.Path) -> list[Violation]:
         violations.extend(check_svg_page_api(root, path))
         violations.extend(check_direct_render_svg(root, path))
         violations.extend(check_render_artifact_literals(root, path))
+        violations.extend(check_render_artifact_state_writes(root, path))
     return sorted(violations)
 
 

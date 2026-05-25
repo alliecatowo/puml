@@ -39,6 +39,38 @@ mod wire;
 
 use crate::model::ScaleSpec;
 pub use crate::output::{RenderArtifact, RenderArtifactDimensions, RenderSceneContract};
+use crate::render_core::SceneAvailability;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderValidationState {
+    NotRun,
+    SvgBackstop,
+    TypedScene,
+}
+
+impl RenderArtifact {
+    pub fn scene_availability(&self) -> SceneAvailability {
+        self.scene_availability
+    }
+
+    pub fn validation_state(&self) -> RenderValidationState {
+        match (&self.invariant_report, self.typed_scene()) {
+            (None, _) => RenderValidationState::NotRun,
+            (Some(_), Some(_)) => RenderValidationState::TypedScene,
+            (Some(_), None) => RenderValidationState::SvgBackstop,
+        }
+    }
+
+    pub fn validate_svg(&mut self, mode: validate::AutoCorrect) {
+        let scene = if matches!(self.scene_availability, SceneAvailability::TypedScene) {
+            self.scene.as_ref()
+        } else {
+            None
+        };
+        self.invariant_report = Some(validate::run_with_scene(&mut self.svg, scene, mode).into());
+        self.refresh_svg_metadata();
+    }
+}
 
 pub use activity::render_activity_svg;
 pub use board_files::{render_board_svg, render_files_svg};
