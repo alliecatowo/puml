@@ -1,4 +1,6 @@
 use std::collections::BTreeSet;
+use std::fmt;
+use std::ops::Deref;
 
 use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
@@ -208,18 +210,243 @@ pub enum FamilyNodeKind {
 pub struct FamilyRelation {
     pub from: String,
     pub to: String,
-    pub arrow: String,
+    pub arrow: FamilyRelationArrow,
     pub label: Option<String>,
     pub stereotype: Option<String>,
     pub left_cardinality: Option<String>,
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,
     pub right_role: Option<String>,
-    pub line_color: Option<String>,
+    pub line_color: Option<FamilyRelationColor>,
     pub dashed: bool,
     pub hidden: bool,
     pub thickness: Option<u8>,
-    pub direction: Option<String>,
+    pub direction: Option<FamilyRelationDirection>,
     pub left_lollipop: bool,
     pub right_lollipop: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FamilyRelationDirection {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+impl FamilyRelationDirection {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+            Self::Up => "up",
+            Self::Down => "down",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "left" | "l" => Some(Self::Left),
+            "right" | "r" => Some(Self::Right),
+            "up" | "u" => Some(Self::Up),
+            "down" | "d" => Some(Self::Down),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for FamilyRelationDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Deref for FamilyRelationDirection {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FamilyRelationColor(String);
+
+impl FamilyRelationColor {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        crate::theme::color::parse_relation_color_token(value)
+            .map(Self)
+            .ok_or_else(|| format!("invalid relation line color `{value}`"))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for FamilyRelationColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Deref for FamilyRelationColor {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FamilyRelationEndpointMarker {
+    Open,
+    DoubleOpen,
+    Triangle,
+    DiamondFilled,
+    DiamondOpen,
+    CircleOpen,
+    CircleFilled,
+    TriangleFilled,
+    BoxFilled,
+    Plus,
+    Slash,
+    IeZeroMany,
+    IeOneMany,
+    IeZeroOne,
+    IeOne,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FamilyRelationLineKind {
+    Solid,
+    Dashed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FamilyRelationArrow {
+    raw: String,
+    line: FamilyRelationLineKind,
+    start_marker: Option<FamilyRelationEndpointMarker>,
+    end_marker: Option<FamilyRelationEndpointMarker>,
+}
+
+impl FamilyRelationArrow {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        let raw = value.trim();
+        if raw.len() < 2 || (!raw.contains('-') && !raw.contains('.')) {
+            return Err(format!("invalid relation arrow `{value}`"));
+        }
+        Ok(Self {
+            raw: raw.to_string(),
+            line: if raw.contains("..") {
+                FamilyRelationLineKind::Dashed
+            } else {
+                FamilyRelationLineKind::Solid
+            },
+            start_marker: relation_start_marker(raw),
+            end_marker: relation_end_marker(raw),
+        })
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.raw
+    }
+
+    pub fn line_kind(&self) -> FamilyRelationLineKind {
+        self.line
+    }
+
+    pub fn is_dashed(&self) -> bool {
+        self.line == FamilyRelationLineKind::Dashed
+    }
+
+    pub fn start_marker(&self) -> Option<FamilyRelationEndpointMarker> {
+        self.start_marker
+    }
+
+    pub fn end_marker(&self) -> Option<FamilyRelationEndpointMarker> {
+        self.end_marker
+    }
+
+    pub fn with_endpoint_markers(&self, start: &str, end: &str) -> Result<Self, String> {
+        Self::parse(&format!("{start}{}{end}", self.raw))
+    }
+}
+
+impl fmt::Display for FamilyRelationArrow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Deref for FamilyRelationArrow {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl PartialEq<&str> for FamilyRelationArrow {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<FamilyRelationArrow> for &str {
+    fn eq(&self, other: &FamilyRelationArrow) -> bool {
+        *self == other.as_str()
+    }
+}
+
+fn relation_start_marker(raw: &str) -> Option<FamilyRelationEndpointMarker> {
+    if raw.starts_with("}o") || raw.starts_with("o{") {
+        Some(FamilyRelationEndpointMarker::IeZeroMany)
+    } else if raw.starts_with("}|") || raw.starts_with("|{") {
+        Some(FamilyRelationEndpointMarker::IeOneMany)
+    } else if raw.starts_with("|o") || raw.starts_with("o|") {
+        Some(FamilyRelationEndpointMarker::IeZeroOne)
+    } else if raw.starts_with("||") {
+        Some(FamilyRelationEndpointMarker::IeOne)
+    } else if raw.starts_with("<<") {
+        Some(FamilyRelationEndpointMarker::DoubleOpen)
+    } else if raw.starts_with("<|") {
+        Some(FamilyRelationEndpointMarker::Triangle)
+    } else {
+        raw.chars().next().and_then(marker_from_endpoint_char)
+    }
+}
+
+fn relation_end_marker(raw: &str) -> Option<FamilyRelationEndpointMarker> {
+    if raw.ends_with("o{") || raw.ends_with("}o") {
+        Some(FamilyRelationEndpointMarker::IeZeroMany)
+    } else if raw.ends_with("|{") || raw.ends_with("}|") {
+        Some(FamilyRelationEndpointMarker::IeOneMany)
+    } else if raw.ends_with("o|") || raw.ends_with("|o") {
+        Some(FamilyRelationEndpointMarker::IeZeroOne)
+    } else if raw.ends_with("||") {
+        Some(FamilyRelationEndpointMarker::IeOne)
+    } else if raw.ends_with(">>") {
+        Some(FamilyRelationEndpointMarker::DoubleOpen)
+    } else if raw.ends_with("|>") {
+        Some(FamilyRelationEndpointMarker::Triangle)
+    } else {
+        raw.chars().last().and_then(marker_from_endpoint_char)
+    }
+}
+
+fn marker_from_endpoint_char(ch: char) -> Option<FamilyRelationEndpointMarker> {
+    match ch {
+        '<' | '>' => Some(FamilyRelationEndpointMarker::Open),
+        '*' => Some(FamilyRelationEndpointMarker::DiamondFilled),
+        'o' => Some(FamilyRelationEndpointMarker::DiamondOpen),
+        '0' | '(' | ')' => Some(FamilyRelationEndpointMarker::CircleOpen),
+        '@' => Some(FamilyRelationEndpointMarker::CircleFilled),
+        '^' => Some(FamilyRelationEndpointMarker::TriangleFilled),
+        '#' => Some(FamilyRelationEndpointMarker::BoxFilled),
+        '+' => Some(FamilyRelationEndpointMarker::Plus),
+        '\\' | '/' => Some(FamilyRelationEndpointMarker::Slash),
+        _ => None,
+    }
 }

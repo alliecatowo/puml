@@ -178,14 +178,14 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             } => {
                 normalize_timing_event(&mut nodes, &mut timing_state, time, signal, state, note);
             }
-            StatementKind::FamilyRelation(rel) => {
+            StatementKind::FamilyRelation(mut rel) => {
                 let (from, to) = if family_kind == DiagramKind::Timing {
                     (
                         normalize_timing_relation_endpoint(&rel.from, &timing_state),
                         normalize_timing_relation_endpoint(&rel.to, &timing_state),
                     )
                 } else {
-                    (rel.from, rel.to)
+                    (rel.from.clone(), rel.to.clone())
                 };
                 last_relation = Some((from.clone(), to.clone()));
                 // Component/Deployment: auto-create nodes for relation endpoints
@@ -219,24 +219,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         }
                     }
                 }
-                relations.push(ModelFamilyRelation {
-                    from,
-                    to,
-                    arrow: rel.arrow,
-                    label: rel.label,
-                    stereotype: rel.stereotype,
-                    left_cardinality: rel.left_cardinality,
-                    right_cardinality: rel.right_cardinality,
-                    left_role: rel.left_role,
-                    right_role: rel.right_role,
-                    line_color: rel.line_color,
-                    dashed: rel.dashed,
-                    hidden: rel.hidden,
-                    thickness: rel.thickness,
-                    direction: rel.direction,
-                    left_lollipop: rel.left_lollipop,
-                    right_lollipop: rel.right_lollipop,
-                });
+                rel.from = from;
+                rel.to = to;
+                relations.push(model_relation_from_ast(rel)?);
             }
             StatementKind::Note(note) => {
                 note_counter += 1;
@@ -333,24 +318,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     member_ids: group_member_ids,
                 });
                 for rel in group_relations {
-                    relations.push(ModelFamilyRelation {
-                        from: rel.from,
-                        to: rel.to,
-                        arrow: rel.arrow,
-                        label: rel.label,
-                        stereotype: rel.stereotype,
-                        left_cardinality: rel.left_cardinality,
-                        right_cardinality: rel.right_cardinality,
-                        left_role: rel.left_role,
-                        right_role: rel.right_role,
-                        line_color: rel.line_color,
-                        dashed: rel.dashed,
-                        hidden: rel.hidden,
-                        thickness: rel.thickness,
-                        direction: rel.direction,
-                        left_lollipop: rel.left_lollipop,
-                        right_lollipop: rel.right_lollipop,
-                    });
+                    relations.push(model_relation_from_ast(rel)?);
                 }
             }
             StatementKind::Title(v) => common.title(v),

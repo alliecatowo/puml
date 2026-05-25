@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::model::FamilyNodeKind;
 use crate::render::geometry::{compute_edge_anchors_for_direction, pick_port};
 use crate::render::relation::{
-    normalize_relation, render_lollipop_endpoint, usecase_dependency_label, RelationEndpointMarker,
+    arrow_style, normalize_relation_endpoints, render_lollipop_endpoint, usecase_dependency_label,
 };
 use crate::render::svg::escape_text;
 
@@ -39,10 +39,8 @@ pub(super) struct ClassRelationCtx<'a> {
 /// Nodes are rendered after this call so they visually cover edge endpoints.
 pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
     for (rel_idx, relation) in ctx.relations.iter().enumerate() {
-        let normalized_relation = normalize_relation(&relation.from, &relation.to, &relation.arrow);
-        let from_name = normalized_relation.from;
-        let to_name = normalized_relation.to;
-        let normalized_arrow = normalized_relation.arrow;
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
         let render_from_name = resolve_relation_endpoint_key(&from_name, ctx.node_boxes);
         let render_to_name = resolve_relation_endpoint_key(&to_name, ctx.node_boxes);
         let from = ctx.node_boxes.get(&render_from_name);
@@ -50,13 +48,13 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
-        let mut style = normalized_arrow.style();
+        let mut style = arrow_style(&normalized_arrow);
         let usecase_dependency = usecase_dependency_label(relation.label.as_deref())
             .or_else(|| usecase_dependency_label(relation.stereotype.as_deref()));
         if usecase_dependency.is_some() {
             style.dashed = true;
-            if style.end_marker.svg_marker_id().is_none() {
-                style.end_marker = RelationEndpointMarker::Open;
+            if style.end_marker.is_none() {
+                style.end_marker = Some("arrow-open");
             }
         }
         let (mut x1, mut y1, mut x2, mut y2) = if relation.direction.is_some() {
@@ -122,10 +120,10 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             ""
         };
         let mut markers = String::new();
-        if let Some(end) = style.end_marker.svg_marker_id() {
+        if let Some(end) = style.end_marker {
             markers.push_str(&format!(" marker-end=\"url(#{end})\""));
         }
-        if let Some(start) = style.start_marker.svg_marker_id() {
+        if let Some(start) = style.start_marker {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
         let direction_attr = relation

@@ -1,5 +1,6 @@
 use puml::model::{
-    ChenNodeKind, FamilyNodeKind, FamilyOrientation, FamilyStyle, NormalizedDocument, StateNodeKind,
+    ChenNodeKind, FamilyNodeKind, FamilyOrientation, FamilyRelationLineKind, FamilyStyle,
+    NormalizedDocument, StateNodeKind,
 };
 use puml::{ast::StatementKind, extract_metadata};
 
@@ -149,6 +150,7 @@ Order --() ShipmentPort
     assert_eq!(styled.right_cardinality.as_deref(), Some("0..*"));
     assert_eq!(styled.right_role.as_deref(), Some("items"));
     assert_eq!(styled.line_color.as_deref(), Some("#336699"));
+    assert_eq!(styled.arrow.line_kind(), FamilyRelationLineKind::Solid);
     assert!(styled.dashed);
     assert_eq!(styled.thickness, Some(4));
 

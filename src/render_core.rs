@@ -6,20 +6,13 @@
 
 use std::collections::BTreeMap;
 
-mod backend;
+pub mod backend;
 pub mod validate;
 
 pub use backend::{
-    BackendCapability, BackendDescriptor, BackendFormat, RenderBackend, SvgBackend,
-    SVG_BACKEND_DESCRIPTOR,
+    BackendCapability, BackendDescriptor, BackendFormat, RenderBackend, SceneAvailability,
+    SvgBackend, SVG_BACKEND_DESCRIPTOR,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SceneAvailability {
-    TypedScene,
-    NotMigrated,
-    Unsupported,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
