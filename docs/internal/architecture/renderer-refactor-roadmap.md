@@ -1,12 +1,11 @@
 # Renderer Refactor Roadmap
 
-Status: current architecture plan as of 2026-05-24.
+Status: operational architecture plan as of 2026-05-25.
 
-This document is the durable result of a fresh code, issue, and visual corpus
-investigation. It replaces ad hoc parity-audit and wave-log planning as the
-starting point for renderer architecture work. It is not a support scoreboard.
-Use tests, examples, current GitHub issues, and targeted PlantUML reference
-checks as evidence for specific behavior.
+This document is the compact assignment map for renderer architecture work. It
+replaces ad hoc parity-audit and wave-log planning as the starting point for new
+agents. It is not a support scoreboard. Use tests, examples, current GitHub
+issues, and targeted PlantUML reference checks as evidence for specific behavior.
 
 ## Diagnosis
 
@@ -18,24 +17,16 @@ PlantUML-ish source -> broad AST/model structs -> direct SVG strings
 
 That shape causes the current problems:
 
-- Mermaid and PicoUML adapt through generated PlantUML strings, losing source
-  identity and making diagnostics imprecise.
-- `StatementKind::Unknown(String)` represents too many states: unsupported
-  syntax, deferred raw content, malformed content, benign pass-through, and
-  feature loss.
+- Mermaid and PicoUML still adapt through generated PlantUML strings in some
+  paths, so source identity and feature-loss diagnostics need continued hardening.
+- Some normalizers still match `StatementKind::Unknown(String)` beside the typed
+  unsupported, deferred, malformed, and comment-lowered variants.
 - Layout, routing, text measurement, color parsing, label placement, and SVG
-  emission are duplicated across diagram families.
-- Visual checks happen too late. `src/render/validate.rs` reconstructs geometry
-  from serialized SVG instead of validating a typed scene before backend output.
-- The largest files are no longer maintainable as ownership units:
-  `src/render/family.rs`, `src/normalize/family.rs`, `src/main.rs`,
-  `src/render/state.rs`, `src/theme.rs`, `src/parser/family.rs`,
-  `src/layout.rs`, and `src/render/graph_layout.rs`.
-
-The main visual defects are not isolated SVG polish. They are missing shared
-geometry contracts: relation routes through group headers, detached labels,
-excessive whitespace, weak group/lane ownership, and inconsistent port/anchor
-selection.
+  emission remain partly duplicated across diagram families.
+- Typed scene validation exists, but many callers still only pass SVG/output bytes.
+- Visual defects are geometry-contract defects: routes through group headers,
+  detached labels, excessive whitespace, weak group/lane ownership, and
+  inconsistent port/anchor selection.
 
 ## Target Shape
 
@@ -47,7 +38,7 @@ frontend -> preprocess -> parse/lower -> normalize -> build_scene -> validate_sc
 
 ### `src/frontend/`
 
-Own language identity and source mapping.
+Own language identity and source mapping:
 
 - `Frontend`
 - `FrontendMatch`
@@ -57,13 +48,13 @@ Own language identity and source mapping.
 - `SourceMap`
 - `MappedSpan`
 
-PlantUML, Mermaid, and PicoUML should be sibling frontends. Mermaid and PicoUML
-may keep temporary PlantUML adapters during migration, but those adapters must
-report feature loss instead of silently lowering unknown lines to comments.
+Mermaid and PicoUML are frontends with temporary PlantUML adapters. Their active
+follow-up is to keep source spans and feature-loss diagnostics precise as more
+syntax is migrated away from string lowering.
 
-### `src/ir/`
+### Future `src/ir/`
 
-Own language-neutral diagram data.
+Own language-neutral diagram data:
 
 - `DiagramIr`
 - `DiagramHeader`
@@ -78,23 +69,9 @@ Own language-neutral diagram data.
 - `StructuredDataIr`
 - `RawDiagramIr`
 
-### `src/families/`
+### Future `src/families/`
 
-Own semantic family behavior.
-
-Initial modules:
-
-- `sequence`
-- `graph`
-- `statechart`
-- `activity`
-- `timeline`
-- `tree`
-- `wireframe`
-- `structured`
-- `raw`
-
-Each family should expose a narrow spec:
+Own semantic family behavior. Each family should expose a narrow spec:
 
 ```rust
 trait FamilySpec {
@@ -108,9 +85,7 @@ trait FamilySpec {
 
 ### `src/render_core/`
 
-Own renderer-agnostic geometry and backend contracts.
-
-Core types:
+Own renderer-agnostic geometry, validation, and backend contracts:
 
 - `RenderScene`
 - `SceneNode`
@@ -143,86 +118,92 @@ Core traits:
 - `ShapeRenderer`
 - `Backend`
 
-SVG should become one backend, not the first place geometry becomes inspectable.
+SVG should be one backend, not the first place geometry becomes inspectable.
 
-### `src/renderers/`
+### Renderer Adapters
 
-Renderers should become thin family adapters that build `RenderScene`.
+Renderers should become thin family adapters that build `RenderScene` or return
+a render artifact carrying SVG plus optional typed scene data. Renderers should
+not own generic text wrapping, edge routing, bbox math, marker definitions,
+color parsing, or scene validity.
 
-Suggested modules:
+## Completed First Slice
 
-- `sequence.rs`
-- `graph/adapter.rs`
-- `graph/class.rs`
-- `graph/component.rs`
-- `graph/deployment.rs`
-- `graph/usecase.rs`
-- `graph/c4.rs`
-- `graph/shapes.rs`
-- `graph/relations.rs`
-- `graph/projections.rs`
-- `statechart.rs`
-- `activity.rs`
-- `timing.rs`
-- `tree.rs`
-- `salt.rs`
-- `chart.rs`
+These contracts landed in the 2026-05-24/25 merge wave. Treat them as baseline
+architecture, not as new assignment targets:
 
-Renderers should not own generic text wrapping, edge routing, bbox math, marker
-definitions, color parsing, or scene validity.
+- #1111: registry and scene-contract foundation.
+- #1112: typed `render_core::RenderScene` geometry contract.
+- #1113: initial visual quality gates and promoted corpus cases.
+- #1114: frontend source-map and feature-loss diagnostic spine.
+- #1115: PlantUML element registry and mixed-element graph-model foundation.
+- #1116: authored Rust file-size split program and warning guardrail.
+- #1117: shared diagnostics, output, text, style, geometry, and directive utilities.
+- #1150: typed unsupported/deferred/malformed syntax variants beyond raw
+  `Unknown(String)`.
+- Refactor wave splits through #1160-#1180: parser, normalize, CLI, LSP, frontend,
+  graph-layout, graph-family, sprite/icon, salt, timing, and shared render modules.
 
-## Migration Order
+Do not reopen these broad issues for follow-up work. File or use focused issues
+that name the remaining caller, contract, fixture, and verification command.
 
-1. Add guardrails.
-   - Add a warning-only authored Rust file line-count check with a 600-line target.
-   - Allowlist generated icon tables and other generated artifacts.
-   - Do not block work until the first split issues are open and assigned.
+## Active Follow-Ups
 
-2. Introduce the frontend boundary.
-   - Add `SourceMap` and `FrontendResult`.
-   - Wrap existing Mermaid/PicoUML adapters so diagnostics map back to original
-     source spans.
-   - Stop silent comment-lowering from counting as clean success.
+Start here when assigning renderer architecture work:
 
-3. Replace broad dispatch with a registry.
-   - Add `DiagramRegistry` or equivalent family registry.
-   - Move parser aliases, normalizer selection, renderer selection, text output,
-     metadata support, LSP support, and frontend compatibility into registry data.
+- #1181: enforce the Rust file-size guardrail in CI. Do not perform more splits
+  in that issue.
+- #1182: return render artifacts carrying SVG, dimensions/format metadata,
+  diagnostics, and optional typed `RenderScene` validation data.
+- #1183: eliminate remaining normalizer paths that still treat
+  `StatementKind::Unknown` like unsupported, deferred, malformed, or comment-lowered
+  syntax.
+- #1184: build the shared style cascade for theme presets, skinparam,
+  stereotypes, inline tokens, and `<style>` blocks.
+- #1185: add LSP workspace commands for `renderScene`, `export`, and
+  `explainDiagnostic` through shared library APIs.
+- #592: finish hierarchical graph-layout adoption across node-and-edge families.
+- #593: converge orthogonal routing on shared route channels.
+- #594: keep visual quality work tied to compactness, labels, routing, corpus
+  baselines, and invariant tests.
+- #816 and #1145: expand typed pre-SVG scene validation, especially through the
+  graph-family render path.
+- #870: continue converting family renderers around shared scene hooks and
+  invariants.
 
-4. Extract shared low-risk modules.
-   - `src/diagnostic.rs`: public diagnostic code splitting, line/column helpers,
-     warning extraction, render options.
-   - `src/output.rs`: CLI/watch/WASM output conversion and format metadata.
-   - `src/render/text_metrics.rs`: shared wrapping and measurement.
-   - `src/theme/color.rs` or `src/style.rs`: color tokens and line style parsing.
-   - `src/normalize/common.rs`: title/header/footer/caption/legend/scale/common
-     directive handling.
+The active issues above are the assignment surface. #590 remains the parent epic.
+Closed epics such as #399, #436, and #525 are historical context only; do not
+present them as active work.
 
-5. Add typed geometry.
-   - Create the `render_core` geometry primitives.
-   - Migrate duplicate `Rect`/`Segment`/intersection helpers from family,
-     activity, state, graph layout, and SVG validation.
+## Next Migration Order
 
-6. Move validation before SVG.
-   - Keep `src/render/validate.rs` as a compatibility backstop initially.
-   - Add pre-SVG checks for routes, labels, groups, ports, and viewport bounds.
+1. Enforce the file-size guardrail (#1181).
+   - `scripts/check_rust_file_sizes.py --fail-on-violations` is already wired into
+     `scripts/check-all.sh`; keep generated artifacts allowlisted only when they
+     are actually generated.
 
-7. Split graph layout and graph renderers.
-   - Split `src/render/graph_layout.rs` into `types`, `rank`, `crossing`,
-     `coordinates`, `groups`, and `router`.
-   - Split `src/render/family.rs` into graph-family modules.
-   - Route class/object/usecase/component/deployment/C4 through one graph adapter.
+2. Attach typed scenes to render artifacts (#1182, #1145).
+   - Start with the graph-family path.
+   - Preserve existing public SVG APIs with adapters.
+   - Prove the attached scene is the scene validated before SVG output.
 
-8. Converge sequence and state label geometry.
-   - Replace sequence-only raw `src/scene.rs` usage with either a
-     `sequence::SceneDraft` or the shared scene contract.
-   - Use one `LabelPlacer` for state transition labels, sequence ref/group labels,
-     graph edge labels, and timing/chart labels where applicable.
+3. Finish typed unknown cleanup (#1183).
+   - Keep intentional raw pass-through as `DeferredRaw` or another explicit typed
+     category.
+   - Do not collapse malformed, unsupported, comment-lowered, and deferred content
+     back into one fallback state.
 
-9. Split CLI/LSP/WASM orchestration.
-   - Split `src/main.rs` into CLI run/input/output/dump/diagnostic modules.
-   - Make library compile/render APIs authoritative for CLI, watch, LSP, WASM,
-     Studio, and MCP surfaces.
+4. Promote shared style cascade call sites (#1184).
+   - Start with one or two graph/sequence paths.
+   - Keep current non-fatal warning behavior unless the issue explicitly changes it.
+
+5. Expand renderer invariants and route channels (#592, #593, #594, #816, #870).
+   - Move checks before SVG wherever typed scene data exists.
+   - Keep post-SVG validation only as a compatibility backstop.
+
+6. Add command surfaces on top of shared contracts (#1185).
+   - LSP, CLI, WASM, Studio, and MCP should route through the same render and
+     diagnostic APIs rather than re-parsing or reconstructing output locally.
 
 ## Invariants To Enforce
 
@@ -270,32 +251,22 @@ Promote these to visual baseline or invariant fixtures after review:
 Do not add these as one-off syntax patches without checking whether the shared
 contract should change first:
 
-- Replace `StatementKind::Unknown(String)` with typed unsupported/deferred/malformed
-  variants.
-- Report Mermaid/PicoUML feature loss instead of silently emitting comments.
-- Preserve unknown nested state blocks or diagnose them; do not skip them.
-- Add true mixed-element graph support for `allowmixing`.
-- Build a PlantUML element registry for declarations, aliases, shape kind,
+- Finish removing remaining `StatementKind::Unknown` normalizer fallbacks after
+  #1150.
+- Keep Mermaid/PicoUML feature-loss diagnostics mapped to original source spans.
+- Preserve unknown nested state blocks or diagnose them explicitly; do not skip them.
+- Complete mixed-element graph support for `allowmixing` on top of the registry.
+- Extend the PlantUML element registry for declarations, aliases, shape kind,
   stereotypes, legal families, parser, and renderer.
-- Promote `<style>`, `skinparam`, stereotypes, and themes into a shared cascade.
+- Promote `<style>`, `skinparam`, stereotypes, and themes into the shared cascade.
 - Expand deployment/component/usecase/class declaration vocabulary after the
   registry exists.
 - Treat Gantt/chronology as baseline subsets until their own family model is deep
   enough for full status claims.
 
-## Issue Program
+## Assignment Rule
 
-The issue board should be organized around this backbone:
-
-1. Renderer architecture registry and scene contract.
-2. Typed render scene and pre-SVG invariants.
-3. Graph layout adoption and legacy grid deletion.
-4. Shared geometry/router/label placer.
-5. `<600 LOC` authored-file split program.
-6. Frontend source-map and typed frontend results.
-7. Style cascade and element registry.
-8. Visual quality corpus and invariant gates.
-
-Stale parity ledgers and dated wave logs should not be used to assign work.
-Current issues should include concrete files, fixture paths, acceptance criteria,
-and verification commands.
+Stale parity ledgers, dated wave logs, and closed broad epics should not be used
+to assign work. Current issues should include concrete files, fixture paths,
+acceptance criteria, and verification commands. If the docs and an executable
+test disagree, trust the test and update the doc in the same PR.
