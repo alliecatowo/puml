@@ -1,16 +1,287 @@
 {
-  "schema_version": "1.0",
-  "name": "promoted oracle parity fixtures",
+  "schema_version": "1.1",
+  "name": "promoted oracle and visual parity matrix",
+  "coverage_goals": [
+    "core UML family coverage",
+    "non-UML and specialized family coverage",
+    "style, skinparam, stdlib, icon, preprocessor, and CLI-compatible inputs",
+    "visual-gate and PNG-evidence classification"
+  ],
   "promoted_fixtures": [
     {
       "path": "tests/fixtures/basic/hello.puml",
+      "family": "sequence",
+      "gate": "blocking",
       "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "core-uml", "cli-compatible"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "baseline-smoke"
+      },
+      "issue": 88,
       "reason": "baseline sequence parity smoke fixture"
     },
     {
       "path": "docs/examples/sequence/01_basic.puml",
+      "family": "sequence",
+      "gate": "blocking",
       "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "visual-semantic", "core-uml", "cli-compatible"],
+      "evidence": {
+        "visual_gate": "semantic-svg-and-png-baseline",
+        "png_status": "committed-baseline"
+      },
+      "issue": 88,
       "reason": "public sequence example promoted as oracle parity evidence"
+    },
+    {
+      "path": "docs/examples/class/02_inheritance.puml",
+      "family": "class",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "visual-semantic", "core-uml"],
+      "evidence": {
+        "visual_gate": "semantic-svg-and-png-baseline",
+        "png_status": "committed-baseline"
+      },
+      "issue": 594,
+      "reason": "class inheritance is a core UML parity lane; report-only until current JAR category is confirmed on CI"
+    },
+    {
+      "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+      "family": "component",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "visual-semantic", "core-uml", "routing", "known-visual-debt"],
+      "evidence": {
+        "visual_gate": "typed-or-fallback-invariants",
+        "png_status": "inspected-pr-evidence",
+        "visual_manifest": true
+      },
+      "issue": 594,
+      "reason": "component ports, lollipop interfaces, and labels are high-risk shared geometry cases"
+    },
+    {
+      "path": "docs/examples/deployment/07_ch08_keyword_parity.puml",
+      "family": "deployment",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "core-uml", "keyword-parity"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "inspected-pr-evidence"
+      },
+      "issue": 594,
+      "reason": "deployment keyword breadth should stay visible in oracle reports while layout parity continues"
+    },
+    {
+      "path": "docs/examples/state/12_ch09_parity.puml",
+      "family": "state",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "core-uml", "visual-semantic"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "inspected-pr-evidence"
+      },
+      "issue": 594,
+      "reason": "state chapter parity fixture covers nested state and transition-label output"
+    },
+    {
+      "path": "docs/examples/activity_new/07_ch06_parity.puml",
+      "family": "activity",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "core-uml", "lane-ownership", "visual-semantic"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "inspected-pr-evidence"
+      },
+      "issue": 594,
+      "reason": "new activity syntax and lane ownership need oracle-visible parity coverage"
+    },
+    {
+      "path": "docs/examples/timing/07_chapter10_parity.puml",
+      "family": "timing",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "specialized-family", "visual-semantic"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 594,
+      "reason": "timing diagrams are specialized PlantUML syntax and should not be hidden behind sequence-only oracle smoke"
+    },
+    {
+      "path": "docs/examples/gantt/09_ch16_parity.puml",
+      "family": "gantt",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "calendar-layout"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "Gantt calendar/resource parity is a known high-value oracle lane"
+    },
+    {
+      "path": "tests/fixtures/timeline/valid_chronology_baseline.puml",
+      "family": "chronology",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "timeline"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "chronology support should be represented in the parity matrix even before full visual baseline promotion"
+    },
+    {
+      "path": "docs/examples/salt/06_style_widget_depth.puml",
+      "family": "salt",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "style", "known-visual-debt"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 739,
+      "reason": "Salt widget and style depth is broad enough to need explicit report-mode parity tracking"
+    },
+    {
+      "path": "docs/examples/nwdiag/04_icons_multiline.puml",
+      "family": "nwdiag",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "specialized-family", "routing", "icons"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 594,
+      "reason": "nwdiag topology, icons, and multiline node labels are shared visual-risk cases"
+    },
+    {
+      "path": "docs/examples/json/04_deep_nesting_arrays_of_objects.puml",
+      "family": "json",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "structured-data"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "JSON projection parity should stay visible in the same matrix as UML families"
+    },
+    {
+      "path": "tests/fixtures/structured/valid_yaml_nested_projection.puml",
+      "family": "yaml",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "structured-data"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "YAML projection parity should be represented beside JSON to catch structured-data drift"
+    },
+    {
+      "path": "docs/examples/chart/06_multi_series_line.puml",
+      "family": "chart",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "non-uml", "labels", "known-visual-debt"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only",
+        "visual_manifest": true
+      },
+      "issue": 594,
+      "reason": "chart legends, axes, and labels are common visual parity failure points"
+    },
+    {
+      "path": "tests/fixtures/stdlib_catalog/valid_c4_context_extended.puml",
+      "family": "stdlib",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "stdlib", "include-resolution", "c4"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "stdlib include resolution and C4 macros need oracle-visible trend coverage"
+    },
+    {
+      "path": "docs/examples/sprites/02_openiconic.puml",
+      "family": "sprites",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "icons", "stdlib", "visual-semantic"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 739,
+      "reason": "OpenIconic rendering is a visual parity lane and should be classified in oracle reports"
+    },
+    {
+      "path": "docs/examples/preprocessor/04_function.puml",
+      "family": "preprocessor",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "preprocessor", "cli-compatible"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 88,
+      "reason": "preprocessor function expansion must be tracked as parity input, not only parser smoke"
+    },
+    {
+      "path": "tests/fixtures/styling/valid_style_block_component.puml",
+      "family": "style",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "style", "skinparam", "component"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 739,
+      "reason": "style block cascade behavior needs report-mode oracle coverage until typed style contracts are complete"
+    },
+    {
+      "path": "tests/fixtures/styling/valid_skinparam_component_deployment_compat.puml",
+      "family": "skinparam",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "style", "skinparam", "deployment"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 739,
+      "reason": "skinparam compatibility should appear in the same matrix as renderer visual gates"
+    },
+    {
+      "path": "docs/examples/basic_hello.puml",
+      "family": "cli",
+      "gate": "report",
+      "allowed_categories": ["match"],
+      "matrix_tags": ["oracle", "cli-compatible", "output-contract"],
+      "evidence": {
+        "visual_gate": "semantic-svg",
+        "png_status": "report-only"
+      },
+      "issue": 89,
+      "reason": "minimal CLI-compatible input gives output/export changes a stable oracle row"
     }
   ]
 }
