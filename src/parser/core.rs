@@ -565,6 +565,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+            statements.push(Statement {
+                span,
+                kind: StatementKind::BenignPassthrough(line.to_string()),
+            });
+            i += 1;
+            continue;
+        }
+
+        if is_common_orientation_directive(line) {
+            statements.push(Statement {
+                span,
+                kind: StatementKind::BenignPassthrough(line.to_string()),
+            });
+            i += 1;
+            continue;
         }
 
         statements.push(Statement {

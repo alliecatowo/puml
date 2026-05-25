@@ -124,7 +124,12 @@ fn explain_diagnostic_result(args: &[Value]) -> Value {
         "diagnostic": {
             "code": explanation.code,
             "message": message,
-            "range": diagnostic.get("range").cloned().unwrap_or(Value::Null)
+            "range": diagnostic.get("range").cloned().unwrap_or(Value::Null),
+            "category": diagnostic
+                .pointer("/data/category")
+                .or_else(|| diagnostic.get("category"))
+                .cloned()
+                .unwrap_or(Value::Null)
         },
         "explanation": {
             "summary": explanation.summary,

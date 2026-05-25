@@ -386,7 +386,13 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category == RawSyntaxCategory::Malformed {
+                if matches!(
+                    raw.category,
+                    RawSyntaxCategory::LegacyUnknown
+                        | RawSyntaxCategory::Malformed
+                        | RawSyntaxCategory::Deferred
+                        | RawSyntaxCategory::CommentLowered
+                ) {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,
@@ -396,11 +402,15 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 let line = raw.line;
                 // Handle `left to right direction` / `top to bottom direction`
                 // (and reverse variants) for component/state/activity diagrams.
-                if let Some(dir) = parse_family_orientation_directive(line) {
-                    orientation = dir;
-                    continue;
+                if raw.category == RawSyntaxCategory::BenignPassthrough {
+                    if let Some(dir) = parse_family_orientation_directive(line) {
+                        orientation = dir;
+                        continue;
+                    }
                 }
-                if family_kind == DiagramKind::Activity {
+                if family_kind == DiagramKind::Activity
+                    && raw.category == RawSyntaxCategory::Unsupported
+                {
                     normalize_activity_unknown_line(&mut nodes, &mut activity_state, line);
                     continue;
                 }

@@ -782,6 +782,7 @@ fn mermaid_flowchart_adapter_warning_reaches_cli_json_diagnostics() {
 
     assert_eq!(json["schema"], "puml.diagnostics");
     assert_eq!(json["diagnostics"][0]["severity"], "warning");
+    assert_eq!(json["diagnostics"][0]["category"], "feature-loss");
     assert_eq!(json["diagnostics"][0]["code"], "W_MERMAID_STYLE_PARTIAL");
     assert_eq!(json["diagnostics"][0]["line"], 2);
     assert_eq!(json["diagnostics"][0]["column"], 1);
@@ -815,6 +816,7 @@ fn mermaid_class_adapter_warning_reaches_cli_json_diagnostics() {
 
     assert_eq!(json["schema"], "puml.diagnostics");
     assert_eq!(json["diagnostics"][0]["severity"], "warning");
+    assert_eq!(json["diagnostics"][0]["category"], "feature-loss");
     assert_eq!(json["diagnostics"][0]["code"], "W_MERMAID_CLASS_DEFERRED");
     assert_eq!(json["diagnostics"][0]["line"], 3);
     assert_eq!(json["diagnostics"][0]["column"], 1);

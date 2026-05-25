@@ -43,7 +43,7 @@ pub use api::{
     PreprocessPipelineResult,
 };
 pub use ast::Document;
-pub use diagnostic::{Diagnostic, DiagnosticJson};
+pub use diagnostic::{Diagnostic, DiagnosticCategory, DiagnosticJson};
 pub use metadata::{extract_metadata, DiagramMetadata};
 pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,

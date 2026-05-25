@@ -178,6 +178,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::StdlibInventory => json!("StdlibInventory"),
         StatementKind::UnsupportedSyntax(v) => json!({"UnsupportedSyntax": v}),
         StatementKind::DeferredRaw(v) => json!({"DeferredRaw": v}),
+        StatementKind::BenignPassthrough(v) => json!({"BenignPassthrough": v}),
         StatementKind::CommentLowered(v) => json!({"CommentLowered": v}),
         StatementKind::MalformedSyntax(v) => json!({"MalformedSyntax": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),

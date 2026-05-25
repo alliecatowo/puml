@@ -1508,6 +1508,10 @@ fn normalize_sequence_distinguishes_raw_syntax_categories() {
             "E_SEQUENCE_DEFERRED_RAW",
         ),
         (
+            puml::ast::StatementKind::BenignPassthrough("left to right direction".to_string()),
+            "E_SEQUENCE_PASSTHROUGH_UNCONSUMED",
+        ),
+        (
             puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
             "E_SEQUENCE_COMMENT_LOWERED",
         ),
@@ -1548,6 +1552,10 @@ fn normalize_state_distinguishes_raw_syntax_categories() {
         (
             puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
             "E_STATE_DEFERRED_RAW",
+        ),
+        (
+            puml::ast::StatementKind::BenignPassthrough("left to right direction".to_string()),
+            "E_STATE_PASSTHROUGH_UNCONSUMED",
         ),
         (
             puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
@@ -1646,7 +1654,18 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
             kind: puml::ast::StatementKind::UnsupportedSyntax("plain label".to_string()),
         }],
     };
-    let model = normalize_family(salt_unsupported).expect("salt parser fallback remains a row");
+    let err = normalize_family(salt_unsupported)
+        .expect_err("unsupported salt syntax must no longer be a label row");
+    assert!(err.message.contains("E_FAMILY_SALT_UNSUPPORTED_SYNTAX"));
+
+    let salt_passthrough = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Salt,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 11),
+            kind: puml::ast::StatementKind::BenignPassthrough("plain label".to_string()),
+        }],
+    };
+    let model = normalize_family(salt_passthrough).expect("salt plain text rows are explicit");
     match model {
         NormalizedDocument::Family(family) => {
             assert_eq!(family.nodes.len(), 1);
@@ -1662,14 +1681,9 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
             kind: puml::ast::StatementKind::Unknown("plain label".to_string()),
         }],
     };
-    let model = normalize_family(salt_legacy).expect("salt legacy unknown remains pass-through");
-    match model {
-        NormalizedDocument::Family(family) => {
-            assert_eq!(family.nodes.len(), 1);
-            assert_eq!(family.nodes[0].name, "SALT_ROW\x1fL:plain label");
-        }
-        other => panic!("expected salt family model, got {other:?}"),
-    }
+    let err =
+        normalize_family(salt_legacy).expect_err("legacy unknown salt rows must not pass through");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
 }
 
 #[test]
@@ -1726,7 +1740,7 @@ fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown(
         statements: vec![
             puml::ast::Statement {
                 span: Span::new(0, 23),
-                kind: puml::ast::StatementKind::UnsupportedSyntax(
+                kind: puml::ast::StatementKind::BenignPassthrough(
                     "left to right direction".to_string(),
                 ),
             },
@@ -1742,7 +1756,7 @@ fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown(
             },
         ],
     };
-    let model = normalize_family(oriented).expect("typed unsupported direction remains supported");
+    let model = normalize_family(oriented).expect("typed passthrough direction remains supported");
     match model {
         NormalizedDocument::Chen(doc) => {
             assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
@@ -1767,12 +1781,12 @@ fn normalize_usecase_direction_line_remains_parser_deferred_but_supported() {
         kind: DiagramKind::UseCase,
         statements: vec![puml::ast::Statement {
             span: Span::new(0, 23),
-            kind: puml::ast::StatementKind::UnsupportedSyntax(
+            kind: puml::ast::StatementKind::BenignPassthrough(
                 "left to right direction".to_string(),
             ),
         }],
     };
-    let model = normalize_family(oriented).expect("typed unsupported direction remains supported");
+    let model = normalize_family(oriented).expect("typed passthrough direction remains supported");
     match model {
         NormalizedDocument::Family(doc) => {
             assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
@@ -1789,6 +1803,61 @@ fn normalize_usecase_direction_line_remains_parser_deferred_but_supported() {
     };
     let err = normalize_family(unsupported).expect_err("other unsupported usecase syntax fails");
     assert!(err.message.contains("E_FAMILY_USECASE_UNSUPPORTED_SYNTAX"));
+}
+
+#[test]
+fn parser_uses_benign_passthrough_for_family_deferred_syntax() {
+    let salt = parse("@startsalt\nUsername\n@endsalt\n").expect("salt should parse");
+    assert!(matches!(
+        salt.statements.first().map(|statement| &statement.kind),
+        Some(puml::ast::StatementKind::BenignPassthrough(line)) if line == "Username"
+    ));
+
+    let oriented = parse("@startuml\nleft to right direction\nclass A\n@enduml\n")
+        .expect("oriented class should parse");
+    assert!(oriented.statements.iter().any(|statement| matches!(
+        &statement.kind,
+        puml::ast::StatementKind::BenignPassthrough(line)
+            if line == "left to right direction"
+    )));
+}
+
+#[test]
+fn production_code_does_not_construct_legacy_unknown_statements() {
+    let src_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut offenders = Vec::new();
+    collect_legacy_unknown_constructors(&src_root, &mut offenders);
+    assert!(
+        offenders.is_empty(),
+        "production code must use typed raw syntax categories, not StatementKind::Unknown constructors: {offenders:?}"
+    );
+}
+
+fn collect_legacy_unknown_constructors(path: &std::path::Path, offenders: &mut Vec<String>) {
+    let entries = fs::read_dir(path).expect("source path should be readable");
+    for entry in entries {
+        let entry = entry.expect("source entry should be readable");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_legacy_unknown_constructors(&path, offenders);
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(env!("CARGO_MANIFEST_DIR"))
+            .expect("source path should be under manifest dir")
+            .display()
+            .to_string();
+        if matches!(rel.as_str(), "src/ast.rs" | "src/cli_dump_ast.rs") {
+            continue;
+        }
+        let body = fs::read_to_string(&path).expect("source file should be readable");
+        if body.contains("StatementKind::Unknown(") {
+            offenders.push(rel);
+        }
+    }
 }
 
 #[test]

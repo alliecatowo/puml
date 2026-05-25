@@ -8,6 +8,33 @@ pub enum Severity {
     Warning,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticCategory {
+    ParseError,
+    UnsupportedSyntax,
+    MalformedSyntax,
+    DeferredRaw,
+    BenignPassthrough,
+    FeatureLoss,
+    Warning,
+    Other,
+}
+
+impl DiagnosticCategory {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DiagnosticCategory::ParseError => "parse-error",
+            DiagnosticCategory::UnsupportedSyntax => "unsupported-syntax",
+            DiagnosticCategory::MalformedSyntax => "malformed-syntax",
+            DiagnosticCategory::DeferredRaw => "deferred-raw",
+            DiagnosticCategory::BenignPassthrough => "benign-passthrough",
+            DiagnosticCategory::FeatureLoss => "feature-loss",
+            DiagnosticCategory::Warning => "warning",
+            DiagnosticCategory::Other => "other",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub message: String,
@@ -21,6 +48,7 @@ pub struct DiagnosticJson {
     pub file: Option<String>,
     pub code: Option<String>,
     pub severity: &'static str,
+    pub category: &'static str,
     pub message: String,
     pub span: Option<DiagnosticSpanJson>,
     pub line: Option<usize>,
@@ -107,6 +135,7 @@ impl Diagnostic {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             },
+            category: diagnostic_category(&self.message, self.severity).as_str(),
             message: self.message.clone(),
             span: self.span.map(|s| DiagnosticSpanJson {
                 start: s.start,
@@ -118,6 +147,33 @@ impl Diagnostic {
             caret,
         }
     }
+}
+
+pub fn diagnostic_category(message: &str, severity: Severity) -> DiagnosticCategory {
+    let code = diagnostic_code(message).unwrap_or_default();
+    if code.starts_with("W_MERMAID_") || code.starts_with("W_PICO") || code.contains("FEATURE_LOSS")
+    {
+        return DiagnosticCategory::FeatureLoss;
+    }
+    if code.contains("PASSTHROUGH") {
+        return DiagnosticCategory::BenignPassthrough;
+    }
+    if code.contains("DEFERRED_RAW") || code.ends_with("_DEFERRED") {
+        return DiagnosticCategory::DeferredRaw;
+    }
+    if code.contains("MALFORMED") {
+        return DiagnosticCategory::MalformedSyntax;
+    }
+    if code.contains("UNSUPPORTED") {
+        return DiagnosticCategory::UnsupportedSyntax;
+    }
+    if matches!(severity, Severity::Warning) {
+        return DiagnosticCategory::Warning;
+    }
+    if code.starts_with("E_") {
+        return DiagnosticCategory::ParseError;
+    }
+    DiagnosticCategory::Other
 }
 
 pub fn diagnostic_code(message: &str) -> Option<String> {
@@ -249,6 +305,7 @@ mod tests {
         let json = diagnostic.to_json_with_source(source);
         assert_eq!(json.code.as_deref(), Some("E_UTF"));
         assert_eq!(json.severity, "error");
+        assert_eq!(json.category, "parse-error");
         assert_eq!(json.line, Some(2));
         assert_eq!(json.column, Some(1));
         assert_eq!(json.snippet.as_deref(), Some("βeta line"));
@@ -262,6 +319,7 @@ mod tests {
 
         assert_eq!(json.code, None);
         assert_eq!(json.severity, "warning");
+        assert_eq!(json.category, "warning");
         assert_eq!(json.line, None);
         assert_eq!(json.column, None);
         assert_eq!(json.snippet, None);
@@ -294,5 +352,30 @@ mod tests {
         );
         assert_eq!(empty.to_json_with_source("x").code, None);
         assert_eq!(plain.to_json_with_source("x").code, None);
+    }
+
+    #[test]
+    fn diagnostic_category_distinguishes_feature_loss_and_raw_syntax() {
+        assert_eq!(
+            diagnostic_category(
+                "[W_MERMAID_CLASS_DEFERRED] unsupported mermaid class construct was deferred",
+                Severity::Warning,
+            ),
+            DiagnosticCategory::FeatureLoss
+        );
+        assert_eq!(
+            diagnostic_category(
+                "[E_SEQUENCE_DEFERRED_RAW] deferred sequence syntax was not consumed",
+                Severity::Error,
+            ),
+            DiagnosticCategory::DeferredRaw
+        );
+        assert_eq!(
+            diagnostic_category(
+                "[E_STATE_MALFORMED_SYNTAX] malformed state syntax",
+                Severity::Error,
+            ),
+            DiagnosticCategory::MalformedSyntax
+        );
     }
 }

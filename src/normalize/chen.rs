@@ -72,10 +72,7 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
             | StatementKind::Undef(_) => {}
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if !matches!(
-                    raw.category,
-                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed
-                ) {
+                if raw.category == RawSyntaxCategory::BenignPassthrough {
                     if let Some(dir) = parse_chen_orientation_directive(raw.line) {
                         orientation = dir;
                         continue;

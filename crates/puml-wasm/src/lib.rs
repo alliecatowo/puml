@@ -320,6 +320,7 @@ fn language_diagnostic_json(
     serde_json::json!({
         "code": diagnostic.code,
         "severity": severity_name(diagnostic.severity),
+        "category": diagnostic.category.as_str(),
         "message": diagnostic.message,
         "span": diagnostic.span.map(|span| serde_json::json!({
             "start": span.start,
