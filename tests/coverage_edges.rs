@@ -1574,6 +1574,95 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
 }
 
 #[test]
+fn normalize_new_family_paths_distinguish_raw_syntax_categories() {
+    for (family, kind, expected_code) in [
+        (
+            DiagramKind::Chen,
+            puml::ast::StatementKind::UnsupportedSyntax("nonsense chen".to_string()),
+            "E_FAMILY_CHEN_UNSUPPORTED_SYNTAX",
+        ),
+        (
+            DiagramKind::Chen,
+            puml::ast::StatementKind::MalformedSyntax("entity {".to_string()),
+            "E_FAMILY_CHEN_MALFORMED_SYNTAX",
+        ),
+        (
+            DiagramKind::Chen,
+            puml::ast::StatementKind::Unknown("legacy chen".to_string()),
+            "E_PARSE_UNKNOWN",
+        ),
+        (
+            DiagramKind::Stdlib,
+            puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+            "E_FAMILY_STDLIB_DEFERRED_RAW",
+        ),
+        (
+            DiagramKind::Stdlib,
+            puml::ast::StatementKind::Unknown("legacy stdlib".to_string()),
+            "E_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: family,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(7, 19),
+                kind,
+            }],
+        };
+
+        let err = normalize_family(doc).expect_err("raw syntax should fail");
+        assert!(
+            err.message.contains(expected_code),
+            "expected {expected_code}, got {}",
+            err.message
+        );
+        assert_eq!(err.span, Some(Span::new(7, 19)));
+    }
+}
+
+#[test]
+fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown() {
+    let oriented = puml::ast::Document {
+        kind: DiagramKind::Chen,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span::new(0, 23),
+                kind: puml::ast::StatementKind::UnsupportedSyntax(
+                    "left to right direction".to_string(),
+                ),
+            },
+            puml::ast::Statement {
+                span: Span::new(24, 30),
+                kind: puml::ast::StatementKind::ChenDecl(puml::ast::ChenDecl {
+                    kind: puml::ast::ChenDeclKind::Entity,
+                    name: "User".to_string(),
+                    alias: None,
+                    stereotypes: Vec::new(),
+                    attributes: Vec::new(),
+                }),
+            },
+        ],
+    };
+    let model = normalize_family(oriented).expect("typed unsupported direction remains supported");
+    match model {
+        NormalizedDocument::Chen(doc) => {
+            assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
+        }
+        other => panic!("expected Chen document, got {other:?}"),
+    }
+
+    let legacy = puml::ast::Document {
+        kind: DiagramKind::Chen,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 23),
+            kind: puml::ast::StatementKind::Unknown("left to right direction".to_string()),
+        }],
+    };
+    let err = normalize_family(legacy).expect_err("legacy unknown direction must not pass through");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
 fn layout_group_else_separator_and_ref_min_height_are_deterministic() {
     let src = fs::read_to_string(fixture("groups/valid_ref_and_else_rendering.puml"))
         .expect("fixture should load");
