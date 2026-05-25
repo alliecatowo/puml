@@ -2,8 +2,8 @@ use std::fs;
 
 use puml::sprites::{
     bootstrap_icon_sprite, bootstrap_icon_sprites, material_icon_sprite, material_icon_sprites,
-    openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at, parse_sprite_ref_at,
-    SpriteKind,
+    openiconic_icon_names, openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at,
+    parse_sprite_ref_at, SpriteKind,
 };
 use puml::stdlib::{format_stdlib_listing, inventory_from_root, stdlib_paths_json};
 use puml::{
@@ -197,13 +197,28 @@ fn stdlib_inventory_formats_sorted_entries_aliases_and_json() {
         .iter()
         .map(|entry| entry.path.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(
-        paths,
-        vec![
-            "C4/C4_Context.puml",
-            "awslib/Compute/EC2.puml",
-            "awslib14/Compute/EC2.puml",
-        ]
+    for expected in [
+        "C4/C4_Context.puml",
+        "awslib/Compute/EC2.puml",
+        "awslib14/Compute/EC2.puml",
+        "openiconic/account-login.puml",
+        "openiconic/action-redo.puml",
+    ] {
+        assert!(
+            paths.contains(&expected),
+            "inventory missing expected stdlib path {expected}"
+        );
+    }
+    let mut sorted_paths = paths.clone();
+    sorted_paths.sort_unstable();
+    assert_eq!(paths, sorted_paths, "stdlib inventory must be sorted");
+    assert!(
+        paths.contains(&"openiconic/all.puml"),
+        "inventory should expose generated OpenIconic pack include"
+    );
+    assert!(
+        paths.contains(&"openiconic/folder.puml"),
+        "inventory should expose generated OpenIconic icon includes"
     );
 
     let alias = entries
@@ -216,10 +231,12 @@ fn stdlib_inventory_formats_sorted_entries_aliases_and_json() {
     let json = stdlib_paths_json(&entries);
     assert!(json.contains("C4/C4_Context.puml"));
     assert!(json.contains("awslib/Compute/EC2.puml"));
+    assert!(json.contains("openiconic/folder.puml"));
 
     let listing = format_stdlib_listing(root, &entries);
     assert!(listing.contains("# alias: awslib -> awslib14"));
     assert!(listing.contains("awslib/Compute/EC2.puml -> awslib14/Compute/EC2.puml"));
+    assert!(listing.contains("openiconic/folder.puml"));
     assert!(!listing.contains("README.md"));
 }
 
@@ -255,6 +272,9 @@ fn bundled_icon_resolvers_cover_aliases_inventory_and_missing_names() {
     let oi_registry = openiconic_sprites();
     assert!(oi_registry.contains_key("folder"));
     assert!(oi_registry.contains_key("cloud-upload"));
+    let oi_names = openiconic_icon_names();
+    assert_eq!(oi_names.len(), oi_registry.len());
+    assert!(oi_names.windows(2).all(|pair| pair[0] < pair[1]));
 
     let bootstrap_registry = bootstrap_icon_sprites();
     assert!(bootstrap_registry.contains_key("bi-globe"));

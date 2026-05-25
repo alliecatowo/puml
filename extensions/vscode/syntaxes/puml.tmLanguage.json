@@ -56,7 +56,7 @@
       "patterns": [
         {
           "name": "keyword.control.preprocessor.puml",
-          "match": "!(?:include|includesub|define|undef|if|ifdef|ifndef|else|endif|theme|import)\\b"
+          "match": "!(?:include_once|include_many|includeurl|include|includesub|startsub|endsub|define|undef|if|ifdef|ifndef|else|endif|theme|import)\\b"
         }
       ]
     },
@@ -68,7 +68,15 @@
         },
         {
           "name": "keyword.control.flow.puml",
-          "match": "\\b(?:start|stop|if|then|else|elseif|endif|while|endwhile|repeat|fork|again|partition|endpartition|note|legend|title|caption|header|footer|skinparam)\\b"
+          "match": "\\b(?:start|stop|if|then|else|elseif|endif|while|endwhile|repeat|fork|again|partition|endpartition|note|legend|title|caption|header|footer|skinparam|sprite|listsprite|listsprites)\\b"
+        },
+        {
+          "name": "constant.other.icon.openiconic.puml",
+          "match": "&[A-Za-z][A-Za-z0-9_-]*"
+        },
+        {
+          "name": "constant.other.sprite.puml",
+          "match": "<\\$[A-Za-z_][A-Za-z0-9_-]*(?:[,}][^>]*)?>"
         }
       ]
     },

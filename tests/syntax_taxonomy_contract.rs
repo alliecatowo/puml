@@ -19,6 +19,10 @@ fn shared_syntax_catalog_covers_plantuml_and_picouml_contract_tokens() {
     assert!(has("@startuml", SyntaxTokenKind::Directive));
     assert!(has("@startpicouml", SyntaxTokenKind::Directive));
     assert!(has("!include", SyntaxTokenKind::Preprocessor));
+    assert!(has("!include_once", SyntaxTokenKind::Preprocessor));
+    assert!(has("!includeurl", SyntaxTokenKind::Preprocessor));
+    assert!(has("!startsub", SyntaxTokenKind::Preprocessor));
+    assert!(has("sprite", SyntaxTokenKind::Keyword));
     assert!(has("class", SyntaxTokenKind::Keyword));
     assert!(has("state", SyntaxTokenKind::Keyword));
     assert!(has("fork", SyntaxTokenKind::Keyword));
@@ -32,14 +36,33 @@ fn textmate_and_site_tokenizers_cover_catalog_slice() {
     let site_tokens = fs::read_to_string(repo_path("site/static/js/puml-tokens.js"))
         .expect("read site tokenizer");
 
-    for token in ["startpicouml", "include", "class", "state", "fork", "=>"] {
+    for token in [
+        "startpicouml",
+        "include_once",
+        "includeurl",
+        "startsub",
+        "sprite",
+        "class",
+        "state",
+        "fork",
+        "=>",
+    ] {
         assert!(
             textmate.contains(token),
             "TextMate grammar missing contract token {token}"
         );
     }
 
-    for token in ["include", "class", "state", "fork", "=>"] {
+    for token in [
+        "include_once",
+        "includeurl",
+        "startsub",
+        "sprite",
+        "class",
+        "state",
+        "fork",
+        "=>",
+    ] {
         assert!(
             site_tokens.contains(token),
             "site tokenizer missing contract token {token}"
@@ -71,6 +94,20 @@ fn textmate_and_site_tokenizers_cover_catalog_slice() {
         assert!(
             site_tokens.contains(site_token),
             "site tokenizer missing expanded contract token {token}"
+        );
+    }
+
+    for (token, textmate_token, site_token) in [
+        ("<&folder>", "&[A-Za-z]", "openIconic"),
+        ("<$folder>", "<\\\\$[A-Za-z_]", "spriteRef"),
+    ] {
+        assert!(
+            textmate.contains(textmate_token),
+            "TextMate grammar missing icon/sprite contract token {token}"
+        );
+        assert!(
+            site_tokens.contains(site_token),
+            "site tokenizer missing icon/sprite contract token {token}"
         );
     }
 }

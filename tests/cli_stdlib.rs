@@ -22,6 +22,8 @@ fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
         ))
         .stdout(predicate::str::contains("C4/C4_Context.puml\n"))
         .stdout(predicate::str::contains("material/folder.puml\n"))
+        .stdout(predicate::str::contains("openiconic/all.puml\n"))
+        .stdout(predicate::str::contains("openiconic/folder.puml\n"))
         .stdout(predicate::str::contains(
             "awslib/Compute/EC2.puml -> awslib14/Compute/EC2.puml\n",
         ))
@@ -136,6 +138,26 @@ fn openiconic_stdlib_include_resolves_to_builtin_sprite_contract() {
         .stdout(predicate::str::contains("data-sprite=\"folder\""))
         .stdout(predicate::str::contains("data-sprite=\"cloud-upload\""))
         .stdout(predicate::str::contains("fill=\"#2563eb\""))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn openiconic_stdlib_pack_include_resolves_all_builtin_sprites() {
+    let source = "@startuml
+!include <openiconic/all>
+Alice -> Bob : Pack <$folder,scale=2,color=#1d4ed8> and <$cloud-upload>
+@enduml
+";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-", "--format", "svg"])
+        .write_stdin(source)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("data-creole-sprites=\"true\""))
+        .stdout(predicate::str::contains("data-sprite=\"folder\""))
+        .stdout(predicate::str::contains("data-sprite=\"cloud-upload\""))
+        .stdout(predicate::str::contains("fill=\"#1d4ed8\""))
         .stderr(predicate::str::is_empty());
 }
 

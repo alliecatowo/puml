@@ -8,7 +8,7 @@ mod render;
 pub use encode::encode_pixels;
 pub use icons::{
     bootstrap_icon_sprite, bootstrap_icon_sprites, material_icon_sprite, material_icon_sprites,
-    openiconic_sprite, openiconic_sprites, openiconic_svg_source,
+    openiconic_icon_names, openiconic_sprite, openiconic_sprites, openiconic_svg_source,
 };
 pub use model::{builtin_sprite, normalize_sprite_name, SpriteDefinition, SpriteKind, SpriteRef};
 pub use parse::{

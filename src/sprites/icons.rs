@@ -17,6 +17,16 @@ pub fn openiconic_svg_source(name: &str) -> Option<(String, &'static str)> {
     Some((normalized, source))
 }
 
+pub fn openiconic_icon_names() -> Vec<&'static str> {
+    let mut names = OPENICONIC_SVG
+        .iter()
+        .map(|(name, _svg)| *name)
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 pub fn openiconic_sprites() -> SpriteRegistry {
     OPENICONIC_SVG
         .iter()

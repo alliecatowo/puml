@@ -47,6 +47,26 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             families: &["plantuml", "picouml"],
         },
         SyntaxTokenSpec {
+            lexeme: "!include_once",
+            kind: Preprocessor,
+            families: &["plantuml", "picouml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!include_many",
+            kind: Preprocessor,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!includeurl",
+            kind: Preprocessor,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!includesub",
+            kind: Preprocessor,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
             lexeme: "!define",
             kind: Preprocessor,
             families: &["plantuml", "picouml"],
@@ -75,6 +95,26 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             lexeme: "!theme",
             kind: Preprocessor,
             families: &["plantuml", "picouml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!startsub",
+            kind: Preprocessor,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!endsub",
+            kind: Preprocessor,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "sprite",
+            kind: Keyword,
+            families: &["plantuml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "listsprite",
+            kind: Keyword,
+            families: &["plantuml"],
         },
         SyntaxTokenSpec {
             lexeme: "participant",
@@ -249,7 +289,11 @@ mod tests {
             "@startuml",
             "@startpicouml",
             "!include",
+            "!include_once",
+            "!includeurl",
+            "!startsub",
             "!import",
+            "sprite",
             "class",
             "component",
             "state",
