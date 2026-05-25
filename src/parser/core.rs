@@ -554,7 +554,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             // Rich containers such as `{+`, `{#`, `{SI`, and `{^` are parsed
             // as Salt rows above so the renderer can preserve widget metadata.
             let trimmed = line.trim();
-            if matches!(trimmed, "{" | "}" | "{-" | "---") || trimmed.is_empty() {
+            if matches!(trimmed, "{" | "{-" | "---") || trimmed.is_empty() {
                 i += 1;
                 continue;
             }
