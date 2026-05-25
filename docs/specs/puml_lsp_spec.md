@@ -28,10 +28,11 @@ The sections below describe target architecture unless explicitly marked current
   - `puml.renderScene`
   - `puml.export`
   - `puml.explainDiagnostic`
+  - `puml.languageService`
 
 Current baseline capability mirror:
 
-- CLI `--dump-capabilities` reports `server: "puml-lsp"`, commands `puml.applyFormat`, `puml.renderSvg`, `puml.renderScene`, `puml.export`, `puml.explainDiagnostic`, current limited request scopes, and a #190 roadmap section.
+- CLI `--dump-capabilities` reports `server: "puml-lsp"`, commands `puml.applyFormat`, `puml.renderSvg`, `puml.renderScene`, `puml.export`, `puml.explainDiagnostic`, `puml.languageService`, current limited request scopes, and a #190 roadmap section.
 - VS Code scaffold preview routes through `puml.renderSvg`.
 - Completion/hover depth remains intentionally uneven across sequence, class, activity, gantt, JSON, and YAML. Roadmap ambitions in this spec are target-only until implemented and contract-tested.
 

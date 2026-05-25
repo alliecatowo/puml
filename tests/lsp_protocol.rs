@@ -166,7 +166,8 @@ fn workspace_commands_route_render_scene_export_and_explain_diagnostic() {
                 }
             })],
         ),
-        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+        execute_command_request(5, "puml.languageService", vec![]),
+        json!({"jsonrpc":"2.0","id":6,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ]);
 
@@ -199,6 +200,14 @@ fn workspace_commands_route_render_scene_export_and_explain_diagnostic() {
         .expect("summary")
         .contains("arrow"));
     assert_eq!(explained["diagnostics"], json!([]));
+
+    let surface = request_result(&messages, 5);
+    assert_eq!(surface["schema"], "puml.languageService");
+    assert!(surface["completion"]["items"]
+        .as_array()
+        .expect("completion items")
+        .iter()
+        .any(|item| item["label"] == "component"));
 }
 
 #[test]
@@ -261,6 +270,7 @@ fn sequence_completion_and_hover_are_static_but_available() {
     let labels = completion_labels(request_result(&messages, 2));
     assert!(labels.contains(&"participant"));
     assert!(labels.contains(&"-->>"));
+    assert!(labels.contains(&"!theme"));
     assert!(hover_markdown(request_result(&messages, 3)).contains("Dashed message arrow"));
 }
 
@@ -276,6 +286,7 @@ fn class_completion_and_hover_cover_current_static_keyword_surface() {
     let labels = completion_labels(request_result(&messages, 2));
     assert!(labels.contains(&"class"));
     assert!(labels.contains(&"interface"));
+    assert!(labels.contains(&"<|--"));
     assert!(hover_markdown(request_result(&messages, 3)).contains("Declare a class node"));
 }
 
@@ -290,8 +301,24 @@ fn activity_completion_and_hover_cover_current_static_keyword_surface() {
 
     let labels = completion_labels(request_result(&messages, 2));
     assert!(labels.contains(&"start"));
+    assert!(labels.contains(&"fork"));
+    assert!(labels.contains(&"while"));
     assert!(labels.contains(&"endif"));
     assert!(hover_markdown(request_result(&messages, 3)).contains("Start an activity diagram flow"));
+}
+
+#[test]
+fn skinparam_hover_exposes_supported_value_type_annotations() {
+    let messages = lsp_round_trip_for_hover_and_completion(
+        "file:///style.puml",
+        "@startuml\nskinparam ArrowColor #334155\nA -> B\n@enduml\n",
+        1,
+        12,
+    );
+
+    let hover = hover_markdown(request_result(&messages, 3));
+    assert!(hover.contains("`ArrowColor`"));
+    assert!(hover.contains("Value type: color"));
 }
 
 #[test]

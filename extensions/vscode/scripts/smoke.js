@@ -26,5 +26,8 @@ if (!srcLspClient.includes("command: 'puml.renderScene'")) {
 if (!srcLspClient.includes("command: 'puml.export'")) {
   throw new Error('LSP client contract drift: expected export workspace command');
 }
+if (!srcLspClient.includes("command: 'puml.languageService'")) {
+  throw new Error('LSP client contract drift: expected languageService workspace command');
+}
 
 console.log('[vscode-smoke] build artifact exists and preview is LSP-backed');

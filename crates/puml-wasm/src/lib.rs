@@ -3,7 +3,9 @@
 
 use puml::ast::DiagramKind;
 use puml::diagnostic::Severity;
-use puml::language_service::{diagnostics_with_options, semantic_tokens, SemanticTokenKind};
+use puml::language_service::{
+    diagnostics_with_options, language_service_surface_json, semantic_tokens, SemanticTokenKind,
+};
 use puml::{
     normalize_family, parse_with_pipeline_options, render_artifact_pages_from_model, Diagnostic,
     FrontendSelection, ParsePipelineOptions,
@@ -58,11 +60,18 @@ pub fn compile_json_with_frontend(source: &str, frontend: &str) -> String {
                 "pages": [],
                 "diagnostics": [diag.to_json_with_source(source)],
                 "semanticTokens": semantic_tokens_json(source),
+                "languageService": language_service_surface_json(),
             })
             .to_string();
         }
     };
     compile_json_for_frontend(source, frontend)
+}
+
+/// JSON-encoded language-service surface for Studio workers and editor adapters.
+#[wasm_bindgen]
+pub fn language_service_json() -> String {
+    language_service_surface_json().to_string()
 }
 
 /// JSON-encoded render result: `{ ok: ["svg", ...] }` on success or
@@ -171,6 +180,7 @@ fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> Strin
                 }).collect::<Vec<_>>(),
                 "diagnostics": diagnostics,
                 "semanticTokens": semantic_tokens_json(source),
+                "languageService": language_service_surface_json(),
             })
             .to_string()
         }
@@ -188,6 +198,7 @@ fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> Strin
                 diagnostics
             },
             "semanticTokens": semantic_tokens_json(source),
+            "languageService": language_service_surface_json(),
         })
         .to_string(),
     }
@@ -352,6 +363,33 @@ mod tests {
             .expect("semantic tokens")
             .iter()
             .any(|token| token["kind"] == "keyword"));
+        assert_eq!(parsed["languageService"]["schema"], "puml.languageService");
+        assert!(parsed["languageService"]["completion"]["items"]
+            .as_array()
+            .expect("completion items")
+            .iter()
+            .any(|item| item["label"] == "component"));
+    }
+
+    #[test]
+    fn language_service_json_reports_shared_editor_surface() {
+        let parsed: Value = serde_json::from_str(&language_service_json()).expect("json");
+
+        assert_eq!(parsed["schema"], "puml.languageService");
+        assert!(parsed["families"]
+            .as_array()
+            .expect("families")
+            .iter()
+            .any(|family| family["name"] == "sequence"));
+        assert!(parsed["completion"]["items"]
+            .as_array()
+            .expect("completion items")
+            .iter()
+            .any(|item| item["label"] == "ArrowColor"
+                && item["documentation"]
+                    .as_str()
+                    .expect("documentation")
+                    .contains("Value type: color")));
     }
 
     #[test]

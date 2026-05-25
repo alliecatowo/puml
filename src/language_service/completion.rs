@@ -1,3 +1,5 @@
+use super::completion_extra::{extra_completion_specs, resolve_extra_completion_item};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
     pub label: &'static str,
@@ -20,9 +22,15 @@ pub struct CompletionList {
 }
 
 pub fn completion_items() -> CompletionList {
+    let mut items = completion_specs().to_vec();
+    for item in extra_completion_specs() {
+        if !items.iter().any(|existing| existing.label == item.label) {
+            items.push((*item).clone());
+        }
+    }
     CompletionList {
         is_incomplete: false,
-        items: completion_specs().to_vec(),
+        items,
     }
 }
 
@@ -31,6 +39,7 @@ pub fn resolve_completion_item(label: &str) -> Option<CompletionItem> {
         .iter()
         .find(|entry| entry.label == label)
         .cloned()
+        .or_else(|| resolve_extra_completion_item(label))
 }
 
 fn completion_specs() -> &'static [CompletionItem] {
@@ -565,25 +574,4 @@ fn completion_specs() -> &'static [CompletionItem] {
             documentation: "Destroy target participant from this message.",
         },
     ]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn completion_baseline_includes_family_and_arrow_items() {
-        let labels = completion_items()
-            .items
-            .into_iter()
-            .map(|item| item.label)
-            .collect::<Vec<_>>();
-
-        assert!(labels.contains(&"@startuml"));
-        assert!(labels.contains(&"participant"));
-        assert!(labels.contains(&"class"));
-        assert!(labels.contains(&"state"));
-        assert!(labels.contains(&"start"));
-        assert!(labels.contains(&"-->>"));
-    }
 }

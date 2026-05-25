@@ -3,7 +3,7 @@ use super::render::{
     export_result, lsp_frontend_hint, output_format_from_hint, render_result, render_scene_result,
 };
 use super::Doc;
-use puml::language_service::explain_diagnostic;
+use puml::language_service::{explain_diagnostic, language_service_surface_json};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -38,6 +38,7 @@ pub fn execute_command(msg: &Value, docs: &HashMap<String, Doc>) -> Value {
                 .unwrap_or_else(|| missing_document_result("puml.export"))
         }
         "puml.explainDiagnostic" => explain_diagnostic_result(args),
+        "puml.languageService" => language_service_surface_json(),
         "puml.applyFormat" => docs
             .get(uri)
             .map(|d| formatting_edits(&d.text))

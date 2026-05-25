@@ -4,6 +4,8 @@ compile_json(source)
 compile_json_with_frontend(source, frontend)
 schema `puml.compile`
 semanticTokens
+language_service_json()
+schema `puml.languageService`
 --dump ast|model|scene
 schema `puml.diagnostics`
 schema_version: 1

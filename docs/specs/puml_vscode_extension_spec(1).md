@@ -26,10 +26,11 @@ The sections below define the target extension surface. The current shipped VS C
 - render-scene inspection delegates to LSP `workspace/executeCommand` using `puml.renderScene`
 - export adapters can delegate to LSP `workspace/executeCommand` using `puml.export` and fall back to the CLI path
 - diagnostic help adapters use `puml.explainDiagnostic` when the server advertises the command
+- editor surface adapters can request `puml.languageService` for the shared family/completion/syntax catalog
 
 Current baseline guardrails:
 
-- `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat`, `puml.renderSvg`, `puml.renderScene`, `puml.export`, and `puml.explainDiagnostic`.
+- `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat`, `puml.renderSvg`, `puml.renderScene`, `puml.export`, and `puml.explainDiagnostic`, and `puml.languageService`.
 - extension smoke script verifies preview stays LSP-backed, build artifact exists, and LSP startup fallback logic remains in place.
 - completion, hover, references, rename, semantic tokens, formatting, and code actions are only shipped to the limited scope described by `--dump-capabilities`; advanced VS Code features listed later in this spec stay target-state until landed in source + tests.
 

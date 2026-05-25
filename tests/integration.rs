@@ -4765,6 +4765,7 @@ fn dump_capabilities_outputs_manifest_shape() {
     assert!(commands.iter().any(|c| c == "puml.renderScene"));
     assert!(commands.iter().any(|c| c == "puml.export"));
     assert!(commands.iter().any(|c| c == "puml.explainDiagnostic"));
+    assert!(commands.iter().any(|c| c == "puml.languageService"));
     let token_types = json["semanticTokensProvider"]["legend"]["tokenTypes"]
         .as_array()
         .expect("semanticTokensProvider.legend.tokenTypes must be an array");

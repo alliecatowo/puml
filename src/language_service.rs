@@ -1,9 +1,13 @@
 mod completion;
+mod completion_extra;
+#[cfg(test)]
+mod completion_tests;
 mod diagnostics;
 mod document;
 mod formatting;
 mod hover;
 mod navigation;
+mod surface;
 mod symbols;
 mod syntax;
 mod text;
@@ -20,6 +24,7 @@ pub use document::{DocumentSnapshot, SnapshotOptions};
 pub use formatting::{format_document, FormatDocumentResult, TextEdit};
 pub use hover::{hover, Hover};
 pub use navigation::{definition, prepare_rename, references, rename, NavigationHit};
+pub use surface::language_service_surface_json;
 pub use symbols::{document_symbols, DocumentSymbol, DocumentSymbolKind};
 pub use syntax::{syntax_token_specs, SyntaxTokenKind, SyntaxTokenSpec};
 pub use text::{lc_to_offset, offset_to_lc, word_range_at_pos};

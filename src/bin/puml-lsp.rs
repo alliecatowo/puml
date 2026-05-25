@@ -359,6 +359,11 @@ fn main() {
                 let result = direct_command_result("puml.explainDiagnostic", &msg, &docs);
                 let _ = resp(&mut w, id, result);
             }
+            "puml/languageService" => {
+                let id = msg.get("id").cloned().unwrap_or(Value::Null);
+                let result = direct_command_result("puml.languageService", &msg, &docs);
+                let _ = resp(&mut w, id, result);
+            }
             _ => {
                 if msg.get("id").is_some() {
                     let _ = err(
