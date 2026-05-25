@@ -565,6 +565,19 @@ pub enum GeometryIssue {
         segment: Segment,
         node_bounds: Rect,
     },
+    EdgeCrossesGroupHeader {
+        edge_id: String,
+        group_id: String,
+        segment: Segment,
+        header_bounds: Rect,
+    },
+    EdgeLabelDetached {
+        edge_id: String,
+        label_id: String,
+        bounds: Rect,
+        min_distance: f64,
+        max_distance: f64,
+    },
     EdgeAnchorOwnerMismatch {
         edge_id: String,
         anchor_id: String,

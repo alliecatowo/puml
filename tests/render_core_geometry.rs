@@ -1,8 +1,9 @@
 use puml::render_core::{
     validate::GeometryMetric, Anchor, BackendCapability, BackendFormat, GeometryIssue, LabelBox,
     LabelRole, NodeBox, Point, Polyline, Port, PortSide, Rect, RenderBackend, RenderScene,
-    SceneEdge, SceneNode, SvgBackend,
+    SceneEdge, SceneGroup, SceneNode, SvgBackend,
 };
+use puml::{normalize_family, parse, render_family_document_artifact, NormalizedDocument};
 
 #[test]
 fn svg_backend_contract_reports_capabilities_and_formats() {
@@ -74,6 +75,79 @@ fn typed_scene_reports_edge_crossing_non_endpoint_node() {
                 if edge_id == "e1" && node_id == "C"
         ),
         "expected edge/node crossing issue, got {issues:?}"
+    );
+}
+
+#[test]
+fn typed_scene_reports_route_crossing_group_header() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 260.0, 180.0));
+    scene.add_group(SceneGroup {
+        id: "Package".to_string(),
+        frame: puml::render_core::GroupFrame {
+            id: "Package".to_string(),
+            bounds: Rect::new(20.0, 20.0, 220.0, 130.0),
+            header: Some(Rect::new(20.0, 20.0, 220.0, 24.0)),
+            child_node_ids: vec!["A".to_string(), "B".to_string()],
+            labels: Vec::new(),
+        },
+    });
+    scene.add_node(node("A", Rect::new(50.0, 70.0, 40.0, 30.0), Vec::new()));
+    scene.add_node(node("B", Rect::new(170.0, 70.0, 40.0, 30.0), Vec::new()));
+    scene.add_edge(SceneEdge {
+        id: "e1".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::new(vec![
+            Point::new(70.0, 70.0),
+            Point::new(70.0, 32.0),
+            Point::new(190.0, 32.0),
+            Point::new(190.0, 70.0),
+        ]),
+        source_anchor: anchor("e1:source", "A", 70.0, 70.0),
+        target_anchor: anchor("e1:target", "B", 190.0, 70.0),
+        labels: Vec::new(),
+    });
+
+    let issues = scene.validate_geometry();
+    assert!(
+        issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::EdgeCrossesGroupHeader { edge_id, group_id, .. }
+                if edge_id == "e1" && group_id == "Package"
+        )),
+        "expected route/header crossing issue, got {issues:?}"
+    );
+}
+
+#[test]
+fn typed_scene_reports_detached_edge_label() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 320.0, 220.0));
+    scene.add_node(node("A", Rect::new(20.0, 40.0, 40.0, 30.0), Vec::new()));
+    scene.add_node(node("B", Rect::new(220.0, 40.0, 40.0, 30.0), Vec::new()));
+    scene.add_edge(SceneEdge {
+        id: "e1".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::new(vec![Point::new(60.0, 55.0), Point::new(220.0, 55.0)]),
+        source_anchor: anchor("e1:source", "A", 60.0, 55.0),
+        target_anchor: anchor("e1:target", "B", 220.0, 55.0),
+        labels: vec![LabelBox {
+            id: "e1:label".to_string(),
+            text: "too far".to_string(),
+            bounds: Rect::new(140.0, 180.0, 48.0, 14.0),
+            owner_id: Some("e1".to_string()),
+            role: LabelRole::Edge,
+        }],
+    });
+
+    let issues = scene.validate_geometry();
+    assert!(
+        issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::EdgeLabelDetached { edge_id, label_id, .. }
+                if edge_id == "e1" && label_id == "e1:label"
+        )),
+        "expected detached edge label issue, got {issues:?}"
     );
 }
 
@@ -156,6 +230,30 @@ fn typed_scene_reports_non_fatal_compactness_and_gutter_metrics() {
 }
 
 #[test]
+fn typed_scene_reports_route_channel_metrics() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 220.0, 120.0));
+    scene.add_node(node("A", Rect::new(20.0, 10.0, 40.0, 30.0), Vec::new()));
+    scene.route_channels.insert(
+        "rank:0:track:0".to_string(),
+        puml::render_core::RouteChannel {
+            id: "rank:0:track:0".to_string(),
+            bounds: Rect::new(20.0, 60.0, 160.0, 12.0),
+        },
+    );
+
+    let report = scene.validate_scene();
+    assert!(
+        report.metrics.iter().any(|metric| matches!(
+            metric,
+            GeometryMetric::RouteChannels { count, total_area }
+                if *count == 1 && (*total_area - 1920.0).abs() < f64::EPSILON
+        )),
+        "expected route-channel metric, got {:?}",
+        report.metrics
+    );
+}
+
+#[test]
 fn typed_scene_reports_detached_edge_endpoint() {
     let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 200.0, 120.0));
     scene.add_edge(SceneEdge {
@@ -219,12 +317,52 @@ package "Core" {
 Gateway --> Service : calls
 @enduml
 "#;
-
     let svg = puml::render_source_to_svg(source).expect("component render should succeed");
     assert!(svg.contains("<svg"));
     assert!(svg.contains("uml-relation"));
     assert!(svg.contains("Gateway"));
     assert!(svg.contains("Service"));
+}
+
+#[test]
+fn component_graph_family_artifact_reports_typed_scene_invariants() {
+    let source = r#"
+@startuml
+package "API" {
+  component Gateway
+}
+package "Core" {
+  component Service
+}
+Gateway --> Service : calls
+@enduml
+"#;
+    let document = parse(source).expect("component source should parse");
+    let family = match normalize_family(document).expect("component source should normalize") {
+        NormalizedDocument::Family(family) => family,
+        other => panic!("expected family document, got {other:?}"),
+    };
+    let artifact = render_family_document_artifact(&family);
+    let scene = artifact.scene.as_ref().expect("component typed scene");
+    let report = artifact
+        .invariant_report
+        .as_ref()
+        .expect("component invariant report");
+
+    assert!(!scene.nodes.is_empty(), "graph scene should expose nodes");
+    assert!(!scene.edges.is_empty(), "graph scene should expose edges");
+    assert_eq!(
+        report.typed_issues,
+        scene.validate_geometry(),
+        "production graph-family render path should run typed validation on the attached scene"
+    );
+    assert!(
+        report.typed_metrics.iter().any(|metric| {
+            matches!(metric, GeometryMetric::RouteChannels { count, .. } if *count > 0)
+        }),
+        "graph-family artifact should expose route-channel metrics, got {:?}",
+        report.typed_metrics
+    );
 }
 
 fn node(id: &str, bounds: Rect, ports: Vec<Port>) -> SceneNode {
