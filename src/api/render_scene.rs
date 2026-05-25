@@ -1,23 +1,16 @@
 use serde_json::{json, Value};
 
+use super::render::render_family_document_artifact;
+use super::render_summary::{family_model_summary_to_json, normalized_model_summary_to_json};
 use crate::model::{FamilyDocument, NormalizedDocument};
 use crate::output::{RenderArtifact, RenderSceneContract};
 use crate::render_core::SceneAvailability;
-use crate::{layout, LayoutOptions};
-
-use super::render::render_family_document_artifact;
-use super::render_summary::{family_model_summary_to_json, normalized_model_summary_to_json};
 
 pub fn normalized_scene_summary_to_json(model: &NormalizedDocument) -> Value {
     match model {
-        NormalizedDocument::Sequence(sequence) => {
-            let pages = layout::layout_pages(sequence, LayoutOptions::default());
-            json!({
-                "kind": "Sequence",
-                "typed": false,
-                "pageCount": pages.len(),
-                "pages": pages.iter().map(sequence_scene_to_json).collect::<Vec<_>>()
-            })
+        NormalizedDocument::Sequence(_) => {
+            let artifacts = super::render::render_artifact_pages_from_model(model);
+            sequence_artifact_scene_summary_to_json(&artifacts)
         }
         NormalizedDocument::Family(family) => family_scene_summary_to_json(family),
         NormalizedDocument::FamilyPages(pages) => json!({
@@ -43,16 +36,7 @@ pub fn normalized_artifact_scene_summary_to_json(
     artifacts: &[RenderArtifact],
 ) -> Value {
     match model {
-        NormalizedDocument::Sequence(sequence) => {
-            let pages = layout::layout_pages(sequence, LayoutOptions::default());
-            json!({
-                "kind": "Sequence",
-                "typed": false,
-                "sceneAvailability": "NotMigrated",
-                "pageCount": pages.len(),
-                "pages": pages.iter().map(sequence_scene_to_json).collect::<Vec<_>>()
-            })
-        }
+        NormalizedDocument::Sequence(_) => sequence_artifact_scene_summary_to_json(artifacts),
         NormalizedDocument::Family(family) => {
             family_artifact_scene_summary_to_json(family, artifacts.first())
         }
@@ -80,39 +64,34 @@ pub fn normalized_artifact_scene_summary_to_json(
     }
 }
 
-fn sequence_scene_to_json(scene: &crate::Scene) -> Value {
+fn sequence_artifact_scene_summary_to_json(artifacts: &[RenderArtifact]) -> Value {
+    let pages = artifacts
+        .iter()
+        .map(|artifact| match artifact.scene_contract() {
+            RenderSceneContract::Typed(scene) => render_core_scene_to_json(scene),
+            RenderSceneContract::NotMigrated
+            | RenderSceneContract::Unsupported
+            | RenderSceneContract::Inconsistent => json!({
+                "kind": "Sequence",
+                "typed": false,
+                "available": false,
+                "sceneAvailability": scene_availability_to_str(artifact)
+            }),
+        })
+        .collect::<Vec<_>>();
+    let typed = artifacts
+        .iter()
+        .all(|artifact| artifact.typed_scene().is_some())
+        && !artifacts.is_empty();
     json!({
-        "size": {"width": scene.width, "height": scene.height},
-        "participants": scene.participants.iter().map(|participant| {
-            json!({
-                "id": participant.id,
-                "display": participant.display_lines.join("\n"),
-                "role": format!("{:?}", participant.role),
-                "bounds": {
-                    "x": participant.x,
-                    "y": participant.y,
-                    "width": participant.width,
-                    "height": participant.height
-                }
-            })
-        }).collect::<Vec<_>>(),
-        "messages": scene.messages.iter().map(|message| {
-            json!({
-                "from": message.from_id,
-                "to": message.to_id,
-                "arrow": message.arrow,
-                "label": message.label,
-                "route": {
-                    "x1": message.x1,
-                    "y": message.y,
-                    "routeY": message.route_y,
-                    "x2": message.x2
-                }
-            })
-        }).collect::<Vec<_>>(),
-        "notes": scene.notes.len(),
-        "groups": scene.groups.len(),
-        "structures": scene.structures.len()
+        "kind": "Sequence",
+        "typed": typed,
+        "sceneAvailability": artifacts
+            .first()
+            .map(scene_availability_to_str)
+            .unwrap_or("NotMigrated"),
+        "pageCount": artifacts.len(),
+        "pages": pages,
     })
 }
 

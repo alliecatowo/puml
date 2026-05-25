@@ -176,8 +176,15 @@ fn workspace_commands_route_render_scene_export_and_explain_diagnostic() {
     assert_eq!(scene["schemaVersion"], 1);
     assert_eq!(scene["model"]["kind"], "Sequence");
     assert_eq!(scene["scene"]["kind"], "Sequence");
+    assert_eq!(scene["scene"]["typed"], true);
+    assert_eq!(scene["scene"]["sceneAvailability"], "TypedScene");
     assert_eq!(scene["scene"]["pageCount"], 1);
-    assert_eq!(scene["scene"]["pages"][0]["participants"][0]["id"], "Alice");
+    assert_eq!(scene["scene"]["pages"][0]["kind"], "RenderScene");
+    assert!(scene["scene"]["pages"][0]["nodes"]
+        .as_array()
+        .expect("typed scene nodes")
+        .iter()
+        .any(|node| node["id"] == "participant:Alice"));
     assert_eq!(scene["diagnostics"], json!([]));
 
     let exported = request_result(&messages, 3);
