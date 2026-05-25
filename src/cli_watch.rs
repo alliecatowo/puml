@@ -4,7 +4,10 @@
 //! on a fixed interval and re-invokes the render path on each detected change.
 
 use crate::cli::{Cli, OutputFormat};
-use puml::output::svg_to_raster_bytes;
+use puml::output::{
+    render_artifact_export_content, render_artifact_output_bytes, RenderArtifactOutputMetadata,
+    RenderedArtifactOutput,
+};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -110,7 +113,7 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
         return Err("renderer produced no output pages".to_string());
     };
 
-    let out_bytes = svg_to_output_bytes(&first_artifact.svg, cli.format, cli.dpi)?;
+    let out_bytes = watch_output_bytes(first_artifact, cli.format, cli.dpi)?;
 
     // Determine output path: explicit --output or derive from input stem.
     let out_path = match &cli.output {
@@ -129,17 +132,34 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Convert an SVG string to output bytes in the requested format.
+/// Convert a render artifact to watch-mode output bytes.
 ///
-/// PNG, JPG, and WebP are rasterised via `resvg`. SVG/HTML pass through as
-/// UTF-8 bytes. PDF and text formats return a clear unsupported error rather
-/// than silently writing a corrupt file.
-fn svg_to_output_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, String> {
+/// Watch mode keeps its existing supported-format policy, but delegates actual
+/// SVG/HTML/raster conversion to the shared output backend.
+fn watch_output_bytes(
+    artifact: &puml::render::RenderArtifact,
+    format: OutputFormat,
+    dpi: f32,
+) -> Result<Vec<u8>, String> {
     match format {
-        OutputFormat::Svg | OutputFormat::Html => Ok(svg.as_bytes().to_vec()),
-
-        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
-            svg_to_raster_bytes(svg, format, dpi).map_err(|err| err.message().to_string())
+        OutputFormat::Svg
+        | OutputFormat::Html
+        | OutputFormat::Png
+        | OutputFormat::Jpg
+        | OutputFormat::Webp => {
+            let output = RenderedArtifactOutput {
+                name_hint: None,
+                content: render_artifact_export_content(artifact, format),
+                artifact: Some(RenderArtifactOutputMetadata {
+                    format: artifact.format,
+                    dimensions: artifact.dimensions,
+                    scene_availability: artifact.scene_availability,
+                    diagnostics: artifact.diagnostics.len(),
+                }),
+            };
+            render_artifact_output_bytes(&output, format, dpi)
+                .map(|output| output.bytes)
+                .map_err(|err| err.message().to_string())
         }
 
         OutputFormat::Pdf => Err(
@@ -224,14 +244,19 @@ mod tests {
         assert_eq!(OutputFormat::Utxt.extension(), "utxt");
 
         let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>";
+        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
         assert_eq!(
-            svg_to_output_bytes(svg, OutputFormat::Svg, 96.0).unwrap(),
+            watch_output_bytes(&artifact, OutputFormat::Svg, 96.0).unwrap(),
             svg.as_bytes()
         );
-        assert!(svg_to_output_bytes(svg, OutputFormat::Pdf, 96.0)
+        let html = watch_output_bytes(&artifact, OutputFormat::Html, 96.0).unwrap();
+        assert!(String::from_utf8(html)
+            .unwrap()
+            .starts_with("<!doctype html>"));
+        assert!(watch_output_bytes(&artifact, OutputFormat::Pdf, 96.0)
             .unwrap_err()
             .contains("--watch does not yet support --format pdf"));
-        assert!(svg_to_output_bytes(svg, OutputFormat::Txt, 96.0)
+        assert!(watch_output_bytes(&artifact, OutputFormat::Txt, 96.0)
             .unwrap_err()
             .contains("--watch does not support text output"));
     }
@@ -243,13 +268,15 @@ mod tests {
   <rect width="1" height="1" fill="#000000"/>
 </svg>"##;
 
-        let png = svg_to_output_bytes(svg, OutputFormat::Png, 96.0).expect("png bytes");
+        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
+
+        let png = watch_output_bytes(&artifact, OutputFormat::Png, 96.0).expect("png bytes");
         assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
 
-        let jpg = svg_to_output_bytes(svg, OutputFormat::Jpg, 96.0).expect("jpg bytes");
+        let jpg = watch_output_bytes(&artifact, OutputFormat::Jpg, 96.0).expect("jpg bytes");
         assert!(jpg.starts_with(&[0xff, 0xd8]));
 
-        let webp = svg_to_output_bytes(svg, OutputFormat::Webp, 96.0).expect("webp bytes");
+        let webp = watch_output_bytes(&artifact, OutputFormat::Webp, 96.0).expect("webp bytes");
         assert!(webp.starts_with(b"RIFF"));
         assert_eq!(&webp[8..12], b"WEBP");
     }
@@ -273,7 +300,9 @@ mod tests {
   <rect x="0" y="0" width="8" height="6" fill="#fff"/>
 </svg>"##;
 
-        let err = svg_to_output_bytes(svg, OutputFormat::Png, 0.0).expect_err("degenerate output");
+        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
+        let err =
+            watch_output_bytes(&artifact, OutputFormat::Png, 0.0).expect_err("degenerate output");
 
         assert!(err.contains("failed to rasterize PNG"));
     }
