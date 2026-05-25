@@ -81,8 +81,9 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
     let tail = trimmed.chars().last().unwrap_or(' ');
     let start_marker = ie_start_marker.or(match head {
         '<' => {
-            // inheritance reversed if starts with "<|"
-            if trimmed.starts_with("<|") {
+            if trimmed.starts_with("<<") {
+                Some("arrow-double-open")
+            } else if trimmed.starts_with("<|") {
                 Some("arrow-triangle")
             } else {
                 Some("arrow-open")
@@ -90,12 +91,19 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
-        '0' | '(' | ')' => Some("arrow-open"),
+        '0' | '(' | ')' => Some("arrow-circle-open"),
+        '@' => Some("arrow-circle-filled"),
+        '^' => Some("arrow-triangle-filled"),
+        '#' => Some("arrow-box-filled"),
+        '+' => Some("arrow-plus"),
+        '\\' | '/' => Some("arrow-slash"),
         _ => None,
     });
     let end_marker = ie_end_marker.or(match tail {
         '>' => {
-            if trimmed.ends_with("|>") {
+            if trimmed.ends_with(">>") {
+                Some("arrow-double-open")
+            } else if trimmed.ends_with("|>") {
                 Some("arrow-triangle")
             } else {
                 Some("arrow-open")
@@ -103,7 +111,12 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
-        '0' | '(' | ')' | '@' | '^' | '#' | '+' => Some("arrow-open"),
+        '0' | '(' | ')' => Some("arrow-circle-open"),
+        '@' => Some("arrow-circle-filled"),
+        '^' => Some("arrow-triangle-filled"),
+        '#' => Some("arrow-box-filled"),
+        '+' => Some("arrow-plus"),
+        '\\' | '/' => Some("arrow-slash"),
         _ => None,
     });
     ArrowStyle {
@@ -197,6 +210,48 @@ pub(crate) fn render_relation_marker_defs_with_prefix(
         "<marker id=\"{prefix}arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
          markerWidth=\"14\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-double-open\" viewBox=\"0 0 16 12\" refX=\"15\" refY=\"6\" \
+         markerWidth=\"16\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,1 L8,6 L0,11 M7,1 L15,6 L7,11\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-circle-open\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"6\" cy=\"6\" r=\"4\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-circle-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"6\" cy=\"6\" r=\"4\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-triangle-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-box-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <rect x=\"2\" y=\"2\" width=\"8\" height=\"8\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-plus\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M6,1 L6,11 M1,6 L11,6\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-slash\" viewBox=\"0 0 12 12\" refX=\"10\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M3,2 L9,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
          </marker>",
     ));
     out.push_str("</defs>");

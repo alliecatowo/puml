@@ -1,5 +1,5 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
-use crate::render::svg::escape_text;
+use crate::render::svg::{creole_text, escape_text};
 
 use super::class_members::family_node_label;
 use super::tree::render_centered_multiline_text;
@@ -305,18 +305,39 @@ pub(super) fn render_node_stereotype_rows(
         .iter()
         .filter(|member| {
             let text = member.text.trim();
-            text.starts_with("<<") && text.ends_with(">>")
+            text.starts_with("<<")
+                && text.ends_with(">>")
+                && !matches!(text, "<<portin>>" | "<<portout>>")
         })
         .take(4)
         .enumerate()
     {
+        let text = member.text.trim();
+        if let Some(sprite_label) = stereotype_sprite_label(text) {
+            out.push_str(&creole_text(
+                cx - 10,
+                start_y + idx as i32 * 14,
+                "font-family=\"monospace\" font-size=\"10\" fill=\"#64748b\"",
+                &sprite_label,
+                "#64748b",
+            ));
+            continue;
+        }
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#64748b\">{}</text>",
             cx,
             start_y + idx as i32 * 12,
-            escape_text(member.text.trim())
+            escape_text(text)
         ));
     }
+}
+
+fn stereotype_sprite_label(text: &str) -> Option<String> {
+    let inner = text.strip_prefix("<<")?.strip_suffix(">>")?.trim();
+    inner
+        .strip_prefix('$')
+        .filter(|name| !name.is_empty())
+        .map(|name| format!("<${name}>"))
 }
 
 pub(crate) fn render_note_card(out: &mut String, x: i32, y: i32, w: i32, h: i32, text: &str) {

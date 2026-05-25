@@ -15,6 +15,25 @@ fn render_svg(src: &str) -> String {
     render_source_to_svg(src).expect("render should succeed")
 }
 
+fn attr_value_in_tag(haystack: &str, marker: &str, attr: &str) -> i32 {
+    let marker_idx = haystack.find(marker).expect("marker should exist");
+    let tag_start = haystack[..=marker_idx]
+        .rfind('<')
+        .expect("tag start should exist");
+    let tag_end = haystack[marker_idx..]
+        .find('>')
+        .map(|idx| marker_idx + idx)
+        .expect("tag end should exist");
+    let tag = &haystack[tag_start..=tag_end];
+    let needle = format!("{attr}=\"");
+    let attr_start = tag.find(&needle).expect("attribute should exist") + needle.len();
+    let rest = &tag[attr_start..];
+    let end = rest.find('"').expect("attribute should terminate");
+    rest[..end]
+        .parse::<i32>()
+        .expect("attribute should parse as i32")
+}
+
 // ── 7.8 / 7.9  componentStyle uml2 (default) ─────────────────────────────────
 
 #[test]
@@ -422,5 +441,61 @@ Line 2
     assert!(
         !svg.contains("Line 1Line 2"),
         "multiline bracket description should preserve line breaks"
+    );
+}
+
+#[test]
+fn component_group_ports_attach_to_container_boundary() {
+    let src = "\
+@startuml
+component Gateway {
+  portin HTTPS
+  portout Events
+  component Worker
+}
+HTTPS --> Worker
+Worker --> Events
+@enduml
+";
+    let svg = render_svg(src);
+    let group_marker = "class=\"uml-group-frame\" data-uml-group=\"Gateway\"";
+    let group_x = attr_value_in_tag(&svg, group_marker, "x");
+    let group_w = attr_value_in_tag(&svg, group_marker, "width");
+    let in_x = attr_value_in_tag(&svg, "data-uml-port-direction=\"in\"", "x");
+    let out_x = attr_value_in_tag(&svg, "data-uml-port-direction=\"out\"", "x");
+
+    assert_eq!(in_x + 12, group_x, "portin should straddle left boundary");
+    assert_eq!(
+        out_x + 12,
+        group_x + group_w,
+        "portout should straddle right boundary"
+    );
+    assert!(
+        !svg.contains("&lt;&lt;portin&gt;&gt;") && !svg.contains("&lt;&lt;portout&gt;&gt;"),
+        "port direction metadata should not render as user stereotypes"
+    );
+}
+
+#[test]
+fn component_sprite_stereotype_renders_icon() {
+    let src = "\
+@startuml
+sprite $businessProcess [4x4/16] {
+0FF0
+F00F
+F00F
+0FF0
+}
+rectangle \"Order flow\" <<$businessProcess>>
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("data-sprite=\"businessProcess\""),
+        "sprite stereotype should render as a sprite glyph"
+    );
+    assert!(
+        !svg.contains("&lt;&lt;$businessProcess&gt;&gt;"),
+        "sprite stereotype marker should not render as escaped text"
     );
 }
