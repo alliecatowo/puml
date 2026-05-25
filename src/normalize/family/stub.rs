@@ -194,7 +194,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             StatementKind::FamilyRelation(rel) => {
                 last_relation = Some((rel.from.clone(), rel.to.clone()));
-                relations.push(model_relation_from_ast(rel));
+                relations.push(model_relation_from_ast(rel)?);
             }
             StatementKind::AssociationClass {
                 left,
@@ -323,7 +323,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 });
                 for rel in group_relations {
                     last_relation = Some((rel.from.clone(), rel.to.clone()));
-                    relations.push(model_relation_from_ast(rel));
+                    relations.push(model_relation_from_ast(rel)?);
                 }
             }
             StatementKind::SetOption { key, value } => {

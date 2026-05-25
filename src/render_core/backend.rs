@@ -33,6 +33,13 @@ impl BackendFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SceneAvailability {
+    TypedScene,
+    NotMigrated,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendCapability {
     VectorOutput,
     HtmlExport,

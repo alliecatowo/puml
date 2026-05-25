@@ -13,7 +13,9 @@ pub use chen::{
 pub use common::{LegendHAlign, LegendVAlign, MetadataHAlign, ScaleSpec};
 pub use family::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation,
-    FamilyStyle, JsonProjection, MindMapSide, WbsCheckbox,
+    FamilyRelationArrow, FamilyRelationColor, FamilyRelationDirection,
+    FamilyRelationEndpointMarker, FamilyRelationLineKind, FamilyStyle, JsonProjection, MindMapSide,
+    WbsCheckbox,
 };
 pub use sequence::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,

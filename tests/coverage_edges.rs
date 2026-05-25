@@ -20,6 +20,37 @@ fn fixture(name: &str) -> String {
 }
 
 #[test]
+fn family_relation_normalizer_rejects_invalid_arrow_contract_before_render() {
+    let doc = puml::ast::Document {
+        kind: DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 0, end: 0 },
+            kind: puml::ast::StatementKind::FamilyRelation(puml::ast::FamilyRelation {
+                from: "A".to_string(),
+                to: "B".to_string(),
+                arrow: "=>".to_string(),
+                label: None,
+                stereotype: None,
+                left_cardinality: None,
+                right_cardinality: None,
+                left_role: None,
+                right_role: None,
+                line_color: None,
+                dashed: false,
+                hidden: false,
+                thickness: None,
+                direction: None,
+                left_lollipop: false,
+                right_lollipop: false,
+            }),
+        }],
+    };
+
+    let err = normalize_family(doc).expect_err("invalid relation arrow should fail before render");
+    assert!(err.message.contains("[E_FAMILY_RELATION_ARROW]"));
+}
+
+#[test]
 fn parser_define_substitution_skips_quoted_tokens() {
     let src = "@startuml\n!define A Alice\nparticipant A\nA -> A : \"A\" and A\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");

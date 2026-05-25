@@ -188,7 +188,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
                 json!({
                     "from": r.from,
                     "to": r.to,
-                    "arrow": r.arrow,
+                    "arrow": r.arrow.as_str(),
                     "label": r.label
                 })
             })
@@ -431,7 +431,7 @@ pub(crate) fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                         json!({
                             "from": r.from,
                             "to": r.to,
-                            "arrow": r.arrow,
+                            "arrow": r.arrow.as_str(),
                             "label": r.label
                         })
                     })
@@ -454,7 +454,7 @@ pub(crate) fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     "relations": family.relations.iter().map(|r| json!({
                         "from": r.from,
                         "to": r.to,
-                        "arrow": r.arrow,
+                        "arrow": r.arrow.as_str(),
                         "label": r.label
                     })).collect::<Vec<_>>(),
                     "svg_preview": svg

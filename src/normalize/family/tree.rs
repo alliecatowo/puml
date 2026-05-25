@@ -285,24 +285,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 }
             }
             StatementKind::FamilyRelation(rel) => {
-                relations.push(ModelFamilyRelation {
-                    from: rel.from,
-                    to: rel.to,
-                    arrow: rel.arrow,
-                    label: rel.label,
-                    stereotype: rel.stereotype,
-                    left_cardinality: rel.left_cardinality,
-                    right_cardinality: rel.right_cardinality,
-                    left_role: rel.left_role,
-                    right_role: rel.right_role,
-                    line_color: rel.line_color,
-                    dashed: rel.dashed,
-                    hidden: rel.hidden,
-                    thickness: rel.thickness,
-                    direction: rel.direction,
-                    left_lollipop: rel.left_lollipop,
-                    right_lollipop: rel.right_lollipop,
-                });
+                relations.push(model_relation_from_ast(rel)?);
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");

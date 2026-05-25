@@ -17,9 +17,9 @@ pub(super) fn merge_duplicate_rel_labels(
     type RelKey = (
         String,
         String,
-        String,
-        Option<String>,
-        Option<String>,
+        crate::model::FamilyRelationArrow,
+        Option<crate::model::FamilyRelationDirection>,
+        Option<crate::model::FamilyRelationColor>,
         bool,
         bool,
     );
@@ -116,25 +116,49 @@ pub(super) fn parse_map_row_relation(row: &str, source_id: &str) -> Option<Model
     None
 }
 
-pub(super) fn model_relation_from_ast(rel: crate::ast::FamilyRelation) -> ModelFamilyRelation {
-    ModelFamilyRelation {
+pub(super) fn model_relation_from_ast(
+    rel: crate::ast::FamilyRelation,
+) -> Result<ModelFamilyRelation, Diagnostic> {
+    let arrow = crate::model::FamilyRelationArrow::parse(&rel.arrow)
+        .map_err(|msg| Diagnostic::error(format!("[E_FAMILY_RELATION_ARROW] {msg}")))?;
+    let direction = rel
+        .direction
+        .as_deref()
+        .map(|direction| {
+            crate::model::FamilyRelationDirection::parse(direction).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "[E_FAMILY_RELATION_DIRECTION] invalid relation direction `{direction}`"
+                ))
+            })
+        })
+        .transpose()?;
+    let line_color = rel
+        .line_color
+        .as_deref()
+        .map(|color| {
+            crate::model::FamilyRelationColor::parse(color)
+                .map_err(|msg| Diagnostic::error(format!("[E_FAMILY_RELATION_COLOR] {msg}")))
+        })
+        .transpose()?;
+
+    Ok(ModelFamilyRelation {
         from: rel.from,
         to: rel.to,
-        arrow: rel.arrow,
+        arrow,
         label: rel.label,
         stereotype: rel.stereotype,
         left_cardinality: rel.left_cardinality,
         right_cardinality: rel.right_cardinality,
         left_role: rel.left_role,
         right_role: rel.right_role,
-        line_color: rel.line_color,
+        line_color,
         dashed: rel.dashed,
         hidden: rel.hidden,
         thickness: rel.thickness,
-        direction: rel.direction,
+        direction,
         left_lollipop: rel.left_lollipop,
         right_lollipop: rel.right_lollipop,
-    }
+    })
 }
 
 pub(super) fn simple_family_relation(
@@ -145,7 +169,8 @@ pub(super) fn simple_family_relation(
     ModelFamilyRelation {
         from,
         to,
-        arrow,
+        arrow: crate::model::FamilyRelationArrow::parse(&arrow)
+            .expect("normalizer emits only valid relation arrow literals"),
         label: None,
         stereotype: None,
         left_cardinality: None,
@@ -186,7 +211,8 @@ pub(super) fn build_family_tree_relations(
             relations.push(ModelFamilyRelation {
                 from: nodes[parent_idx].name.clone(),
                 to: nodes[idx].name.clone(),
-                arrow: "->".to_string(),
+                arrow: crate::model::FamilyRelationArrow::parse("->")
+                    .expect("normalizer emits only valid relation arrow literals"),
                 label: None,
                 stereotype: None,
                 left_cardinality: None,
