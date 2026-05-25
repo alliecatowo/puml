@@ -34,6 +34,7 @@ pub enum StdlibPackStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StdlibBuiltinIncludeKind {
     OpenIconicSprite,
+    OpenIconicSpritePack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,6 +162,7 @@ pub fn inventory_from_root(root: &Path) -> Result<Vec<StdlibEntry>, String> {
             }
         }
     }
+    append_builtin_stdlib_entries(&mut entries);
 
     entries.sort_by(|a, b| {
         a.path
@@ -182,7 +184,11 @@ pub fn stdlib_pack_summaries(entries: &[StdlibEntry]) -> Vec<StdlibPackSummary> 
             .entry(pack_name.to_string())
             .or_insert_with(|| StdlibPackSummary {
                 name: pack_name.to_string(),
-                status: StdlibPackStatus::Available,
+                status: if is_builtin_stdlib_pack(pack_name) {
+                    StdlibPackStatus::Builtin
+                } else {
+                    StdlibPackStatus::Available
+                },
                 files: 0,
                 aliases: 0,
             });
@@ -273,6 +279,9 @@ pub fn resolve_builtin_stdlib_include(path: &Path) -> Option<StdlibBuiltinInclud
         .file_stem()
         .and_then(|stem| stem.to_str())
         .filter(|stem| !stem.is_empty())?;
+    if matches!(icon_name.to_ascii_lowercase().as_str(), "all" | "common") {
+        return Some(openiconic_sprite_pack_include(logical_path));
+    }
     let (symbol, svg) = crate::sprites::openiconic_svg_source(icon_name)?;
     let content = format!(
         "' synthetic stdlib include <{logical_path}> resolved from built-in OpenIconic icons\nsprite ${symbol} {svg}\n"
@@ -284,6 +293,42 @@ pub fn resolve_builtin_stdlib_include(path: &Path) -> Option<StdlibBuiltinInclud
         kind: StdlibBuiltinIncludeKind::OpenIconicSprite,
         content,
     })
+}
+
+fn append_builtin_stdlib_entries(entries: &mut Vec<StdlibEntry>) {
+    for name in crate::sprites::openiconic_icon_names() {
+        let logical_path = format!("openiconic/{name}.puml");
+        entries.push(StdlibEntry {
+            path: logical_path.clone(),
+            physical_path: format!("builtin://{logical_path}"),
+            alias: false,
+        });
+    }
+    for logical_path in ["openiconic/all.puml", "openiconic/common.puml"] {
+        entries.push(StdlibEntry {
+            path: logical_path.to_string(),
+            physical_path: format!("builtin://{logical_path}"),
+            alias: false,
+        });
+    }
+}
+
+fn openiconic_sprite_pack_include(logical_path: String) -> StdlibBuiltinInclude {
+    let mut content = format!(
+        "' synthetic stdlib include <{logical_path}> resolved from built-in OpenIconic icons\n"
+    );
+    for name in crate::sprites::openiconic_icon_names() {
+        if let Some((symbol, svg)) = crate::sprites::openiconic_svg_source(name) {
+            content.push_str(&format!("sprite ${symbol} {svg}\n"));
+        }
+    }
+    StdlibBuiltinInclude {
+        logical_path,
+        pack: "openiconic".to_string(),
+        symbol: "*".to_string(),
+        kind: StdlibBuiltinIncludeKind::OpenIconicSpritePack,
+        content,
+    }
 }
 
 fn collect_puml_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
@@ -375,6 +420,8 @@ mod tests {
         assert!(paths.contains(&"material2/folder.puml"));
         assert!(paths.contains(&"material2.1.19/folder.puml"));
         assert!(paths.contains(&"material/folder.puml"));
+        assert!(paths.contains(&"openiconic/folder.puml"));
+        assert!(paths.contains(&"openiconic/all.puml"));
 
         let mut sorted = paths.clone();
         sorted.sort();
@@ -390,6 +437,18 @@ mod tests {
         assert_eq!(builtin.symbol, "folder");
         assert_eq!(builtin.kind, StdlibBuiltinIncludeKind::OpenIconicSprite);
         assert!(builtin.content.contains("sprite $folder <svg"));
+    }
+
+    #[test]
+    fn builtin_openiconic_pack_include_resolves_all_icons() {
+        let builtin = resolve_builtin_stdlib_include(Path::new("openiconic/all.puml"))
+            .expect("openiconic all should resolve as built-in pack include");
+
+        assert_eq!(builtin.pack, "openiconic");
+        assert_eq!(builtin.symbol, "*");
+        assert_eq!(builtin.kind, StdlibBuiltinIncludeKind::OpenIconicSpritePack);
+        assert!(builtin.content.contains("sprite $folder <svg"));
+        assert!(builtin.content.contains("sprite $cloud-upload <svg"));
     }
 
     #[test]

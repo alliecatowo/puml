@@ -6,7 +6,7 @@ const GROUP_KEYWORDS = new Set([
 ]);
 
 const FLOW_KEYWORDS = new Set([
-  'start', 'stop', 'end',
+  'start', 'stop', 'end', 'sprite', 'listsprite', 'listsprites',
 ]);
 
 const LIFECYCLE_KEYWORDS = new Set([
@@ -27,7 +27,10 @@ const NOTE_KEYWORDS = new Set([
 ]);
 
 const SKINPARAM_KEYWORDS = new Set(['skinparam', 'skinparams']);
-const INCLUDE_KEYWORDS = new Set(['include', 'includesub', 'import', 'theme', 'startsub', 'endsub']);
+const INCLUDE_KEYWORDS = new Set([
+  'include', 'include_once', 'include_many', 'includeurl', 'includesub',
+  'import', 'theme', 'startsub', 'endsub',
+]);
 
 const ARROW_RE = /^(?:<\|--|\*--|o--|\.\.\|>|=>|<=|\.\.>)|^[<o]?-{1,2}(?:\[[^\]]*\])?-?-?>>?|^[<o]?-{1,2}(?:\[[^\]]*\])?[xX]|^[<o]-{1,2}/;
 
@@ -96,6 +99,12 @@ export function readPumlToken(line, index, state) {
 
   const stringToken = rest.match(/^"(?:\\.|[^"\\])*"/);
   if (stringToken) return { text: stringToken[0], token: 'string', nextIndex: index + stringToken[0].length };
+
+  const spriteRef = rest.match(/^<\$[A-Za-z_][A-Za-z0-9_-]*(?:[,}][^>]*)?>/);
+  if (spriteRef) return { text: spriteRef[0], token: 'literal', nextIndex: index + spriteRef[0].length };
+
+  const openIconic = rest.match(/^&[A-Za-z][A-Za-z0-9_-]*/);
+  if (openIconic) return { text: openIconic[0], token: 'literal', nextIndex: index + openIconic[0].length };
 
   const stereotype = rest.match(/^<<[^>]*>>/);
   if (stereotype) return { text: stereotype[0], token: 'typeName', nextIndex: index + stereotype[0].length };
