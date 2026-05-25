@@ -172,6 +172,7 @@ fn render_document_for_family(
         ),
         DiagramFamily::Stdlib => render_stdlib(document),
         DiagramFamily::Chen => render_chen(document),
+        DiagramFamily::Wire => render_wire(document),
         DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
         DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
         DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -256,6 +257,15 @@ fn render_chen(document: Document) -> Result<Vec<String>, Diagnostic> {
         model::NormalizedDocument::Chen(doc) => Ok(vec![render::render_chen_svg(&doc)]),
         _ => Err(Diagnostic::error(
             "[E_CHEN_INTERNAL] unexpected model during chen render",
+        )),
+    }
+}
+
+fn render_wire(document: Document) -> Result<Vec<String>, Diagnostic> {
+    match normalize_mod::normalize_family(document)? {
+        model::NormalizedDocument::Wire(doc) => Ok(vec![render::render_wire_svg(&doc)]),
+        _ => Err(Diagnostic::error(
+            "[E_WIRE_INTERNAL] unexpected model during wire render",
         )),
     }
 }
@@ -383,6 +393,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Chen(doc) => vec![render::render_chen_svg(doc)],
         NormalizedDocument::Board(doc) => vec![render::render_board_svg(doc)],
         NormalizedDocument::Files(doc) => vec![render::render_files_svg(doc)],
+        NormalizedDocument::Wire(doc) => vec![render::render_wire_svg(doc)],
     }
 }
 

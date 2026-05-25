@@ -34,6 +34,7 @@ pub enum DiagramFamily {
     Chen,
     Board,
     Files,
+    Wire,
     Unknown,
 }
 
@@ -68,6 +69,7 @@ impl DiagramFamily {
             Self::Chen => "chen",
             Self::Board => "board",
             Self::Files => "files",
+            Self::Wire => "wire",
             Self::Unknown => "unknown",
         }
     }

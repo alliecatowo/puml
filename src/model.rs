@@ -5,6 +5,7 @@ mod sequence;
 mod state;
 mod stdlib;
 mod structured;
+mod wire;
 
 pub use chen::{
     ChenAttribute, ChenDocument, ChenInheritance, ChenNode, ChenNodeKind, ChenRelation,
@@ -35,6 +36,9 @@ pub use structured::{
     TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
     TimelineTaskPauseRange, YamlDocument, YamlTreeNode,
 };
+pub use wire::{
+    WireComponent, WireDocument, WireEndpoint, WireLabel, WireLink, WirePort, WirePortSide,
+};
 
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -58,6 +62,7 @@ pub enum NormalizedDocument {
     Chen(ChenDocument),
     Board(BoardDocument),
     Files(FilesDocument),
+    Wire(WireDocument),
 }
 
 #[cfg(test)]

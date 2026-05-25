@@ -1,0 +1,12 @@
+@startwire
+!$SwitchWidth=110
+title Variable-sized switches
+*Main_Switch [$SwitchWidthx34] right:MAIN
+vspace 18
+*Secondary_Switch [$SwitchWidthx34] right:AUX
+--
+component Relay [120x90] left:MAIN,AUX
+Main_Switch.MAIN --> Relay.MAIN
+Secondary_Switch.AUX --> Relay.AUX
+print("Designed with @startwire")
+@endwire

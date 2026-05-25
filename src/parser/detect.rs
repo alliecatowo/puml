@@ -141,8 +141,14 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::Salt);
     }
 
-    if line.starts_with("salt ") {
-        return Some(DiagramKind::Salt);
+    if line.starts_with("component ")
+        || line.starts_with("vspace ")
+        || line.starts_with("move ")
+        || line.starts_with("goto ")
+        || line.starts_with("print(")
+        || line.starts_with('$')
+    {
+        return Some(DiagramKind::Wire);
     }
 
     None

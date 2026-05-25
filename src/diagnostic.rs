@@ -168,6 +168,7 @@ pub fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Chen(doc) => &doc.warnings,
         NormalizedDocument::Board(doc) => &doc.warnings,
         NormalizedDocument::Files(doc) => &doc.warnings,
+        NormalizedDocument::Wire(doc) => &doc.warnings,
     }
 }
 

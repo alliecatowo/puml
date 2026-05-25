@@ -1,0 +1,10 @@
+@startwire
+title Manual placement hooks
+component SensorA [100x70] right:SDA,SCL
+move (0, 110)
+component SensorB [100x70] right:SDA,SCL
+goto (250, 95)
+component Hub [130x120] left:SDA,SCL
+SensorA.SDA --> Hub.SDA
+SensorB.SCL --> Hub.SCL
+@endwire

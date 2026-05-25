@@ -37,6 +37,7 @@ pub enum DiagramKind {
     Chen,
     Board,
     Files,
+    Wire,
     Unknown,
 }
 

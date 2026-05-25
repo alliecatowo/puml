@@ -34,6 +34,7 @@ mod text_timeline;
 mod timeline;
 mod timing;
 pub mod validate;
+mod wire;
 
 use crate::model::ScaleSpec;
 use crate::render_core::RenderScene;
@@ -84,6 +85,7 @@ pub use stdlib::render_stdlib_svg;
 pub use text::{render_text_pages, TextOutputMode};
 pub use timeline::{render_timeline_stub_svg, render_timeline_svg};
 pub use timing::render_timing_svg;
+pub use wire::{render_wire_artifact, render_wire_svg};
 
 pub(crate) use family::family_node_label;
 pub(crate) use geometry::compute_edge_anchors_for_direction;

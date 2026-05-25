@@ -145,6 +145,7 @@ fn detect_family_for_frontend(
         DiagramKind::Chen => puml::DiagramFamily::Chen,
         DiagramKind::Board => puml::DiagramFamily::Board,
         DiagramKind::Files => puml::DiagramFamily::Files,
+        DiagramKind::Wire => puml::DiagramFamily::Wire,
         DiagramKind::Unknown => puml::DiagramFamily::Unknown,
     })
 }

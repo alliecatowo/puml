@@ -311,6 +311,15 @@
       "min_text_elements": 8
     },
     {
+      "path": "docs/examples/wire/01_basic_components.puml",
+      "family": "wire",
+      "expected_text": ["Wire harness controller", "Panel", "Controller", "POWER", "DATA", "24V", "signal"],
+      "min_text_elements": 9,
+      "png_baseline_required": false,
+      "png_baseline_issue": 725,
+      "png_baseline_deferred_reason": "Initial Wire renderer slice carries inspected PNG evidence; Linux-blessed baseline promotion is deferred to avoid local font-raster drift."
+    },
+    {
       "path": "docs/diagrams/architecture-overview.puml",
       "family": "component",
       "expected_text": [
