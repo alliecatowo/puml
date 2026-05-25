@@ -20,15 +20,38 @@ adding isolated one-off syntax patches:
 5. Validate typed render scenes before SVG serialization.
 6. Promote high-risk visual cases into baselines and geometry invariant tests.
 
+## Completed Architecture Contracts
+
+The 2026-05-24/25 refactor wave closed the broad first-slice contract issues:
+#1111, #1112, #1113, #1114, #1115, #1116, #1117, #1150, and split follow-ups
+through #1180. Treat those as shipped foundation work. Do not use #399, #436,
+#525, or the closed first-slice issues as active assignment targets.
+
 ## Active Issue Backbone
 
 - [#590](https://github.com/alliecatowo/puml/issues/590) — renderer architecture:
   shared layout, routing, scene hooks, and invariant gates.
+- [#1181](https://github.com/alliecatowo/puml/issues/1181) — enforce the Rust
+  file-size guardrail in CI.
+- [#1182](https://github.com/alliecatowo/puml/issues/1182) — return render
+  artifacts with SVG and optional typed `RenderScene`.
+- [#1183](https://github.com/alliecatowo/puml/issues/1183) — eliminate remaining
+  `StatementKind::Unknown` normalizer fallbacks.
+- [#1184](https://github.com/alliecatowo/puml/issues/1184) — shared style cascade
+  for skinparam, themes, stereotypes, inline tokens, and `<style>`.
+- [#1185](https://github.com/alliecatowo/puml/issues/1185) — LSP workspace
+  commands for renderScene, export, and explainDiagnostic.
+- [#592](https://github.com/alliecatowo/puml/issues/592) — finish hierarchical
+  graph-layout adoption across node-and-edge families.
+- [#593](https://github.com/alliecatowo/puml/issues/593) — shared orthogonal edge
+  routing channels.
+- [#594](https://github.com/alliecatowo/puml/issues/594) — visual quality gate for
+  compactness, labels, routing, and corpus baselines.
 - [#870](https://github.com/alliecatowo/puml/issues/870) — shared scene hooks and
   canonical render contracts.
 - [#816](https://github.com/alliecatowo/puml/issues/816) — render invariants.
-- [#399](https://github.com/alliecatowo/puml/issues/399) — shared language service
-  and compile surface.
+- [#1145](https://github.com/alliecatowo/puml/issues/1145) — typed `RenderScene`
+  validation in the graph-family render path.
 - [#400](https://github.com/alliecatowo/puml/issues/400) — compile/language API and
   worker protocol.
 - [#402](https://github.com/alliecatowo/puml/issues/402) — syntax package and editor
