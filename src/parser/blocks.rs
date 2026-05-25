@@ -37,6 +37,8 @@ enum BlockKind {
     Ditaa,
     Chart,
     Chen,
+    Board,
+    Files,
 }
 
 /// Like `parse_block_marker_kind`, but also returns the trimmed text that
@@ -58,6 +60,8 @@ fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)
         ("@startditaa", BlockKind::Ditaa),
         ("@startchart", BlockKind::Chart),
         ("@startchen", BlockKind::Chen),
+        ("@startboard", BlockKind::Board),
+        ("@startfiles", BlockKind::Files),
         ("@startsdl", BlockKind::Sdl),
         ("@startgantt", BlockKind::Gantt),
         ("@startwbs", BlockKind::Wbs),
@@ -97,6 +101,8 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startditaa", BlockKind::Ditaa),
             ("@startchart", BlockKind::Chart),
             ("@startchen", BlockKind::Chen),
+            ("@startboard", BlockKind::Board),
+            ("@startfiles", BlockKind::Files),
             ("@startsdl", BlockKind::Sdl),
             ("@startgantt", BlockKind::Gantt),
             ("@startwbs", BlockKind::Wbs),
@@ -118,6 +124,8 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@endditaa", BlockKind::Ditaa),
             ("@endchart", BlockKind::Chart),
             ("@endchen", BlockKind::Chen),
+            ("@endboard", BlockKind::Board),
+            ("@endfiles", BlockKind::Files),
             ("@endsdl", BlockKind::Sdl),
             ("@endgantt", BlockKind::Gantt),
             ("@endwbs", BlockKind::Wbs),
@@ -155,6 +163,8 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Ditaa => Some(DiagramKind::Ditaa),
         BlockKind::Chart => Some(DiagramKind::Chart),
         BlockKind::Chen => Some(DiagramKind::Chen),
+        BlockKind::Board => Some(DiagramKind::Board),
+        BlockKind::Files => Some(DiagramKind::Files),
     }
 }
 
@@ -177,6 +187,8 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Ditaa => "ditaa",
         BlockKind::Chart => "chart",
         BlockKind::Chen => "chen",
+        BlockKind::Board => "board",
+        BlockKind::Files => "files",
     }
 }
 
@@ -196,6 +208,8 @@ fn block_kind_is_raw_body(kind: BlockKind) -> bool {
             | BlockKind::Sdl
             | BlockKind::Ditaa
             | BlockKind::Chart
+            | BlockKind::Board
+            | BlockKind::Files
     )
 }
 
@@ -281,6 +295,8 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Chart => "chart",
         DiagramKind::Stdlib => "stdlib",
         DiagramKind::Chen => "chen",
+        DiagramKind::Board => "board",
+        DiagramKind::Files => "files",
         DiagramKind::Unknown => "unknown",
     }
 }

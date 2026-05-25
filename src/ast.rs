@@ -35,6 +35,8 @@ pub enum DiagramKind {
     Chart,
     Stdlib,
     Chen,
+    Board,
+    Files,
     Unknown,
 }
 

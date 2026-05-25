@@ -310,6 +310,35 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
             ],
             &mut counts,
         ),
+        NormalizedDocument::Board(doc) => metadata_for_simple(
+            "board",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("columns", doc.columns.len()),
+                (
+                    "cards",
+                    doc.columns.iter().map(|column| column.cards.len()).sum(),
+                ),
+            ],
+            &mut counts,
+        ),
+        NormalizedDocument::Files(doc) => metadata_for_simple(
+            "files",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("roots", doc.roots.len()),
+                ("entries", count_file_metadata_entries(&doc.roots)),
+                (
+                    "notes",
+                    count_file_metadata_notes(&doc.roots) + doc.top_notes.len(),
+                ),
+            ],
+            &mut counts,
+        ),
     };
 
     DiagramMetadata {
@@ -363,6 +392,20 @@ fn metadata_warnings(warnings: &[Diagnostic]) -> Vec<MetadataWarning> {
             message: warning.message.clone(),
         })
         .collect()
+}
+
+fn count_file_metadata_entries(nodes: &[crate::model::FileTreeNode]) -> usize {
+    nodes
+        .iter()
+        .map(|node| 1 + count_file_metadata_entries(&node.children))
+        .sum()
+}
+
+fn count_file_metadata_notes(nodes: &[crate::model::FileTreeNode]) -> usize {
+    nodes
+        .iter()
+        .map(|node| node.notes.len() + count_file_metadata_notes(&node.children))
+        .sum()
 }
 
 fn diagnostic_code(message: &str) -> Option<String> {

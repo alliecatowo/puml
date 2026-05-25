@@ -225,6 +225,20 @@ const FAMILY_SPECS: &[DiagramFamilySpec] = &[
         PLANTUML_ONLY,
     ),
     family(
+        DiagramKind::Board,
+        DiagramFamily::Board,
+        "board",
+        FamilyRenderKind::Board,
+        PLANTUML_ONLY,
+    ),
+    family(
+        DiagramKind::Files,
+        DiagramFamily::Files,
+        "files",
+        FamilyRenderKind::Files,
+        PLANTUML_ONLY,
+    ),
+    family(
         DiagramKind::Unknown,
         DiagramFamily::Unknown,
         "unknown",

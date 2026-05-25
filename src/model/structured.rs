@@ -216,6 +216,43 @@ pub struct DitaaDocument {
 }
 
 #[derive(Debug, Clone)]
+pub struct BoardDocument {
+    pub title: Option<String>,
+    pub columns: Vec<BoardColumn>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardColumn {
+    pub title: String,
+    pub cards: Vec<BoardCard>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardCard {
+    pub depth: usize,
+    pub title: String,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FilesDocument {
+    pub title: Option<String>,
+    pub roots: Vec<FileTreeNode>,
+    pub top_notes: Vec<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileTreeNode {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub notes: Vec<String>,
+    pub children: Vec<FileTreeNode>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ChartDocument {
     pub title: Option<String>,
     pub caption: Option<String>,

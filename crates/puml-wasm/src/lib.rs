@@ -143,6 +143,8 @@ fn detect_family_for_frontend(
         DiagramKind::Chart => puml::DiagramFamily::Chart,
         DiagramKind::Stdlib => puml::DiagramFamily::Stdlib,
         DiagramKind::Chen => puml::DiagramFamily::Chen,
+        DiagramKind::Board => puml::DiagramFamily::Board,
+        DiagramKind::Files => puml::DiagramFamily::Files,
         DiagramKind::Unknown => puml::DiagramFamily::Unknown,
     })
 }

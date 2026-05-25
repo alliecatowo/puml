@@ -1,15 +1,17 @@
 pub(crate) use crate::ast::DiagramKind;
 pub(crate) use crate::model::{
-    ArchimateDocument, ChartDocument, ChartLabelMode, ChartSubtype, DitaaDocument, EbnfDocument,
-    EbnfToken, FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, JsonDocument,
-    LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, RegexDocument,
-    RegexToken, RepeatKind, SdlDocument, SdlStateKind, StateDocument, StateNode, StateNodeKind,
-    TimelineChronologyEvent, TimelineDocument, TimelineMilestone, TimelineResourceOffRange,
-    TimelineTask, WbsCheckbox, YamlDocument,
+    ArchimateDocument, BoardCard, BoardDocument, ChartDocument, ChartLabelMode, ChartSubtype,
+    DitaaDocument, EbnfDocument, EbnfToken, FamilyDocument, FamilyNode, FamilyNodeKind,
+    FamilyOrientation, FileTreeNode, FilesDocument, JsonDocument, LegendHAlign, LegendVAlign,
+    MathDocument, MindMapSide, NwdiagDocument, RegexDocument, RegexToken, RepeatKind, SdlDocument,
+    SdlStateKind, StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent,
+    TimelineDocument, TimelineMilestone, TimelineResourceOffRange, TimelineTask, WbsCheckbox,
+    YamlDocument,
 };
 pub(crate) use std::collections::BTreeMap;
 
 mod activity;
+mod board_files;
 mod chen;
 mod data;
 mod family;
@@ -61,6 +63,7 @@ impl RenderArtifact {
 }
 
 pub use activity::render_activity_svg;
+pub use board_files::{render_board_svg, render_files_svg};
 pub use chen::render_chen_svg;
 pub use data::{render_json_svg, render_yaml_svg};
 pub use family::{

@@ -23,5 +23,7 @@ pub enum FamilyRenderKind {
     Chart,
     Stdlib,
     Chen,
+    Board,
+    Files,
     Unsupported,
 }

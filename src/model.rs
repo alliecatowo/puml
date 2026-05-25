@@ -24,15 +24,15 @@ pub use state::{
 };
 pub use stdlib::StdlibDocument;
 pub use structured::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAnnotation, ChartAxis,
-    ChartDocument, ChartLabelMode, ChartLegend, ChartPoint, ChartSeries, ChartSubtype,
-    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, JsonDocument, JsonTreeNode, MathDocument,
-    NwdiagDocument, NwdiagGroup, NwdiagNetwork, NwdiagNode, RegexDocument, RegexPattern,
-    RegexToken, RepeatKind, SdlDocument, SdlState, SdlStateKind, SdlTransition,
-    TimelineChronologyEvent, TimelineClosedRange, TimelineConstraint, TimelineDayMarker,
-    TimelineDocument, TimelineMilestone, TimelineNamedDate, TimelineNote, TimelineOpenRange,
-    TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
-    TimelineTaskPauseRange, YamlDocument, YamlTreeNode,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, BoardCard, BoardColumn, BoardDocument,
+    ChartAnnotation, ChartAxis, ChartDocument, ChartLabelMode, ChartLegend, ChartPoint,
+    ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FileTreeNode,
+    FilesDocument, JsonDocument, JsonTreeNode, MathDocument, NwdiagDocument, NwdiagGroup,
+    NwdiagNetwork, NwdiagNode, RegexDocument, RegexPattern, RegexToken, RepeatKind, SdlDocument,
+    SdlState, SdlStateKind, SdlTransition, TimelineChronologyEvent, TimelineClosedRange,
+    TimelineConstraint, TimelineDayMarker, TimelineDocument, TimelineMilestone, TimelineNamedDate,
+    TimelineNote, TimelineOpenRange, TimelineResourceAllocation, TimelineResourceOffRange,
+    TimelineSeparator, TimelineTask, TimelineTaskPauseRange, YamlDocument, YamlTreeNode,
 };
 
 #[derive(Debug, Clone)]
@@ -55,6 +55,8 @@ pub enum NormalizedDocument {
     Chart(ChartDocument),
     Stdlib(StdlibDocument),
     Chen(ChenDocument),
+    Board(BoardDocument),
+    Files(FilesDocument),
 }
 
 #[cfg(test)]
