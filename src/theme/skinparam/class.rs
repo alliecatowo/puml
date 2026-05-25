@@ -2,6 +2,7 @@ use super::helpers::{parse_bool_value, parse_monochrome_value, split_stereotype_
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
 use crate::theme::styles::*;
+use crate::theme::StyleSource;
 use std::collections::BTreeMap;
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
@@ -20,6 +21,19 @@ pub struct ClassStyle {
     pub actor_style: ActorStyle,
     pub attribute_icons: bool,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
+    pub sources: ClassStyleSources,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ClassStyleSources {
+    pub background_color: StyleSource,
+    pub border_color: StyleSource,
+    pub header_color: StyleSource,
+    pub member_color: StyleSource,
+    pub font_color: StyleSource,
+    pub arrow_color: StyleSource,
+    pub font_size: StyleSource,
+    pub font_name: StyleSource,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -36,6 +50,15 @@ pub struct ClassStereotypeStyle {
     pub border_color: Option<String>,
     pub header_color: Option<String>,
     pub font_color: Option<String>,
+    pub sources: ClassStereotypeStyleSources,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ClassStereotypeStyleSources {
+    pub background_color: StyleSource,
+    pub border_color: StyleSource,
+    pub header_color: StyleSource,
+    pub font_color: StyleSource,
 }
 
 impl Default for ClassStyle {
@@ -52,6 +75,7 @@ impl Default for ClassStyle {
             actor_style: ActorStyle::Stick,
             attribute_icons: true,
             stereotype_styles: BTreeMap::new(),
+            sources: ClassStyleSources::default(),
         }
     }
 }

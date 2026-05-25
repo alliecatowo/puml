@@ -1,6 +1,7 @@
 use super::helpers::split_stereotype_scope;
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
+use crate::theme::StyleSource;
 use std::collections::BTreeMap;
 
 // ─── Component-family skinparam support ──────────────────────────────────────
@@ -30,6 +31,16 @@ pub struct ComponentStyle {
     pub component_style_mode: ComponentStyleMode,
     pub target_styles: BTreeMap<ComponentStyleTarget, ComponentNodeStyle>,
     pub stereotype_styles: BTreeMap<String, ComponentNodeStyle>,
+    pub sources: ComponentStyleSources,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ComponentStyleSources {
+    pub background_color: StyleSource,
+    pub border_color: StyleSource,
+    pub interface_color: StyleSource,
+    pub font_color: StyleSource,
+    pub arrow_color: StyleSource,
 }
 
 impl Default for ComponentStyle {
@@ -43,6 +54,7 @@ impl Default for ComponentStyle {
             component_style_mode: ComponentStyleMode::Uml2,
             target_styles: BTreeMap::new(),
             stereotype_styles: BTreeMap::new(),
+            sources: ComponentStyleSources::default(),
         }
     }
 }
@@ -74,6 +86,14 @@ pub struct ComponentNodeStyle {
     pub background_color: Option<String>,
     pub border_color: Option<String>,
     pub font_color: Option<String>,
+    pub sources: ComponentNodeStyleSources,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ComponentNodeStyleSources {
+    pub background_color: StyleSource,
+    pub border_color: StyleSource,
+    pub font_color: StyleSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

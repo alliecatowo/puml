@@ -36,6 +36,7 @@ fn effective_class_node_style_resolves_base_stereotype_and_inline_precedence() {
             border_color: Some("#stereo-border".to_string()),
             header_color: Some("#stereo-header".to_string()),
             font_color: Some("#stereo-font".to_string()),
+            ..Default::default()
         },
     );
     let class_style = ClassStyle {
@@ -95,11 +96,21 @@ fn effective_class_node_style_resolves_base_stereotype_and_inline_precedence() {
     );
 
     let effective = effective_class_node_style(&class_style, &node);
-    assert_eq!(effective.fill, "#node-fill");
-    assert_eq!(effective.stroke, "#inline-border");
-    assert_eq!(effective.font_color, "#inline-text");
-    assert_eq!(effective.member_color, "#inline-text");
-    assert_eq!(effective.header_color, "#stereo-header");
+    assert_eq!(effective.fill.as_str(), "#node-fill");
+    assert_eq!(effective.fill.source(), puml::theme::StyleSource::Inline);
+    assert_eq!(effective.stroke.as_str(), "#inline-border");
+    assert_eq!(effective.stroke.source(), puml::theme::StyleSource::Inline);
+    assert_eq!(effective.font_color.as_str(), "#inline-text");
+    assert_eq!(
+        effective.font_color.source(),
+        puml::theme::StyleSource::Inline
+    );
+    assert_eq!(effective.member_color.as_str(), "#inline-text");
+    assert_eq!(effective.header_color.as_str(), "#stereo-header");
+    assert_eq!(
+        effective.header_color.source(),
+        puml::theme::StyleSource::Stereotype
+    );
     assert!(effective.border_dashed);
     assert_eq!(effective.stroke_width, 3.5);
     assert_eq!(effective.font_family, "FiraCode");

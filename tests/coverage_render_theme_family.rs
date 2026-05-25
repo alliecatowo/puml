@@ -218,12 +218,20 @@ fn class_style_cascade_applies_theme_skinparam_style_and_stereotype_to_svg() {
         panic!("expected class family style");
     };
     assert_eq!(style.background_color, "#dbeafe");
+    assert_eq!(
+        style.sources.background_color,
+        puml::theme::StyleSource::StyleBlock
+    );
     assert_eq!(style.border_color, "#1d4ed8");
     let service = style
         .stereotype_styles
         .get("service")
         .expect("style block stereotype selector should be retained");
     assert_eq!(service.background_color.as_deref(), Some("#dcfce7"));
+    assert_eq!(
+        service.sources.background_color,
+        puml::theme::StyleSource::StyleBlock
+    );
     assert_eq!(service.border_color.as_deref(), Some("#15803d"));
     assert_eq!(service.header_color.as_deref(), Some("#bbf7d0"));
     assert_eq!(service.font_color.as_deref(), Some("#14532d"));
@@ -280,11 +288,19 @@ fn component_style_cascade_applies_stereotype_interface_and_port_targets() {
     let Some(puml::model::FamilyStyle::Component(style)) = &family.family_style else {
         panic!("expected component family style");
     };
+    assert_eq!(
+        style.sources.background_color,
+        puml::theme::StyleSource::SkinParam
+    );
     let service = style
         .stereotype_styles
         .get("service")
         .expect("component stereotype style should be retained");
     assert_eq!(service.background_color.as_deref(), Some("#dcfce7"));
+    assert_eq!(
+        service.sources.background_color,
+        puml::theme::StyleSource::StyleBlock
+    );
     assert_eq!(service.border_color.as_deref(), Some("#15803d"));
     assert_eq!(service.font_color.as_deref(), Some("#14532d"));
     let interface = style
@@ -292,6 +308,10 @@ fn component_style_cascade_applies_stereotype_interface_and_port_targets() {
         .get(&ComponentStyleTarget::Interface)
         .expect("interface target style should be retained");
     assert_eq!(interface.background_color.as_deref(), Some("#fef3c7"));
+    assert_eq!(
+        interface.sources.background_color,
+        puml::theme::StyleSource::StyleBlock
+    );
     assert_eq!(interface.border_color.as_deref(), Some("#b45309"));
     let port = style
         .target_styles

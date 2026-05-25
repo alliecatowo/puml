@@ -1,5 +1,6 @@
 use super::skinparam::*;
 use super::styles::*;
+use super::StyleSource;
 use std::collections::BTreeMap;
 
 pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
@@ -15,6 +16,23 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         actor_style: ActorStyle::Stick,
         attribute_icons: true,
         stereotype_styles: BTreeMap::new(),
+        sources: ClassStyleSources {
+            background_color: StyleSource::ThemePreset,
+            border_color: StyleSource::ThemePreset,
+            header_color: StyleSource::ThemePreset,
+            member_color: StyleSource::ThemePreset,
+            font_color: StyleSource::ThemePreset,
+            arrow_color: StyleSource::ThemePreset,
+            font_size: style
+                .default_font_size
+                .map(|_| StyleSource::ThemePreset)
+                .unwrap_or_default(),
+            font_name: style
+                .default_font_name
+                .as_ref()
+                .map(|_| StyleSource::ThemePreset)
+                .unwrap_or_default(),
+        },
     }
 }
 
@@ -39,6 +57,13 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
         component_style_mode: ComponentStyleMode::Uml2,
         target_styles: BTreeMap::new(),
         stereotype_styles: BTreeMap::new(),
+        sources: ComponentStyleSources {
+            background_color: StyleSource::ThemePreset,
+            border_color: StyleSource::ThemePreset,
+            interface_color: StyleSource::ThemePreset,
+            font_color: StyleSource::ThemePreset,
+            arrow_color: StyleSource::ThemePreset,
+        },
     }
 }
 
