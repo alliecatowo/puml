@@ -31,7 +31,7 @@ pub(super) fn merge_duplicate_rel_labels(
             rel.from.clone(),
             rel.to.clone(),
             rel.arrow.clone(),
-            rel.direction.clone(),
+            rel.direction,
             rel.line_color.clone(),
             rel.dashed,
             rel.hidden,
