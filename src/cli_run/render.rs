@@ -32,6 +32,14 @@ pub(super) fn run_render_mode(
     input_path: Option<&Path>,
     from_markdown: bool,
 ) -> Result<(), (u8, String)> {
+    if cli.verbose {
+        eprintln!(
+            "[verbose] rendering {} diagram source(s) as .{} with {}",
+            diagrams.len(),
+            cli.format.extension(),
+            pluralize_threads(cli.threads)
+        );
+    }
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
         // Short-circuit for specialized families (math, ditaa, etc.) after the
         // same preprocessor pass used by check/dump routes.
@@ -115,6 +123,9 @@ pub(super) fn run_render_mode(
         }
         Ok::<_, (u8, String)>(all)
     })?;
+    if cli.verbose {
+        eprintln!("[verbose] rendered {} output artifact(s)", outputs.len());
+    }
 
     if input_path.is_none() && outputs.len() > 1 && !cli.multi {
         return Err((
@@ -225,4 +236,12 @@ pub(super) fn run_render_mode(
     }
 
     Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
+}
+
+fn pluralize_threads(threads: usize) -> String {
+    if threads == 1 {
+        "1 thread hint".to_string()
+    } else {
+        format!("{threads} thread hints")
+    }
 }

@@ -16,6 +16,7 @@ use crate::cli::{
 use glob::glob;
 use puml::diagnostic::{normalized_warnings, offset_to_line_col};
 use puml::{normalize_family, Diagnostic, DiagnosticJson};
+use regex::Regex;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -308,12 +309,19 @@ pub(super) fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
     };
 
     let inject_vars: BTreeMap<String, String> = cli.defines.iter().cloned().collect();
-    let lint_paths = collect_lint_inputs(&cli.lint_input, &cli.lint_glob)?;
+    let lint_paths = collect_lint_inputs(&cli.lint_input, &cli.lint_glob, cli.pattern.as_deref())?;
     if lint_paths.is_empty() {
         return Err((
             EXIT_VALIDATION,
             "lint mode resolved no input files".to_string(),
         ));
+    }
+    if cli.verbose {
+        eprintln!(
+            "[verbose] linting {} file(s) with {} worker hint",
+            lint_paths.len(),
+            pluralize_threads(cli.threads)
+        );
     }
 
     let mut files = Vec::new();
@@ -502,6 +510,7 @@ pub(super) fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
 fn collect_lint_inputs(
     lint_input: &[PathBuf],
     lint_glob: &[String],
+    pattern: Option<&str>,
 ) -> Result<Vec<PathBuf>, (u8, String)> {
     let mut ordered = BTreeSet::new();
 
@@ -527,7 +536,28 @@ fn collect_lint_inputs(
         }
     }
 
-    Ok(ordered.into_iter().collect())
+    let paths = ordered.into_iter().collect::<Vec<_>>();
+    let Some(pattern) = pattern else {
+        return Ok(paths);
+    };
+    let regex = Regex::new(pattern).map_err(|e| {
+        (
+            EXIT_VALIDATION,
+            format!("invalid --pattern regex '{pattern}': {e}"),
+        )
+    })?;
+    Ok(paths
+        .into_iter()
+        .filter(|path| regex.is_match(&path.to_string_lossy()))
+        .collect())
+}
+
+fn pluralize_threads(threads: usize) -> String {
+    if threads == 1 {
+        "1 thread".to_string()
+    } else {
+        format!("{threads} threads")
+    }
 }
 
 fn emit_lint_diagnostic(
