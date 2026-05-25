@@ -64,6 +64,7 @@ fn parse_skinparam_block(
 ///   - `note { ... }`
 ///   - `group { ... }`
 /// - `classDiagram { class { ... } }`
+/// - `usecaseDiagram { usecase { ... } actor { ... } }`
 /// - `componentDiagram { component { ... } }`
 /// - `deploymentDiagram { node { ... } }`
 /// - declarations in `Property Value` or `Property: Value;` form
@@ -161,6 +162,7 @@ fn parse_style_block(
 enum StyleBlockTarget {
     Sequence,
     Class,
+    UseCase,
     Component,
     Deployment,
     State,
@@ -173,6 +175,7 @@ impl StyleBlockTarget {
         match self {
             Self::Sequence => selector.eq_ignore_ascii_case("sequenceDiagram"),
             Self::Class => selector.eq_ignore_ascii_case("classDiagram"),
+            Self::UseCase => selector.eq_ignore_ascii_case("usecaseDiagram"),
             Self::Component => selector.eq_ignore_ascii_case("componentDiagram"),
             Self::Deployment => selector.eq_ignore_ascii_case("deploymentDiagram"),
             Self::State => selector.eq_ignore_ascii_case("stateDiagram"),
@@ -184,7 +187,7 @@ impl StyleBlockTarget {
         let key = raw_key.to_ascii_lowercase();
         match self {
             Self::Sequence => sequence_style_skinparam_key(nested_selector, &key),
-            Self::Class => class_style_skinparam_key(nested_selector, &key),
+            Self::Class | Self::UseCase => class_style_skinparam_key(nested_selector, &key),
             Self::Component => component_style_skinparam_key(nested_selector, &key),
             Self::Deployment => deployment_style_skinparam_key(nested_selector, &key),
             Self::State => state_style_skinparam_key(nested_selector, &key),
@@ -208,6 +211,9 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
         }
         if selector.eq_ignore_ascii_case("classDiagram") {
             return Some(StyleBlockTarget::Class);
+        }
+        if selector.eq_ignore_ascii_case("usecaseDiagram") {
+            return Some(StyleBlockTarget::UseCase);
         }
         if selector.eq_ignore_ascii_case("componentDiagram") {
             return Some(StyleBlockTarget::Component);

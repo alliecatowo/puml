@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
+use crate::model::ScaleSpec;
 use crate::scene::TextOverflowPolicy;
 use crate::sprites::SpriteRegistry;
 use crate::theme::{
@@ -42,6 +43,8 @@ pub struct FamilyDocument {
     pub legend: Option<String>,
     /// Optional mainframe title (`mainframe <text>` common command).
     pub mainframe: Option<String>,
+    /// Optional output scaling (`scale <factor>`, `scale <w>*<h>`, etc.).
+    pub scale: Option<ScaleSpec>,
     pub orientation: FamilyOrientation,
     pub style: SequenceStyle,
     /// Family-specific style overrides (class/component/activity/tree families).

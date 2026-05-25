@@ -36,6 +36,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
             StatementKind::Mainframe(v) => common.mainframe(v),
+            StatementKind::Scale(body) => common.scale(&body),
             StatementKind::SkinParam { key, value } => {
                 if handle_family_overflow_skinparam(
                     &key,
@@ -432,6 +433,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         caption: common.caption,
         legend: common.legend,
         mainframe: common.mainframe,
+        scale: common.scale,
         orientation,
         style,
         family_style,

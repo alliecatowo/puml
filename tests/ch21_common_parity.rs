@@ -194,6 +194,29 @@ fn scale_max_fixed_box_fits_both_dimensions() {
     assert!(height <= 90, "height should fit max box, got {height}");
 }
 
+#[test]
+fn scale_factor_applies_to_usecase_svg_dimensions() {
+    let base = render_svg("@startuml\nactor User\n(Login)\nUser --> Login\n@enduml\n");
+    let scaled = render_svg("@startuml\nscale 2\nactor User\n(Login)\nUser --> Login\n@enduml\n");
+    let (base_w, base_h) = (svg_attr_u32(&base, "width"), svg_attr_u32(&base, "height"));
+
+    assert_eq!(svg_attr_u32(&scaled, "width"), base_w * 2);
+    assert_eq!(svg_attr_u32(&scaled, "height"), base_h * 2);
+    assert_eq!(svg_viewbox_dimensions(&scaled), (base_w, base_h));
+}
+
+#[test]
+fn scale_width_applies_to_component_svg_dimensions() {
+    let svg = render_svg("@startuml\nscale 240 width\n[API] --> [DB]\n@enduml\n");
+    let (view_w, view_h) = svg_viewbox_dimensions(&svg);
+
+    assert_eq!(svg_attr_u32(&svg, "width"), 240);
+    assert_eq!(
+        svg_attr_u32(&svg, "height"),
+        rounded_scaled(view_h, 240, view_w)
+    );
+}
+
 // ── 21.x  Orientation directives ─────────────────────────────────────────────
 
 #[test]
@@ -397,6 +420,40 @@ fn top_level_background_color_after_family_detection_applies_to_component() {
         "expected top-level backgroundColor after component detection to color canvas; got: {}",
         &svg[..svg.len().min(500)]
     );
+}
+
+// ── 21.8  usecase style block reach ─────────────────────────────────────────
+
+#[test]
+fn style_block_usecase_diagram_colors_reach_svg() {
+    let src = "\
+@startuml
+<style>
+usecaseDiagram {
+  usecase {
+    BackgroundColor #ecfeff
+    LineColor #0891b2
+    FontColor #164e63
+  }
+  arrow {
+    LineColor #0f766e
+  }
+}
+</style>
+actor Shopper
+usecase Checkout
+Shopper --> Checkout
+@enduml
+";
+    let svg = render_svg(src);
+
+    assert!(svg.contains("#ecfeff"), "usecase fill should reach SVG");
+    assert!(svg.contains("#0891b2"), "usecase border should reach SVG");
+    assert!(
+        svg.contains("#164e63"),
+        "usecase font color should reach SVG"
+    );
+    assert!(svg.contains("#0f766e"), "arrow color should reach SVG");
 }
 
 // ── 21.8  style blocks for non-sequence families ────────────────────────────

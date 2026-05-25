@@ -349,6 +349,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
             StatementKind::Mainframe(v) => common.mainframe(v),
+            StatementKind::Scale(body) => common.scale(&body),
             StatementKind::Theme(value) => {
                 style_cascade.apply_theme(&value, stmt.span)?;
             }
@@ -503,6 +504,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         caption: common.caption,
         legend: common.legend,
         mainframe: common.mainframe,
+        scale: common.scale,
         orientation,
         style: SequenceStyle {
             sepia,
