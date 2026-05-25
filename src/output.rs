@@ -1,6 +1,11 @@
 use crate::render::TextOutputMode;
 use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 
+mod contract;
+pub use contract::{
+    RenderArtifact, RenderArtifactDimensions, RenderInvariantReport, RenderSceneContract,
+};
+
 #[cfg(feature = "cli")]
 use image::ImageEncoder as _;
 

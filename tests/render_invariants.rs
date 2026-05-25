@@ -373,6 +373,17 @@ A --> B
         artifact.scene.is_some(),
         "graph-family artifact should expose the typed scene"
     );
+    assert!(
+        artifact.typed_scene().is_some(),
+        "typed scene accessor should expose migrated graph-family geometry"
+    );
+    assert!(
+        matches!(
+            artifact.scene_contract(),
+            puml::RenderSceneContract::Typed(scene) if !scene.nodes.is_empty()
+        ),
+        "scene contract should encode migrated typed scene availability"
+    );
     assert_eq!(
         artifact.scene_availability,
         SceneAvailability::TypedScene,
@@ -399,6 +410,17 @@ fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
         artifact.scene.is_none(),
         "sequence still lacks a typed RenderScene bridge and should say so explicitly"
     );
+    assert!(
+        matches!(
+            artifact.scene_contract(),
+            puml::RenderSceneContract::NotMigrated
+        ),
+        "unmigrated scene absence should be explicit in the contract"
+    );
+    let err = artifact
+        .require_typed_scene()
+        .expect_err("sequence should report not-migrated typed scene");
+    assert!(err.message.contains("E_RENDER_SCENE_NOT_MIGRATED"));
     assert_eq!(
         artifact.scene_availability,
         SceneAvailability::NotMigrated,

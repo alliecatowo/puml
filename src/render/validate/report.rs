@@ -24,6 +24,18 @@ impl InvariantReport {
     }
 }
 
+impl From<InvariantReport> for crate::output::RenderInvariantReport {
+    fn from(report: InvariantReport) -> Self {
+        Self {
+            svg_violations: report.violations.len(),
+            typed_issues: report.typed_issues,
+            typed_metrics: report.typed_metrics,
+            expansions: report.expansions,
+            background_rects_added: report.background_rects_added,
+        }
+    }
+}
+
 /// Run all applicable SVG-level invariants on a completed SVG render.
 ///
 /// `mode` controls whether auto-corrections are applied to the SVG string.
