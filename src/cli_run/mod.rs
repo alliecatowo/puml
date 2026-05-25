@@ -32,6 +32,7 @@ use std::time::Instant;
 const EXIT_VALIDATION: u8 = 1;
 const EXIT_IO: u8 = 2;
 const EXIT_INTERNAL: u8 = 3;
+const SUPPORTED_OUTPUT_FORMATS: &str = "svg, html, png, jpg, webp, pdf, txt, atxt, utxt";
 const SUPPORTED_MARKDOWN_FENCES: &str =
     "puml, pumlx, picouml, plantuml, uml, puml-sequence, uml-sequence, mermaid";
 
@@ -80,6 +81,30 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     };
     // Collect -D KEY=VALUE pairs into a BTreeMap for deterministic ordering per CLAUDE.md sec 6.
     let inject_vars: BTreeMap<String, String> = cli.defines.iter().cloned().collect();
+
+    if let Some(format) = &cli.unsupported_output_format {
+        return Err((
+            EXIT_IO,
+            format!(
+                "[E_OUTPUT_FORMAT_UNSUPPORTED] unsupported output format `{format}`; supported formats: {SUPPORTED_OUTPUT_FORMATS}"
+            ),
+        ));
+    }
+    if cli.extract {
+        return Err((
+            EXIT_IO,
+            "[E_FLAG_UNSUPPORTED] --extract is parsed for PlantUML CLI parity but is not implemented; render multi-diagram inputs normally or use --from-markdown for fenced extraction"
+                .to_string(),
+        ));
+    }
+    if let Some(pattern) = &cli.pattern {
+        return Err((
+            EXIT_IO,
+            format!(
+                "[E_FLAG_UNSUPPORTED] --pattern is parsed for PlantUML CLI parity but is not implemented; received pattern `{pattern}`"
+            ),
+        ));
+    }
 
     if !cli.charset.eq_ignore_ascii_case("utf-8") {
         return Err((

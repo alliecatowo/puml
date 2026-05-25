@@ -1,0 +1,35 @@
+# CLI Reference
+
+`puml` defaults to SVG output. Use `--format` or its PlantUML-compatible alias
+`--output-format` to select another supported renderer:
+
+```bash
+puml --format png diagram.puml
+puml --output-format html diagram.puml
+```
+
+Supported formats are `svg`, `html`, `png`, `jpg`, `webp`, `pdf`, `txt`, `atxt`,
+and `utxt`.
+
+PlantUML-style single-dash format aliases are accepted for supported output
+formats: `-tsvg`, `-thtml`, `-tpng`, `-tjpg`, `-tjpeg`, `-twebp`, `-tpdf`,
+`-ttxt`, `-tatxt`, and `-tutxt`. Legacy text aliases `-txt`, `-atxt`, and
+`-utxt` remain accepted.
+
+Unsupported parity formats such as `-tlatex` and `-tlatex:nopreamble` are parsed
+and exit with code `2` using a deterministic diagnostic that lists the supported
+formats.
+
+Compatibility flags:
+
+| Flag | Behavior |
+|---|---|
+| `--pipe` | Read stdin and write the rendered diagram to stdout. |
+| `--check-syntax` | Alias for `--check`. |
+| `--preproc` | Print preprocessed source after include and macro expansion. |
+| `--htmlcss` | No-op; HTML output is already self-contained. |
+| `--metadata` | Print structured JSON metadata after parse and normalization. |
+| `--threads N` | Accepted no-op; rendering remains deterministic. |
+| `--failfast2` | Accepted no-op; fatal CLI errors already stop the run. |
+| `--extract` | Parsed for parity, currently unsupported with exit code `2`. |
+| `--pattern REGEX` | Parsed for parity, currently unsupported with exit code `2`. |

@@ -39,6 +39,11 @@ The CLI help on current main lists these render formats:
 | ASCII text variant | `puml --format atxt diagram.puml` |
 | Unicode text | `puml --format utxt diagram.puml` |
 
+`--output-format` is an alias for `--format`. PlantUML single-dash aliases are
+accepted where puml has an equivalent renderer, including `-thtml`, `-tpng`,
+`-ttxt`, and `-tutxt`. Unsupported parity aliases such as `-tlatex` and
+`-tlatex:nopreamble` exit with code `2` and list the supported formats.
+
 PNG supports `--dpi`, for example:
 
 ```bash

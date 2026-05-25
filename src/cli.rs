@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 mod options;
 pub use options::{
-    parse_define, parse_dpi, ColorChoice, CompatMode, DeterminismMode, DiagnosticsFormat, Dialect,
-    DumpKind, LintReportFormat,
+    parse_define, parse_dpi, parse_threads, ColorChoice, CompatMode, DeterminismMode,
+    DiagnosticsFormat, Dialect, DumpKind, LintReportFormat,
 };
 
 // Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
@@ -74,8 +74,12 @@ pub struct Cli {
     pub pipe: bool,
 
     /// Render output format.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
+    #[arg(long, visible_alias = "output-format", value_enum, default_value_t = OutputFormat::Svg)]
     pub format: OutputFormat,
+
+    /// Unsupported PlantUML output format requested through a parity alias.
+    #[arg(long = "unsupported-output-format", hide = true, value_name = "FORMAT")]
+    pub unsupported_output_format: Option<String>,
 
     /// PNG rasterization DPI (used only when `--format png`).
     #[arg(long, default_value_t = 96.0, value_parser = parse_dpi)]
@@ -185,6 +189,22 @@ pub struct Cli {
     /// `puml --format html` already emits a self-contained HTML document with CSS.
     #[arg(long, action = ArgAction::SetTrue)]
     pub htmlcss: bool,
+
+    /// No-op PlantUML compatibility flag; rendering remains deterministic and single-threaded.
+    #[arg(long, value_name = "N", default_value_t = 1, value_parser = parse_threads)]
+    pub threads: usize,
+
+    /// No-op PlantUML compatibility flag; this CLI already stops on the first fatal error.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub failfast2: bool,
+
+    /// Unsupported PlantUML compatibility flag for extracting diagrams to files.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub extract: bool,
+
+    /// Unsupported PlantUML compatibility flag for filtering input file paths.
+    #[arg(long, value_name = "REGEX")]
+    pub pattern: Option<String>,
 
     /// Encode a PNG/JPEG/WebP image as a PlantUML sprite. Format: 4, 8, 16, 4z, 8z, or 16z.
     #[arg(

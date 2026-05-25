@@ -17,7 +17,7 @@ const EXIT_OK: u8 = 0;
 const EXIT_VALIDATION: u8 = 1;
 
 fn main() -> ExitCode {
-    let args = expand_plantuml_text_format_args(std::env::args_os());
+    let args = expand_plantuml_cli_compat_args(std::env::args_os());
     let clap_color = clap_color_choice_from_args(&args);
     let cli = match Cli::command()
         .color(clap_color)
@@ -47,13 +47,29 @@ fn main() -> ExitCode {
     }
 }
 
-fn expand_plantuml_text_format_args<I>(args: I) -> Vec<OsString>
+fn expand_plantuml_cli_compat_args<I>(args: I) -> Vec<OsString>
 where
     I: IntoIterator<Item = OsString>,
 {
     let mut expanded = Vec::new();
-    for arg in args {
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--format" | "--output-format") => {
+                if let Some(value) = args.next() {
+                    push_format_arg(&mut expanded, &value, "--format");
+                } else {
+                    expanded.push(arg);
+                }
+            }
+            Some(raw) if raw.starts_with("--format=") => {
+                let value = raw.trim_start_matches("--format=");
+                push_format_value(&mut expanded, value, "--format");
+            }
+            Some(raw) if raw.starts_with("--output-format=") => {
+                let value = raw.trim_start_matches("--output-format=");
+                push_format_value(&mut expanded, value, "--format");
+            }
             Some("-txt") => {
                 expanded.push(OsString::from("--format"));
                 expanded.push(OsString::from("txt"));
@@ -68,10 +84,61 @@ where
             }
             Some("-encodesprite") => expanded.push(OsString::from("--encodesprite")),
             Some("-stdlib") => expanded.push(OsString::from("--stdlib")),
+            Some(raw) if raw.starts_with("-t") && raw.len() > 2 => {
+                push_format_value(&mut expanded, &raw[2..], "--format");
+            }
             _ => expanded.push(arg),
         }
     }
     expanded
+}
+
+fn push_format_arg(expanded: &mut Vec<OsString>, value: &OsString, flag: &str) {
+    if let Some(raw) = value.to_str() {
+        push_format_value(expanded, raw, flag);
+    } else {
+        expanded.push(OsString::from(flag));
+        expanded.push(value.clone());
+    }
+}
+
+fn push_format_value(expanded: &mut Vec<OsString>, raw: &str, flag: &str) {
+    match normalize_supported_format_alias(raw) {
+        Some(format) => {
+            expanded.push(OsString::from(flag));
+            expanded.push(OsString::from(format));
+        }
+        None if is_known_unsupported_format(raw) => {
+            expanded.push(OsString::from("--unsupported-output-format"));
+            expanded.push(OsString::from(raw));
+        }
+        None => {
+            expanded.push(OsString::from(flag));
+            expanded.push(OsString::from(raw));
+        }
+    }
+}
+
+fn normalize_supported_format_alias(raw: &str) -> Option<&'static str> {
+    match raw.to_ascii_lowercase().as_str() {
+        "svg" => Some("svg"),
+        "html" => Some("html"),
+        "png" => Some("png"),
+        "jpg" | "jpeg" => Some("jpg"),
+        "webp" => Some("webp"),
+        "pdf" => Some("pdf"),
+        "txt" => Some("txt"),
+        "atxt" => Some("atxt"),
+        "utxt" => Some("utxt"),
+        _ => None,
+    }
+}
+
+fn is_known_unsupported_format(raw: &str) -> bool {
+    matches!(
+        raw.to_ascii_lowercase().as_str(),
+        "latex" | "latex:nopreamble"
+    )
 }
 
 fn clap_color_choice_from_args(args: &[OsString]) -> clap::ColorChoice {
