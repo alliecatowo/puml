@@ -1,10 +1,12 @@
-use crate::ast::{ChenDeclKind as AstChenDeclKind, Document, StatementKind};
+use crate::ast::{
+    ChenDeclKind as AstChenDeclKind, DiagramKind, Document, RawSyntaxCategory, StatementKind,
+};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
     ChenAttribute as ModelChenAttribute, ChenDocument, ChenInheritance as ModelChenInheritance,
     ChenNode, ChenNodeKind, ChenRelation as ModelChenRelation, FamilyOrientation,
 };
-use crate::normalize::common::{CommonDirectives, LegendTextMode};
+use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnostic> {
     let mut nodes = Vec::new();
@@ -68,19 +70,22 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
-            StatementKind::Unknown(line)
-            | StatementKind::UnsupportedSyntax(line)
-            | StatementKind::DeferredRaw(line)
-            | StatementKind::CommentLowered(line)
-            | StatementKind::MalformedSyntax(line) => {
-                if let Some(dir) = parse_chen_orientation_directive(&line) {
-                    orientation = dir;
-                    continue;
+            kind if kind.raw_syntax().is_some() => {
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                if !matches!(
+                    raw.category,
+                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed
+                ) {
+                    if let Some(dir) = parse_chen_orientation_directive(raw.line) {
+                        orientation = dir;
+                        continue;
+                    }
                 }
-                return Err(Diagnostic::error(format!(
-                    "[E_CHEN_UNSUPPORTED] unsupported Chen syntax: `{line}`"
-                ))
-                .with_span(stmt.span));
+                return Err(common::raw_syntax_diagnostic(
+                    raw,
+                    stmt.span,
+                    RawSyntaxContext::Family(DiagramKind::Chen),
+                ));
             }
             _ => {
                 return Err(Diagnostic::error(

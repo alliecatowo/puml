@@ -1,6 +1,7 @@
-use crate::ast::{Document, StatementKind};
+use crate::ast::{DiagramKind, Document, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::StdlibDocument;
+use crate::normalize::common::{self, RawSyntaxContext};
 use crate::normalize::NormalizeOptions;
 
 pub(super) fn normalize_stdlib_catalog(
@@ -28,12 +29,12 @@ pub(super) fn normalize_stdlib_catalog(
             | StatementKind::HideOption(_)
             | StatementKind::HideUnlinked
             | StatementKind::Mainframe(_) => {}
-            StatementKind::UnsupportedSyntax(line) | StatementKind::Unknown(line) => {
-                return Err(Diagnostic::error_code(
-                    "E_STDLIB_UNSUPPORTED",
-                    format!("unsupported stdlib catalog syntax: `{line}`"),
-                )
-                .with_span(stmt.span));
+            kind if kind.raw_syntax().is_some() => {
+                return Err(common::raw_syntax_diagnostic(
+                    kind.raw_syntax().expect("raw syntax guard"),
+                    stmt.span,
+                    RawSyntaxContext::Family(DiagramKind::Stdlib),
+                ));
             }
             other => {
                 return Err(Diagnostic::error_code(
