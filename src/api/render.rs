@@ -2,6 +2,7 @@ use super::pipeline::map_ast_kind_to_family;
 use super::types::DiagramFamily;
 use crate::diagnostic::Diagnostic;
 use crate::model::{FamilyDocument, NormalizedDocument};
+use crate::output::RenderArtifact;
 use crate::render::{self, TextOutputMode};
 use crate::{layout, normalize as normalize_mod, parser, registry, specialized, LayoutOptions};
 
@@ -22,7 +23,7 @@ pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
         .collect())
 }
 
-pub fn render_source_to_artifacts(source: &str) -> Result<Vec<render::RenderArtifact>, Diagnostic> {
+pub fn render_source_to_artifacts(source: &str) -> Result<Vec<RenderArtifact>, Diagnostic> {
     // Intercept specialized families before the main AST pipeline, but only
     // after applying the same preprocessing pass used by parse/check routes.
     if specialized::is_specialized_source(source) {
@@ -33,7 +34,7 @@ pub fn render_source_to_artifacts(source: &str) -> Result<Vec<render::RenderArti
                 "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family",
             )
         })?;
-        return result.map(|svg| vec![render::RenderArtifact::svg_only(svg)]);
+        return result.map(|svg| vec![RenderArtifact::svg_only(svg)]);
     }
     let document = crate::parse(source)?;
     let model = normalize_mod::normalize_family(document)?;
@@ -85,7 +86,7 @@ pub fn render_source_to_svgs_for_family(
 pub fn render_source_to_artifacts_for_family(
     source: &str,
     family: DiagramFamily,
-) -> Result<Vec<render::RenderArtifact>, Diagnostic> {
+) -> Result<Vec<RenderArtifact>, Diagnostic> {
     let document = crate::parse(source)?;
     let detected = map_ast_kind_to_family(document.kind);
     if family != detected {
@@ -99,23 +100,21 @@ pub fn render_source_to_artifacts_for_family(
     Ok(render_artifact_pages_from_model(&model))
 }
 
-pub fn render_artifact_pages_from_model(model: &NormalizedDocument) -> Vec<render::RenderArtifact> {
+pub fn render_artifact_pages_from_model(model: &NormalizedDocument) -> Vec<RenderArtifact> {
     match model {
         NormalizedDocument::Sequence(sequence) => {
             render::with_sprite_registry(&sequence.sprites, || {
                 if sequence.list_sprites {
                     vec![
-                        render::RenderArtifact::svg_only(render::render_sprite_sheet(
-                            &sequence.sprites,
-                        ))
-                        .with_diagnostics(sequence.warnings.clone()),
+                        RenderArtifact::svg_only(render::render_sprite_sheet(&sequence.sprites))
+                            .with_diagnostics(sequence.warnings.clone()),
                     ]
                 } else {
                     let scenes = layout::layout_pages(sequence, LayoutOptions::default());
                     scenes
                         .iter()
                         .map(|scene| {
-                            render::RenderArtifact::svg_only(render::render_svg(scene))
+                            RenderArtifact::svg_only(render::render_svg(scene))
                                 .with_diagnostics(sequence.warnings.clone())
                         })
                         .collect::<Vec<_>>()
@@ -224,39 +223,39 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         .collect()
 }
 
-fn artifact_with_diagnostics(svg: String, diagnostics: &[Diagnostic]) -> render::RenderArtifact {
-    render::RenderArtifact::svg_only(svg).with_diagnostics(diagnostics.to_vec())
+fn artifact_with_diagnostics(svg: String, diagnostics: &[Diagnostic]) -> RenderArtifact {
+    RenderArtifact::svg_only(svg).with_diagnostics(diagnostics.to_vec())
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {
     render_family_document_artifact(family).svg
 }
 
-pub fn render_family_document_artifact(family: &FamilyDocument) -> render::RenderArtifact {
+pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifact {
     let mut artifact = render::with_sprite_registry(&family.sprites, || {
         if family.list_sprites {
-            return render::RenderArtifact::svg_only(render::render_sprite_sheet(&family.sprites));
+            return RenderArtifact::svg_only(render::render_sprite_sheet(&family.sprites));
         }
         match registry::family_spec_by_ast(family.kind)
             .map(|spec| spec.render_kind)
             .unwrap_or(registry::FamilyRenderKind::Unsupported)
         {
             registry::FamilyRenderKind::Salt => {
-                render::RenderArtifact::svg_only(render::render_salt_svg(family))
+                RenderArtifact::svg_only(render::render_salt_svg(family))
             }
             registry::FamilyRenderKind::Component => render::render_component_artifact(family),
             registry::FamilyRenderKind::Deployment => render::render_deployment_artifact(family),
             registry::FamilyRenderKind::Activity => {
-                render::RenderArtifact::svg_only(render::render_activity_svg(family))
+                RenderArtifact::svg_only(render::render_activity_svg(family))
             }
             registry::FamilyRenderKind::Timing => {
-                render::RenderArtifact::svg_only(render::render_timing_svg(family))
+                RenderArtifact::svg_only(render::render_timing_svg(family))
             }
             registry::FamilyRenderKind::MindMap => {
-                render::RenderArtifact::svg_only(render::render_mindmap_svg(family))
+                RenderArtifact::svg_only(render::render_mindmap_svg(family))
             }
             registry::FamilyRenderKind::Wbs => {
-                render::RenderArtifact::svg_only(render::render_wbs_svg(family))
+                RenderArtifact::svg_only(render::render_wbs_svg(family))
             }
             _ => render::render_family_stub_artifact(family),
         }
@@ -267,15 +266,10 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> render::Rende
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place. Diagnostic-only violations are silently recorded.
-    artifact.invariant_report = Some(render::validate::run_with_scene(
-        &mut artifact.svg,
-        artifact.scene.as_ref(),
-        render::validate::AutoCorrect::Apply,
-    ));
+    artifact.validate_svg(render::validate::AutoCorrect::Apply);
     if let Some(scale) = &family.scale {
         render::apply_scale_svg(&mut artifact.svg, scale);
     }
     artifact.refresh_svg_metadata();
-    artifact.diagnostics = family.warnings.clone();
-    artifact
+    artifact.with_diagnostics(family.warnings.clone())
 }

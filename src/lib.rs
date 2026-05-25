@@ -48,5 +48,8 @@ pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
+pub use output::{
+    RenderArtifact, RenderArtifactDimensions, RenderInvariantReport, RenderSceneContract,
+};
 pub use render::TextOutputMode;
 pub use scene::{LayoutOptions, Scene};

@@ -135,21 +135,28 @@ fn render_svgs_for_frontend(
     source: &str,
     frontend: FrontendSelection,
 ) -> Result<Vec<String>, Diagnostic> {
+    Ok(render_artifacts_for_frontend(source, frontend)?
+        .into_iter()
+        .map(|artifact| artifact.svg)
+        .collect())
+}
+
+fn render_artifacts_for_frontend(
+    source: &str,
+    frontend: FrontendSelection,
+) -> Result<Vec<puml::render::RenderArtifact>, Diagnostic> {
     if matches!(
         frontend,
         FrontendSelection::Auto | FrontendSelection::Plantuml
     ) {
         if let Some(result) = puml::specialized::try_render_specialized(source) {
-            return result.map(|svg| vec![svg]);
+            return result.map(|svg| vec![puml::render::RenderArtifact::svg_only(svg)]);
         }
     }
 
     let document = parse_with_pipeline_options(source, &wasm_parse_options(frontend))?;
     let model = normalize_family(document)?;
-    Ok(render_artifact_pages_from_model(&model)
-        .into_iter()
-        .map(|artifact| artifact.svg)
-        .collect())
+    Ok(render_artifact_pages_from_model(&model))
 }
 
 fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> String {
@@ -160,24 +167,37 @@ fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> Strin
         .map(language_diagnostic_json)
         .collect::<Vec<_>>();
 
-    match render_svgs_for_frontend(source, frontend) {
-        Ok(pages) => {
-            let family = detect_family_for_frontend(source, frontend)
-                .map(|family| family.as_str().to_string())
-                .unwrap_or_else(|_| "unknown".to_string());
+    match parse_with_pipeline_options(source, &options).and_then(normalize_family) {
+        Ok(model) => {
+            let artifacts = render_artifact_pages_from_model(&model);
+            let pages = puml::output::render_output_pages_from_artifacts(
+                &model,
+                &artifacts,
+                puml::output::OutputFormat::Svg,
+                None,
+            );
+            let model_summary = puml::normalized_model_summary_to_json(&model);
+            let family = model_summary["kind"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_ascii_lowercase();
             serde_json::json!({
                 "schema": "puml.compile",
                 "schemaVersion": 1,
                 "ok": true,
                 "family": family,
                 "pageCount": pages.len(),
-                "pages": pages.iter().enumerate().map(|(index, svg)| {
+                "pages": pages.iter().enumerate().map(|(index, page)| {
                     serde_json::json!({
                         "index": index,
                         "format": "svg",
-                        "svg": svg,
+                        "mediaType": "image/svg+xml",
+                        "svg": page.content,
+                        "artifact": page.artifact.map(|artifact| artifact_json(artifact)),
                     })
                 }).collect::<Vec<_>>(),
+                "model": model_summary,
+                "scene": puml::normalized_artifact_scene_summary_to_json(&model, &artifacts),
                 "diagnostics": diagnostics,
                 "semanticTokens": semantic_tokens_json(source),
                 "languageService": language_service_surface_json(),
@@ -202,6 +222,32 @@ fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> Strin
         })
         .to_string(),
     }
+}
+
+fn artifact_json(metadata: puml::output::RenderArtifactOutputMetadata) -> serde_json::Value {
+    serde_json::json!({
+        "format": metadata.format.extension(),
+        "sceneAvailability": match metadata.scene_availability {
+            puml::render_core::SceneAvailability::TypedScene => "TypedScene",
+            puml::render_core::SceneAvailability::NotMigrated => "NotMigrated",
+            puml::render_core::SceneAvailability::Unsupported => "Unsupported",
+        },
+        "dimensions": metadata.dimensions.map(|dimensions| {
+            serde_json::json!({
+                "width": dimensions.width,
+                "height": dimensions.height,
+                "viewBox": dimensions.view_box.map(|rect| {
+                    serde_json::json!({
+                        "x": rect.origin.x,
+                        "y": rect.origin.y,
+                        "width": rect.size.width,
+                        "height": rect.size.height,
+                    })
+                })
+            })
+        }),
+        "diagnostics": metadata.diagnostics,
+    })
 }
 
 fn detect_family_for_frontend(
@@ -354,6 +400,17 @@ mod tests {
             .as_str()
             .expect("svg")
             .contains("User"));
+        assert_eq!(parsed["pages"][0]["mediaType"], "image/svg+xml");
+        assert_eq!(parsed["pages"][0]["artifact"]["format"], "svg");
+        assert!(
+            parsed["pages"][0]["artifact"]["dimensions"]["width"]
+                .as_f64()
+                .expect("artifact width")
+                > 0.0
+        );
+        assert_eq!(parsed["model"]["kind"], "Class");
+        assert_eq!(parsed["scene"]["kind"], "RenderScene");
+        assert_eq!(parsed["scene"]["typed"], true);
         assert!(parsed["diagnostics"]
             .as_array()
             .expect("diagnostics")

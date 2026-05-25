@@ -4,8 +4,11 @@ use puml::{
     ParsePipelineOptions,
 };
 use puml::{
-    output::{render_output_bytes, render_svg_export_content, OutputFormat, RenderedOutput},
-    render::render_text_pages,
+    output::{
+        render_artifact_output_bytes, render_output_pages_from_artifacts, OutputFormat,
+        RenderedArtifactOutput,
+    },
+    render::RenderArtifact,
 };
 use serde_json::{json, Value};
 
@@ -18,7 +21,8 @@ pub fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
                 .map(|artifact| artifact.svg.clone())
                 .collect::<Vec<_>>();
             let scene = normalized_artifact_scene_summary_to_json(&model, &artifacts);
-            let (width, height) = scene_dimensions(&scene);
+            let (width, height) =
+                artifact_dimensions(artifacts.first()).unwrap_or_else(|| scene_dimensions(&scene));
             json!({
                 "schema": "puml.renderSvg",
                 "schemaVersion": 1,
@@ -26,6 +30,7 @@ pub fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
                 "svgs": pages,
                 "width": width,
                 "height": height,
+                "artifact": export_artifact_summary(artifacts.first()),
                 "model": normalized_model_summary_to_json(&model),
                 "scene": scene,
                 "diagnostics": []
@@ -47,11 +52,13 @@ pub fn render_scene_result(src: &str, frontend: Option<FrontendSelection>) -> Va
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
         Ok(model) => {
             let artifacts = render_artifact_pages_from_model(&model);
+            let scene = normalized_artifact_scene_summary_to_json(&model, &artifacts);
             json!({
                 "schema": "puml.renderScene",
                 "schemaVersion": 1,
                 "model": normalized_model_summary_to_json(&model),
-                "scene": normalized_artifact_scene_summary_to_json(&model, &artifacts),
+                "scene": scene,
+                "artifact": export_artifact_summary(artifacts.first()),
                 "diagnostics": []
             })
         }
@@ -73,17 +80,11 @@ pub fn export_result(
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
         Ok(model) => {
             let artifacts = render_artifact_pages_from_model(&model);
-            let rendered = match format.text_mode() {
-                Some(mode) => render_text_pages(&model, mode),
-                None => artifacts
-                    .iter()
-                    .map(|artifact| render_svg_export_content(&artifact.svg, format))
-                    .collect(),
-            };
+            let rendered = render_output_pages_from_artifacts(&model, &artifacts, format, None);
             let pages = rendered
                 .iter()
                 .enumerate()
-                .map(|(idx, content)| export_page(format, idx, content))
+                .map(|(idx, output)| export_page(format, idx, output))
                 .collect::<Result<Vec<_>, _>>();
 
             match pages {
@@ -100,6 +101,7 @@ pub fn export_result(
                         "content": first.get("content").cloned().unwrap_or(Value::Null),
                         "contentBase64": first.get("contentBase64").cloned().unwrap_or(Value::Null),
                         "pages": pages,
+                        "artifact": export_artifact_summary(artifacts.first()),
                         "model": normalized_model_summary_to_json(&model),
                         "scene": normalized_artifact_scene_summary_to_json(&model, &artifacts),
                         "diagnostics": []
@@ -218,19 +220,96 @@ fn numeric_dimension(value: Option<&Value>) -> i64 {
         .unwrap_or(0)
 }
 
-fn export_page(format: OutputFormat, idx: usize, content: &str) -> Result<Value, String> {
-    let name = format!("diagram-{}.{}", idx + 1, format.extension());
-    if !format.is_binary() {
-        return Ok(json!({"name": name, "content": content}));
-    }
-    let output = RenderedOutput {
-        name_hint: Some(name.clone()),
-        content: content.to_string(),
+fn artifact_dimensions(artifact: Option<&RenderArtifact>) -> Option<(i64, i64)> {
+    artifact
+        .and_then(|artifact| artifact.dimensions)
+        .map(|dimensions| {
+            (
+                dimensions.width.round() as i64,
+                dimensions.height.round() as i64,
+            )
+        })
+}
+
+fn export_artifact_summary(artifact: Option<&RenderArtifact>) -> Value {
+    let Some(artifact) = artifact else {
+        return Value::Null;
     };
-    let rendered = render_output_bytes(&output, format, 96.0).map_err(|err| err.to_string())?;
+    json!({
+        "format": artifact.format.extension(),
+        "mediaType": artifact.media_type(),
+        "sceneAvailability": scene_availability_name(artifact.scene_availability),
+        "dimensions": artifact.dimensions.map(|dimensions| {
+            json!({
+                "width": dimensions.width,
+                "height": dimensions.height,
+                "viewBox": dimensions.view_box.map(|rect| {
+                    json!({
+                        "x": rect.origin.x,
+                        "y": rect.origin.y,
+                        "width": rect.size.width,
+                        "height": rect.size.height
+                    })
+                })
+            })
+        }),
+        "diagnostics": artifact.diagnostics.len(),
+        "invariants": artifact.invariant_report.as_ref().map(|report| {
+            json!({
+                "violations": report.violations.len(),
+                "typedIssues": report.typed_issues.len(),
+                "typedMetrics": report.typed_metrics.len(),
+                "expansions": report.expansions,
+                "backgroundRectsAdded": report.background_rects_added
+            })
+        })
+    })
+}
+
+fn scene_availability_name(availability: puml::render_core::SceneAvailability) -> &'static str {
+    match availability {
+        puml::render_core::SceneAvailability::TypedScene => "TypedScene",
+        puml::render_core::SceneAvailability::NotMigrated => "NotMigrated",
+        puml::render_core::SceneAvailability::Unsupported => "Unsupported",
+    }
+}
+
+fn export_page(
+    format: OutputFormat,
+    idx: usize,
+    output: &RenderedArtifactOutput,
+) -> Result<Value, String> {
+    let name = format!("diagram-{}.{}", idx + 1, format.extension());
+    let metadata = output.artifact.map(|artifact| {
+        json!({
+            "format": artifact.format.extension(),
+            "sceneAvailability": scene_availability_name(artifact.scene_availability),
+            "dimensions": artifact.dimensions.map(|dimensions| {
+                json!({
+                    "width": dimensions.width,
+                    "height": dimensions.height,
+                    "viewBox": dimensions.view_box.map(|rect| {
+                        json!({
+                            "x": rect.origin.x,
+                            "y": rect.origin.y,
+                            "width": rect.size.width,
+                            "height": rect.size.height
+                        })
+                    })
+                })
+            }),
+            "diagnostics": artifact.diagnostics
+        })
+    });
+    if !format.is_binary() {
+        return Ok(json!({"name": name, "content": output.content, "artifact": metadata}));
+    }
+    let rendered =
+        render_artifact_output_bytes(output, format, 96.0).map_err(|err| err.to_string())?;
     Ok(json!({
         "name": rendered.name_hint.unwrap_or(name),
-        "contentBase64": base64_encode(&rendered.bytes)
+        "contentBase64": base64_encode(&rendered.bytes),
+        "artifact": metadata
     }))
 }
 

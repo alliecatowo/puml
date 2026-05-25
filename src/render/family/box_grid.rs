@@ -183,6 +183,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             id: format!("r{i}"),
             from: resolve_gl_endpoint(&rel.from),
             to: resolve_gl_endpoint(&rel.to),
+            label: rel.label.clone(),
         })
         .collect();
 

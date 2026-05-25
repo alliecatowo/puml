@@ -12,7 +12,9 @@ use super::{
     EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION,
 };
 use crate::cli::{Cli, OutputFormat};
-use puml::output::{render_output_bytes, render_svg_export_content, RenderedOutput};
+use puml::output::{
+    render_artifact_export_content, render_artifact_output_bytes, RenderedArtifactOutput,
+};
 use puml::specialized;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
@@ -72,9 +74,16 @@ pub(super) fn run_render_mode(
                 .output_name_hint
                 .as_ref()
                 .map(|base| format!("{base}.{}", cli.format.extension()));
-            all.push(RenderedOutput {
+            let artifact = puml::render::RenderArtifact::svg_only(svg);
+            all.push(RenderedArtifactOutput {
                 name_hint,
-                content: render_svg_export_content(&svg, cli.format),
+                content: render_artifact_export_content(&artifact, cli.format),
+                artifact: Some(puml::output::RenderArtifactOutputMetadata {
+                    format: artifact.format,
+                    dimensions: artifact.dimensions,
+                    scene_availability: artifact.scene_availability,
+                    diagnostics: artifact.diagnostics.len(),
+                }),
             });
             return Ok(all);
         }
@@ -111,15 +120,15 @@ pub(super) fn run_render_mode(
         );
         let pages = render_pages_from_model(&model, cli.format);
         let page_count = pages.len();
-        for (page_idx, content) in pages.into_iter().enumerate() {
-            let name_hint = source.output_name_hint.as_ref().map(|base| {
+        for (page_idx, mut output) in pages.into_iter().enumerate() {
+            output.name_hint = source.output_name_hint.as_ref().map(|base| {
                 if page_count == 1 {
                     format!("{base}.{}", cli.format.extension())
                 } else {
                     format!("{base}-{}.{}", page_idx + 1, cli.format.extension())
                 }
             });
-            all.push(RenderedOutput { name_hint, content });
+            all.push(output);
         }
         Ok::<_, (u8, String)>(all)
     })?;
@@ -183,7 +192,7 @@ pub(super) fn run_render_mode(
 
     let binary_outputs = outputs
         .iter()
-        .map(|out| render_output_bytes(out, cli.format, cli.dpi))
+        .map(|out| render_artifact_output_bytes(out, cli.format, cli.dpi))
         .collect::<Result<Vec<_>, _>>()
         .map_err(output_err)?;
 

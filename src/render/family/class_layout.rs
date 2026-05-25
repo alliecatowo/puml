@@ -102,6 +102,7 @@ pub(super) fn class_run_layout(
             id: format!("r{i}"),
             from: resolve_gl(&rel.from),
             to: resolve_gl(&rel.to),
+            label: rel.label.clone(),
         })
         .collect();
 

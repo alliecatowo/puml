@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 
 use crate::model::{FamilyDocument, NormalizedDocument};
-use crate::render::RenderArtifact;
+use crate::output::{RenderArtifact, RenderSceneContract};
 use crate::render_core::SceneAvailability;
 use crate::{layout, LayoutOptions};
 
@@ -125,9 +125,12 @@ fn family_artifact_scene_summary_to_json(
     family: &FamilyDocument,
     artifact: Option<&RenderArtifact>,
 ) -> Value {
-    match artifact.and_then(|artifact| artifact.scene.as_ref()) {
-        Some(scene) => render_core_scene_to_json(scene),
-        None => json!({
+    match artifact.map(RenderArtifact::scene_contract) {
+        Some(RenderSceneContract::Typed(scene)) => render_core_scene_to_json(scene),
+        Some(RenderSceneContract::NotMigrated)
+        | Some(RenderSceneContract::Unsupported)
+        | Some(RenderSceneContract::Inconsistent)
+        | None => json!({
             "kind": format!("{:?}", family.kind),
             "typed": false,
             "available": false,
