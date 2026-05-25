@@ -71,6 +71,8 @@ fn parse_activity_partition_like(line: &str) -> Option<(String, Option<String>)>
     let (keyword, rest) = ["partition ", "group ", "package ", "rectangle ", "card "]
         .iter()
         .find_map(|prefix| line.strip_prefix(prefix).map(|rest| (*prefix, rest)))?;
+    let keyword_name = keyword.trim();
+    let is_block_scope = line.trim_end().ends_with('{') || keyword_name == "group";
     let raw = rest.trim().trim_end_matches('{').trim();
     let mut color: Option<String> = None;
     let clean: Vec<&str> = raw
@@ -90,7 +92,9 @@ fn parse_activity_partition_like(line: &str) -> Option<(String, Option<String>)>
     };
     let label = strip_wrapping_quotes(&label).to_string();
     if label.is_empty() {
-        Some((keyword.trim().to_string(), color))
+        Some((keyword_name.to_string(), color))
+    } else if is_block_scope {
+        Some((activity_partition_block_label(label), color))
     } else {
         Some((label, color))
     }
@@ -115,12 +119,19 @@ fn parse_activity_arrow_directive(line: &str) -> Option<String> {
         .strip_prefix("-[")
         .and_then(|value| value.strip_suffix("]->"))
     {
-        for part in style.split(',').map(str::trim).filter(|part| !part.is_empty()) {
+        for part in style
+            .split([',', ';'])
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+        {
             match part {
-                "dashed" | "dotted" => dashed = true,
+                "dashed" | "dotted" | "line.dashed" | "line.dotted" => dashed = true,
                 "hidden" => hidden = true,
-                "bold" => bold = true,
+                "bold" | "line.bold" | "line.thick" => bold = true,
                 _ if part.starts_with('#') => color = Some(part),
+                _ if part.starts_with("thickness=") || part.starts_with("line.thickness=") => {
+                    bold = true;
+                }
                 _ => {}
             }
         }
@@ -140,6 +151,7 @@ fn parse_activity_arrow_directive(line: &str) -> Option<String> {
     if bold {
         parts.push("bold:1".to_string());
     }
+    let tail = tail.trim_start_matches(':').trim();
     if !tail.is_empty() {
         parts.push(format!("label:{tail}"));
     }
@@ -188,6 +200,10 @@ fn activity_style_label(label: impl Into<String>, fill_color: Option<&str>) -> S
         }
         _ => label,
     }
+}
+
+fn activity_partition_block_label(label: String) -> String {
+    format!("\x1factivity:partition:block\x1f{label}")
 }
 
 fn normalize_activity_color_token(token: &str) -> String {

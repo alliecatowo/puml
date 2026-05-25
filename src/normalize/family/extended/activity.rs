@@ -4,6 +4,7 @@ use super::*;
 pub(super) struct ActivityNormalizeState {
     pub(super) step_counter: usize,
     pub(super) active_partition: Option<String>,
+    pub(super) partition_stack: Vec<Option<String>>,
     pub(super) fork_depth: usize,
     pub(super) fork_branch: usize,
 }
@@ -18,15 +19,19 @@ pub(super) fn normalize_activity_step(
     let name = format!("__act_{:04}", state.step_counter);
     let mut label = step.label;
     let fill_color = extract_activity_inline_fill(&mut label);
+    let partition_block = extract_activity_partition_block(&mut label);
     let sdl_shape = extract_activity_sdl_shape(&mut label);
     let note_meta = extract_activity_note_meta(&mut label);
     let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
     match step.kind {
         ActivityStepKind::PartitionStart => {
+            if partition_block {
+                state.partition_stack.push(state.active_partition.clone());
+            }
             state.active_partition = label.clone();
         }
         ActivityStepKind::PartitionEnd => {
-            state.active_partition = None;
+            state.active_partition = state.partition_stack.pop().flatten();
         }
         ActivityStepKind::Fork => {
             state.fork_depth += 1;

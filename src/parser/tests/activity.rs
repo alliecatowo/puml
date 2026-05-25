@@ -54,7 +54,7 @@ fn parses_activity_switch_split_goto_and_terminal_controls() {
 #[test]
 fn parses_activity_new_metadata_steps() {
     let doc = parse_with_options(
-        "@startuml\nstart\n#LightBlue:Collect;\n-[#red,dashed]-> reviewed;\n:Review;\nnote right: keep evidence\n#pink:(A)\ngroup Audit\n:Log;\nend group\npartition #LightYellow Ops {\n:Ship;\n}\nkill\n@enduml\n",
+        "@startuml\nstart\n#LightBlue:Collect;\n-[#red,dashed]-> reviewed;\n-[#blue]-> : approved;\n:Review;\nnote right: keep evidence\n#pink:(A)\ngroup Audit\n:Log;\nend group\npartition #LightYellow Ops {\n:Ship;\n}\nkill\n@enduml\n",
         &ParseOptions::default(),
     )
     .unwrap();
@@ -78,6 +78,12 @@ fn parses_activity_new_metadata_steps() {
                 .as_deref()
                 .is_some_and(|label| label.contains("color:red") && label.contains("dashed:1"))
     }));
+    assert!(steps.iter().any(|step| {
+        step.kind == ActivityStepKind::Arrow
+            && step.label.as_deref().is_some_and(|label| {
+                label.contains("color:blue") && label.contains("label:approved")
+            })
+    }));
     assert!(doc.statements.iter().any(|stmt| matches!(
         &stmt.kind,
         StatementKind::Note(note) if note.text == "keep evidence"
@@ -88,11 +94,15 @@ fn parses_activity_new_metadata_steps() {
             && step.label.as_deref() == Some("\u{1f}style:fill:pink\u{1f}(A)")));
     assert!(steps.iter().any(|step| {
         step.kind == ActivityStepKind::PartitionStart
-            && step.label.as_deref() == Some("\u{1f}style:fill:LightYellow\u{1f}Ops")
+            && step.label.as_deref()
+                == Some(
+                    "\u{1f}style:fill:LightYellow\u{1f}\u{1f}activity:partition:block\u{1f}Ops"
+                )
     }));
     assert!(steps.iter().any(|step| {
         step.kind == ActivityStepKind::PartitionStart
-            && step.label.as_deref() == Some("Audit")
+            && step.label.as_deref()
+                == Some("\u{1f}activity:partition:block\u{1f}Audit")
     }));
     assert!(steps
         .iter()
