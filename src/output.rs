@@ -1,5 +1,5 @@
 use crate::model::NormalizedDocument;
-use crate::render::{self, RenderArtifact, TextOutputMode};
+use crate::render::{self, TextOutputMode};
 use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 
 mod contract;

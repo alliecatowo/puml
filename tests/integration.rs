@@ -7818,6 +7818,34 @@ fn state_arch_lifecycle_composites_render_enclosing_boxes() {
 }
 
 #[test]
+fn self_host_architecture_diagrams_accept_issue_537_constructs() {
+    for path in [
+        "docs/diagrams/architecture-overview.puml",
+        "docs/diagrams/language-service-layers.puml",
+        "docs/diagrams/diagram-family-lifecycle.puml",
+    ] {
+        let src = fs::read_to_string(path).unwrap_or_else(|err| panic!("read {path}: {err}"));
+        let artifacts = puml::render_source_to_artifacts(&src)
+            .unwrap_or_else(|err| panic!("render {path}: {err:?}"));
+        assert_eq!(artifacts.len(), 1, "{path} should render one artifact");
+
+        let diagnostics: Vec<_> = artifacts[0]
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect();
+        assert!(
+            diagnostics.iter().all(|message| {
+                !message.contains("W_SKINPARAM_UNSUPPORTED")
+                    && !message.contains("E_STATE_MIXED")
+                    && !message.contains("E_STATE_UNSUPPORTED_SYNTAX")
+            }),
+            "{path} should not need self-host workarounds; diagnostics: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn state_basic_render_produces_valid_svg() {
     let src = "@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n";
     let svg = render_source_to_svg(src).expect("basic state should render");
