@@ -208,3 +208,24 @@ fn inline_element_style_renders_actor_node_style() {
         "actor text: color should style the actor label; svg={svg}"
     );
 }
+
+#[test]
+fn usecase_theme_preset_reaches_actor_usecase_and_relation_styles() {
+    let src = r##"@startuml
+!theme hacker
+actor Shopper
+usecase Checkout
+Shopper --> Checkout
+@enduml
+"##;
+    let svg = puml::render_source_to_svg(src).expect("render themed usecase");
+
+    assert!(
+        svg.contains("#00ff00"),
+        "hacker theme stroke/font color should reach usecase family SVG; svg={svg}"
+    );
+    assert!(
+        svg.contains("#0d0d0d"),
+        "hacker theme participant background should reach usecase node fill; svg={svg}"
+    );
+}

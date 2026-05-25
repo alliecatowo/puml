@@ -397,6 +397,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Undef(_)
             | StatementKind::LegendPos(_) => {}
             StatementKind::Scale(body) => {
+                common.scale(&body);
                 if family_kind == DiagramKind::Timing && body.contains(" as ") {
                     normalize_timing_scale_node(&mut nodes, body);
                 }
@@ -470,6 +471,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         caption: common.caption,
         legend: common.legend,
         mainframe: common.mainframe,
+        scale: common.scale,
         orientation,
         style: SequenceStyle {
             sepia,

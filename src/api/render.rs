@@ -430,5 +430,8 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> render::Rende
         artifact.scene.as_ref(),
         render::validate::AutoCorrect::Apply,
     ));
+    if let Some(scale) = &family.scale {
+        render::apply_scale_svg(&mut artifact.svg, scale);
+    }
     artifact
 }
