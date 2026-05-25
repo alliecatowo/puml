@@ -328,6 +328,33 @@ fn state_transition_labels_clear_crossing_arrow_lanes_issue_483() {
     );
 }
 
+#[test]
+fn state_transition_labels_render_plantuml_line_break_escapes() {
+    let svg = puml::render_source_to_svg(
+        r"@startuml
+[*] --> Source : file or stdin\ninput
+Source --> Parsed : preprocess\lparse
+Parsed --> [*] : output\rwritten
+@enduml
+",
+    )
+    .expect("render escaped state transition labels");
+    let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
+
+    assert_eq!(
+        state_label_tspan_text(&doc, r"file or stdin\ninput"),
+        ["file or stdin", "input"]
+    );
+    assert_eq!(
+        state_label_tspan_text(&doc, r"preprocess\lparse"),
+        ["preprocess", "parse"]
+    );
+    assert_eq!(
+        state_label_tspan_text(&doc, r"output\rwritten"),
+        ["output", "written"]
+    );
+}
+
 fn state_label_node<'a, 'input>(
     doc: &'a roxmltree::Document<'input>,
     label: &str,
@@ -335,6 +362,14 @@ fn state_label_node<'a, 'input>(
     doc.descendants()
         .find(|node| node.has_tag_name("text") && node.attribute("data-state-label") == Some(label))
         .unwrap_or_else(|| panic!("missing state transition label {label}"))
+}
+
+fn state_label_tspan_text<'a>(doc: &'a roxmltree::Document<'_>, label: &str) -> Vec<&'a str> {
+    state_label_node(doc, label)
+        .children()
+        .filter(|node| node.has_tag_name("tspan"))
+        .filter_map(|node| node.text())
+        .collect()
 }
 
 fn state_label_center_x(node: roxmltree::Node<'_, '_>) -> i32 {

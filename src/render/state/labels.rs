@@ -2,42 +2,68 @@ use super::*;
 
 pub(super) fn wrap_state_label(label: &str, max_cols: usize) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
-    let mut current = String::new();
 
-    for word in label.split_whitespace() {
-        if word.len() > max_cols {
-            if !current.is_empty() {
+    for explicit in split_state_label_explicit_lines(label) {
+        let mut current = String::new();
+
+        for word in explicit.split_whitespace() {
+            if word.len() > max_cols {
+                if !current.is_empty() {
+                    lines.push(std::mem::take(&mut current));
+                }
+                let mut start = 0usize;
+                while start < word.len() {
+                    let end = (start + max_cols).min(word.len());
+                    lines.push(word[start..end].to_string());
+                    start = end;
+                }
+                continue;
+            }
+
+            let next_len = if current.is_empty() {
+                word.len()
+            } else {
+                current.len() + 1 + word.len()
+            };
+            if next_len > max_cols && !current.is_empty() {
                 lines.push(std::mem::take(&mut current));
             }
-            let mut start = 0usize;
-            while start < word.len() {
-                let end = (start + max_cols).min(word.len());
-                lines.push(word[start..end].to_string());
-                start = end;
+            if !current.is_empty() {
+                current.push(' ');
             }
-            continue;
+            current.push_str(word);
         }
 
-        let next_len = if current.is_empty() {
-            word.len()
-        } else {
-            current.len() + 1 + word.len()
-        };
-        if next_len > max_cols && !current.is_empty() {
-            lines.push(std::mem::take(&mut current));
-        }
         if !current.is_empty() {
-            current.push(' ');
+            lines.push(current);
+        } else if explicit.is_empty() {
+            lines.push(String::new());
         }
-        current.push_str(word);
     }
 
-    if !current.is_empty() {
-        lines.push(current);
-    }
     if lines.is_empty() {
         lines.push(String::new());
     }
+    lines
+}
+
+fn split_state_label_explicit_lines(label: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    let mut chars = label.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some('n' | 'r' | 'l') = chars.peek().copied() {
+                chars.next();
+                lines.push(std::mem::take(&mut current));
+                continue;
+            }
+        }
+        current.push(ch);
+    }
+
+    lines.push(current);
     lines
 }
 

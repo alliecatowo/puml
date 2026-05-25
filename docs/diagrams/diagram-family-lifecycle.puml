@@ -5,16 +5,13 @@
 ' Styled, Rendered, to Output.
 ' Self-hosting stress test: 12 states, two composite states, error branches.
 '
-' Simplification notes:
-'   - Inline \n line breaks in transition labels cause the state parser to
-'     trigger [E_STATE_MIXED]; labels use spaces instead.
-'   - "note right of <state>" is not yet supported in state diagrams
-'     (E_STATE_MIXED / E_STATE_UNSUPPORTED_SYNTAX); notes omitted.
-'   Both issues are documented as render bugs in the architecture report.
-
 @startuml
 
-[*] --> Source : file or stdin input
+[*] --> Source : file or stdin\ninput
+
+note right of Source
+  Raw source text is retained for mapped diagnostics.
+end note
 
 Source --> Tokenized : Preprocessor expands includes and macros
 Source --> Diagnostics : preprocessor error
@@ -50,6 +47,8 @@ state Rendered {
 
 Styled --> Rendered : Renderer computes geometry and emits nodes
 Styled --> Diagnostics : render error
+
+note right of Rendered: RenderArtifact carries SVG, scene, and diagnostics
 
 Rendered --> Output : write file or stdout
 
