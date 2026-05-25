@@ -58,6 +58,7 @@ pub(super) fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Ditaa => "ditaa",
         DiagramKind::Chart => "chart",
         DiagramKind::Stdlib => "stdlib",
+        DiagramKind::Chen => "chen",
         DiagramKind::Unknown => "unknown",
     }
 }

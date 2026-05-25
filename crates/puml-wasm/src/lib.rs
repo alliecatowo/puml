@@ -142,6 +142,7 @@ fn detect_family_for_frontend(
         DiagramKind::Ditaa => puml::DiagramFamily::Ditaa,
         DiagramKind::Chart => puml::DiagramFamily::Chart,
         DiagramKind::Stdlib => puml::DiagramFamily::Stdlib,
+        DiagramKind::Chen => puml::DiagramFamily::Chen,
         DiagramKind::Unknown => puml::DiagramFamily::Unknown,
     })
 }

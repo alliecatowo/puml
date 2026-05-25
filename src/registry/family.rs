@@ -218,6 +218,13 @@ const FAMILY_SPECS: &[DiagramFamilySpec] = &[
         PLANTUML_ONLY,
     ),
     family(
+        DiagramKind::Chen,
+        DiagramFamily::Chen,
+        "chen",
+        FamilyRenderKind::Chen,
+        PLANTUML_ONLY,
+    ),
+    family(
         DiagramKind::Unknown,
         DiagramFamily::Unknown,
         "unknown",

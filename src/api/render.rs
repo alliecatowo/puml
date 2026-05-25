@@ -159,6 +159,7 @@ fn render_document_for_family(
             render::render_chart_svg,
         ),
         DiagramFamily::Stdlib => render_stdlib(document),
+        DiagramFamily::Chen => render_chen(document),
         DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
         DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
         DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -238,6 +239,15 @@ fn render_stdlib(document: Document) -> Result<Vec<String>, Diagnostic> {
     }
 }
 
+fn render_chen(document: Document) -> Result<Vec<String>, Diagnostic> {
+    match normalize_mod::normalize_family(document)? {
+        model::NormalizedDocument::Chen(doc) => Ok(vec![render::render_chen_svg(&doc)]),
+        _ => Err(Diagnostic::error(
+            "[E_CHEN_INTERNAL] unexpected model during chen render",
+        )),
+    }
+}
+
 fn render_structured<T>(
     document: Document,
     family_name: &str,
@@ -286,6 +296,7 @@ structured_variant!(model::MathDocument, Math);
 structured_variant!(model::SdlDocument, Sdl);
 structured_variant!(model::DitaaDocument, Ditaa);
 structured_variant!(model::ChartDocument, Chart);
+structured_variant!(model::ChenDocument, Chen);
 
 fn render_family_with(
     document: Document,
@@ -355,6 +366,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
         NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
         NormalizedDocument::Stdlib(doc) => vec![render::render_stdlib_svg(doc)],
+        NormalizedDocument::Chen(doc) => vec![render::render_chen_svg(doc)],
     }
 }
 

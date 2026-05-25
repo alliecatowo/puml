@@ -32,6 +32,7 @@ pub(crate) fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::Ditaa => "Ditaa",
             DiagramKind::Chart => "Chart",
             DiagramKind::Stdlib => "Stdlib",
+            DiagramKind::Chen => "Chen",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()

@@ -34,6 +34,7 @@ pub enum DiagramKind {
     Ditaa,
     Chart,
     Stdlib,
+    Chen,
     Unknown,
 }
 
@@ -124,6 +125,9 @@ pub enum StatementKind {
         state: Option<String>,
         note: Option<String>,
     },
+    ChenDecl(ChenDecl),
+    ChenRelation(ChenRelation),
+    ChenInheritance(ChenInheritance),
     Note(Note),
     Group(Group),
     Title(String),
@@ -334,6 +338,47 @@ pub struct ClassMember {
     /// `{abstract}`/`{static}`/`{class}` token, or from `<<abstract>>`/`<<static>>` stereotypes.
     pub modifier: Option<MemberModifier>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChenDeclKind {
+    Entity,
+    Relationship,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenDecl {
+    pub kind: ChenDeclKind,
+    pub name: String,
+    pub alias: Option<String>,
+    pub stereotypes: Vec<String>,
+    pub attributes: Vec<ChenAttribute>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenAttribute {
+    pub name: String,
+    pub alias: Option<String>,
+    pub data_type: Option<String>,
+    pub stereotypes: Vec<String>,
+    pub children: Vec<ChenAttribute>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenRelation {
+    pub from: String,
+    pub to: String,
+    pub cardinality: String,
+    pub total_participation: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenInheritance {
+    pub parent: String,
+    pub connector: String,
+    pub discriminator: Option<String>,
+    pub children: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ClassDecl {
     pub name: String,

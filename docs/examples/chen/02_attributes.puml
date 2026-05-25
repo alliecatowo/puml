@@ -1,0 +1,16 @@
+@startchen
+title Chen Attributes
+entity "Director" as DIRECTOR {
+  "No." as Number : INTEGER <<key>>
+  Name {
+    Fname : STRING
+    Lname : STRING
+  }
+  Born : DATE
+  Age : INTEGER <<derived>>
+}
+entity "Customer" as CUSTOMER {
+  Number <<key>>
+  Name <<multi>>
+}
+@endchen

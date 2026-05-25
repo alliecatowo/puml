@@ -48,6 +48,7 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
         NormalizedDocument::Ditaa(doc) => vec![render_ditaa_text(doc, mode)],
         NormalizedDocument::Chart(doc) => vec![render_chart_text(doc, mode)],
         NormalizedDocument::Stdlib(doc) => vec![render_stdlib_text(doc, mode)],
+        NormalizedDocument::Chen(doc) => vec![render_chen_text(doc, mode)],
     }
 }
 
@@ -79,6 +80,16 @@ fn render_stdlib_text(doc: &StdlibDocument, mode: TextOutputMode) -> String {
             text_value(target, mode)
         ));
     }
+    finish_text(lines)
+}
+
+fn render_chen_text(doc: &crate::model::ChenDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    lines.push("chen".to_string());
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    lines.push(format!("nodes ({})", doc.nodes.len()));
+    lines.push(format!("relations ({})", doc.relations.len()));
+    lines.push(format!("inheritances ({})", doc.inheritances.len()));
     finish_text(lines)
 }
 

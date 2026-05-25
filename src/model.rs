@@ -1,3 +1,4 @@
+mod chen;
 mod common;
 mod family;
 mod sequence;
@@ -5,6 +6,9 @@ mod state;
 mod stdlib;
 mod structured;
 
+pub use chen::{
+    ChenAttribute, ChenDocument, ChenInheritance, ChenNode, ChenNodeKind, ChenRelation,
+};
 pub use common::{LegendHAlign, LegendVAlign, MetadataHAlign, ScaleSpec};
 pub use family::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation,
@@ -50,6 +54,7 @@ pub enum NormalizedDocument {
     Ditaa(DitaaDocument),
     Chart(ChartDocument),
     Stdlib(StdlibDocument),
+    Chen(ChenDocument),
 }
 
 #[cfg(test)]

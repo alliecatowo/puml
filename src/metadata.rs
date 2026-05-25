@@ -298,6 +298,18 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
             ],
             &mut counts,
         ),
+        NormalizedDocument::Chen(doc) => metadata_for_simple(
+            "chen",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("nodes", doc.nodes.len()),
+                ("relations", doc.relations.len()),
+                ("inheritances", doc.inheritances.len()),
+            ],
+            &mut counts,
+        ),
     };
 
     DiagramMetadata {
