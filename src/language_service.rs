@@ -12,8 +12,8 @@ pub use completion::{
     completion_items, resolve_completion_item, CompletionItem, CompletionItemKind, CompletionList,
 };
 pub use diagnostics::{
-    diagnostics, diagnostics_with_options, DiagnosticsReport, LanguageDiagnostic, SourcePosition,
-    SourceRange,
+    diagnostics, diagnostics_with_options, explain_diagnostic, DiagnosticExplanation,
+    DiagnosticsReport, LanguageDiagnostic, SourcePosition, SourceRange,
 };
 pub use document::{DocumentSnapshot, SnapshotOptions};
 pub use formatting::{format_document, FormatDocumentResult, TextEdit};

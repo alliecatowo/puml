@@ -1,6 +1,6 @@
 mod lsp_adapter;
 
-use lsp_adapter::commands::execute_command;
+use lsp_adapter::commands::{direct_command_result, execute_command};
 use lsp_adapter::completion::{completions, hover, resolve_completion};
 use lsp_adapter::diagnostics::pub_diag;
 use lsp_adapter::document::{change, get_config_section, open};
@@ -342,6 +342,21 @@ fn main() {
                     .get(uri)
                     .map(|d| render_result(&d.text, frontend))
                     .unwrap_or_else(|| json!({"svg":"","width":0,"height":0,"diagnostics":[]}));
+                let _ = resp(&mut w, id, result);
+            }
+            "puml/renderScene" => {
+                let id = msg.get("id").cloned().unwrap_or(Value::Null);
+                let result = direct_command_result("puml.renderScene", &msg, &docs);
+                let _ = resp(&mut w, id, result);
+            }
+            "puml/export" => {
+                let id = msg.get("id").cloned().unwrap_or(Value::Null);
+                let result = direct_command_result("puml.export", &msg, &docs);
+                let _ = resp(&mut w, id, result);
+            }
+            "puml/explainDiagnostic" => {
+                let id = msg.get("id").cloned().unwrap_or(Value::Null);
+                let result = direct_command_result("puml.explainDiagnostic", &msg, &docs);
                 let _ = resp(&mut w, id, result);
             }
             _ => {

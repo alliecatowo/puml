@@ -103,6 +103,18 @@ fn hover_request(id: i64, uri: &str, line: u64, character: u64) -> Value {
     })
 }
 
+fn execute_command_request(id: i64, command: &str, arguments: Vec<Value>) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "workspace/executeCommand",
+        "params": {
+            "command": command,
+            "arguments": arguments
+        }
+    })
+}
+
 fn lsp_round_trip_for_hover_and_completion(
     uri: &str,
     text: &str,
@@ -132,6 +144,109 @@ fn hover_markdown(result: &Value) -> &str {
     result["contents"]["value"]
         .as_str()
         .expect("hover markdown")
+}
+
+#[test]
+fn workspace_commands_route_render_scene_export_and_explain_diagnostic() {
+    let uri = "file:///commands.puml";
+    let messages = run_lsp(vec![
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+        open_doc_message(uri, "@startuml\nAlice -> Bob: hi\n@enduml\n"),
+        execute_command_request(2, "puml.renderScene", vec![json!(uri)]),
+        execute_command_request(3, "puml.export", vec![json!(uri), json!({"format": "svg"})]),
+        execute_command_request(
+            4,
+            "puml.explainDiagnostic",
+            vec![json!({
+                "code": "E_ARROW_INVALID",
+                "message": "[E_ARROW_INVALID] invalid arrow syntax",
+                "range": {
+                    "start": {"line": 1, "character": 6},
+                    "end": {"line": 1, "character": 8}
+                }
+            })],
+        ),
+        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ]);
+
+    let scene = request_result(&messages, 2);
+    assert_eq!(scene["schema"], "puml.renderScene");
+    assert_eq!(scene["schemaVersion"], 1);
+    assert_eq!(scene["model"]["kind"], "Sequence");
+    assert_eq!(scene["scene"]["kind"], "Sequence");
+    assert_eq!(scene["scene"]["pageCount"], 1);
+    assert_eq!(scene["scene"]["pages"][0]["participants"][0]["id"], "Alice");
+    assert_eq!(scene["diagnostics"], json!([]));
+
+    let exported = request_result(&messages, 3);
+    assert_eq!(exported["schema"], "puml.export");
+    assert_eq!(exported["format"], "svg");
+    assert_eq!(exported["mediaType"], "image/svg+xml");
+    assert_eq!(exported["encoding"], "utf-8");
+    assert!(exported["content"]
+        .as_str()
+        .expect("svg content")
+        .contains("<svg"));
+    assert_eq!(exported["pages"][0]["name"], "diagram-1.svg");
+    assert_eq!(exported["diagnostics"], json!([]));
+
+    let explained = request_result(&messages, 4);
+    assert_eq!(explained["schema"], "puml.explainDiagnostic");
+    assert_eq!(explained["diagnostic"]["code"], "E_ARROW_INVALID");
+    assert!(explained["explanation"]["summary"]
+        .as_str()
+        .expect("summary")
+        .contains("arrow"));
+    assert_eq!(explained["diagnostics"], json!([]));
+}
+
+#[test]
+fn workspace_command_json_shapes_are_deterministic() {
+    let uri = "file:///deterministic-commands.puml";
+    let run = || {
+        run_lsp(vec![
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+            open_doc_message(
+                uri,
+                "@startuml\nparticipant Alice\nAlice -> Bob: hi\n@enduml\n",
+            ),
+            execute_command_request(2, "puml.renderScene", vec![json!(uri)]),
+            execute_command_request(
+                3,
+                "puml.export",
+                vec![json!(uri), json!({"format": "html"})],
+            ),
+            json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+            json!({"jsonrpc":"2.0","method":"exit","params":null}),
+        ])
+    };
+
+    let first = run();
+    let second = run();
+    assert_eq!(request_result(&first, 2), request_result(&second, 2));
+    assert_eq!(request_result(&first, 3), request_result(&second, 3));
+    assert_eq!(
+        request_result(&first, 3)
+            .as_object()
+            .expect("export response")
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![
+            "content",
+            "contentBase64",
+            "diagnostics",
+            "encoding",
+            "format",
+            "mediaType",
+            "model",
+            "pages",
+            "scene",
+            "schema",
+            "schemaVersion"
+        ]
+    );
 }
 
 #[test]

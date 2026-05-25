@@ -4762,6 +4762,9 @@ fn dump_capabilities_outputs_manifest_shape() {
         .expect("executeCommandProvider.commands must be an array");
     assert!(commands.iter().any(|c| c == "puml.applyFormat"));
     assert!(commands.iter().any(|c| c == "puml.renderSvg"));
+    assert!(commands.iter().any(|c| c == "puml.renderScene"));
+    assert!(commands.iter().any(|c| c == "puml.export"));
+    assert!(commands.iter().any(|c| c == "puml.explainDiagnostic"));
     let token_types = json["semanticTokensProvider"]["legend"]["tokenTypes"]
         .as_array()
         .expect("semanticTokensProvider.legend.tokenTypes must be an array");
