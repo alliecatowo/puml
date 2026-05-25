@@ -111,6 +111,12 @@ impl FrontendBuilder {
         });
     }
 
+    pub fn push_lines(&mut self, lines: impl AsRef<str>, original: Span) {
+        for line in lines.as_ref().lines() {
+            self.push_line(line, original);
+        }
+    }
+
     pub fn push_diagnostic(&mut self, diagnostic: Diagnostic) {
         self.diagnostics.push(diagnostic);
     }

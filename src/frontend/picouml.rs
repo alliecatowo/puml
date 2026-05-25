@@ -1,31 +1,30 @@
-use super::{FrontendResult, SourceMap};
-use crate::Diagnostic;
+use super::{FrontendBuilder, FrontendResult};
+use crate::{source::Span, Diagnostic};
 
 pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
-    // First pass: strip block comments `[/* ... */]`.
-    let original = source;
-    let source = picouml_strip_block_comments(source);
-
-    let mut out = String::new();
+    let mut out = FrontendBuilder::new();
     let mut saw_picouml_markers = false;
     let mut saw_uml_markers = false;
     let mut in_group_block = false;
+    let mut block_comment = BlockCommentState::default();
+    let mut offset = 0usize;
 
     for raw_line in source.lines() {
-        let trimmed = raw_line.trim();
+        let span = Span::new(offset, offset + raw_line.len());
+        offset += raw_line.len() + 1;
+        let line = strip_picouml_block_comments_from_line(raw_line, span, &mut block_comment);
+        let trimmed = line.trim();
 
         if matches_prefixed_uml_marker(trimmed, "@startpicouml") {
             saw_picouml_markers = true;
-            let converted = replace_prefixed_marker(raw_line, "@startpicouml", "@startuml");
-            out.push_str(&converted);
-            out.push('\n');
+            let converted = replace_prefixed_marker(&line, "@startpicouml", "@startuml");
+            out.push_line(converted, span);
             continue;
         }
         if matches_prefixed_uml_marker(trimmed, "@endpicouml") {
             saw_picouml_markers = true;
-            let converted = replace_prefixed_marker(raw_line, "@endpicouml", "@enduml");
-            out.push_str(&converted);
-            out.push('\n');
+            let converted = replace_prefixed_marker(&line, "@endpicouml", "@enduml");
+            out.push_line(converted, span);
             continue;
         }
         if matches_prefixed_uml_marker(trimmed, "@startuml")
@@ -36,13 +35,19 @@ pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
 
         // Translate PicoUML-specific constructs.
         if let Some(converted) = adapt_picouml_line(trimmed, &mut in_group_block) {
-            out.push_str(&converted);
-            out.push('\n');
+            out.push_line(converted, span);
             continue;
         }
 
-        out.push_str(raw_line);
-        out.push('\n');
+        out.push_line(line, span);
+    }
+
+    if let Some(span) = block_comment.start_span {
+        return Err(Diagnostic::error_code(
+            "E_PICOUML_BLOCK_COMMENT_UNTERMINATED",
+            "unterminated PicoUML block comment `[/* ... */]`",
+        )
+        .with_span(span));
     }
 
     if saw_picouml_markers && saw_uml_markers {
@@ -52,34 +57,50 @@ pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
         ));
     }
 
-    let source_map = SourceMap::line_map(original, &out);
-    Ok(FrontendResult::new(out, source_map))
+    Ok(out.finish())
 }
 
-/// Strip PicoUML block comments of the form `[/* ... */]` (possibly multiline).
-fn picouml_strip_block_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        // Look for `[/*`
-        if i + 2 < bytes.len() && bytes[i] == b'[' && bytes[i + 1] == b'/' && bytes[i + 2] == b'*' {
-            // Find closing `*/]`
-            let mut j = i + 3;
-            while j + 2 < bytes.len() {
-                if bytes[j] == b'*' && bytes[j + 1] == b'/' && bytes[j + 2] == b']' {
-                    j += 3;
-                    break;
-                }
-                j += 1;
+#[derive(Debug, Default)]
+struct BlockCommentState {
+    start_span: Option<Span>,
+}
+
+/// Strip PicoUML block comments of the form `[/* ... */]` from a single line
+/// while keeping the generated line mapped to the original source line.
+fn strip_picouml_block_comments_from_line(
+    line: &str,
+    span: Span,
+    state: &mut BlockCommentState,
+) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut cursor = 0usize;
+
+    loop {
+        if state.start_span.is_some() {
+            if let Some(end) = line[cursor..].find("*/]") {
+                cursor += end + "*/]".len();
+                state.start_span = None;
+                continue;
             }
-            i = j;
-            continue;
+            return out;
         }
-        out.push(bytes[i] as char);
-        i += 1;
+
+        if let Some(start) = line[cursor..].find("[/*") {
+            let absolute_start = cursor + start;
+            out.push_str(&line[cursor..absolute_start]);
+            cursor = absolute_start + "[/*".len();
+            state.start_span = Some(span);
+            if let Some(end) = line[cursor..].find("*/]") {
+                cursor += end + "*/]".len();
+                state.start_span = None;
+                continue;
+            }
+            return out;
+        }
+
+        out.push_str(&line[cursor..]);
+        return out;
     }
-    out
 }
 
 /// Adapt a single PicoUML content line to its PlantUML equivalent.

@@ -49,14 +49,13 @@ pub(crate) fn adapt(source: &str) -> Result<FrontendResult, Diagnostic> {
         return adapt_mermaid_flowchart(source);
     }
     if lower == "classdiagram" {
-        return adapt_mermaid_classdiagram(source)
-            .map(|adapted| result_from_adapted(source, adapted));
+        return adapt_mermaid_classdiagram(source);
     }
     if lower == "statediagram" || lower == "statediagram-v2" {
         return adapt_mermaid_statediagram(source);
     }
     if lower == "erdiagram" {
-        return adapt_mermaid_erdiagram(source).map(|adapted| result_from_adapted(source, adapted));
+        return adapt_mermaid_erdiagram(source);
     }
 
     Err(Diagnostic::error_code(

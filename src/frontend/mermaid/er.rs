@@ -1,4 +1,5 @@
-use crate::Diagnostic;
+use crate::frontend::{FrontendBuilder, FrontendResult};
+use crate::{source::Span, Diagnostic};
 
 use super::common::strip_mermaid_comment;
 
@@ -22,31 +23,42 @@ use super::common::strip_mermaid_comment;
 ///   etc.
 ///
 /// Exact visual fidelity is not the goal; the output must parse cleanly.
-pub(super) fn adapt_mermaid_erdiagram(source: &str) -> Result<String, Diagnostic> {
-    use std::collections::BTreeSet;
+pub(super) fn adapt_mermaid_erdiagram(source: &str) -> Result<FrontendResult, Diagnostic> {
+    use std::collections::BTreeMap;
 
-    let mut entities: BTreeSet<String> = BTreeSet::new();
-    let mut relations: Vec<String> = Vec::new();
+    let mut entities: BTreeMap<String, EntityBlock> = BTreeMap::new();
+    let mut relations: Vec<GeneratedLine> = Vec::new();
+    let mut deferred: Vec<GeneratedLine> = Vec::new();
+    let mut out = FrontendBuilder::new();
     let mut first = true;
+    let mut directive_span = Span::new(0, 0);
     let mut in_entity_block: Option<String> = None;
+    let mut offset = 0usize;
 
     for raw_line in source.lines() {
+        let span = Span::new(offset, offset + raw_line.len());
+        offset += raw_line.len() + 1;
         let line = strip_mermaid_comment(raw_line).trim();
         if line.is_empty() || line.starts_with("%%") {
             continue;
         }
         if first {
             first = false;
+            directive_span = span;
             // Skip `erDiagram` directive.
             continue;
         }
 
         // If we're inside an entity attribute block.
-        if in_entity_block.is_some() {
+        if let Some(entity) = &in_entity_block {
             if line == "}" {
                 in_entity_block = None;
+            } else {
+                entities
+                    .entry(entity.clone())
+                    .or_insert_with(|| EntityBlock::new(span))
+                    .push(GeneratedLine::new(line, span));
             }
-            // Attribute lines are ignored for now – entity is already registered.
             continue;
         }
 
@@ -54,7 +66,9 @@ pub(super) fn adapt_mermaid_erdiagram(source: &str) -> Result<String, Diagnostic
         if line.ends_with('{') {
             let entity_name = line.trim_end_matches('{').trim().to_string();
             if !entity_name.is_empty() {
-                entities.insert(entity_name.clone());
+                entities
+                    .entry(entity_name.clone())
+                    .or_insert_with(|| EntityBlock::new(span));
                 in_entity_block = Some(entity_name);
             }
             continue;
@@ -63,36 +77,93 @@ pub(super) fn adapt_mermaid_erdiagram(source: &str) -> Result<String, Diagnostic
         // Relation line: `CUSTOMER ||--o{ ORDER : places`
         // Split on `:` to get core and label.
         if let Some((core, label)) = line.split_once(':') {
-            if let Some(rel) = adapt_er_relation(core.trim(), label.trim(), &mut entities) {
-                relations.push(rel);
+            if let Some(rel) = adapt_er_relation(core.trim(), label.trim(), span, &mut entities) {
+                relations.push(GeneratedLine::new(rel, span));
                 continue;
             }
         }
 
         // Bare entity name (no relation, no block).
         if !line.contains(' ') {
-            entities.insert(line.to_string());
+            entities
+                .entry(line.to_string())
+                .or_insert_with(|| EntityBlock::new(span));
             continue;
         }
 
-        // Unknown line – emit as comment.
-        relations.push(format!("' [erDiagram] {line}"));
+        out.push_diagnostic(
+            Diagnostic::warning(format!(
+                "[W_MERMAID_ER_DEFERRED] unsupported mermaid ER construct was deferred: `{line}`"
+            ))
+            .with_span(span),
+        );
+        deferred.push(GeneratedLine::new(format!("' [erDiagram] {line}"), span));
     }
 
-    let mut out = vec!["@startuml".to_string()];
+    out.push_line("@startuml", directive_span);
 
     // Emit entity class declarations.
-    for entity in &entities {
-        out.push(format!("class {entity}"));
+    for (entity, block) in &entities {
+        if block.attributes.is_empty() {
+            out.push_line(format!("class {entity}"), block.span);
+        } else {
+            let declaration_span = block
+                .attributes
+                .first()
+                .map_or(block.span, |line| line.span);
+            out.push_line(format!("class {entity} {{"), declaration_span);
+            for attribute in &block.attributes {
+                out.push_line(&attribute.text, attribute.span);
+            }
+            out.push_line("}", declaration_span);
+        }
     }
 
     // Emit relations.
     for rel in &relations {
-        out.push(rel.clone());
+        out.push_line(&rel.text, rel.span);
     }
 
-    out.push("@enduml".to_string());
-    Ok(out.join("\n"))
+    for line in &deferred {
+        out.push_line(&line.text, line.span);
+    }
+
+    out.push_line("@enduml", directive_span);
+    Ok(out.finish())
+}
+
+#[derive(Debug, Clone)]
+struct GeneratedLine {
+    text: String,
+    span: Span,
+}
+
+impl GeneratedLine {
+    fn new(text: impl Into<String>, span: Span) -> Self {
+        Self {
+            text: text.into(),
+            span,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct EntityBlock {
+    span: Span,
+    attributes: Vec<GeneratedLine>,
+}
+
+impl EntityBlock {
+    fn new(span: Span) -> Self {
+        Self {
+            span,
+            attributes: Vec::new(),
+        }
+    }
+
+    fn push(&mut self, attribute: GeneratedLine) {
+        self.attributes.push(attribute);
+    }
 }
 
 /// Parse a Mermaid ER relation core like `CUSTOMER ||--o{ ORDER`.
@@ -100,7 +171,8 @@ pub(super) fn adapt_mermaid_erdiagram(source: &str) -> Result<String, Diagnostic
 fn adapt_er_relation(
     core: &str,
     label: &str,
-    entities: &mut std::collections::BTreeSet<String>,
+    span: Span,
+    entities: &mut std::collections::BTreeMap<String, EntityBlock>,
 ) -> Option<String> {
     // Mermaid ER cardinality tokens on the left and right of the `--`.
     // The double dash `--` separates the two sides.
@@ -113,8 +185,12 @@ fn adapt_er_relation(
     let (lhs_entity, lhs_card) = split_er_entity_and_card(lhs_part, true)?;
     let (rhs_entity, rhs_card) = split_er_entity_and_card(rhs_part, false)?;
 
-    entities.insert(lhs_entity.clone());
-    entities.insert(rhs_entity.clone());
+    entities
+        .entry(lhs_entity.clone())
+        .or_insert_with(|| EntityBlock::new(span));
+    entities
+        .entry(rhs_entity.clone())
+        .or_insert_with(|| EntityBlock::new(span));
 
     let card_str = format!("{lhs_card}--{rhs_card}");
     let rel_label = if label.is_empty() {

@@ -392,6 +392,85 @@ fn mermaid_flowchart_comment_lowering_reports_original_source_span() {
 }
 
 #[test]
+fn mermaid_class_deferred_construct_reports_original_source_span() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "classDiagram\nclass Dog\nclick Dog callback\n";
+
+    let result = parse_with_pipeline_result_options(source, &options)
+        .expect("unsupported Mermaid class metadata should remain non-fatal");
+
+    assert_eq!(result.diagnostics.len(), 1);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(
+        diagnostic_code(&diagnostic.message).as_deref(),
+        Some("W_MERMAID_CLASS_DEFERRED")
+    );
+    assert_eq!(diagnostic.line_col(source), Some((3, 1)));
+    assert_eq!(
+        diagnostic.span.map(|span| &source[span.start..span.end]),
+        Some("click Dog callback")
+    );
+    assert!(!result.document.statements.is_empty());
+}
+
+#[test]
+fn mermaid_er_deferred_construct_reports_original_source_span() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "erDiagram\nCUSTOMER {\n  string name\n}\nunsupported directive\n";
+
+    let result = parse_with_pipeline_result_options(source, &options)
+        .expect("unsupported Mermaid ER construct should remain non-fatal");
+
+    assert_eq!(result.diagnostics.len(), 1);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(
+        diagnostic_code(&diagnostic.message).as_deref(),
+        Some("W_MERMAID_ER_DEFERRED")
+    );
+    assert_eq!(diagnostic.line_col(source), Some((5, 1)));
+    assert_eq!(
+        diagnostic.span.map(|span| &source[span.start..span.end]),
+        Some("unsupported directive")
+    );
+    assert!(!result.document.statements.is_empty());
+}
+
+#[test]
+fn picouml_block_comment_stripping_keeps_later_parse_error_on_original_line() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "@startpicouml\n[/* hidden\nstill hidden */]\nA ->\n@endpicouml\n";
+
+    let err = parse_with_pipeline_options(source, &options)
+        .expect_err("malformed PicoUML arrow should report against original source");
+
+    assert_eq!(err.line_col(source), Some((4, 1)));
+    assert_eq!(
+        err.span.map(|span| &source[span.start..span.end]),
+        Some("A ->")
+    );
+}
+
+#[test]
 fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
