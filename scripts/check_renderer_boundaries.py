@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 
 RENDER_CORE_FORBIDDEN = re.compile(
-    r"\bcrate::(?:api|ast|frontend|language_service|model|normalize|parser|preproc|registry|specialized)\b"
+    r"\bcrate::(?:api|ast|frontend|language_service|model|normalize|output|parser|preproc|registry|render|specialized)\b"
 )
 SVG_PAGE_API = re.compile(r"\brender_svg_pages_from_model\b")
 DIRECT_RENDER_SVG = re.compile(r"\brender::render_[A-Za-z0-9_]+_svg\b")
@@ -42,7 +42,7 @@ DIRECT_RENDER_SVG_ALLOWLIST = {
 }
 
 RENDER_ARTIFACT_LITERAL_ALLOWLIST = {
-    "src/render/mod.rs": "RenderArtifact constructors live here",
+    "src/output/contract.rs": "RenderArtifact constructors live in the output contract",
 }
 
 SKIP_DIRS = {
@@ -90,7 +90,7 @@ def check_render_core_dependencies(root: pathlib.Path, path: pathlib.Path) -> li
             "render-core-neutral",
             rel,
             line,
-            "render_core must not import frontend/parser/model/api layers",
+            "render_core must not import frontend/parser/model/api/render/output layers",
         )
         for line in line_matches(RENDER_CORE_FORBIDDEN, text)
     ]

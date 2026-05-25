@@ -25,11 +25,33 @@ class RendererBoundaryGuardTest(unittest.TestCase):
     def test_render_core_rejects_parser_and_model_dependencies(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            write(root, "src/render_core.rs", "use crate::parser;\nuse crate::model::Thing;\n")
+            write(
+                root,
+                "src/render_core.rs",
+                "use crate::parser;\nuse crate::model::Thing;\nuse crate::render;\nuse crate::output;\n",
+            )
 
             violations = check_renderer_boundaries.collect_violations(root)
 
-            self.assertEqual([violation.rule for violation in violations], ["render-core-neutral", "render-core-neutral"])
+            self.assertEqual(
+                [violation.rule for violation in violations],
+                [
+                    "render-core-neutral",
+                    "render-core-neutral",
+                    "render-core-neutral",
+                    "render-core-neutral",
+                ],
+            )
+
+    def test_render_core_submodules_reject_svg_output_dependencies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            write(root, "src/render_core/backend.rs", "use crate::render::svg;\n")
+
+            violations = check_renderer_boundaries.collect_violations(root)
+
+            self.assertEqual(len(violations), 1)
+            self.assertEqual(violations[0].rule, "render-core-neutral")
 
     def test_legacy_svg_page_api_is_limited_to_public_adapter(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -57,7 +79,7 @@ class RendererBoundaryGuardTest(unittest.TestCase):
     def test_artifact_literals_stay_behind_constructor_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            write(root, "src/render/mod.rs", "let _ = RenderArtifact { svg: String::new() };\n")
+            write(root, "src/output/contract.rs", "let _ = RenderArtifact { svg: String::new() };\n")
             write(root, "src/api/render.rs", "let _ = RenderArtifact { svg: String::new() };\n")
 
             violations = check_renderer_boundaries.collect_violations(root)
