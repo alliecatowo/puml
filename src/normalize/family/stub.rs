@@ -392,7 +392,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             kind if family_kind == DiagramKind::Salt && kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category == RawSyntaxCategory::Malformed {
+                if raw.category != RawSyntaxCategory::LegacyUnknown {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,
@@ -418,7 +418,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category == RawSyntaxCategory::Malformed {
+                if raw.category != RawSyntaxCategory::LegacyUnknown {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,

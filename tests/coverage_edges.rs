@@ -1629,14 +1629,24 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
     assert!(err.message.contains("E_FAMILY_CLASS_DEFERRED_RAW"));
     assert_eq!(err.span, Some(Span::new(2, 10)));
 
-    let salt = puml::ast::Document {
+    let salt_deferred = puml::ast::Document {
         kind: puml::ast::DiagramKind::Salt,
         statements: vec![puml::ast::Statement {
             span: Span::new(0, 11),
             kind: puml::ast::StatementKind::DeferredRaw("plain label".to_string()),
         }],
     };
-    let model = normalize_family(salt).expect("salt deferred raw remains pass-through");
+    let err = normalize_family(salt_deferred).expect_err("salt deferred raw should fail");
+    assert!(err.message.contains("E_FAMILY_SALT_DEFERRED_RAW"));
+
+    let salt_legacy = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Salt,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 11),
+            kind: puml::ast::StatementKind::Unknown("plain label".to_string()),
+        }],
+    };
+    let model = normalize_family(salt_legacy).expect("salt legacy unknown remains pass-through");
     match model {
         NormalizedDocument::Family(family) => {
             assert_eq!(family.nodes.len(), 1);
