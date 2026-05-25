@@ -59,6 +59,12 @@ pub fn append_mainframe_svg(svg: &mut String, title: &str) {
     svg.insert_str(insert_at, &frame);
 }
 
+pub fn append_optional_mainframe_svg(svg: &mut String, title: Option<&str>) {
+    if let Some(title) = title {
+        append_mainframe_svg(svg, title);
+    }
+}
+
 fn svg_text(x: i32, y: i32, extra_attrs: &str, label: &str, base_color: &str) -> String {
     let lines = tokenize_creole(label);
     if !label_has_markup(label) && lines.len() == 1 {

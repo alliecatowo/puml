@@ -358,7 +358,12 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     }
 
     out.push_str("</svg>");
+    crate::output::append_optional_mainframe_svg(&mut out, document.mainframe.as_deref());
     let mut scene = gl_result_class.scene.clone();
     scene.viewport = Rect::new(0.0, 0.0, svg_width as f64, svg_height as f64);
-    RenderArtifact::with_scene(out, scene)
+    RenderArtifact::with_scene(out, scene).with_common_command_parts(
+        document.scale.clone(),
+        document.mainframe.clone(),
+        document.mainframe.is_some(),
+    )
 }

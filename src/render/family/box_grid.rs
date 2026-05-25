@@ -539,9 +539,6 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             positions: &positions,
         },
     );
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1f: Render nodes
-    // ─────────────────────────────────────────────────────────────────────────
     for node in &doc.nodes {
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
         let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
@@ -585,14 +582,18 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         &gl_result.edge_paths,
         &comp_style,
     );
-    // JSON projections
     if !doc.json_projections.is_empty() {
         let proj_y = all_pkg_bottom.max(ungrouped_bottom) + 16;
         render_family_projection_boxes(&mut out, &doc.json_projections, canvas_margin, proj_y, 340);
     }
 
     out.push_str("</svg>");
+    crate::output::append_optional_mainframe_svg(&mut out, doc.mainframe.as_deref());
     let mut scene = gl_result.scene.clone();
     scene.viewport = Rect::new(0.0, 0.0, svg_width as f64, svg_height as f64);
-    RenderArtifact::with_scene(out, scene)
+    RenderArtifact::with_scene(out, scene).with_common_command_parts(
+        doc.scale.clone(),
+        doc.mainframe.clone(),
+        doc.mainframe.is_some(),
+    )
 }

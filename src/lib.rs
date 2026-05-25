@@ -50,7 +50,8 @@ pub use model::{
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
 pub use output::{
-    RenderArtifact, RenderArtifactDimensions, RenderInvariantReport, RenderSceneContract,
+    CommonCommandApplication, CommonCommandKind, CommonCommandPath, RenderArtifact,
+    RenderArtifactDimensions, RenderCommonCommands, RenderInvariantReport, RenderSceneContract,
 };
 pub use render::TextOutputMode;
 pub use scene::{LayoutOptions, Scene};
