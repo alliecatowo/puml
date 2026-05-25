@@ -1,6 +1,6 @@
 use puml::{
-    normalize_family, normalized_model_summary_to_json, normalized_scene_summary_to_json,
-    parse_with_pipeline_options, render_svg_pages_from_model, Document, FrontendSelection,
+    normalize_family, normalized_artifact_scene_summary_to_json, normalized_model_summary_to_json,
+    parse_with_pipeline_options, render_artifact_pages_from_model, Document, FrontendSelection,
     ParsePipelineOptions,
 };
 use puml::{
@@ -12,8 +12,12 @@ use serde_json::{json, Value};
 pub fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
         Ok(model) => {
-            let pages = render_svg_pages_from_model(&model);
-            let scene = normalized_scene_summary_to_json(&model);
+            let artifacts = render_artifact_pages_from_model(&model);
+            let pages = artifacts
+                .iter()
+                .map(|artifact| artifact.svg.clone())
+                .collect::<Vec<_>>();
+            let scene = normalized_artifact_scene_summary_to_json(&model, &artifacts);
             let (width, height) = scene_dimensions(&scene);
             json!({
                 "schema": "puml.renderSvg",
@@ -41,13 +45,16 @@ pub fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
 
 pub fn render_scene_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
-        Ok(model) => json!({
-            "schema": "puml.renderScene",
-            "schemaVersion": 1,
-            "model": normalized_model_summary_to_json(&model),
-            "scene": normalized_scene_summary_to_json(&model),
-            "diagnostics": []
-        }),
+        Ok(model) => {
+            let artifacts = render_artifact_pages_from_model(&model);
+            json!({
+                "schema": "puml.renderScene",
+                "schemaVersion": 1,
+                "model": normalized_model_summary_to_json(&model),
+                "scene": normalized_artifact_scene_summary_to_json(&model, &artifacts),
+                "diagnostics": []
+            })
+        }
         Err(d) => json!({
             "schema": "puml.renderScene",
             "schemaVersion": 1,
@@ -65,11 +72,12 @@ pub fn export_result(
 ) -> Value {
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
         Ok(model) => {
+            let artifacts = render_artifact_pages_from_model(&model);
             let rendered = match format.text_mode() {
                 Some(mode) => render_text_pages(&model, mode),
-                None => render_svg_pages_from_model(&model)
-                    .into_iter()
-                    .map(|svg| render_svg_export_content(&svg, format))
+                None => artifacts
+                    .iter()
+                    .map(|artifact| render_svg_export_content(&artifact.svg, format))
                     .collect(),
             };
             let pages = rendered
@@ -93,7 +101,7 @@ pub fn export_result(
                         "contentBase64": first.get("contentBase64").cloned().unwrap_or(Value::Null),
                         "pages": pages,
                         "model": normalized_model_summary_to_json(&model),
-                        "scene": normalized_scene_summary_to_json(&model),
+                        "scene": normalized_artifact_scene_summary_to_json(&model, &artifacts),
                         "diagnostics": []
                     })
                 }

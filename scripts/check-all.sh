@@ -54,8 +54,10 @@ echo "[gate] mode=$MODE"
 if command -v python3 >/dev/null 2>&1; then
   echo "[gate] rust file-size guardrail"
   python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+  echo "[gate] renderer boundary guard"
+  python3 ./scripts/check_renderer_boundaries.py --fail-on-violations
 else
-  echo "[gate] python3 not found; skipping rust file-size guardrail"
+  echo "[gate] python3 not found; skipping python guardrails"
 fi
 
 echo "[gate] cargo fmt --check"

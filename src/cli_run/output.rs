@@ -1,7 +1,7 @@
 use super::{EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION};
 use crate::cli::OutputFormat;
 use puml::output::{render_svg_export_content, OutputError, OutputErrorKind, RenderedBinaryOutput};
-use puml::{render, render_svg_pages_from_model, NormalizedDocument};
+use puml::{render, render_artifact_pages_from_model, NormalizedDocument};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,9 +23,9 @@ pub(super) fn render_pages_from_model(
 ) -> Vec<String> {
     match format.text_mode() {
         Some(mode) => render::render_text_pages(model, mode),
-        None => render_svg_pages_from_model(model)
+        None => render_artifact_pages_from_model(model)
             .into_iter()
-            .map(|svg| render_svg_export_content(&svg, format))
+            .map(|artifact| render_svg_export_content(&artifact.svg, format))
             .collect(),
     }
 }
