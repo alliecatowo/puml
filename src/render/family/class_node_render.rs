@@ -1,15 +1,14 @@
 use crate::ast::MemberModifier;
 use crate::model::FamilyNodeKind;
 use crate::render::svg::{creole_text, escape_text, render_actor_stick_figure};
-use crate::theme::{ActorStyle, ClassStyle};
+use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle};
 
 use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
 use super::class_members::{
     builtin_type_stereotype_label, class_node_visibility_symbol, count_header_stereotype_members,
-    family_node_inline_style, first_user_stereotype_key, is_family_style_member,
-    is_user_stereotype, member_modifier_name, parse_member_modifiers, parse_visibility_member,
-    render_map_rows, uml_visibility_name, MapRenderCtx,
+    is_family_style_member, is_user_stereotype, member_modifier_name, parse_member_modifiers,
+    parse_visibility_member, render_map_rows, uml_visibility_name, MapRenderCtx,
 };
 use super::class_types::ClassNodeGeometry;
 use super::family_node_shapes::{
@@ -43,41 +42,20 @@ pub(super) fn render_class_node(
         return;
     }
 
-    let scoped_style =
-        first_user_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
-    let fill = node
-        .fill_color
-        .as_deref()
-        .or_else(|| scoped_style.and_then(|style| style.background_color.as_deref()))
-        .unwrap_or(&class_style.background_color);
-    let inline_style = family_node_inline_style(node);
-    let stroke = inline_style
-        .border_color
-        .as_deref()
-        .or_else(|| scoped_style.and_then(|style| style.border_color.as_deref()))
-        .unwrap_or(&class_style.border_color);
-    let scoped_font_color = scoped_style
-        .and_then(|style| style.font_color.as_deref())
-        .filter(|color| !color.is_empty());
-    let font_color = inline_style
-        .text_color
-        .as_deref()
-        .or(scoped_font_color)
-        .unwrap_or(&class_style.font_color);
-    let member_color = inline_style
-        .text_color
-        .as_deref()
-        .or(scoped_font_color)
-        .unwrap_or(class_style.member_color.as_str());
-    let stroke_dash = if inline_style.border_dashed {
+    let effective_style = effective_class_node_style(class_style, node);
+    let fill = effective_style.fill.as_str();
+    let stroke = effective_style.stroke.as_str();
+    let font_color = effective_style.font_color.as_str();
+    let member_color = effective_style.member_color.as_str();
+    let stroke_dash = if effective_style.border_dashed {
         " stroke-dasharray=\"5 3\""
     } else {
         ""
     };
-    let stroke_width = inline_style.border_thickness.unwrap_or(1.5);
-    let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
-    let title_font_size = class_style.font_size.unwrap_or(13);
-    let member_font_size = title_font_size.saturating_sub(2).max(9);
+    let stroke_width = effective_style.stroke_width;
+    let font_family = effective_style.font_family.as_str();
+    let title_font_size = effective_style.title_font_size;
+    let member_font_size = effective_style.member_font_size;
     // Determine the header fill colour.  For classes we also inspect the
     // leading type-marker member so that enum / annotation / interface / abstract
     // classes each get a visually distinct header (fix #769).
@@ -91,9 +69,7 @@ pub(super) fn render_class_node(
             Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
             Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
             Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
-            _ => scoped_style
-                .and_then(|style| style.header_color.as_deref())
-                .unwrap_or(class_style.header_color.as_str()),
+            _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::Map => "#fef3c7",

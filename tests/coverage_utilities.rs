@@ -21,6 +21,93 @@ fn span_len_and_empty_handle_inverted_and_equal_bounds() {
 }
 
 #[test]
+fn effective_class_node_style_resolves_base_stereotype_and_inline_precedence() {
+    use puml::ast::ClassMember;
+    use puml::model::{FamilyNode, FamilyNodeKind, MindMapSide};
+    use puml::theme::{
+        effective_class_node_style, ClassStereotypeStyle, ClassStyle, FamilyNodeInlineStyle,
+    };
+
+    let mut stereotype_styles = std::collections::BTreeMap::new();
+    stereotype_styles.insert(
+        "service".to_string(),
+        ClassStereotypeStyle {
+            background_color: Some("#stereo-bg".to_string()),
+            border_color: Some("#stereo-border".to_string()),
+            header_color: Some("#stereo-header".to_string()),
+            font_color: Some("#stereo-font".to_string()),
+        },
+    );
+    let class_style = ClassStyle {
+        background_color: "#base-bg".to_string(),
+        border_color: "#base-border".to_string(),
+        header_color: "#base-header".to_string(),
+        font_color: "#base-font".to_string(),
+        member_color: "#base-member".to_string(),
+        font_name: Some("FiraCode".to_string()),
+        font_size: Some(16),
+        stereotype_styles,
+        ..Default::default()
+    };
+
+    let node = FamilyNode {
+        kind: FamilyNodeKind::Class,
+        name: "Service".to_string(),
+        alias: None,
+        members: vec![
+            ClassMember {
+                text: "<<service>>".to_string(),
+                modifier: None,
+            },
+            ClassMember {
+                text: "\x1fstyle:border:#inline-border".to_string(),
+                modifier: None,
+            },
+            ClassMember {
+                text: "\x1fstyle:text:#inline-text".to_string(),
+                modifier: None,
+            },
+            ClassMember {
+                text: "\x1fstyle:border-dashed".to_string(),
+                modifier: None,
+            },
+            ClassMember {
+                text: "\x1fstyle:border-thickness:3.5".to_string(),
+                modifier: None,
+            },
+        ],
+        depth: 0,
+        label: None,
+        mindmap_side: MindMapSide::Right,
+        wbs_checkbox: None,
+        fill_color: Some("#node-fill".to_string()),
+    };
+
+    let inline = puml::theme::family_node_inline_style(&node);
+    assert_eq!(
+        inline,
+        FamilyNodeInlineStyle {
+            border_color: Some("#inline-border".to_string()),
+            text_color: Some("#inline-text".to_string()),
+            border_dashed: true,
+            border_thickness: Some(3.5),
+        }
+    );
+
+    let effective = effective_class_node_style(&class_style, &node);
+    assert_eq!(effective.fill, "#node-fill");
+    assert_eq!(effective.stroke, "#inline-border");
+    assert_eq!(effective.font_color, "#inline-text");
+    assert_eq!(effective.member_color, "#inline-text");
+    assert_eq!(effective.header_color, "#stereo-header");
+    assert!(effective.border_dashed);
+    assert_eq!(effective.stroke_width, 3.5);
+    assert_eq!(effective.font_family, "FiraCode");
+    assert_eq!(effective.title_font_size, 16);
+    assert_eq!(effective.member_font_size, 14);
+}
+
+#[test]
 fn source_slice_clamps_bounds_without_panicking() {
     let src = Source::new("abcdef");
     assert_eq!(src.as_str(), "abcdef");
