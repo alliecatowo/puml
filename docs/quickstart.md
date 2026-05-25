@@ -85,6 +85,11 @@ puml --format txt hello.puml     # writes hello.txt
 puml --format utxt hello.puml    # writes hello.utxt
 ```
 
+`--output-format` is accepted as an alias for `--format`. PlantUML-style aliases
+such as `-thtml`, `-tpng`, `-ttxt`, and `-tutxt` are also accepted for supported
+formats. LaTeX aliases (`-tlatex`, `-tlatex:nopreamble`) are parsed for parity but
+currently return a deterministic unsupported-format diagnostic.
+
 PNG defaults to 96 DPI. Increase it for high-DPI screenshots or docs uploads:
 
 ```bash

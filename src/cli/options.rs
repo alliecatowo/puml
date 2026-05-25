@@ -32,6 +32,17 @@ pub fn parse_dpi(raw: &str) -> Result<f32, String> {
     }
 }
 
+pub fn parse_threads(raw: &str) -> Result<usize, String> {
+    let value = raw
+        .parse::<usize>()
+        .map_err(|e| format!("invalid thread count '{raw}': {e}"))?;
+    if value > 0 {
+        Ok(value)
+    } else {
+        Err("thread count must be at least 1".to_string())
+    }
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
 pub enum DiagnosticsFormat {
     Human,
@@ -107,5 +118,13 @@ mod tests {
         );
         assert!(parse_define("=bad").is_err());
         assert!(parse_define("").is_err());
+    }
+
+    #[test]
+    fn threads_parser_accepts_positive_values_only() {
+        assert_eq!(parse_threads("1").expect("one thread should parse"), 1);
+        assert_eq!(parse_threads("16").expect("many threads should parse"), 16);
+        assert!(parse_threads("0").is_err());
+        assert!(parse_threads("not-a-number").is_err());
     }
 }
