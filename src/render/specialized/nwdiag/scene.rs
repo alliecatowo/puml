@@ -119,6 +119,7 @@ pub(super) fn build_nwdiag_scene(
             from: route.from.clone(),
             to: route.to.clone(),
             route: polyline,
+            route_channel_ids: vec![format!("nwdiag:peer-channel:{}", route.id)],
             source_anchor: anchor_for_point(&route.id, "source", &route.from, source, &scene),
             target_anchor: anchor_for_point(&route.id, "target", &route.to, target, &scene),
             labels: Vec::new(),
@@ -134,7 +135,7 @@ fn nodes_in_lane(node_rects: &BTreeMap<String, Vec<NodeRect>>, lane_id: &str) ->
     for (name, rects) in node_rects {
         if rects
             .iter()
-            .any(|rect| rect.network.as_deref() == Some(network))
+            .any(|rect| rect.physical && rect.network.as_deref() == Some(network))
         {
             nodes.push(name.clone());
         }

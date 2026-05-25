@@ -43,6 +43,14 @@ pub enum GeometryIssue {
         segment: Segment,
         header_bounds: Rect,
     },
+    EdgeReferencesMissingRouteChannel {
+        edge_id: String,
+        channel_id: String,
+    },
+    EdgeReferencesUnownedRouteChannel {
+        edge_id: String,
+        channel_id: String,
+    },
     EdgeRouteOutsideChannel {
         edge_id: String,
         segment: Segment,
@@ -72,5 +80,29 @@ pub enum GeometryIssue {
         port_id: String,
         expected: Point,
         actual: Point,
+    },
+    GroupChildOutsideFrame {
+        group_id: String,
+        node_id: String,
+        node_bounds: Rect,
+        group_bounds: Rect,
+    },
+    GroupChildOverlapsHeader {
+        group_id: String,
+        node_id: String,
+        node_bounds: Rect,
+        header_bounds: Rect,
+    },
+    LaneChildOutsideFrame {
+        lane_id: String,
+        node_id: String,
+        node_bounds: Rect,
+        lane_bounds: Rect,
+    },
+    LaneChildOverlapsHeader {
+        lane_id: String,
+        node_id: String,
+        node_bounds: Rect,
+        header_bounds: Rect,
     },
 }

@@ -216,7 +216,9 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
             if let Some(rects) = node_rects.get(member) {
                 for rect in rects.iter().filter(|rect| group_rect_matches(group, rect)) {
                     connector_xs.insert(rect.x + (rect.w / 2));
-                    child_node_ids.insert(member.clone());
+                    if rect.physical {
+                        child_node_ids.insert(member.clone());
+                    }
                 }
             }
         }

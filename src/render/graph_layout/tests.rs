@@ -133,6 +133,10 @@ fn render_scene_exposes_graph_layout_geometry() {
     assert_eq!(edge.labels.len(), 1);
     assert_eq!(edge.labels[0].text, "uses");
     assert!(
+        !edge.route_channel_ids.is_empty(),
+        "scene edges should carry explicit route-channel ownership"
+    );
+    assert!(
         edge.source_anchor.port.is_some(),
         "source anchor should resolve to a typed node port"
     );

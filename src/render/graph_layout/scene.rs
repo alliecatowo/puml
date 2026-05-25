@@ -82,6 +82,7 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
         });
     }
 
+    let edge_route_channel_ids = route_channel_ids_by_edge(input.route_channels);
     for edge in input.edges {
         let points = input
             .edge_paths
@@ -116,6 +117,10 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
             from: edge.from.clone(),
             to: edge.to.clone(),
             route,
+            route_channel_ids: edge_route_channel_ids
+                .get(&edge.id)
+                .cloned()
+                .unwrap_or_default(),
             source_anchor: anchor_for_endpoint(
                 &edge.id,
                 "source",
@@ -137,6 +142,21 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
     scene.route_channels = input.route_channels.clone();
     scene.fit_viewport_to_visible_bounds();
     scene
+}
+
+fn route_channel_ids_by_edge(
+    route_channels: &BTreeMap<String, RouteChannel>,
+) -> BTreeMap<String, Vec<String>> {
+    let mut ids_by_edge: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (channel_id, channel) in route_channels {
+        for edge_id in &channel.owner_edge_ids {
+            ids_by_edge
+                .entry(edge_id.clone())
+                .or_default()
+                .push(channel_id.clone());
+        }
+    }
+    ids_by_edge
 }
 
 fn node_rect(

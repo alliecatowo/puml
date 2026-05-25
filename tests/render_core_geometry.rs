@@ -62,6 +62,7 @@ fn typed_scene_reports_edge_crossing_non_endpoint_node() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::new(vec![Point::new(40.0, 55.0), Point::new(170.0, 55.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: anchor("e1:source", "A", 40.0, 55.0),
         target_anchor: anchor("e1:target", "B", 170.0, 55.0),
         labels: Vec::new(),
@@ -103,6 +104,7 @@ fn typed_scene_reports_route_crossing_group_header() {
             Point::new(190.0, 32.0),
             Point::new(190.0, 70.0),
         ]),
+        route_channel_ids: Vec::new(),
         source_anchor: anchor("e1:source", "A", 70.0, 70.0),
         target_anchor: anchor("e1:target", "B", 190.0, 70.0),
         labels: Vec::new(),
@@ -129,6 +131,7 @@ fn typed_scene_reports_detached_edge_label() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::new(vec![Point::new(60.0, 55.0), Point::new(220.0, 55.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: anchor("e1:source", "A", 60.0, 55.0),
         target_anchor: anchor("e1:target", "B", 220.0, 55.0),
         labels: vec![LabelBox {
@@ -169,6 +172,7 @@ fn typed_scene_reports_endpoint_not_attached_to_declared_port() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::new(vec![Point::new(45.0, 55.0), Point::new(170.0, 55.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: anchor("e1:source", "A", 45.0, 55.0),
         target_anchor: Anchor {
             port: Some(port("B:left", "B", PortSide::Left, 170.0, 55.0)),
@@ -266,6 +270,7 @@ fn typed_scene_reports_horizontal_route_outside_owned_channel() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::new(vec![Point::new(40.0, 55.0), Point::new(170.0, 55.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: anchor("e1:source", "A", 40.0, 55.0),
         target_anchor: anchor("e1:target", "B", 170.0, 55.0),
         labels: Vec::new(),
@@ -282,6 +287,71 @@ fn typed_scene_reports_horizontal_route_outside_owned_channel() {
 }
 
 #[test]
+fn typed_scene_reports_edge_referencing_unowned_route_channel() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 220.0, 120.0));
+    scene.route_channels.insert(
+        "rank:0:track:0".to_string(),
+        puml::render_core::RouteChannel::new("rank:0:track:0", Rect::new(40.0, 50.0, 130.0, 12.0))
+            .with_graph_channel_metadata(0, 0, 12.0, vec!["other-edge".to_string()], Vec::new()),
+    );
+    scene.add_edge(SceneEdge {
+        id: "e1".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::new(vec![Point::new(40.0, 55.0), Point::new(170.0, 55.0)]),
+        route_channel_ids: vec!["rank:0:track:0".to_string()],
+        source_anchor: anchor("e1:source", "A", 40.0, 55.0),
+        target_anchor: anchor("e1:target", "B", 170.0, 55.0),
+        labels: Vec::new(),
+    });
+
+    let issues = scene.validate_geometry();
+    assert!(
+        issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::EdgeReferencesUnownedRouteChannel { edge_id, channel_id }
+                if edge_id == "e1" && channel_id == "rank:0:track:0"
+        )),
+        "expected explicit edge/channel ownership issue, got {issues:?}"
+    );
+}
+
+#[test]
+fn typed_scene_reports_group_child_ownership_violations() {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 260.0, 180.0));
+    scene.add_group(SceneGroup {
+        id: "Package".to_string(),
+        frame: puml::render_core::GroupFrame {
+            id: "Package".to_string(),
+            bounds: Rect::new(20.0, 20.0, 180.0, 110.0),
+            header: Some(Rect::new(20.0, 20.0, 180.0, 24.0)),
+            child_node_ids: vec!["A".to_string(), "B".to_string()],
+            labels: Vec::new(),
+        },
+    });
+    scene.add_node(node("A", Rect::new(50.0, 30.0, 40.0, 30.0), Vec::new()));
+    scene.add_node(node("B", Rect::new(180.0, 100.0, 40.0, 30.0), Vec::new()));
+
+    let issues = scene.validate_geometry();
+    assert!(
+        issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::GroupChildOverlapsHeader { group_id, node_id, .. }
+                if group_id == "Package" && node_id == "A"
+        )),
+        "expected child/header overlap issue, got {issues:?}"
+    );
+    assert!(
+        issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::GroupChildOutsideFrame { group_id, node_id, .. }
+                if group_id == "Package" && node_id == "B"
+        )),
+        "expected child outside group frame issue, got {issues:?}"
+    );
+}
+
+#[test]
 fn typed_scene_reports_detached_edge_endpoint() {
     let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 200.0, 120.0));
     scene.add_edge(SceneEdge {
@@ -289,6 +359,7 @@ fn typed_scene_reports_detached_edge_endpoint() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::new(vec![Point::new(20.0, 20.0), Point::new(160.0, 20.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: Anchor {
             id: "e1:source".to_string(),
             owner_id: "A".to_string(),

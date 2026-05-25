@@ -270,6 +270,7 @@ fn run_with_scene_reports_typed_issues_and_svg_fallback_corrections() {
         from: "A".to_string(),
         to: "B".to_string(),
         route: Polyline::from_tuples(&[(80.0, 100.0), (240.0, 100.0)]),
+        route_channel_ids: Vec::new(),
         source_anchor: Anchor {
             id: "A:right".to_string(),
             owner_id: "A".to_string(),
@@ -493,6 +494,49 @@ fn usecase_and_c4_graph_artifacts_expose_route_channels_and_typed_edge_labels() 
             |metric| matches!(metric, GeometryMetric::RouteChannels { count, .. } if *count > 0)
         ));
     }
+}
+
+#[test]
+fn component_ports_lollipop_fixture_exposes_typed_route_channel_and_group_ownership() {
+    let source = include_str!("../docs/examples/component/07_ports_lollipop_interfaces.puml");
+    let artifact = render_family_artifact(source);
+    let scene = artifact.scene.as_ref().expect("component typed scene");
+    let report = artifact
+        .invariant_report
+        .as_ref()
+        .expect("component invariant report");
+
+    assert!(
+        !scene.route_channels.is_empty(),
+        "high-risk component fixture should expose typed route channels"
+    );
+    assert!(
+        scene
+            .edges
+            .values()
+            .any(|edge| !edge.route_channel_ids.is_empty()),
+        "graph edges should expose explicit route-channel ids"
+    );
+    assert!(
+        scene
+            .groups
+            .values()
+            .any(|group| { group.frame.child_node_ids.iter().any(|child| child == "OD") }),
+        "component package ownership should survive into typed group frames"
+    );
+    assert!(
+        !report.typed_issues.iter().any(|issue| matches!(
+            issue,
+            GeometryIssue::GroupChildOutsideFrame { .. }
+                | GeometryIssue::GroupChildOverlapsHeader { .. }
+        )),
+        "component package child ownership should validate from typed frames: {:?}",
+        report.typed_issues
+    );
+    assert!(report
+        .typed_metrics
+        .iter()
+        .any(|metric| matches!(metric, GeometryMetric::RouteChannels { count, .. } if *count > 0)));
 }
 
 #[test]
