@@ -96,6 +96,18 @@ pub(super) fn extract_activity_inline_fill(label: &mut Option<String>) -> Option
     Some(color.trim().to_string())
 }
 
+pub(super) fn extract_activity_partition_block(label: &mut Option<String>) -> bool {
+    let Some(value) = label.take() else {
+        return false;
+    };
+    let Some(display) = value.strip_prefix("\x1factivity:partition:block\x1f") else {
+        *label = Some(value);
+        return false;
+    };
+    *label = (!display.is_empty()).then(|| display.to_string());
+    true
+}
+
 /// Extract a SDL action shape marker (`\x1fsdl:<shape>\x1f<body>`) from the label.
 /// Returns the shape name and leaves the display label in `label`.
 pub(super) fn extract_activity_sdl_shape(label: &mut Option<String>) -> Option<String> {

@@ -301,6 +301,48 @@ fn activity_ch06_metadata_survives_normalization() {
 }
 
 #[test]
+fn activity_ch06_nested_partition_close_restores_outer_lane() {
+    let document = puml::parser::parse(
+        r#"@startuml
+start
+partition Outer {
+  :one;
+  partition Inner {
+    :two;
+  }
+  :three;
+}
+stop
+@enduml
+"#,
+    )
+    .expect("parse nested activity partitions");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize nested activity partitions")
+    else {
+        panic!("activity should normalize as a family document");
+    };
+
+    let lane_for = |label: &str| -> String {
+        model
+            .nodes
+            .iter()
+            .find(|node| node.label.as_deref() == Some(label))
+            .and_then(|node| node.alias.as_deref())
+            .and_then(|alias| {
+                alias
+                    .split('|')
+                    .find_map(|part| part.strip_prefix("lane=").map(str::to_string))
+            })
+            .unwrap_or_else(|| panic!("missing lane metadata for {label}"))
+    };
+
+    assert_eq!(lane_for("one"), "Outer");
+    assert_eq!(lane_for("two"), "Inner");
+    assert_eq!(lane_for("three"), "Outer");
+}
+
+#[test]
 fn activity_ch06_render_applies_arrow_color_note_connector_and_detach() {
     let svg = puml::render_source_to_svg(PARITY_SRC).expect("render activity parity slice");
 
@@ -319,6 +361,25 @@ fn activity_ch06_render_applies_arrow_color_note_connector_and_detach() {
         !svg.contains("y1=\"488\""),
         "detach should suppress the outgoing arrow into the following action"
     );
+}
+
+#[test]
+fn activity_ch06_hash_named_arrow_style_renders_color_and_label() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+:Collect;
+-[#blue]-> : reviewed;
+:Review;
+stop
+@enduml
+"#,
+    )
+    .expect("render hash-named activity arrow");
+
+    assert!(svg.contains("stroke=\"blue\""));
+    assert!(svg.contains("fill=\"blue\""));
+    assert!(svg.contains(">reviewed<"));
 }
 
 #[test]
