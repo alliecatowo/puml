@@ -2,6 +2,7 @@ use puml::model::{
     ChenNodeKind, FamilyNodeKind, FamilyOrientation, FamilyRelationLineKind, FamilyStyle,
     NormalizedDocument, StateNodeKind,
 };
+use puml::theme::ComponentStyleTarget;
 use puml::{ast::StatementKind, extract_metadata};
 
 fn family_model(src: &str) -> puml::model::FamilyDocument {
@@ -253,7 +254,13 @@ hide $internal
     let Some(FamilyStyle::Component(style)) = &model.family_style else {
         panic!("deployment diagrams should carry component/deployment style");
     };
-    assert_eq!(style.background_color, "#f0fff0");
+    assert_eq!(
+        style
+            .target_styles
+            .get(&ComponentStyleTarget::Node)
+            .and_then(|style| style.background_color.as_deref()),
+        Some("#f0fff0")
+    );
 
     assert!(model.nodes.iter().any(|node| node.name == "Web Tier"
         && node.alias.as_deref() == Some("web")
