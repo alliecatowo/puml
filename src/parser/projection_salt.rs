@@ -182,7 +182,8 @@ fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
             let inner = &trimmed[1..trimmed.len() - 1];
             !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=')
         };
-    let whole_line_widget = lower.starts_with("{*")
+    let whole_line_widget = trimmed == "}"
+        || lower.starts_with("{*")
         || lower.starts_with("{/")
         || lower.starts_with("{s")
         || lower.starts_with("{t")

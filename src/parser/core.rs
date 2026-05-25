@@ -441,14 +441,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
-        if let Some(next_i) = parse_timeline_or_state_core(
-            &lines,
-            i,
-            line,
-            span,
-            detected_kind,
-            &mut statements,
-        )? {
+        if let Some(next_i) =
+            parse_timeline_or_state_core(&lines, i, line, span, detected_kind, &mut statements)?
+        {
             i = next_i;
             continue;
         }
