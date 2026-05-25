@@ -3,7 +3,7 @@ use super::family_node_shapes::{render_family_node_shape, render_node_stereotype
 use super::tree::render_centered_multiline_text;
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::escape_text;
-use crate::theme::{family_node_inline_style, ComponentStyle, ComponentStyleMode};
+use crate::theme::{effective_component_node_style, ComponentStyle, ComponentStyleMode};
 
 #[derive(Clone, Copy)]
 pub(super) struct DeploymentShapeBounds {
@@ -133,21 +133,16 @@ pub(super) fn render_family_node_shape_styled(
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
     let kind_label = family_node_label(node.kind);
-    let inline_style = family_node_inline_style(node);
-    let stroke = inline_style
-        .border_color
-        .as_deref()
-        .unwrap_or(&comp_style.border_color);
-    let font_color = inline_style
-        .text_color
-        .as_deref()
-        .unwrap_or(&comp_style.font_color);
-    let stroke_dash = if inline_style.border_dashed {
+    let effective_style = effective_component_node_style(comp_style, node);
+    let stroke = effective_style.stroke.as_str();
+    let fill = effective_style.fill.as_str();
+    let font_color = effective_style.font_color.as_str();
+    let stroke_dash = if effective_style.border_dashed {
         " stroke-dasharray=\"5 3\""
     } else {
         ""
     };
-    let stroke_width = inline_style.border_thickness.unwrap_or(1.5);
+    let stroke_width = effective_style.stroke_width;
     out.push_str(&format!(
         "<desc data-uml-id=\"{}\">{}</desc>",
         escape_text(&node.name),
@@ -157,10 +152,6 @@ pub(super) fn render_family_node_shape_styled(
     match node.kind {
         FamilyNodeKind::Interface => {
             let r = 18;
-            let fill = node
-                .fill_color
-                .as_deref()
-                .unwrap_or(&comp_style.interface_color);
             out.push_str(&format!(
                 "<circle class=\"uml-node uml-interface\" data-uml-kind=\"interface\" cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
                 cx, cy, r, fill, escape_text(stroke), stroke_width, stroke_dash
@@ -169,10 +160,6 @@ pub(super) fn render_family_node_shape_styled(
         FamilyNodeKind::Port => {
             let pw = 24;
             let ph = 24;
-            let fill = node
-                .fill_color
-                .as_deref()
-                .unwrap_or(&comp_style.interface_color);
             let port_dir = if node.members.iter().any(|m| m.text == "<<portin>>") {
                 "in"
             } else if node.members.iter().any(|m| m.text == "<<portout>>") {
@@ -194,10 +181,6 @@ pub(super) fn render_family_node_shape_styled(
             ));
         }
         FamilyNodeKind::Component => {
-            let fill = node
-                .fill_color
-                .as_deref()
-                .unwrap_or(&comp_style.background_color);
             match comp_style.component_style_mode {
                 ComponentStyleMode::Rectangle => {
                     // Rectangle style: plain rect, no component icon
@@ -266,10 +249,6 @@ pub(super) fn render_family_node_shape_styled(
         | FamilyNodeKind::Queue
         | FamilyNodeKind::Stack
         | FamilyNodeKind::UseCaseDeployment => {
-            let fill = node
-                .fill_color
-                .as_deref()
-                .unwrap_or(&comp_style.background_color);
             match node.kind {
                 // 3D cube for deployment nodes (fix #571)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
@@ -287,7 +266,7 @@ pub(super) fn render_family_node_shape_styled(
                         y - offset, // back-top-right
                         x + w,
                         y, // front-top-right
-                        comp_style.border_color
+                        stroke
                     ));
                     // Right face: parallelogram from front-right edge to back-right edge.
                     // Points: front-top-right -> back-top-right -> back-bottom-right -> front-bottom-right
@@ -302,7 +281,7 @@ pub(super) fn render_family_node_shape_styled(
                         y + h - offset, // back-bottom-right
                         x + w,
                         y + h, // front-bottom-right
-                        comp_style.border_color
+                        stroke
                     ));
                     // Front face (main visible face, drawn last so it sits on top)
                     out.push_str(&format!(
@@ -315,7 +294,7 @@ pub(super) fn render_family_node_shape_styled(
                         w,
                         h,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Database | FamilyNodeKind::Storage => {
@@ -323,7 +302,7 @@ pub(super) fn render_family_node_shape_styled(
                         "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{x},{top} C{x},{top_minus} {right},{top_minus} {right},{top} L{right},{bottom} C{right},{bottom_plus} {x},{bottom_plus} {x},{bottom} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                         kind_label,
                         escape_text(fill),
-                        comp_style.border_color,
+                        stroke,
                         top = y + 10,
                         top_minus = y,
                         right = x + w,
@@ -336,7 +315,7 @@ pub(super) fn render_family_node_shape_styled(
                         y + 10,
                         w / 2,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Cloud => {
@@ -348,7 +327,7 @@ pub(super) fn render_family_node_shape_styled(
                         x + w - 22, y + 26,
                         x + w - 2, y + 28, x + w - 4, y + 56, x + w - 28, y + 56,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Folder => {
@@ -360,7 +339,7 @@ pub(super) fn render_family_node_shape_styled(
                         x + w,
                         y + h,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Artifact | FamilyNodeKind::File => {
@@ -372,18 +351,12 @@ pub(super) fn render_family_node_shape_styled(
                         y + 18,
                         y + h,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Queue => {
                     let bounds = DeploymentShapeBounds { x, y, w, h };
-                    render_deployment_queue_shape(
-                        out,
-                        kind_label,
-                        bounds,
-                        fill,
-                        &comp_style.border_color,
-                    );
+                    render_deployment_queue_shape(out, kind_label, bounds, fill, stroke);
                 }
                 FamilyNodeKind::Stack | FamilyNodeKind::Collections => {
                     for offset in [10, 5, 0] {
@@ -395,7 +368,7 @@ pub(super) fn render_family_node_shape_styled(
                             w - 10,
                             h - 10,
                             escape_text(fill),
-                            comp_style.border_color
+                            stroke
                         ));
                     }
                 }
@@ -415,7 +388,7 @@ pub(super) fn render_family_node_shape_styled(
                         x,
                         y + h / 2,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Circle => {
@@ -426,7 +399,7 @@ pub(super) fn render_family_node_shape_styled(
                         w / 2,
                         h / 2,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::UseCaseDeployment => {
@@ -437,18 +410,12 @@ pub(super) fn render_family_node_shape_styled(
                         w / 2,
                         h / 2,
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                 }
                 FamilyNodeKind::Actor | FamilyNodeKind::Person => {
                     let bounds = DeploymentShapeBounds { x, y, w, h };
-                    render_deployment_stick_shape(
-                        out,
-                        kind_label,
-                        bounds,
-                        fill,
-                        &comp_style.border_color,
-                    );
+                    render_deployment_stick_shape(out, kind_label, bounds, fill, stroke);
                 }
                 FamilyNodeKind::Boundary | FamilyNodeKind::Control | FamilyNodeKind::Entity => {
                     out.push_str(&format!(
@@ -459,7 +426,7 @@ pub(super) fn render_family_node_shape_styled(
                         (w / 2).saturating_sub(12),
                         (h / 2).saturating_sub(12),
                         escape_text(fill),
-                        comp_style.border_color
+                        stroke
                     ));
                     if matches!(node.kind, FamilyNodeKind::Boundary) {
                         out.push_str(&format!(
@@ -468,7 +435,7 @@ pub(super) fn render_family_node_shape_styled(
                             y + h - 14,
                             x + w - 12,
                             y + h - 14,
-                            comp_style.border_color
+                            stroke
                         ));
                     } else if matches!(node.kind, FamilyNodeKind::Control) {
                         out.push_str(&format!(
@@ -479,7 +446,7 @@ pub(super) fn render_family_node_shape_styled(
                             cy - 22,
                             cx + 18,
                             cy - 4,
-                            comp_style.border_color
+                            stroke
                         ));
                     } else {
                         out.push_str(&format!(
@@ -488,14 +455,14 @@ pub(super) fn render_family_node_shape_styled(
                             y + h - 18,
                             x + w - 22,
                             y + h - 18,
-                            comp_style.border_color
+                            stroke
                         ));
                     }
                 }
                 _ => {
                     out.push_str(&format!(
                         "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                        kind_label, x, y, w, h, fill, comp_style.border_color
+                        kind_label, x, y, w, h, fill, stroke
                     ));
                 }
             }

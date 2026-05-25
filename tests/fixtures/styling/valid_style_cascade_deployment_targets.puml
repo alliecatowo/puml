@@ -1,0 +1,38 @@
+@startuml
+skinparam BackgroundColor #ffffff
+skinparam DeploymentBorderColor #1e293b
+skinparam DeploymentFontColor #0f172a
+
+<style>
+deploymentDiagram {
+  node {
+    BackgroundColor #dbeafe
+    BorderColor #2563eb
+    FontColor #1e3a8a
+  }
+  database {
+    BackgroundColor #fef3c7
+    BorderColor #b45309
+    FontColor #78350f
+  }
+  queue {
+    BackgroundColor #fae8ff
+    BorderColor #a21caf
+    FontColor #701a75
+  }
+  cloud {
+    BackgroundColor #ecfeff
+    BorderColor #0891b2
+    FontColor #164e63
+  }
+}
+</style>
+
+node Web
+database DB
+queue Jobs
+cloud Edge
+Web --> DB : reads
+Web --> Jobs : enqueues
+Edge --> Web : routes
+@enduml

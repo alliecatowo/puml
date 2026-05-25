@@ -37,6 +37,8 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
         font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
         component_style_mode: ComponentStyleMode::Uml2,
+        target_styles: BTreeMap::new(),
+        stereotype_styles: BTreeMap::new(),
     }
 }
 
@@ -161,6 +163,8 @@ pub fn apply_monochrome_to_component_style(style: &mut ComponentStyle, mode: Mon
     style.interface_color = paper;
     style.font_color = ink.clone();
     style.arrow_color = ink;
+    style.target_styles.clear();
+    style.stereotype_styles.clear();
 }
 
 pub fn apply_monochrome_to_activity_style(style: &mut ActivityStyle, mode: MonochromeMode) {

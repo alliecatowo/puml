@@ -7,8 +7,8 @@ use super::{
     class_style_from_sequence_theme, classify_class_skinparam, classify_component_skinparam,
     classify_sequence_skinparam, component_style_from_sequence_theme,
     resolve_sequence_theme_preset, ClassSkinParamValue, ClassStyle, ComponentSkinParamValue,
-    ComponentStyle, MonochromeMode, SequenceSkinParamSupport, SequenceSkinParamValue,
-    SkinParamSupport,
+    ComponentStyle, ComponentStyleTarget, MonochromeMode, SequenceSkinParamSupport,
+    SequenceSkinParamValue, SkinParamSupport,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +62,15 @@ pub struct EffectiveClassNodeStyle {
     pub member_font_size: u32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EffectiveComponentNodeStyle {
+    pub fill: String,
+    pub stroke: String,
+    pub font_color: String,
+    pub border_dashed: bool,
+    pub stroke_width: f32,
+}
+
 pub fn family_node_inline_style(node: &FamilyNode) -> FamilyNodeInlineStyle {
     let mut style = FamilyNodeInlineStyle::default();
     for member in &node.members {
@@ -91,6 +100,78 @@ pub fn family_node_stereotype_key(node: &FamilyNode) -> Option<String> {
                 .to_ascii_lowercase()
         })
     })
+}
+
+pub fn component_style_target_for_node(
+    kind: crate::model::FamilyNodeKind,
+) -> Option<ComponentStyleTarget> {
+    use crate::model::FamilyNodeKind;
+    match kind {
+        FamilyNodeKind::Actor | FamilyNodeKind::Person => Some(ComponentStyleTarget::Actor),
+        FamilyNodeKind::Artifact => Some(ComponentStyleTarget::Artifact),
+        FamilyNodeKind::Boundary => Some(ComponentStyleTarget::Boundary),
+        FamilyNodeKind::Cloud => Some(ComponentStyleTarget::Cloud),
+        FamilyNodeKind::Component => Some(ComponentStyleTarget::Component),
+        FamilyNodeKind::Control => Some(ComponentStyleTarget::Control),
+        FamilyNodeKind::Database => Some(ComponentStyleTarget::Database),
+        FamilyNodeKind::Entity => Some(ComponentStyleTarget::Entity),
+        FamilyNodeKind::File => Some(ComponentStyleTarget::File),
+        FamilyNodeKind::Folder => Some(ComponentStyleTarget::Folder),
+        FamilyNodeKind::Frame => Some(ComponentStyleTarget::Frame),
+        FamilyNodeKind::Interface => Some(ComponentStyleTarget::Interface),
+        FamilyNodeKind::Node => Some(ComponentStyleTarget::Node),
+        FamilyNodeKind::Package => Some(ComponentStyleTarget::Package),
+        FamilyNodeKind::Port => Some(ComponentStyleTarget::Port),
+        FamilyNodeKind::Queue => Some(ComponentStyleTarget::Queue),
+        FamilyNodeKind::Storage => Some(ComponentStyleTarget::Storage),
+        FamilyNodeKind::UseCaseDeployment => Some(ComponentStyleTarget::UseCase),
+        _ => None,
+    }
+}
+
+pub fn effective_component_node_style(
+    component_style: &ComponentStyle,
+    node: &FamilyNode,
+) -> EffectiveComponentNodeStyle {
+    let target_style = component_style_target_for_node(node.kind)
+        .and_then(|target| component_style.target_styles.get(&target));
+    let stereotype_style = family_node_stereotype_key(node)
+        .and_then(|key| component_style.stereotype_styles.get(&key));
+    let inline_style = family_node_inline_style(node);
+    let default_fill = if matches!(
+        node.kind,
+        crate::model::FamilyNodeKind::Interface | crate::model::FamilyNodeKind::Port
+    ) {
+        &component_style.interface_color
+    } else {
+        &component_style.background_color
+    };
+
+    EffectiveComponentNodeStyle {
+        fill: node
+            .fill_color
+            .as_deref()
+            .or_else(|| stereotype_style.and_then(|style| style.background_color.as_deref()))
+            .or_else(|| target_style.and_then(|style| style.background_color.as_deref()))
+            .unwrap_or(default_fill)
+            .to_string(),
+        stroke: inline_style
+            .border_color
+            .as_deref()
+            .or_else(|| stereotype_style.and_then(|style| style.border_color.as_deref()))
+            .or_else(|| target_style.and_then(|style| style.border_color.as_deref()))
+            .unwrap_or(&component_style.border_color)
+            .to_string(),
+        font_color: inline_style
+            .text_color
+            .as_deref()
+            .or_else(|| stereotype_style.and_then(|style| style.font_color.as_deref()))
+            .or_else(|| target_style.and_then(|style| style.font_color.as_deref()))
+            .unwrap_or(&component_style.font_color)
+            .to_string(),
+        border_dashed: inline_style.border_dashed,
+        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
+    }
 }
 
 pub fn effective_class_node_style(
@@ -369,6 +450,48 @@ impl GraphStyleCascade {
                     }
                     ComponentSkinParamValue::StyleMode(mode) => {
                         self.component_style.component_style_mode = mode;
+                    }
+                    ComponentSkinParamValue::TargetBackgroundColor(target, c) => {
+                        self.component_style
+                            .target_styles
+                            .entry(target)
+                            .or_default()
+                            .background_color = Some(c);
+                    }
+                    ComponentSkinParamValue::TargetBorderColor(target, c) => {
+                        self.component_style
+                            .target_styles
+                            .entry(target)
+                            .or_default()
+                            .border_color = Some(c);
+                    }
+                    ComponentSkinParamValue::TargetFontColor(target, c) => {
+                        self.component_style
+                            .target_styles
+                            .entry(target)
+                            .or_default()
+                            .font_color = Some(c);
+                    }
+                    ComponentSkinParamValue::StereotypeBackgroundColor(stereotype, c) => {
+                        self.component_style
+                            .stereotype_styles
+                            .entry(stereotype)
+                            .or_default()
+                            .background_color = Some(c);
+                    }
+                    ComponentSkinParamValue::StereotypeBorderColor(stereotype, c) => {
+                        self.component_style
+                            .stereotype_styles
+                            .entry(stereotype)
+                            .or_default()
+                            .border_color = Some(c);
+                    }
+                    ComponentSkinParamValue::StereotypeFontColor(stereotype, c) => {
+                        self.component_style
+                            .stereotype_styles
+                            .entry(stereotype)
+                            .or_default()
+                            .font_color = Some(c);
                     }
                 }
             }

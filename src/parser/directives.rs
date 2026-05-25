@@ -431,19 +431,37 @@ fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option
 }
 
 fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
-    match nested_selector {
-        Some("component") => match key {
-            "backgroundcolor" => Some("ComponentBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("ComponentBorderColor".to_string()),
-            "fontcolor" => Some("ComponentFontColor".to_string()),
+    let Some(selector) = nested_selector else {
+        return None;
+    };
+    let selector = selector.trim();
+    let scoped_key = |base: &str, prefix: &str| {
+        style_selector_stereotype(selector, prefix)
+            .map(|stereotype| format!("{base}<<{stereotype}>>"))
+            .unwrap_or_else(|| base.to_string())
+    };
+    match selector {
+        _ if selector == "component" || selector.starts_with("component<<") => match key {
+            "backgroundcolor" => Some(scoped_key("ComponentBackgroundColor", "component")),
+            "bordercolor" | "linecolor" => Some(scoped_key("ComponentBorderColor", "component")),
+            "fontcolor" => Some(scoped_key("ComponentFontColor", "component")),
             _ => None,
         },
-        Some("interface") => match key {
-            "backgroundcolor" | "color" => Some("InterfaceBackgroundColor".to_string()),
-            "fontcolor" => Some("InterfaceFontColor".to_string()),
+        _ if selector == "interface" || selector.starts_with("interface<<") => match key {
+            "backgroundcolor" | "color" => {
+                Some(scoped_key("InterfaceBackgroundColor", "interface"))
+            }
+            "bordercolor" | "linecolor" => Some(scoped_key("InterfaceBorderColor", "interface")),
+            "fontcolor" => Some(scoped_key("InterfaceFontColor", "interface")),
             _ => None,
         },
-        Some("arrow") | Some("relation") => match key {
+        _ if selector == "port" || selector.starts_with("port<<") => match key {
+            "backgroundcolor" | "color" => Some(scoped_key("PortBackgroundColor", "port")),
+            "bordercolor" | "linecolor" => Some(scoped_key("PortBorderColor", "port")),
+            "fontcolor" => Some(scoped_key("PortFontColor", "port")),
+            _ => None,
+        },
+        "arrow" | "relation" => match key {
             "linecolor" | "arrowcolor" | "bordercolor" => Some("ComponentArrowColor".to_string()),
             _ => None,
         },
@@ -452,28 +470,60 @@ fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Op
 }
 
 fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
-    match nested_selector {
-        Some("node") => match key {
-            "backgroundcolor" => Some("NodeBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("NodeBorderColor".to_string()),
-            "fontcolor" => Some("NodeFontColor".to_string()),
+    let Some(selector) = nested_selector else {
+        return None;
+    };
+    let selector = selector.trim();
+    let scoped_key = |base: &str, prefix: &str| {
+        style_selector_stereotype(selector, prefix)
+            .map(|stereotype| format!("{base}<<{stereotype}>>"))
+            .unwrap_or_else(|| base.to_string())
+    };
+    match selector {
+        _ if selector == "node" || selector.starts_with("node<<") => match key {
+            "backgroundcolor" => Some(scoped_key("NodeBackgroundColor", "node")),
+            "bordercolor" | "linecolor" => Some(scoped_key("NodeBorderColor", "node")),
+            "fontcolor" => Some(scoped_key("NodeFontColor", "node")),
             _ => None,
         },
-        Some("artifact") => match key {
-            "backgroundcolor" => Some("ArtifactBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("ArtifactBorderColor".to_string()),
-            "fontcolor" => Some("ArtifactFontColor".to_string()),
+        _ if selector == "artifact" || selector.starts_with("artifact<<") => match key {
+            "backgroundcolor" => Some(scoped_key("ArtifactBackgroundColor", "artifact")),
+            "bordercolor" | "linecolor" => {
+                Some(scoped_key("ArtifactBorderColor", "artifact"))
+            }
+            "fontcolor" => Some(scoped_key("ArtifactFontColor", "artifact")),
             _ => None,
         },
-        Some("database") => match key {
-            "backgroundcolor" => Some("DatabaseBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("DatabaseBorderColor".to_string()),
-            "fontcolor" => Some("DatabaseFontColor".to_string()),
+        _ if selector == "database" || selector.starts_with("database<<") => match key {
+            "backgroundcolor" => Some(scoped_key("DatabaseBackgroundColor", "database")),
+            "bordercolor" | "linecolor" => {
+                Some(scoped_key("DatabaseBorderColor", "database"))
+            }
+            "fontcolor" => Some(scoped_key("DatabaseFontColor", "database")),
             _ => None,
         },
-        Some("component") => component_style_skinparam_key(Some("component"), key),
-        Some("interface") => component_style_skinparam_key(Some("interface"), key),
-        Some("arrow") | Some("relation") => match key {
+        _ if selector == "cloud" || selector.starts_with("cloud<<") => match key {
+            "backgroundcolor" => Some(scoped_key("CloudBackgroundColor", "cloud")),
+            "bordercolor" | "linecolor" => Some(scoped_key("CloudBorderColor", "cloud")),
+            "fontcolor" => Some(scoped_key("CloudFontColor", "cloud")),
+            _ => None,
+        },
+        _ if selector == "queue" || selector.starts_with("queue<<") => match key {
+            "backgroundcolor" => Some(scoped_key("QueueBackgroundColor", "queue")),
+            "bordercolor" | "linecolor" => Some(scoped_key("QueueBorderColor", "queue")),
+            "fontcolor" => Some(scoped_key("QueueFontColor", "queue")),
+            _ => None,
+        },
+        _ if selector == "component" || selector.starts_with("component<<") => {
+            component_style_skinparam_key(Some(selector), key)
+        }
+        _ if selector == "interface" || selector.starts_with("interface<<") => {
+            component_style_skinparam_key(Some(selector), key)
+        }
+        _ if selector == "port" || selector.starts_with("port<<") => {
+            component_style_skinparam_key(Some(selector), key)
+        }
+        "arrow" | "relation" => match key {
             "linecolor" | "arrowcolor" | "bordercolor" => {
                 Some("DeploymentArrowColor".to_string())
             }
