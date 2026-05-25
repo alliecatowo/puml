@@ -100,6 +100,20 @@ class RendererBoundaryGuardTest(unittest.TestCase):
             self.assertEqual(violations[0].rule, "artifact-state-boundary")
             self.assertEqual(violations[0].path, "src/api/render.rs")
 
+    def test_raster_and_pdf_conversion_dependencies_stay_in_output_backend(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            write(root, "src/output.rs", "use image::codecs::png::PngEncoder;\n")
+            write(root, "src/cli_run/render.rs", "fn leak() { let _ = resvg::render; }\n")
+            write(root, "src/bin/lsp_adapter/render.rs", "fn leak() { let _ = svg2pdf::to_pdf; }\n")
+
+            violations = check_renderer_boundaries.collect_violations(root)
+
+            self.assertEqual(
+                [violation.rule for violation in violations],
+                ["output-conversion-boundary", "output-conversion-boundary"],
+            )
+
     def test_enforced_mode_returns_failure_for_violations(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

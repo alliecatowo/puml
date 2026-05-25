@@ -132,6 +132,15 @@ impl RenderArtifact {
         }
     }
 
+    pub fn require_typed_scene_for(&self, owner: &str) -> Result<&RenderScene, Diagnostic> {
+        self.require_typed_scene().map_err(|diagnostic| {
+            Diagnostic::error(format!(
+                "[E_RENDER_SCENE_REQUIRED] {owner} must return a typed RenderScene before SVG emission: {}",
+                diagnostic.message
+            ))
+        })
+    }
+
     pub fn media_type(&self) -> &'static str {
         self.format.media_type()
     }
@@ -139,6 +148,14 @@ impl RenderArtifact {
     pub fn with_diagnostics(mut self, diagnostics: Vec<Diagnostic>) -> Self {
         self.diagnostics = diagnostics;
         self
+    }
+
+    pub fn extend_diagnostics(&mut self, diagnostics: impl IntoIterator<Item = Diagnostic>) {
+        self.diagnostics.extend(diagnostics);
+    }
+
+    pub fn push_diagnostic(&mut self, diagnostic: Diagnostic) {
+        self.diagnostics.push(diagnostic);
     }
 
     pub fn refresh_svg_metadata(&mut self) {

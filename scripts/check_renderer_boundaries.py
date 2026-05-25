@@ -27,6 +27,9 @@ SVG_PAGE_API = re.compile(r"\brender_svg_pages_from_model\b")
 DIRECT_RENDER_SVG = re.compile(r"\brender::render_[A-Za-z0-9_]+_svg\b")
 RENDER_ARTIFACT_LITERAL = re.compile(r"(?:=|return)\s*RenderArtifact\s*\{")
 RENDER_ARTIFACT_STATE_WRITE = re.compile(r"\.\s*(?:scene_availability|invariant_report)\s*=")
+OUTPUT_CONVERSION_DEPENDENCY = re.compile(
+    r"\b(?:resvg::|svg2pdf::|image::(?:codecs|ImageEncoder))"
+)
 
 DEFAULT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -49,6 +52,11 @@ RENDER_ARTIFACT_LITERAL_ALLOWLIST = {
 RENDER_ARTIFACT_STATE_WRITE_ALLOWLIST = {
     "src/output/contract.rs": "RenderArtifact constructors and lifecycle methods live in the output contract",
     "src/render/mod.rs": "RenderArtifact lifecycle methods own scene/validation state transitions",
+}
+
+OUTPUT_CONVERSION_DEPENDENCY_ALLOWLIST = {
+    "src/output.rs": "serialized SVG/PDF/raster conversion belongs to the output backend",
+    "tests/visual_regression.rs": "test-only visual baseline rasterization",
 }
 
 SKIP_DIRS = {
@@ -177,6 +185,25 @@ def check_render_artifact_state_writes(root: pathlib.Path, path: pathlib.Path) -
     ]
 
 
+def check_output_conversion_dependencies(root: pathlib.Path, path: pathlib.Path) -> list[Violation]:
+    rel = path.relative_to(root).as_posix()
+    text = path.read_text(encoding="utf-8")
+    if (
+        not OUTPUT_CONVERSION_DEPENDENCY.search(text)
+        or rel in OUTPUT_CONVERSION_DEPENDENCY_ALLOWLIST
+    ):
+        return []
+    return [
+        Violation(
+            "output-conversion-boundary",
+            rel,
+            line,
+            "SVG raster/PDF conversion dependencies belong in src/output.rs",
+        )
+        for line in line_matches(OUTPUT_CONVERSION_DEPENDENCY, text)
+    ]
+
+
 def collect_violations(root: pathlib.Path) -> list[Violation]:
     violations: list[Violation] = []
     for path in iter_rust_files(root):
@@ -185,6 +212,7 @@ def collect_violations(root: pathlib.Path) -> list[Violation]:
         violations.extend(check_direct_render_svg(root, path))
         violations.extend(check_render_artifact_literals(root, path))
         violations.extend(check_render_artifact_state_writes(root, path))
+        violations.extend(check_output_conversion_dependencies(root, path))
     return sorted(violations)
 
 

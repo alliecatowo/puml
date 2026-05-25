@@ -3,6 +3,7 @@ use super::types::DiagramFamily;
 use crate::diagnostic::Diagnostic;
 use crate::model::{FamilyDocument, NormalizedDocument};
 use crate::output::RenderArtifact;
+use crate::registry::FamilyRenderKind;
 use crate::render::{self, TextOutputMode};
 use crate::{layout, normalize as normalize_mod, parser, registry, specialized, LayoutOptions};
 
@@ -236,10 +237,10 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifac
         if family.list_sprites {
             return RenderArtifact::svg_only(render::render_sprite_sheet(&family.sprites));
         }
-        match registry::family_spec_by_ast(family.kind)
+        let render_kind = registry::family_spec_by_ast(family.kind)
             .map(|spec| spec.render_kind)
-            .unwrap_or(registry::FamilyRenderKind::Unsupported)
-        {
+            .unwrap_or(registry::FamilyRenderKind::Unsupported);
+        let mut artifact = match render_kind {
             registry::FamilyRenderKind::Salt => {
                 RenderArtifact::svg_only(render::render_salt_svg(family))
             }
@@ -258,18 +259,36 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifac
                 RenderArtifact::svg_only(render::render_wbs_svg(family))
             }
             _ => render::render_family_stub_artifact(family),
-        }
+        };
+        require_migrated_family_scene_contract(&mut artifact, render_kind);
+        artifact
     });
     if let Some(title) = &family.mainframe {
-        render::append_mainframe_svg(&mut artifact.svg, title);
+        crate::output::append_mainframe_svg(&mut artifact.svg, title);
     }
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place. Diagnostic-only violations are silently recorded.
     artifact.validate_svg(render::validate::AutoCorrect::Apply);
     if let Some(scale) = &family.scale {
-        render::apply_scale_svg(&mut artifact.svg, scale);
+        crate::output::apply_scale_svg(&mut artifact.svg, scale);
     }
     artifact.refresh_svg_metadata();
-    artifact.with_diagnostics(family.warnings.clone())
+    artifact.extend_diagnostics(family.warnings.clone());
+    artifact
+}
+
+fn require_migrated_family_scene_contract(
+    artifact: &mut RenderArtifact,
+    render_kind: FamilyRenderKind,
+) {
+    let owner = match render_kind {
+        FamilyRenderKind::FamilyStub => "family graph renderer",
+        FamilyRenderKind::Component => "component renderer",
+        FamilyRenderKind::Deployment => "deployment renderer",
+        _ => return,
+    };
+    if let Err(diagnostic) = artifact.require_typed_scene_for(owner) {
+        artifact.push_diagnostic(diagnostic);
+    }
 }
