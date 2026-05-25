@@ -1639,6 +1639,22 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
     let err = normalize_family(salt_deferred).expect_err("salt deferred raw should fail");
     assert!(err.message.contains("E_FAMILY_SALT_DEFERRED_RAW"));
 
+    let salt_unsupported = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Salt,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 11),
+            kind: puml::ast::StatementKind::UnsupportedSyntax("plain label".to_string()),
+        }],
+    };
+    let model = normalize_family(salt_unsupported).expect("salt parser fallback remains a row");
+    match model {
+        NormalizedDocument::Family(family) => {
+            assert_eq!(family.nodes.len(), 1);
+            assert_eq!(family.nodes[0].name, "SALT_ROW\x1fL:plain label");
+        }
+        other => panic!("expected salt family model, got {other:?}"),
+    }
+
     let salt_legacy = puml::ast::Document {
         kind: puml::ast::DiagramKind::Salt,
         statements: vec![puml::ast::Statement {
@@ -1743,6 +1759,36 @@ fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown(
     };
     let err = normalize_family(legacy).expect_err("legacy unknown direction must not pass through");
     assert!(err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
+fn normalize_usecase_direction_line_remains_parser_deferred_but_supported() {
+    let oriented = puml::ast::Document {
+        kind: DiagramKind::UseCase,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 23),
+            kind: puml::ast::StatementKind::UnsupportedSyntax(
+                "left to right direction".to_string(),
+            ),
+        }],
+    };
+    let model = normalize_family(oriented).expect("typed unsupported direction remains supported");
+    match model {
+        NormalizedDocument::Family(doc) => {
+            assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
+        }
+        other => panic!("expected family document, got {other:?}"),
+    }
+
+    let unsupported = puml::ast::Document {
+        kind: DiagramKind::UseCase,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 7),
+            kind: puml::ast::StatementKind::UnsupportedSyntax("wat".to_string()),
+        }],
+    };
+    let err = normalize_family(unsupported).expect_err("other unsupported usecase syntax fails");
+    assert!(err.message.contains("E_FAMILY_USECASE_UNSUPPORTED_SYNTAX"));
 }
 
 #[test]

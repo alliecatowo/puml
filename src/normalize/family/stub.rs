@@ -392,7 +392,10 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             kind if family_kind == DiagramKind::Salt && kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category != RawSyntaxCategory::LegacyUnknown {
+                if !matches!(
+                    raw.category,
+                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Unsupported
+                ) {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,
@@ -418,18 +421,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
+                let line = raw.line;
+                // Handle `left to right direction` / `top to bottom direction`
+                if let Some(dir) = parse_family_orientation_directive(line) {
+                    orientation = dir;
+                    continue;
+                }
                 if raw.category != RawSyntaxCategory::LegacyUnknown {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,
                         RawSyntaxContext::Family(family_kind),
                     ));
-                }
-                let line = raw.line;
-                // Handle `left to right direction` / `top to bottom direction`
-                if let Some(dir) = parse_family_orientation_directive(line) {
-                    orientation = dir;
-                    continue;
                 }
                 if family_kind == DiagramKind::Salt {
                     let text = line.trim();
