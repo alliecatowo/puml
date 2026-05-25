@@ -8,6 +8,7 @@ use super::{Anchor, GeometryIssue, Point, Rect, RenderScene, SceneEdge, SceneNod
 
 const ENDPOINT_TOLERANCE: f64 = 0.5;
 const PORT_TOLERANCE: f64 = 0.5;
+const EDGE_LABEL_MAX_DISTANCE: f64 = 96.0;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SceneValidationReport {
@@ -30,6 +31,10 @@ pub enum GeometryMetric {
         content_area: f64,
         fill_ratio: f64,
         aspect_ratio: f64,
+    },
+    RouteChannels {
+        count: usize,
+        total_area: f64,
     },
 }
 
@@ -84,6 +89,8 @@ fn validate_edge_routes(scene: &RenderScene, issues: &mut Vec<GeometryIssue>) {
     for edge in scene.edges.values() {
         validate_edge_endpoints(scene, edge, issues);
         validate_edge_node_clearance(scene, edge, issues);
+        validate_edge_group_header_clearance(scene, edge, issues);
+        validate_edge_label_proximity(edge, issues);
     }
 }
 
@@ -201,6 +208,52 @@ fn validate_edge_node_clearance(
     }
 }
 
+fn validate_edge_group_header_clearance(
+    scene: &RenderScene,
+    edge: &SceneEdge,
+    issues: &mut Vec<GeometryIssue>,
+) {
+    for segment in edge.route.segments() {
+        for group in scene.groups.values() {
+            let Some(header) = group.frame.header else {
+                continue;
+            };
+            if segment_crosses_rect_interior(segment, header) {
+                issues.push(GeometryIssue::EdgeCrossesGroupHeader {
+                    edge_id: edge.id.clone(),
+                    group_id: group.id.clone(),
+                    segment,
+                    header_bounds: header,
+                });
+            }
+        }
+    }
+}
+
+fn validate_edge_label_proximity(edge: &SceneEdge, issues: &mut Vec<GeometryIssue>) {
+    if edge.route.points.len() < 2 {
+        return;
+    }
+    for label in &edge.labels {
+        let center = label.bounds.center();
+        let min_distance = edge
+            .route
+            .segments()
+            .into_iter()
+            .map(|segment| distance_point_to_segment(center, segment))
+            .fold(f64::INFINITY, f64::min);
+        if min_distance.is_finite() && min_distance > EDGE_LABEL_MAX_DISTANCE {
+            issues.push(GeometryIssue::EdgeLabelDetached {
+                edge_id: edge.id.clone(),
+                label_id: label.id.clone(),
+                bounds: label.bounds,
+                min_distance,
+                max_distance: EDGE_LABEL_MAX_DISTANCE,
+            });
+        }
+    }
+}
+
 fn is_endpoint_node(edge: &SceneEdge, node: &SceneNode) -> bool {
     node.id == edge.from || node.id == edge.to
 }
@@ -223,11 +276,52 @@ fn segment_crosses_rect(segment: Segment, rect: Rect) -> bool {
         || segments_intersect(segment, Segment::new(bottom_left, top_left))
 }
 
+fn segment_crosses_rect_interior(segment: Segment, rect: Rect) -> bool {
+    if !segment.bounds().intersects(rect) {
+        return false;
+    }
+    if point_strictly_inside_rect(segment.start, rect)
+        || point_strictly_inside_rect(segment.end, rect)
+    {
+        return true;
+    }
+    if segment.is_vertical() {
+        return segment.start.x > rect.min_x()
+            && segment.start.x < rect.max_x()
+            && ranges_overlap_strict(segment.start.y, segment.end.y, rect.min_y(), rect.max_y());
+    }
+    if segment.is_horizontal() {
+        return segment.start.y > rect.min_y()
+            && segment.start.y < rect.max_y()
+            && ranges_overlap_strict(segment.start.x, segment.end.x, rect.min_x(), rect.max_x());
+    }
+    segment_crosses_rect(segment, rect)
+}
+
 fn point_strictly_inside_rect(point: Point, rect: Rect) -> bool {
     point.x > rect.min_x()
         && point.x < rect.max_x()
         && point.y > rect.min_y()
         && point.y < rect.max_y()
+}
+
+fn ranges_overlap_strict(a: f64, b: f64, c: f64, d: f64) -> bool {
+    let a_min = a.min(b);
+    let a_max = a.max(b);
+    a_min < d && c < a_max
+}
+
+fn distance_point_to_segment(point: Point, segment: Segment) -> f64 {
+    let dx = segment.end.x - segment.start.x;
+    let dy = segment.end.y - segment.start.y;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq <= f64::EPSILON {
+        return point.distance_to(segment.start);
+    }
+    let t = (((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / len_sq)
+        .clamp(0.0, 1.0);
+    let projection = Point::new(segment.start.x + t * dx, segment.start.y + t * dy);
+    point.distance_to(projection)
 }
 
 fn segments_intersect(a: Segment, b: Segment) -> bool {
@@ -293,6 +387,17 @@ fn collect_quality_metrics(scene: &RenderScene, metrics: &mut Vec<GeometryMetric
         fill_ratio,
         aspect_ratio,
     });
+    if !scene.route_channels.is_empty() {
+        let total_area = scene
+            .route_channels
+            .values()
+            .map(|channel| channel.bounds.size.width.max(0.0) * channel.bounds.size.height.max(0.0))
+            .sum();
+        metrics.push(GeometryMetric::RouteChannels {
+            count: scene.route_channels.len(),
+            total_area,
+        });
+    }
 }
 
 fn scene_content_bounds(scene: &RenderScene) -> Option<Rect> {
