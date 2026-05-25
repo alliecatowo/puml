@@ -33,11 +33,12 @@ pub use api::{
     detect_diagram_family, extract_markdown_diagrams, lsp_capabilities, normalize,
     normalize_family, normalized_model_summary_to_json, normalized_scene_summary_to_json, parse,
     parse_with_pipeline_options, parse_with_pipeline_result_options,
-    preprocess_with_pipeline_options, render_family_document_artifact, render_family_document_svg,
-    render_source_to_svg, render_source_to_svg_for_family, render_source_to_svgs,
-    render_source_to_svgs_for_family, render_source_to_text, render_source_to_texts,
-    render_svg_pages_from_model, CompatMode, DeterminismMode, DiagramFamily, DiagramInput,
-    FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
+    preprocess_with_pipeline_options, render_artifact_pages_from_model,
+    render_family_document_artifact, render_family_document_svg, render_source_to_artifacts,
+    render_source_to_artifacts_for_family, render_source_to_svg, render_source_to_svg_for_family,
+    render_source_to_svgs, render_source_to_svgs_for_family, render_source_to_text,
+    render_source_to_texts, render_svg_pages_from_model, CompatMode, DeterminismMode,
+    DiagramFamily, DiagramInput, FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
 };
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};

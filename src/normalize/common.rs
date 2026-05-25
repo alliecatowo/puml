@@ -135,6 +135,7 @@ pub(super) fn unsupported_pragma_warning(value: &str, span: crate::source::Span)
 }
 
 pub(super) enum RawSyntaxContext {
+    Sequence,
     State,
     Timeline(DiagramKind),
     Family(DiagramKind),
@@ -159,6 +160,10 @@ pub(super) fn raw_syntax_diagnostic(
             raw.line
         )),
         RawSyntaxCategory::Unsupported => match context {
+            RawSyntaxContext::Sequence => Diagnostic::error(format!(
+                "[E_SEQUENCE_UNSUPPORTED_SYNTAX] unsupported sequence diagram syntax: `{}`",
+                raw.line
+            )),
             RawSyntaxContext::State => Diagnostic::error(format!(
                 "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
                 raw.line
@@ -176,6 +181,10 @@ pub(super) fn raw_syntax_diagnostic(
             )),
         },
         RawSyntaxCategory::Deferred => match context {
+            RawSyntaxContext::Sequence => Diagnostic::error(format!(
+                "[E_SEQUENCE_DEFERRED_RAW] deferred sequence diagram syntax was not consumed: `{}`",
+                raw.line
+            )),
             RawSyntaxContext::State => Diagnostic::error(format!(
                 "[E_STATE_DEFERRED_RAW] deferred state diagram syntax was not consumed: `{}`",
                 raw.line
@@ -193,6 +202,10 @@ pub(super) fn raw_syntax_diagnostic(
             )),
         },
         RawSyntaxCategory::CommentLowered => match context {
+            RawSyntaxContext::Sequence => Diagnostic::error(format!(
+                "[E_SEQUENCE_COMMENT_LOWERED] lowered comment is not valid sequence syntax: `{}`",
+                raw.line
+            )),
             RawSyntaxContext::State => Diagnostic::error(format!(
                 "[E_STATE_COMMENT_LOWERED] lowered comment is not valid state syntax: `{}`",
                 raw.line
@@ -210,6 +223,10 @@ pub(super) fn raw_syntax_diagnostic(
             )),
         },
         RawSyntaxCategory::Malformed => match context {
+            RawSyntaxContext::Sequence => Diagnostic::error(format!(
+                "[E_SEQUENCE_MALFORMED_SYNTAX] malformed sequence diagram syntax: `{}`",
+                raw.line
+            )),
             RawSyntaxContext::State => Diagnostic::error(format!(
                 "[E_STATE_MALFORMED_SYNTAX] malformed state diagram syntax: `{}`",
                 raw.line
