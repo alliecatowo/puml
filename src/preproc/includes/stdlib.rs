@@ -7,7 +7,10 @@ use crate::preproc::control::preprocess_text;
 use crate::preproc::{ParseOptions, PreprocState};
 
 use super::diagnostics::stack_cycle;
-use super::paths::resolve_import_path;
+use super::paths::{
+    import_escape_diagnostic, import_path_escapes_root, parent_component_import_escape_diagnostic,
+    path_contains_parent_component, resolve_import_path,
+};
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(in crate::preproc) fn is_stdlib_catalog_target(raw_target: &str) -> bool {
@@ -44,6 +47,24 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
             ),
         ));
     }
+    if path_contains_parent_component(&path) {
+        return Err(parent_component_import_escape_diagnostic(&path));
+    }
+
+    if let Some(builtin) = crate::stdlib::resolve_builtin_stdlib_include(&path) {
+        return process_builtin_stdlib_include(
+            builtin,
+            target.tag.as_deref(),
+            directive_name,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth,
+            call_depth,
+            out,
+        );
+    }
 
     let Some(stdlib_root) = resolve_stdlib_root_for_angle_include(options, include_stack) else {
         return Err(Diagnostic::error_code(
@@ -55,6 +76,9 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
             ),
         ));
     };
+    if import_path_escapes_root(&stdlib_root, &path) {
+        return Err(import_escape_diagnostic(&stdlib_root, &path));
+    }
 
     let resolved = if stdlib_root.join(&path).exists() {
         resolve_import_path(&stdlib_root, &path)?
@@ -106,6 +130,58 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
     include_stack.push(resolved);
     preprocess_text(
         &content,
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth + 1,
+        call_depth,
+        out,
+    )?;
+    include_stack.pop();
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
+pub(in crate::preproc) fn process_builtin_stdlib_include(
+    builtin: crate::stdlib::StdlibBuiltinInclude,
+    tag: Option<&str>,
+    _directive_name: &str,
+    options: &ParseOptions,
+    state: &mut PreprocState,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if let Some(tag) = tag {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_TAG_NOT_FOUND",
+            format!(
+                "include tag '{tag}' was not found in built-in stdlib include '<{}>'",
+                builtin.logical_path
+            ),
+        ));
+    }
+
+    let include_key = PathBuf::from(format!("builtin-stdlib://{}", builtin.logical_path));
+    if !include_once_seen.insert(include_key.clone()) {
+        return Ok(());
+    }
+    if include_stack.iter().any(|path| path == &include_key) {
+        return Err(stack_cycle(
+            "E_INCLUDE_CYCLE",
+            "include",
+            include_stack,
+            &include_key,
+        ));
+    }
+
+    include_stack.push(include_key);
+    preprocess_text(
+        &builtin.content,
         options,
         state,
         include_stack,
@@ -190,7 +266,7 @@ fn parse_stdlib_angle_include_target(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn stdlib_not_found_diagnostic(
+pub(in crate::preproc) fn stdlib_not_found_diagnostic(
     stdlib_root: &std::path::Path,
     requested_pack: Option<&str>,
     display_name: &str,

@@ -1,0 +1,4 @@
+@startuml
+!include <openiconic/folder>
+Alice -> Bob : Open <$folder,scale=2,color=#2563eb> then &cloud-upload
+@enduml

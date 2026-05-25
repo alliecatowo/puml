@@ -1,4 +1,0 @@
-@startuml
-!include <openiconic/folder>
-Alice -> Bob : never reached
-@enduml

@@ -5,11 +5,16 @@ use crate::openiconic::OPENICONIC_SVG;
 use super::{normalize_sprite_name, parse_svg_sprite, SpriteDefinition, SpriteRegistry};
 
 pub fn openiconic_sprite(name: &str) -> Option<SpriteDefinition> {
+    let (normalized, source) = openiconic_svg_source(name)?;
+    parse_svg_sprite(&normalized, source).ok()
+}
+
+pub fn openiconic_svg_source(name: &str) -> Option<(String, &'static str)> {
     let normalized = normalize_openiconic_name(name);
     let source = OPENICONIC_SVG
         .iter()
         .find_map(|(icon_name, svg)| (*icon_name == normalized).then_some(*svg))?;
-    parse_svg_sprite(&normalized, source).ok()
+    Some((normalized, source))
 }
 
 pub fn openiconic_sprites() -> SpriteRegistry {

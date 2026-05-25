@@ -32,6 +32,7 @@ fn stdlib_flag_lists_reachable_local_paths_and_aliases() {
         .stdout(predicate::str::contains("bootstrap"))
         .stdout(predicate::str::contains("openiconic"))
         .stdout(predicate::str::contains("# missing upstream packs:"))
+        .stdout(predicate::str::contains("# builtin packs: openiconic"))
         .stderr(predicate::str::is_empty());
 }
 
@@ -89,6 +90,7 @@ fn stdlib_catalog_diagram_text_output_is_deterministic() {
         .success()
         .stdout(predicate::str::contains("stdlib\n"))
         .stdout(predicate::str::contains("available C4"))
+        .stdout(predicate::str::contains("builtin openiconic"))
         .stdout(predicate::str::contains("unavailable bootstrap"))
         .stdout(predicate::str::contains("material2.1.19 -> material"))
         .stderr(predicate::str::is_empty());
@@ -117,19 +119,53 @@ fn unavailable_stdlib_pack_diagnostic_lists_available_and_missing_packs() {
         .stderr(predicate::str::contains("material2.1.19"))
         .stderr(predicate::str::contains(
             "known unavailable upstream packs:",
-        ))
-        .stderr(predicate::str::contains("openiconic"));
+        ));
 }
 
 #[test]
-fn unavailable_openiconic_pack_points_to_builtin_sprite_catalog_boundary() {
+fn openiconic_stdlib_include_resolves_to_builtin_sprite_contract() {
+    let source = std::fs::read_to_string(fixture("stdlib_catalog/valid_openiconic_include.puml"))
+        .expect("fixture");
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-", "--format", "svg"])
+        .write_stdin(source)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("data-creole-sprites=\"true\""))
+        .stdout(predicate::str::contains("data-sprite=\"folder\""))
+        .stdout(predicate::str::contains("data-sprite=\"cloud-upload\""))
+        .stdout(predicate::str::contains("fill=\"#2563eb\""))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn openiconic_stdlib_import_resolves_to_same_builtin_sprite_contract() {
+    let source = std::fs::read_to_string(fixture("stdlib_catalog/valid_openiconic_import.puml"))
+        .expect("fixture");
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-", "--format", "svg"])
+        .write_stdin(source)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Imported"))
+        .stdout(predicate::str::contains("data-sprite=\"folder\""))
+        .stdout(predicate::str::contains("fill=\"#0f766e\""))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn unavailable_stdlib_import_uses_same_pack_diagnostic_contract() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
             "--check",
             "--diagnostics",
             "json",
-            &fixture("stdlib_catalog/invalid_openiconic_include.puml"),
+            "--include-root",
+            env!("CARGO_MANIFEST_DIR"),
+            &fixture("stdlib_catalog/invalid_bootstrap_import.puml"),
         ])
         .assert()
         .failure()
@@ -138,9 +174,10 @@ fn unavailable_openiconic_pack_points_to_builtin_sprite_catalog_boundary() {
             "\"code\": \"E_INCLUDE_STDLIB_PACK_UNAVAILABLE\"",
         ))
         .stderr(predicate::str::contains(
-            "stdlib pack 'openiconic' is not bundled",
+            "stdlib pack 'bootstrap' is not bundled",
         ))
-        .stderr(predicate::str::contains("available packs: C4"));
+        .stderr(predicate::str::contains("available packs: C4"))
+        .stderr(predicate::str::contains("openiconic"));
 }
 
 #[test]

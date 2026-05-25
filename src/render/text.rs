@@ -67,6 +67,7 @@ fn render_stdlib_text(doc: &StdlibDocument, mode: TextOutputMode) -> String {
     for pack in &doc.packs {
         let status = match pack.status {
             crate::stdlib::StdlibPackStatus::Available => "available",
+            crate::stdlib::StdlibPackStatus::Builtin => "builtin",
             crate::stdlib::StdlibPackStatus::Unavailable => "unavailable",
         };
         lines.push(format!(

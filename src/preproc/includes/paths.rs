@@ -91,6 +91,47 @@ pub(in crate::preproc) fn resolve_import_path(
     }
     Ok(resolved_canon)
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::preproc) fn import_path_escapes_root(stdlib_root: &Path, import_path: &Path) -> bool {
+    let resolved = normalize_path(stdlib_root.join(import_path));
+    !resolved.starts_with(stdlib_root)
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(in crate::preproc) fn path_contains_parent_component(path: &Path) -> bool {
+    path.components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::preproc) fn import_escape_diagnostic(
+    stdlib_root: &Path,
+    import_path: &Path,
+) -> Diagnostic {
+    Diagnostic::error_code(
+        "E_IMPORT_ESCAPE",
+        format!(
+            "import path escapes stdlib root: '{}' resolves outside '{}'",
+            import_path.display(),
+            stdlib_root.display()
+        ),
+    )
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(in crate::preproc) fn parent_component_import_escape_diagnostic(
+    import_path: &Path,
+) -> Diagnostic {
+    Diagnostic::error_code(
+        "E_IMPORT_ESCAPE",
+        format!(
+            "stdlib import path contains parent traversal: '{}'",
+            import_path.display()
+        ),
+    )
+}
+
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(in crate::preproc) fn normalize_path(path: PathBuf) -> PathBuf {
     let mut parts = Vec::new();
