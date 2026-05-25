@@ -23,10 +23,13 @@ The sections below define the target extension surface. The current shipped VS C
   - `puml.lsp.trace`
   - empty `puml.lsp.path` resolves in order: bundled `bin/puml-lsp(.exe)` when present, otherwise `puml-lsp` from `PATH`
 - preview path delegates to LSP `workspace/executeCommand` using `puml.renderSvg` (no private parser in extension host/webview)
+- render-scene inspection delegates to LSP `workspace/executeCommand` using `puml.renderScene`
+- export adapters can delegate to LSP `workspace/executeCommand` using `puml.export` and fall back to the CLI path
+- diagnostic help adapters use `puml.explainDiagnostic` when the server advertises the command
 
 Current baseline guardrails:
 
-- `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat` and `puml.renderSvg`.
+- `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat`, `puml.renderSvg`, `puml.renderScene`, `puml.export`, and `puml.explainDiagnostic`.
 - extension smoke script verifies preview stays LSP-backed, build artifact exists, and LSP startup fallback logic remains in place.
 - completion, hover, references, rename, semantic tokens, formatting, and code actions are only shipped to the limited scope described by `--dump-capabilities`; advanced VS Code features listed later in this spec stay target-state until landed in source + tests.
 

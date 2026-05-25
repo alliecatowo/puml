@@ -9,10 +9,42 @@ import {
 } from 'vscode-languageclient/node';
 
 export type RenderSvgResult = {
+  schema?: string;
   svg: string;
+  svgs?: string[];
   width: number;
   height: number;
-  diagnostics: Array<{ message?: string }>;
+  diagnostics: Array<{ message?: string; severity?: string; code?: string }>;
+  model?: unknown;
+  scene?: unknown;
+};
+
+export type RenderSceneResult = {
+  schema?: string;
+  schemaVersion?: number;
+  model?: unknown;
+  scene?: unknown;
+  diagnostics: Array<{ message?: string; severity?: string; code?: string }>;
+};
+
+export type ExportResult = {
+  schema?: string;
+  schemaVersion?: number;
+  format?: string;
+  mediaType?: string;
+  encoding?: string;
+  content?: string | null;
+  contentBase64?: string | null;
+  pages?: Array<{ name?: string; content?: string; contentBase64?: string }>;
+  diagnostics: Array<{ message?: string; severity?: string; code?: string }>;
+};
+
+export type ExplainDiagnosticResult = {
+  schema?: string;
+  schemaVersion?: number;
+  diagnostic?: unknown;
+  explanation?: { summary?: string; action?: string };
+  diagnostics: Array<{ message?: string; severity?: string; code?: string }>;
 };
 
 export class PumlLspClient {
@@ -81,6 +113,43 @@ export class PumlLspClient {
     });
 
     return out;
+  }
+
+  async renderScene(uri: string, options: Record<string, unknown> = {}): Promise<RenderSceneResult> {
+    if (!this.client) {
+      throw new Error('puml-lsp client is not started');
+    }
+
+    return this.client.sendRequest<RenderSceneResult>('workspace/executeCommand', {
+      command: 'puml.renderScene',
+      arguments: [uri, options],
+    });
+  }
+
+  async exportDocument(
+    uri: string,
+    format: 'svg' | 'png',
+    options: Record<string, unknown> = {}
+  ): Promise<ExportResult> {
+    if (!this.client) {
+      throw new Error('puml-lsp client is not started');
+    }
+
+    return this.client.sendRequest<ExportResult>('workspace/executeCommand', {
+      command: 'puml.export',
+      arguments: [uri, { ...options, format }],
+    });
+  }
+
+  async explainDiagnostic(diagnostic: unknown): Promise<ExplainDiagnosticResult> {
+    if (!this.client) {
+      throw new Error('puml-lsp client is not started');
+    }
+
+    return this.client.sendRequest<ExplainDiagnosticResult>('workspace/executeCommand', {
+      command: 'puml.explainDiagnostic',
+      arguments: [diagnostic],
+    });
   }
 }
 

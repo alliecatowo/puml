@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerPreviewCommands(context, lspClient);
 
   // Export commands (SVG / PNG).
-  registerExportCommands(context);
+  registerExportCommands(context, lspClient);
 
   // Status bar item (shows diagram family + diagnostic count).
   PumlStatusBar.register(context);

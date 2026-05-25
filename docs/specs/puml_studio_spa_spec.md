@@ -281,6 +281,7 @@ the current support evidence.
 - `render::render_svg(scene) -> string`
 - `render_source_to_svg(source) -> string | Diagnostic` for single-page sequence diagrams
 - `render_source_to_svgs(source) -> string[] | Diagnostic` for multi-page sequence output
+- `compile_json(source)` and `compile_json_with_frontend(source, frontend)` return schema `puml.compile`; they are the first WASM Studio compile DTOs, returning SVG pages, family, diagnostics, and `semanticTokens`
 - `render_source_to_svg_for_family` / `render_source_to_svgs_for_family` route supported families through deterministic render paths and return deterministic diagnostics for unsupported families or constructs
 - `extract_markdown_diagrams(source) -> DiagramInput[]` for fenced diagram extraction
 

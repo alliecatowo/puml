@@ -20,5 +20,11 @@ if (!srcLspClient.includes('fs.existsSync')) {
 if (!srcLspClient.includes("return isWindows ? 'puml-lsp.exe' : 'puml-lsp';")) {
   throw new Error('LSP client contract drift: expected PATH fallback for puml-lsp');
 }
+if (!srcLspClient.includes("command: 'puml.renderScene'")) {
+  throw new Error('LSP client contract drift: expected renderScene workspace command');
+}
+if (!srcLspClient.includes("command: 'puml.export'")) {
+  throw new Error('LSP client contract drift: expected export workspace command');
+}
 
 console.log('[vscode-smoke] build artifact exists and preview is LSP-backed');

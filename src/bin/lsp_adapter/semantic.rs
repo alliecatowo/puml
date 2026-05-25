@@ -53,10 +53,13 @@ mod tests {
             .get("data")
             .and_then(Value::as_array)
             .expect("semantic token data");
-        // one operator token for "-->", encoded in groups of 5 u32 values.
+        // Directive keywords and one operator token for "-->", encoded in groups of 5 u32 values.
         let token_count = data.len() / 5;
-        assert_eq!(token_count, 1);
-        assert_eq!(data[2].as_u64(), Some(3));
-        assert_eq!(data[3].as_u64(), Some(1));
+        assert_eq!(token_count, 3);
+        let operator = data
+            .chunks(5)
+            .find(|chunk| chunk[3].as_u64() == Some(1))
+            .expect("operator token");
+        assert_eq!(operator[2].as_u64(), Some(3));
     }
 }

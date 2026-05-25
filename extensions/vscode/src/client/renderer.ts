@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { PumlLspClient, RenderSvgResult } from './lspClient';
+import { ExportResult, PumlLspClient, RenderSvgResult } from './lspClient';
 
 export interface RenderResult {
   svg: string;
@@ -69,8 +69,20 @@ export async function renderViaCli(
 export async function exportSvg(
   document: vscode.TextDocument,
   outputPath: string,
-  _context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  lsp?: PumlLspClient
 ): Promise<void> {
+  if (lsp?.isRunning()) {
+    try {
+      const result = await lsp.exportDocument(document.uri.toString(), 'svg');
+      if (writeLspExportResult(result, outputPath)) {
+        return;
+      }
+    } catch {
+      // Fall back to the CLI export path below.
+    }
+  }
+
   const config = vscode.workspace.getConfiguration('puml');
   const cliBin = resolvePumlBin(config.get<string>('cli.path', ''));
 
@@ -91,8 +103,20 @@ export async function exportSvg(
 export async function exportPng(
   document: vscode.TextDocument,
   outputPath: string,
-  _context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  lsp?: PumlLspClient
 ): Promise<void> {
+  if (lsp?.isRunning()) {
+    try {
+      const result = await lsp.exportDocument(document.uri.toString(), 'png');
+      if (writeLspExportResult(result, outputPath)) {
+        return;
+      }
+    } catch {
+      // Fall back to the CLI export path below.
+    }
+  }
+
   const config = vscode.workspace.getConfiguration('puml');
   const cliBin = resolvePumlBin(config.get<string>('cli.path', ''));
 
@@ -118,10 +142,35 @@ function normaliseLspResult(raw: RenderSvgResult): RenderResult {
     svg: raw.svg,
     diagnostics: raw.diagnostics.map((d) => ({
       message: d.message ?? '(unknown diagnostic)',
-      severity: 'error' as const,
+      severity: normaliseSeverity(d.severity),
     })),
     family: undefined,
   };
+}
+
+function writeLspExportResult(result: ExportResult, outputPath: string): boolean {
+  if (result.diagnostics.some((diag) => normaliseSeverity(diag.severity) === 'error')) {
+    return false;
+  }
+
+  const page = result.pages?.[0];
+  const content = result.content ?? page?.content;
+  if (typeof content === 'string') {
+    fs.writeFileSync(outputPath, content, 'utf8');
+    return true;
+  }
+
+  const contentBase64 = result.contentBase64 ?? page?.contentBase64;
+  if (typeof contentBase64 === 'string') {
+    fs.writeFileSync(outputPath, Buffer.from(contentBase64, 'base64'));
+    return true;
+  }
+
+  return false;
+}
+
+function normaliseSeverity(raw: string | undefined): 'error' | 'warning' | 'info' {
+  return raw === 'warning' ? 'warning' : raw === 'info' ? 'info' : 'error';
 }
 
 function resolvePumlBin(configured: string): string {
