@@ -125,6 +125,36 @@
       "min_text_elements": 7
     },
     {
+      "path": "docs/examples/archimate/01_layered.puml",
+      "family": "archimate",
+      "expected_text": ["Archimate", "application", "technology", "Web App", "API Server", "Database", "calls", "reads/writes"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/regex/03_alternation.puml",
+      "family": "regex",
+      "expected_text": ["/cat|dog | (foo|bar)+/", "c", "a", "t", "d", "o", "g", "f", "b", "r", "+"],
+      "min_text_elements": 13
+    },
+    {
+      "path": "docs/examples/ebnf/02_optional_repetition.puml",
+      "family": "ebnf",
+      "expected_text": ["expression :=", "term :=", "factor :=", "term", "factor", "number", "expression", "+", "-", "*", "/", "(", ")"],
+      "min_text_elements": 15
+    },
+    {
+      "path": "docs/examples/math/02_complex.puml",
+      "family": "math",
+      "expected_text": ["0", "e", "-", "x", "2", "d", "="],
+      "min_text_elements": 11
+    },
+    {
+      "path": "docs/examples/ditaa/01_simple_ascii.puml",
+      "family": "ditaa",
+      "expected_text": ["Client", "Server", "DB"],
+      "min_text_elements": 3
+    },
+    {
       "path": "docs/examples/nwdiag/01_single_net.puml",
       "family": "nwdiag",
       "expected_text": ["Network diagram", "network dmz (192.168.0.x/24)", "web01", "web02"],
