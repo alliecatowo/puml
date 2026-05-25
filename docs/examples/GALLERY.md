@@ -1,132 +1,96 @@
-# PicoUML Example Gallery (Current)
+# PUML Visual Gallery
 
-This gallery indexes the docs-as-tests corpus under `docs/examples/`.
+This gallery is the human browse view for the rendered example corpus. Each row
+links to a source diagram and its committed SVG render, so it is useful both as
+product documentation and as a quick visual smoke pass.
 
-## Corpus totals
+Current corpus snapshot:
 
-- `298` source diagrams (`*.puml`)
-- `302` render artifacts (`*.svg`)
-- Location: `docs/examples/` and its family subdirectories
+- `324` source diagrams under `docs/examples/`
+- `328` committed SVG renders under `docs/examples/`
+- `44` fixtures in `tests/visual_regression/manifest.json`
+- `30` reviewed PNG baselines under `tests/visual_baselines/`
 
-## Layout-Stressing Fixtures
+Visual regression coverage is intentionally smaller than the gallery. The
+gallery shows what users can browse; the manifest and PNG baselines show which
+examples are executable visual gates.
 
-### sequence/
-- `46_nested_alt_with_par.puml` — 3-branch alt with activate/deactivate nesting
-- `47_create_participant_midflow.puml` — dynamic `create` + `destroy` lifecycle
-- `48_complex_ref_over_multibox.puml` — multi-box grouping, autonumber stop/resume, ref-over
+## Featured Renders
 
-### activity/
-- `16_nested_swimlanes_parallel_forks.puml` — 4-lane swimlane with parallel fork/join
-- `17_switch_case_with_detach.puml` — switch/case with detach and kill terminals
-- `18_repeat_while_nested_partition.puml` — repeat-while inside partition with parallel fork (ETL)
+| Family | Preview | Source and SVG | What It Shows |
+|---|---:|---|---|
+| Sequence | <img src="sequence/01_basic.svg" alt="Sequence diagram preview" width="220"> | [source](sequence/01_basic.puml) / [svg](sequence/01_basic.svg) | Participants, messages, and the default sequence layout. |
+| Class | <img src="class/02_inheritance.svg" alt="Class inheritance preview" width="220"> | [source](class/02_inheritance.puml) / [svg](class/02_inheritance.svg) | Class members, inheritance arrows, and multi-node graph layout. |
+| Activity | <img src="activity/02_if_then_else.svg" alt="Activity decision preview" width="220"> | [source](activity/02_if_then_else.puml) / [svg](activity/02_if_then_else.svg) | Decision branches and terminal flow labels. |
+| State | <img src="state/05_fork_join_choice.svg" alt="State fork join choice preview" width="220"> | [source](state/05_fork_join_choice.puml) / [svg](state/05_fork_join_choice.svg) | Fork, join, choice, and transition label rendering. |
+| Component | <img src="component/01_basic.svg" alt="Component diagram preview" width="220"> | [source](component/01_basic.puml) / [svg](component/01_basic.svg) | Components, interfaces, and component-to-component relations. |
+| Deployment | <img src="deployment/03_cloud.svg" alt="Cloud deployment preview" width="220"> | [source](deployment/03_cloud.puml) / [svg](deployment/03_cloud.svg) | Cloud, database, bucket, and function deployment nodes. |
+| C4 | <img src="c4/01_context.svg" alt="C4 context preview" width="220"> | [source](c4/01_context.puml) / [svg](c4/01_context.svg) | Persons, systems, external systems, and labeled relationships. |
+| Timing | <img src="timing/04_binary.svg" alt="Timing binary preview" width="220"> | [source](timing/04_binary.puml) / [svg](timing/04_binary.svg) | Binary timing states and signal transitions. |
+| Gantt | <img src="gantt/01_basic.svg" alt="Gantt chart preview" width="220"> | [source](gantt/01_basic.puml) / [svg](gantt/01_basic.svg) | Tasks, milestones, dates, and project timeline rendering. |
+| Mindmap | <img src="mindmap/01_basic.svg" alt="Mindmap preview" width="220"> | [source](mindmap/01_basic.puml) / [svg](mindmap/01_basic.svg) | Radial tree layout for mindmap nodes. |
+| WBS | <img src="wbs/01_basic.svg" alt="WBS preview" width="220"> | [source](wbs/01_basic.puml) / [svg](wbs/01_basic.svg) | Work breakdown tree hierarchy. |
+| JSON | <img src="json/01_object.svg" alt="JSON object preview" width="220"> | [source](json/01_object.puml) / [svg](json/01_object.svg) | Structured object rendering for data diagrams. |
+| Network | <img src="nwdiag/01_single_net.svg" alt="Network diagram preview" width="220"> | [source](nwdiag/01_single_net.puml) / [svg](nwdiag/01_single_net.svg) | Network block layout and node labels. |
+| SDL | <img src="sdl/02_with_transitions.svg" alt="SDL process preview" width="220"> | [source](sdl/02_with_transitions.puml) / [svg](sdl/02_with_transitions.svg) | SDL states and transitions. |
+| Chart | <img src="chart/01_bar.svg" alt="Bar chart preview" width="220"> | [source](chart/01_bar.puml) / [svg](chart/01_bar.svg) | Bar chart axes, labels, and values. |
+| Chen ER | <img src="chen/03_relationships.svg" alt="Chen ER preview" width="220"> | [source](chen/03_relationships.puml) / [svg](chen/03_relationships.svg) | Chen-style entities, relationships, and attributes. |
 
-### state/
-- `09_three_level_composite.puml` — 3-level nested composite states
-- `10_parallel_regions_shared_events.puml` — parallel state machines sharing powerOff event
-- `11_entry_exit_actions_history.puml` — entry/exit/do-activity annotations; history [H] pseudo-state
+## Browse By Family
 
-### component/
-- `07_ports_lollipop_interfaces.puml` — provided/required lollipop interfaces
-- `08_cloud_db_queue_stereotypes.puml` — multi-package component graph (CDN/API/Storage/EventBus)
+| Family | Examples | Start Here | Gallery Role | Visual Gate Status |
+|---|---:|---|---|---|
+| [Sequence](sequence/) | 49 | [01_basic](sequence/01_basic.puml) / [svg](sequence/01_basic.svg) | Message flows, groups, themes, lifecycle, and nested refs. | 3 PNG baselines; 1 high-risk manifest fixture deferred to #1113. |
+| [Class](class/) | 33 | [02_inheritance](class/02_inheritance.puml) / [svg](class/02_inheritance.svg) | Classes, members, packages, generics, and relation varieties. | 2 PNG baselines; compactness/header cases deferred to #594/#1113. |
+| [Object](object/) | 6 | [01_basic](object/01_basic.puml) / [svg](object/01_basic.svg) | Objects, attributes, links, stereotypes, and map-like anchors. | 1 PNG baseline. |
+| [Use Case](usecase/) | 8 | [01_basic](usecase/01_basic.puml) / [svg](usecase/01_basic.svg) | Actors, use cases, boundaries, include/extend, and styles. | 1 PNG baseline; multi-boundary routing case deferred to #1113. |
+| [Component](component/) | 11 | [01_basic](component/01_basic.puml) / [svg](component/01_basic.svg) | Components, interfaces, packages, notes, ports, and stereotypes. | 2 PNG baselines; port/header routing case deferred to #1113. |
+| [Deployment](deployment/) | 8 | [03_cloud](deployment/03_cloud.puml) / [svg](deployment/03_cloud.svg) | Nodes, cloud resources, databases, Kubernetes, and mixed elements. | 2 PNG baselines; nested cloud/Kubernetes cases deferred to #1113. |
+| [C4](c4/) | 12 | [01_context](c4/01_context.puml) / [svg](c4/01_context.svg) | Context, container, component, SaaS, and landscape examples. | 1 PNG baseline; broader C4 baseline coverage tracked by #739. |
+| [State](state/) | 13 | [05_fork_join_choice](state/05_fork_join_choice.puml) / [svg](state/05_fork_join_choice.svg) | State machines, history, forks, joins, nested states, and style blocks. | 2 PNG baselines; nested composite fixture deferred to #1113. |
+| [Activity](activity/) | 18 | [02_if_then_else](activity/02_if_then_else.puml) / [svg](activity/02_if_then_else.svg) | Activity flows, decisions, forks, loops, partitions, and swimlanes. | 2 PNG baselines; lane ownership cases deferred to #1113. |
+| [Activity New](activity_new/) | 9 | [01_basic](activity_new/01_basic.puml) / [svg](activity_new/01_basic.svg) | New-syntax activity flow and partition examples. | Manifest coverage only; lane/note fixture deferred to #1113. |
+| [Activity Old](activity_old/) | 4 | [01_basic](activity_old/01_basic.puml) / [svg](activity_old/01_basic.svg) | Legacy activity syntax examples. | No PNG baseline yet. |
+| [Timing](timing/) | 10 | [04_binary](timing/04_binary.puml) / [svg](timing/04_binary.svg) | Concise, robust, binary, clock, and manual-axis timing diagrams. | 2 PNG baselines; richer message-arrow baseline tracked by #434. |
+| [Gantt](gantt/) | 10 | [01_basic](gantt/01_basic.puml) / [svg](gantt/01_basic.svg) | Tasks, constraints, lags, holidays, milestones, and critical path. | 1 PNG baseline. |
+| [Chronology](chronology/) | 3 | [01_events](chronology/01_events.puml) / [svg](chronology/01_events.svg) | Event timelines and release-history views. | No PNG baseline yet. |
+| [Mindmap](mindmap/) | 7 | [01_basic](mindmap/01_basic.puml) / [svg](mindmap/01_basic.svg) | Tree-style mindmaps, colors, depth, and multiline labels. | 1 PNG baseline. |
+| [WBS](wbs/) | 7 | [01_basic](wbs/01_basic.puml) / [svg](wbs/01_basic.svg) | Work breakdown trees, checkboxes, arrows, and themes. | 1 PNG baseline. |
+| [Salt](salt/) | 5 | [01_basic_widgets](salt/01_basic_widgets.puml) / [svg](salt/01_basic_widgets.svg) | Wireframe widgets, frames, separators, tabs, and settings forms. | No PNG baseline yet. |
+| [JSON](json/) | 4 | [01_object](json/01_object.puml) / [svg](json/01_object.svg) | Structured JSON object and array rendering. | 1 PNG baseline. |
+| [YAML](yaml/) | 3 | [01_mapping](yaml/01_mapping.puml) / [svg](yaml/01_mapping.svg) | Structured YAML mappings, sequences, and nesting. | No PNG baseline yet. |
+| [Network](nwdiag/) | 4 | [01_single_net](nwdiag/01_single_net.puml) / [svg](nwdiag/01_single_net.svg) | Network diagrams, groups, icons, and multiline host labels. | 1 PNG baseline. |
+| [Archimate](archimate/) | 3 | [01_layered](archimate/01_layered.puml) / [svg](archimate/01_layered.svg) | Archimate layers, relations, and junctions. | 1 PNG baseline. |
+| [Regex](regex/) | 3 | [03_alternation](regex/03_alternation.puml) / [svg](regex/03_alternation.svg) | Regex character classes, repetition, and alternation diagrams. | 1 PNG baseline. |
+| [EBNF](ebnf/) | 3 | [02_optional_repetition](ebnf/02_optional_repetition.puml) / [svg](ebnf/02_optional_repetition.svg) | Grammar productions, optional branches, and repetitions. | 1 PNG baseline. |
+| [Math](math/) | 2 | [02_complex](math/02_complex.puml) / [svg](math/02_complex.svg) | TeX-like math rendering examples. | 1 PNG baseline. |
+| [Ditaa](ditaa/) | 2 | [01_simple_ascii](ditaa/01_simple_ascii.puml) / [svg](ditaa/01_simple_ascii.svg) | ASCII box diagrams rendered as structured SVG. | 1 PNG baseline. |
+| [Chart](chart/) | 6 | [01_bar](chart/01_bar.puml) / [svg](chart/01_bar.svg) | Bar, line, pie, stacked, and multi-series charts. | 1 PNG baseline; multi-series line fixture deferred to #1113. |
+| [SDL](sdl/) | 2 | [02_with_transitions](sdl/02_with_transitions.puml) / [svg](sdl/02_with_transitions.svg) | SDL process states and transitions. | 1 PNG baseline. |
+| [Chen ER](chen/) | 4 | [03_relationships](chen/03_relationships.puml) / [svg](chen/03_relationships.svg) | Chen-style ER entities, attributes, weak entities, and relationships. | No PNG baseline yet. |
+| [Creole](creole/) | 5 | [01_bold_italic](creole/01_bold_italic.puml) / [svg](creole/01_bold_italic.svg) | Text markup: bold, italic, color, size, multiline, and monospace. | No PNG baseline yet. |
+| [Skinparams](skinparams/) | 20 | [08_combined](skinparams/08_combined.puml) / [svg](skinparams/08_combined.svg) | Skinparam color, font, note, group, lifeline, and alignment examples. | No PNG baseline yet. |
+| [Themes](themes/) | 31 | [theme_sunlust](themes/theme_sunlust.puml) / [svg](themes/theme_sunlust.svg) | Built-in theme previews and theme interactions. | 1 PNG baseline through the manifest. |
+| [Sprites](sprites/) | 6 | [02_openiconic](sprites/02_openiconic.puml) / [svg](sprites/02_openiconic.svg) | Built-in sprite and icon rendering. | No PNG baseline yet. |
+| [Preprocessor](preprocessor/) | 6 | [01_define](preprocessor/01_define.puml) / [svg](preprocessor/01_define.svg) | Defines, conditionals, loops, functions, procedures, and variables. | No PNG baseline yet. |
+| [Stdlib](stdlib/) | 1 | [01_inventory](stdlib/01_inventory.puml) / [svg](stdlib/01_inventory.svg) | Bundled stdlib inventory and include discovery. | No PNG baseline yet. |
+| Top-level sequence examples | 6 | [basic_hello](basic_hello.puml) / [svg](basic_hello.svg) | Introductory sequence examples and supported primitive showcases. | No PNG baseline yet. |
 
-### usecase/
-- `05_actor_generalization_system_boundary.puml` — 3-level actor hierarchy, extend/include
-- `06_multi_system_boundary.puml` — 3 system boundaries, automation triggers
-- `08_inline_element_style.puml` — inline actor/usecase fill, border, dash, and text styles
+## Visual Coverage Notes
 
-### deployment/
-- `05_three_tier_cloud_onprem.puml` — cloud + VPN + on-prem nesting, replication links
-- `06_kubernetes_pods_containers.puml` — namespace/pod/container nesting, StatefulSet
+- `tests/visual_regression/manifest.json` is the semantic visual manifest. It
+  renders selected examples and checks labels/text, including high-risk cases
+  whose PNG baselines are intentionally deferred.
+- `tests/visual_baselines/` contains reviewed PNG snapshots. These are the
+  stronger pixel-regression gates and should only move after PNG inspection.
+- #434 tracks canonical PNG baseline coverage for `timing`, `nwdiag`,
+  `archimate`, `regex`, `ebnf`, `math`, and `ditaa`.
+- #739 tracks broader PNG baseline coverage for `component`, `deployment`, `c4`,
+  `usecase`, and `object` examples.
+- #594 tracks the larger visual-quality gate: compactness, label placement,
+  routing, and corpus-level invariants.
 
-### gantt/
-- `07_dependencies_with_lag_holidays.puml` — lag-start dependencies, weekend closures
-- `08_milestones_critical_path.puml` — milestone `happens at` markers, sprint milestone pattern
-
-### class/
-- `31_generic_types_container.puml` — generic type params (`Collection<T>`, `Map<K,V>`, `Optional<T>`)
-- `32_association_class_deep_packages.puml` — 3-level packages, association classes
-
-### c4/
-- `11_system_landscape.puml` — 5+ systems, 3 personas, external partners (system landscape)
-- `12_container_with_databases.puml` — DB, cache, message bus, external services
-
-### mindmap/
-- `05_four_levels_asymmetric.puml` — 5 levels deep, asymmetric branching
-- `06_multiline_node_labels.puml` — multiline labels with `\n` across 4 levels
-
-### wbs/
-- `05_four_levels_deep.puml` — 4-level WBS (platform migration)
-
-### json/
-- `04_deep_nesting_arrays_of_objects.puml` — nested objects + arrays-of-objects, null values
-
-### timing/
-- `05_concurrent_timelines_message_arrows.puml` — 4 concise lanes + clock (CPU/cache/memory/IO)
-- `06_robust_states_value_annotations.puml` — robust timing with string value annotations
-- `10_manual_time_axis.puml` — manual axis labels only on state-change ticks
-
-### chart/
-- `05_stacked_bar.puml` — stacked bar chart with 3 series (6 months)
-- `06_multi_series_line.puml` — multi-series line chart (desktop/mobile/tablet, 8 weeks)
-
-## Family directories
-
-### Core UML families
-
-- `sequence/`
-- `class/`
-- `object/`
-- `usecase/`
-- `component/`
-- `deployment/`
-- `state/`
-- `activity/`
-- `activity_new/`
-- `activity_old/`
-- `timing/`
-
-### Timeline and planning
-
-- `gantt/`
-- `chronology/`
-
-### Non-UML / specialized families
-
-- `salt/`
-- `json/`
-- `yaml/`
-- `nwdiag/`
-- `archimate/`
-- `regex/`
-- `ebnf/`
-- `chart/`
-- `math/`
-- `sdl/`
-- `ditaa/`
-- `mindmap/`
-- `wbs/`
-
-### Compatibility and styling surfaces
-
-- `c4/`
-- `themes/`
-- `skinparams/`
-- `preprocessor/`
-- `creole/`
-
-## Top-level examples in this folder
-
-- `basic_hello.puml` -> `basic_hello.svg`
-- `groups_notes.puml` -> `groups_notes.svg`
-- `lifecycle_autonumber.puml` -> `lifecycle_autonumber.svg`
-- `supported_primitives_*.puml` -> corresponding `*.svg`
-
-## Status framing
-
-- Families are no longer documented here as “parse-only” or “not yet parsed”.
-- Current status should be interpreted as:
-  - family availability: implemented
-  - feature depth inside each family: mixed (`implemented` and `partial`), tracked through focused issues and tests
-
-See:
-- [../parity-roadmap.md](../parity-roadmap.md)
+When adding a new visual gate, prefer a concise manifest fixture plus a reviewed
+PNG baseline. If the current output has known geometry debt, keep the manifest
+fixture and link the deferred PNG baseline to the owning issue instead of
+blessing a weak render.
