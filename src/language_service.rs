@@ -1,5 +1,7 @@
 mod completion;
 mod completion_extra;
+#[cfg(test)]
+mod completion_tests;
 mod diagnostics;
 mod document;
 mod formatting;
