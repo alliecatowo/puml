@@ -229,3 +229,49 @@ Shopper --> Checkout
         "hacker theme participant background should reach usecase node fill; svg={svg}"
     );
 }
+
+#[test]
+fn usecase_style_block_stereotype_selectors_reach_nodes() {
+    let src = r##"@startuml
+left to right direction
+<style>
+usecaseDiagram {
+  usecase<<critical>> {
+    BackgroundColor #fee2e2
+    BorderColor #dc2626
+    FontColor #7f1d1d
+  }
+  actor<<external>> {
+    BorderColor #4f46e5
+    FontColor #312e81
+  }
+}
+</style>
+actor Partner <<external>>
+usecase "Escalate refund" <<critical>> as Refund
+Partner --> Refund
+@enduml
+"##;
+    let svg = puml::render_source_to_svg(src).expect("render styled stereotype usecase");
+
+    assert!(
+        svg.contains("fill=\"#fee2e2\""),
+        "usecase stereotype style should set fill; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke=\"#dc2626\""),
+        "usecase stereotype style should set border; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#7f1d1d\">Escalate refund</text>"),
+        "usecase stereotype style should set label color; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke=\"#4f46e5\""),
+        "actor stereotype style should set actor stroke; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#312e81\">Partner</text>"),
+        "actor stereotype style should set actor label color; svg={svg}"
+    );
+}

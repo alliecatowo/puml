@@ -196,6 +196,43 @@ fn component_diagram_style_block_component_colors_reach_svg() {
     );
 }
 
+#[test]
+fn component_inline_visual_style_reaches_shape_and_label() {
+    let src = "\
+@startuml
+component \"Styled API\" as api #back:HoneyDew;line:DarkGreen;line.dashed;line.bold;text:DarkBlue
+[Worker] #back:Lavender;line:Purple;text:Indigo
+api --> Worker
+@enduml
+";
+    let svg = render_svg(src);
+
+    assert!(
+        svg.contains("fill=\"#f0fff0\""),
+        "component back: color should style the component fill; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke=\"#006400\""),
+        "component line: color should style the component border; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "component line.dashed should style the component border; svg={svg}"
+    );
+    assert!(
+        svg.contains("stroke-width=\"3\""),
+        "component line.bold should thicken the component border; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#00008b\">Styled API</text>"),
+        "component text: color should style the component label; svg={svg}"
+    );
+    assert!(
+        svg.contains("fill=\"#e6e6fa\"") && svg.contains("stroke=\"#800080\""),
+        "bracket shorthand inline style should reach component SVG; svg={svg}"
+    );
+}
+
 // ── 7.15  hide @unlinked ──────────────────────────────────────────────────────
 
 #[test]

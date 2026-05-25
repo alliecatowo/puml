@@ -375,30 +375,57 @@ fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option
         };
     }
     match selector {
-        "object" => match key {
-            "backgroundcolor" => Some("ObjectBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("ObjectBorderColor".to_string()),
-            "fontcolor" => Some("ObjectFontColor".to_string()),
-            "fontsize" => Some("ObjectFontSize".to_string()),
-            "fontname" => Some("ObjectFontName".to_string()),
-            _ => None,
-        },
-        "usecase" => match key {
-            "backgroundcolor" => Some("UseCaseBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("UseCaseBorderColor".to_string()),
-            "fontcolor" => Some("UseCaseFontColor".to_string()),
-            "fontsize" => Some("UseCaseFontSize".to_string()),
-            "fontname" => Some("UseCaseFontName".to_string()),
-            _ => None,
-        },
-        "actor" => match key {
-            "backgroundcolor" => Some("ActorBackgroundColor".to_string()),
-            "bordercolor" | "linecolor" => Some("ActorBorderColor".to_string()),
-            "fontcolor" => Some("ActorFontColor".to_string()),
-            "fontsize" => Some("ActorFontSize".to_string()),
-            "fontname" => Some("ActorFontName".to_string()),
-            _ => None,
-        },
+        _ if selector == "object" || selector.starts_with("object<<") => {
+            let scope = style_selector_stereotype(selector, "object");
+            let scoped_key = |base: &str| {
+                scope
+                    .as_ref()
+                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
+                    .unwrap_or_else(|| base.to_string())
+            };
+            match key {
+                "backgroundcolor" => Some(scoped_key("ObjectBackgroundColor")),
+                "bordercolor" | "linecolor" => Some(scoped_key("ObjectBorderColor")),
+                "fontcolor" => Some(scoped_key("ObjectFontColor")),
+                "fontsize" => Some("ObjectFontSize".to_string()),
+                "fontname" => Some("ObjectFontName".to_string()),
+                _ => None,
+            }
+        }
+        _ if selector == "usecase" || selector.starts_with("usecase<<") => {
+            let scope = style_selector_stereotype(selector, "usecase");
+            let scoped_key = |base: &str| {
+                scope
+                    .as_ref()
+                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
+                    .unwrap_or_else(|| base.to_string())
+            };
+            match key {
+                "backgroundcolor" => Some(scoped_key("UseCaseBackgroundColor")),
+                "bordercolor" | "linecolor" => Some(scoped_key("UseCaseBorderColor")),
+                "fontcolor" => Some(scoped_key("UseCaseFontColor")),
+                "fontsize" => Some("UseCaseFontSize".to_string()),
+                "fontname" => Some("UseCaseFontName".to_string()),
+                _ => None,
+            }
+        }
+        _ if selector == "actor" || selector.starts_with("actor<<") => {
+            let scope = style_selector_stereotype(selector, "actor");
+            let scoped_key = |base: &str| {
+                scope
+                    .as_ref()
+                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
+                    .unwrap_or_else(|| base.to_string())
+            };
+            match key {
+                "backgroundcolor" => Some(scoped_key("ActorBackgroundColor")),
+                "bordercolor" | "linecolor" => Some(scoped_key("ActorBorderColor")),
+                "fontcolor" => Some(scoped_key("ActorFontColor")),
+                "fontsize" => Some("ActorFontSize".to_string()),
+                "fontname" => Some("ActorFontName".to_string()),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }

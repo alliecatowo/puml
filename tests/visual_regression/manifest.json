@@ -63,10 +63,46 @@
       "min_text_elements": 3
     },
     {
+      "path": "docs/examples/usecase/08_inline_element_style.puml",
+      "family": "usecase",
+      "expected_text": ["Shopper", "Support", "Browse catalog", "Checkout", "assists"],
+      "min_text_elements": 5,
+      "png_baseline_required": false,
+      "png_baseline_issue": 739,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/08_inline_element_style.png; baseline blessing deferred to Linux CI artifact inspection to avoid macOS raster drift."
+    },
+    {
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
       "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
+      "family": "component",
+      "expected_text": ["CDN Layer", "API Cluster", "Storage Layer", "Event Bus", "Analytics Platform", "Edge Cache", "Load Balancer", "Primary DB", "Kafka", "aggregate"],
+      "min_text_elements": 24,
+      "png_baseline_required": false,
+      "png_baseline_issue": 594,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/08_cloud_db_queue_stereotypes.png; current routes cross package/header regions and whitespace is not yet compact enough to bless."
+    },
+    {
+      "path": "docs/examples/component/10_style_rectangle.puml",
+      "family": "component",
+      "expected_text": ["Backend", "API Server", "Database", "Client"],
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 739,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/10_style_rectangle.png; baseline blessing deferred to Linux CI artifact inspection to avoid macOS raster drift."
+    },
+    {
+      "path": "docs/examples/component/11_multiline_bracket_description.puml",
+      "family": "component",
+      "expected_text": ["Line 1", "Line 2"],
+      "min_text_elements": 2,
+      "png_baseline_required": false,
+      "png_baseline_issue": 739,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/11_multiline_bracket_description.png; baseline blessing deferred to Linux CI artifact inspection to avoid macOS raster drift."
     },
     {
       "path": "docs/examples/object/01_basic.puml",
