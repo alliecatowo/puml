@@ -27,6 +27,7 @@ mod state;
 mod stdlib;
 mod svg;
 mod text;
+mod text_family_misc;
 pub(crate) mod text_metrics;
 mod text_output;
 mod text_specialized;
