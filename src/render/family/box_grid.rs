@@ -11,6 +11,7 @@ use crate::theme::ComponentStyle;
 
 use super::box_grid_edges::render_box_grid_relations_and_labels;
 use super::box_grid_frames::{render_box_grid_package_frames, BoxGridPackageFrameInputs};
+use super::box_grid_ports::apply_boundary_port_positions;
 use super::node_shapes::{render_family_node_shape_styled, DeploymentShapeBounds};
 use super::projections::{family_projection_extra_height, render_family_projection_boxes};
 
@@ -559,14 +560,8 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Collect all obstacle boxes for collision detection.
-    // `all_boxes` holds individual node boxes (used for all arrows).
-    // `pkg_boxes` holds package frames with a list of member node IDs, so we
-    // can exclude a package from blocking an arrow that starts or ends inside it.
-    // ─────────────────────────────────────────────────────────────────────────
+    // Collect obstacle boxes for relation collision detection.
     let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
-    // Package frames: (rect, member_node_ids)
     type PkgFrameBox<'a> = ((i32, i32, i32, i32), &'a [String]);
     let pkg_frame_boxes: Vec<PkgFrameBox> = pkg_layouts
         .iter()
@@ -578,9 +573,6 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         })
         .collect();
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 2+3: Relation routing and label de-collision (extracted helper)
-    // ─────────────────────────────────────────────────────────────────────────
     render_box_grid_relations_and_labels(
         &mut out,
         doc,
@@ -602,158 +594,4 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     let mut scene = gl_result.scene.clone();
     scene.viewport = Rect::new(0.0, 0.0, svg_width as f64, svg_height as f64);
     RenderArtifact::with_scene(out, scene)
-}
-
-#[derive(Clone, Copy)]
-enum BoundaryPortSide {
-    Left,
-    Right,
-    Bottom,
-}
-
-fn apply_boundary_port_positions(
-    doc: &FamilyDocument,
-    positions: &mut std::collections::BTreeMap<String, (i32, i32, i32, i32)>,
-    pkg_layouts: &[PackageLayout],
-    pkg_frame_widths: &[i32],
-    pkg_frame_heights: &[i32],
-    pkg_tab: i32,
-) {
-    let mut node_by_key: std::collections::BTreeMap<&str, &crate::model::FamilyNode> =
-        std::collections::BTreeMap::new();
-    for node in &doc.nodes {
-        node_by_key.entry(node.name.as_str()).or_insert(node);
-        if let Some(alias) = &node.alias {
-            node_by_key.entry(alias.as_str()).or_insert(node);
-        }
-        if let Some(unscoped) = node.name.rsplit("::").next() {
-            node_by_key.entry(unscoped).or_insert(node);
-        }
-    }
-
-    for (idx, pkg) in pkg_layouts.iter().enumerate() {
-        let mut left = Vec::new();
-        let mut right = Vec::new();
-        let mut bottom = Vec::new();
-        for member_id in &pkg.node_ids {
-            let Some(node) = node_by_key
-                .get(member_id.as_str())
-                .or_else(|| {
-                    member_id
-                        .rsplit("::")
-                        .next()
-                        .and_then(|key| node_by_key.get(key))
-                })
-                .copied()
-            else {
-                continue;
-            };
-            if node.kind != FamilyNodeKind::Port {
-                continue;
-            }
-            match boundary_port_side(node) {
-                BoundaryPortSide::Left => left.push(node),
-                BoundaryPortSide::Right => right.push(node),
-                BoundaryPortSide::Bottom => bottom.push(node),
-            }
-        }
-
-        let fx = pkg.abs_x;
-        let fy = pkg.abs_y;
-        let fw = pkg_frame_widths[idx];
-        let fh = pkg_frame_heights[idx];
-        place_boundary_port_side(
-            positions,
-            &left,
-            BoundaryPortSide::Left,
-            fx,
-            fy,
-            fw,
-            fh,
-            pkg_tab,
-        );
-        place_boundary_port_side(
-            positions,
-            &right,
-            BoundaryPortSide::Right,
-            fx,
-            fy,
-            fw,
-            fh,
-            pkg_tab,
-        );
-        place_boundary_port_side(
-            positions,
-            &bottom,
-            BoundaryPortSide::Bottom,
-            fx,
-            fy,
-            fw,
-            fh,
-            pkg_tab,
-        );
-    }
-}
-
-fn boundary_port_side(node: &crate::model::FamilyNode) -> BoundaryPortSide {
-    if node
-        .members
-        .iter()
-        .any(|member| member.text == "<<portin>>")
-    {
-        BoundaryPortSide::Left
-    } else if node
-        .members
-        .iter()
-        .any(|member| member.text == "<<portout>>")
-    {
-        BoundaryPortSide::Right
-    } else {
-        BoundaryPortSide::Bottom
-    }
-}
-
-fn place_boundary_port_side(
-    positions: &mut std::collections::BTreeMap<String, (i32, i32, i32, i32)>,
-    ports: &[&crate::model::FamilyNode],
-    side: BoundaryPortSide,
-    fx: i32,
-    fy: i32,
-    fw: i32,
-    fh: i32,
-    pkg_tab: i32,
-) {
-    const PORT_SIZE: i32 = 24;
-    if ports.is_empty() {
-        return;
-    }
-    for (slot, node) in ports.iter().enumerate() {
-        let slot = slot as i32;
-        let count = ports.len() as i32;
-        let (cx, cy) = match side {
-            BoundaryPortSide::Left => {
-                let usable_h = (fh - pkg_tab - 40).max(1);
-                let y = fy + pkg_tab + 20 + usable_h * (slot + 1) / (count + 1);
-                (fx, y)
-            }
-            BoundaryPortSide::Right => {
-                let usable_h = (fh - pkg_tab - 40).max(1);
-                let y = fy + pkg_tab + 20 + usable_h * (slot + 1) / (count + 1);
-                (fx + fw, y)
-            }
-            BoundaryPortSide::Bottom => {
-                let usable_w = (fw - 48).max(1);
-                let x = fx + 24 + usable_w * (slot + 1) / (count + 1);
-                (x, fy + fh)
-            }
-        };
-        let pos = (cx - PORT_SIZE / 2, cy - PORT_SIZE / 2, PORT_SIZE, PORT_SIZE);
-        positions.insert(node.name.clone(), pos);
-        if let Some(alias) = &node.alias {
-            positions.insert(alias.clone(), pos);
-        }
-        if let Some(unscoped) = node.name.rsplit("::").next() {
-            positions.insert(unscoped.to_string(), pos);
-        }
-    }
 }
