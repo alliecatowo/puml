@@ -189,7 +189,16 @@ fn workspace_commands_route_render_scene_export_and_explain_diagnostic() {
         .as_str()
         .expect("svg content")
         .contains("<svg"));
+    assert_eq!(exported["artifact"]["format"], "svg");
+    assert_eq!(exported["artifact"]["mediaType"], "image/svg+xml");
+    assert!(
+        exported["artifact"]["dimensions"]["width"]
+            .as_f64()
+            .expect("artifact width")
+            > 0.0
+    );
     assert_eq!(exported["pages"][0]["name"], "diagram-1.svg");
+    assert_eq!(exported["pages"][0]["artifact"]["format"], "svg");
     assert_eq!(exported["diagnostics"], json!([]));
 
     let explained = request_result(&messages, 4);
@@ -243,6 +252,7 @@ fn workspace_command_json_shapes_are_deterministic() {
             .cloned()
             .collect::<Vec<_>>(),
         vec![
+            "artifact",
             "content",
             "contentBase64",
             "diagnostics",

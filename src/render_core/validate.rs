@@ -90,6 +90,7 @@ fn validate_edge_routes(scene: &RenderScene, issues: &mut Vec<GeometryIssue>) {
         validate_edge_endpoints(scene, edge, issues);
         validate_edge_node_clearance(scene, edge, issues);
         validate_edge_group_header_clearance(scene, edge, issues);
+        validate_edge_route_channel_ownership(scene, edge, issues);
         validate_edge_label_proximity(edge, issues);
     }
 }
@@ -228,6 +229,44 @@ fn validate_edge_group_header_clearance(
             }
         }
     }
+}
+
+fn validate_edge_route_channel_ownership(
+    scene: &RenderScene,
+    edge: &SceneEdge,
+    issues: &mut Vec<GeometryIssue>,
+) {
+    if scene.route_channels.is_empty() {
+        return;
+    }
+    for segment in edge.route.segments() {
+        if !segment.is_horizontal() || segment.length() <= f64::EPSILON {
+            continue;
+        }
+        let covered = scene.route_channels.values().any(|channel| {
+            channel.owner_edge_ids.iter().any(|id| id == &edge.id)
+                && rect_contains_segment(channel.bounds, segment)
+        });
+        if !covered {
+            issues.push(GeometryIssue::EdgeRouteOutsideChannel {
+                edge_id: edge.id.clone(),
+                segment,
+            });
+        }
+    }
+}
+
+fn rect_contains_segment(rect: Rect, segment: Segment) -> bool {
+    rect_contains_point_with_tolerance(rect, segment.start)
+        && rect_contains_point_with_tolerance(rect, segment.end)
+}
+
+fn rect_contains_point_with_tolerance(rect: Rect, point: Point) -> bool {
+    const TOLERANCE: f64 = 0.5;
+    point.x >= rect.min_x() - TOLERANCE
+        && point.x <= rect.max_x() + TOLERANCE
+        && point.y >= rect.min_y() - TOLERANCE
+        && point.y <= rect.max_y() + TOLERANCE
 }
 
 fn validate_edge_label_proximity(edge: &SceneEdge, issues: &mut Vec<GeometryIssue>) {

@@ -8,6 +8,7 @@
 //! round-trip: parse → normalize → render → SVG post-processing.
 
 use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
+use puml::render::RenderValidationState;
 use puml::render_core::validate::GeometryMetric;
 use puml::render_core::{
     Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneAvailability,
@@ -370,17 +371,38 @@ A --> B
         "artifact should retain normalizer diagnostics for callers that do not own the model"
     );
     assert!(
-        artifact.scene.is_some(),
+        artifact.typed_scene().is_some(),
         "graph-family artifact should expose the typed scene"
+    );
+    assert!(
+        artifact.typed_scene().is_some(),
+        "typed scene accessor should expose migrated graph-family geometry"
+    );
+    assert!(
+        matches!(
+            artifact.scene_contract(),
+            puml::RenderSceneContract::Typed(scene) if !scene.nodes.is_empty()
+        ),
+        "scene contract should encode migrated typed scene availability"
     );
     assert_eq!(
         artifact.scene_availability,
         SceneAvailability::TypedScene,
         "graph-family artifact should make typed scene availability explicit"
     );
+    assert_eq!(
+        artifact.scene_availability(),
+        SceneAvailability::TypedScene,
+        "scene availability should also be available through the artifact contract"
+    );
     assert!(
         artifact.invariant_report.is_some(),
         "graph-family artifact should retain the validation report from the same render pass"
+    );
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::TypedScene,
+        "graph-family artifact validation should be explicitly tied to the typed scene"
     );
 }
 
@@ -399,10 +421,26 @@ fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
         artifact.scene.is_none(),
         "sequence still lacks a typed RenderScene bridge and should say so explicitly"
     );
+    assert!(
+        matches!(
+            artifact.scene_contract(),
+            puml::RenderSceneContract::NotMigrated
+        ),
+        "unmigrated scene absence should be explicit in the contract"
+    );
+    let err = artifact
+        .require_typed_scene()
+        .expect_err("sequence should report not-migrated typed scene");
+    assert!(err.message.contains("E_RENDER_SCENE_NOT_MIGRATED"));
     assert_eq!(
         artifact.scene_availability,
         SceneAvailability::NotMigrated,
         "unmigrated renderers must be explicit instead of silent scene=None"
+    );
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::NotRun,
+        "unmigrated non-family artifacts should expose that no scene validation ran"
     );
 }
 
@@ -425,6 +463,35 @@ fn graph_family_artifacts_preserve_svg_api_for_class_and_deployment() {
         assert!(!scene.nodes.is_empty(), "scene should expose typed nodes");
         assert!(!scene.edges.is_empty(), "scene should expose typed edges");
         assert_eq!(report.typed_metrics, scene.validate_scene().metrics);
+    }
+}
+
+#[test]
+fn usecase_and_c4_graph_artifacts_expose_route_channels_and_typed_edge_labels() {
+    let fixtures = [
+        include_str!("../docs/examples/usecase/06_multi_system_boundary.puml"),
+        include_str!("fixtures/families/valid_c4_full_system.puml"),
+    ];
+
+    for source in fixtures {
+        let artifact = render_family_artifact(source);
+        let scene = artifact.scene.as_ref().expect("graph-family scene");
+        let report = artifact
+            .invariant_report
+            .as_ref()
+            .expect("graph-family invariant report");
+
+        assert!(
+            !scene.route_channels.is_empty(),
+            "migrated graph family should expose shared route channels"
+        );
+        assert!(
+            scene.edges.values().any(|edge| !edge.labels.is_empty()),
+            "migrated graph family should expose typed edge labels"
+        );
+        assert!(report.typed_metrics.iter().any(
+            |metric| matches!(metric, GeometryMetric::RouteChannels { count, .. } if *count > 0)
+        ));
     }
 }
 

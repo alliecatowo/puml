@@ -43,6 +43,7 @@ pub struct EdgeSpec {
     pub id: String,
     pub from: String,
     pub to: String,
+    pub label: Option<String>,
 }
 
 /// Result of the layout pass.

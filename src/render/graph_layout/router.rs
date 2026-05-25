@@ -8,25 +8,13 @@ mod channels;
 mod contract;
 mod obstacles;
 
-use channels::{build_route_channels, RouteChannelBuildInput};
+use channels::{
+    build_route_channels, collect_channel_edge_owners, ChannelEdgeOwner, RouteChannelBuildInput,
+};
 #[cfg(test)]
 pub(super) use contract::RouteOptions;
 pub(super) use contract::{route_edges, ChannelRouter, RouteRequest, Router, RoutingResult};
 use obstacles::{detour_x_for_vertical_route, vertical_route_crosses_node, VerticalRouteCheck};
-
-//
-// Algorithm:
-//   a. Compute inter-rank channels: horizontal routing bands between adjacent
-//      ranks, each 24px tall. Channels are indexed by (upper_rank, lower_rank).
-//   b. Assign each edge a track within each channel it passes through.
-//      Track assignment is greedy (sorted by source x), enforcing no two edges
-//      share (channel, track).
-//   c. Generate orthogonal polyline: bottom-port → vertical → horizontal in
-//      channel → vertical → top-port. Multi-rank edges zigzag through each
-//      intermediate channel.
-//   d. Same-rank edges use a U-shape: down into channel BELOW the rank,
-//      horizontal, then back up.
-// ─────────────────────────────────────────────────────────────────────────────
 
 impl Router for ChannelRouter {
     fn route(&self, request: RouteRequest<'_>) -> RoutingResult {
@@ -328,6 +316,13 @@ impl Router for ChannelRouter {
             }
             m
         };
+        let channel_edge_owners =
+            collect_channel_edge_owners(edge_infos.iter().map(|ei| ChannelEdgeOwner {
+                edge_id: ei.edge_id.as_str(),
+                src_rank: ei.src_rank,
+                tgt_rank: ei.tgt_rank,
+                track: *edge_track.get(&ei.edge_id).unwrap_or(&0),
+            }));
 
         // Symmetric track offset for a given channel and track index.
         // With n_tracks tracks in channel `ch`, track i is at:
@@ -581,6 +576,7 @@ impl Router for ChannelRouter {
             edge_paths: paths,
             route_channels: build_route_channels(RouteChannelBuildInput {
                 channel_max_track: &channel_max_track,
+                channel_edge_owners: &channel_edge_owners,
                 positions,
                 nodes,
                 group_bounds,

@@ -37,92 +37,38 @@ mod timing;
 pub mod validate;
 mod wire;
 
-use crate::diagnostic::Diagnostic;
 use crate::model::ScaleSpec;
-use crate::render_core::RenderScene;
-use crate::render_core::{BackendFormat, Rect, SceneAvailability};
+pub use crate::output::{RenderArtifact, RenderArtifactDimensions, RenderSceneContract};
+use crate::render_core::SceneAvailability;
 
-#[derive(Debug)]
-pub struct RenderArtifact {
-    pub svg: String,
-    pub format: BackendFormat,
-    pub dimensions: Option<RenderArtifactDimensions>,
-    pub diagnostics: Vec<Diagnostic>,
-    pub scene_availability: SceneAvailability,
-    pub scene: Option<RenderScene>,
-    pub invariant_report: Option<validate::InvariantReport>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RenderArtifactDimensions {
-    pub width: f64,
-    pub height: f64,
-    pub view_box: Option<Rect>,
-}
-
-impl Default for RenderArtifact {
-    fn default() -> Self {
-        Self {
-            svg: String::new(),
-            format: BackendFormat::Svg,
-            dimensions: None,
-            diagnostics: Vec::new(),
-            scene_availability: SceneAvailability::NotMigrated,
-            scene: None,
-            invariant_report: None,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderValidationState {
+    NotRun,
+    SvgBackstop,
+    TypedScene,
 }
 
 impl RenderArtifact {
-    pub fn svg_only(svg: String) -> Self {
-        let mut artifact = Self {
-            svg,
-            format: BackendFormat::Svg,
-            dimensions: None,
-            diagnostics: Vec::new(),
-            scene_availability: SceneAvailability::NotMigrated,
-            scene: None,
-            invariant_report: None,
-        };
-        artifact.refresh_svg_metadata();
-        artifact
+    pub fn scene_availability(&self) -> SceneAvailability {
+        self.scene_availability
     }
 
-    pub fn with_scene(svg: String, scene: RenderScene) -> Self {
-        let mut artifact = Self {
-            svg,
-            format: BackendFormat::Svg,
-            dimensions: None,
-            diagnostics: Vec::new(),
-            scene_availability: SceneAvailability::TypedScene,
-            scene: Some(scene),
-            invariant_report: None,
-        };
-        artifact.refresh_svg_metadata();
-        artifact
-    }
-
-    pub fn with_scene_availability(mut self, scene_availability: SceneAvailability) -> Self {
-        if matches!(scene_availability, SceneAvailability::TypedScene) && self.scene.is_none() {
-            self.scene_availability = SceneAvailability::NotMigrated;
-        } else {
-            self.scene_availability = scene_availability;
+    pub fn validation_state(&self) -> RenderValidationState {
+        match (&self.invariant_report, self.typed_scene()) {
+            (None, _) => RenderValidationState::NotRun,
+            (Some(_), Some(_)) => RenderValidationState::TypedScene,
+            (Some(_), None) => RenderValidationState::SvgBackstop,
         }
-        self
     }
 
-    pub fn media_type(&self) -> &'static str {
-        self.format.media_type()
-    }
-
-    pub fn with_diagnostics(mut self, diagnostics: Vec<Diagnostic>) -> Self {
-        self.diagnostics = diagnostics;
-        self
-    }
-
-    pub fn refresh_svg_metadata(&mut self) {
-        self.dimensions = svg_dimensions(&self.svg);
+    pub fn validate_svg(&mut self, mode: validate::AutoCorrect) {
+        let scene = if matches!(self.scene_availability, SceneAvailability::TypedScene) {
+            self.scene.as_ref()
+        } else {
+            None
+        };
+        self.invariant_report = Some(validate::run_with_scene(&mut self.svg, scene, mode).into());
+        self.refresh_svg_metadata();
     }
 }
 
@@ -292,35 +238,11 @@ fn scaled_svg_dimensions(width: i32, height: i32, scale: &ScaleSpec) -> (i32, i3
     (scaled.0.max(1), scaled.1.max(1))
 }
 
-fn svg_dimensions(svg: &str) -> Option<RenderArtifactDimensions> {
-    let width = svg_numeric_value_attr(svg, "width")?;
-    let height = svg_numeric_value_attr(svg, "height")?;
-    Some(RenderArtifactDimensions {
-        width,
-        height,
-        view_box: svg_viewbox_attr(svg),
-    })
-}
-
 fn svg_numeric_value_attr(svg: &str, attr: &str) -> Option<f64> {
     let needle = format!("{attr}=\"");
     let start = svg.find(&needle)? + needle.len();
     let value = svg[start..].split('"').next()?;
     value.parse::<f64>().ok()
-}
-
-fn svg_viewbox_attr(svg: &str) -> Option<Rect> {
-    let start = svg.find("viewBox=\"")? + "viewBox=\"".len();
-    let value = svg[start..].split('"').next()?;
-    let mut parts = value
-        .split(|ch: char| ch.is_ascii_whitespace() || ch == ',')
-        .filter(|part| !part.is_empty())
-        .map(str::parse::<f64>);
-    let x = parts.next()?.ok()?;
-    let y = parts.next()?.ok()?;
-    let width = parts.next()?.ok()?;
-    let height = parts.next()?.ok()?;
-    Some(Rect::new(x, y, width, height))
 }
 
 fn svg_numeric_attr(svg: &str, attr: &str) -> Option<i32> {
