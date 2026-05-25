@@ -28,6 +28,7 @@ mod text;
 pub(crate) mod text_metrics;
 mod text_output;
 mod text_specialized;
+mod text_timeline;
 mod timeline;
 mod timing;
 pub mod validate;

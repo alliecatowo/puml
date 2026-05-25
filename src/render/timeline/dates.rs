@@ -6,7 +6,6 @@ pub(super) fn parse_relative_day(raw: &str) -> Option<u32> {
 
 pub(super) fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
     let normalized = raw
-        .trim()
         .split_whitespace()
         .next()
         .unwrap_or("")
