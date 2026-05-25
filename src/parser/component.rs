@@ -26,7 +26,8 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             continue;
         }
         let rest = rest_raw.trim_end_matches('{').trim();
-        let (rest, fill_color) = split_declaration_inline_fill(rest);
+        let (rest, inline_style) = split_declaration_inline_style(rest);
+        let fill_color = inline_style.fill_color;
         let rest = rest.trim();
         let (rest_without_stereotypes, stereotypes) = strip_declaration_stereotypes(rest);
         let rest = rest_without_stereotypes.trim();
@@ -85,6 +86,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             _ => {}
         }
         append_inline_fill_member(&mut members, fill_color);
+        append_inline_style_members(&mut members, inline_style.members);
         return Some(StatementKind::ComponentDecl {
             kind,
             name,
@@ -213,7 +215,8 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
     let inner = rest[..end].trim();
     let suffix = rest[end + 1..].trim();
     let (suffix_without_tags, tags) = split_component_trailing_tags(suffix);
-    let suffix = suffix_without_tags.trim();
+    let (suffix, inline_style) = split_declaration_inline_style(suffix_without_tags.trim());
+    let suffix = suffix.trim();
     if !suffix.is_empty() && !suffix.starts_with("as ") {
         return None;
     }
@@ -238,6 +241,8 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
             members: {
                 let mut members = Vec::new();
                 append_component_tag_members(&mut members, tags);
+                append_inline_fill_member(&mut members, inline_style.fill_color);
+                append_inline_style_members(&mut members, inline_style.members);
                 members
             },
         });

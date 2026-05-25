@@ -3,7 +3,7 @@ use super::family_node_shapes::{render_family_node_shape, render_node_stereotype
 use super::tree::render_centered_multiline_text;
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::escape_text;
-use crate::theme::{ComponentStyle, ComponentStyleMode};
+use crate::theme::{family_node_inline_style, ComponentStyle, ComponentStyleMode};
 
 #[derive(Clone, Copy)]
 pub(super) struct DeploymentShapeBounds {
@@ -133,6 +133,21 @@ pub(super) fn render_family_node_shape_styled(
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
     let kind_label = family_node_label(node.kind);
+    let inline_style = family_node_inline_style(node);
+    let stroke = inline_style
+        .border_color
+        .as_deref()
+        .unwrap_or(&comp_style.border_color);
+    let font_color = inline_style
+        .text_color
+        .as_deref()
+        .unwrap_or(&comp_style.font_color);
+    let stroke_dash = if inline_style.border_dashed {
+        " stroke-dasharray=\"5 3\""
+    } else {
+        ""
+    };
+    let stroke_width = inline_style.border_thickness.unwrap_or(1.5);
     out.push_str(&format!(
         "<desc data-uml-id=\"{}\">{}</desc>",
         escape_text(&node.name),
@@ -147,8 +162,8 @@ pub(super) fn render_family_node_shape_styled(
                 .as_deref()
                 .unwrap_or(&comp_style.interface_color);
             out.push_str(&format!(
-                "<circle class=\"uml-node uml-interface\" data-uml-kind=\"interface\" cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                cx, cy, r, fill, comp_style.border_color
+                "<circle class=\"uml-node uml-interface\" data-uml-kind=\"interface\" cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                cx, cy, r, fill, escape_text(stroke), stroke_width, stroke_dash
             ));
         }
         FamilyNodeKind::Port => {
@@ -166,14 +181,16 @@ pub(super) fn render_family_node_shape_styled(
                 ""
             };
             out.push_str(&format!(
-                "<rect class=\"uml-node uml-port\" data-uml-kind=\"port\" data-uml-port-direction=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                "<rect class=\"uml-node uml-port\" data-uml-kind=\"port\" data-uml-port-direction=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
                 escape_text(port_dir),
                 cx - pw / 2,
                 cy - ph / 2,
                 pw,
                 ph,
                 fill,
-                comp_style.border_color
+                escape_text(stroke),
+                stroke_width,
+                stroke_dash
             ));
         }
         FamilyNodeKind::Component => {
@@ -185,39 +202,39 @@ pub(super) fn render_family_node_shape_styled(
                 ComponentStyleMode::Rectangle => {
                     // Rectangle style: plain rect, no component icon
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y, w, h, fill, comp_style.border_color
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                 }
                 ComponentStyleMode::Uml1 => {
                     // UML1: rectangle with component icon badges in the top-right corner
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y, w, h, fill, comp_style.border_color
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                     let bx = x + w - 18;
                     out.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        bx, y + 8, fill, comp_style.border_color
+                        bx, y + 8, fill, escape_text(stroke)
                     ));
                     out.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        bx, y + 20, fill, comp_style.border_color
+                        bx, y + 20, fill, escape_text(stroke)
                     ));
                 }
                 ComponentStyleMode::Uml2 => {
                     // UML2 (default): rectangle with badge rects on the left edge
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y, w, h, fill, comp_style.border_color
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                     out.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x - 4, y + 12, fill, comp_style.border_color
+                        x - 4, y + 12, fill, escape_text(stroke)
                     ));
                     out.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x - 4, y + h - 20, fill, comp_style.border_color
+                        x - 4, y + h - 20, fill, escape_text(stroke)
                     ));
                 }
             }
@@ -501,7 +518,7 @@ pub(super) fn render_family_node_shape_styled(
         label_y,
         13,
         "600",
-        Some(&comp_style.font_color),
+        Some(font_color),
         &display,
     );
     let kind_tag_y = match node.kind {
@@ -526,7 +543,7 @@ pub(super) fn render_family_node_shape_styled(
         };
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-            cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
+            cx, kind_tag_y, escape_text(font_color), escape_text(&kind_tag_text)
         ));
     }
     if !hide_stereotype {

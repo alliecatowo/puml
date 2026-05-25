@@ -278,8 +278,18 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
                     let display_label = parts.next().map(str::to_string);
                     let node_kind_hint = parts.next();
-                    let fill_color = parts
-                        .find_map(|part| part.strip_prefix("\x1fstyle:fill:").map(str::to_string));
+                    let mut fill_color = None;
+                    let mut style_members = Vec::new();
+                    for part in parts {
+                        if let Some(color) = part.strip_prefix("\x1fstyle:fill:") {
+                            fill_color = Some(color.to_string());
+                        } else if part.starts_with("\x1fstyle:") {
+                            style_members.push(ClassMember {
+                                text: part.to_string(),
+                                modifier: None,
+                            });
+                        }
+                    }
                     let unscoped_alias = node_id
                         .rsplit("::")
                         .next()
@@ -301,10 +311,14 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                             kind: fallback_kind,
                             name: node_id,
                             alias: unscoped_alias,
-                            members: display_label
-                                .as_deref()
-                                .map(extract_inline_stereotype_members)
-                                .unwrap_or_default(),
+                            members: {
+                                let mut members = display_label
+                                    .as_deref()
+                                    .map(extract_inline_stereotype_members)
+                                    .unwrap_or_default();
+                                members.extend(style_members);
+                                members
+                            },
                             depth: 0,
                             label: display_label.map(strip_inline_stereotypes),
                             mindmap_side: MindMapSide::Right,

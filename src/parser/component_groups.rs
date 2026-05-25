@@ -169,6 +169,12 @@ fn push_scoped_component_decl(
         encoded.push('\t');
         encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
     }
+    for member in members {
+        if member.text.starts_with("\x1fstyle:") && !member.text.starts_with("\x1fstyle:fill:") {
+            encoded.push('\t');
+            encoded.push_str(&member.text);
+        }
+    }
     content.members.push(encoded);
 }
 
