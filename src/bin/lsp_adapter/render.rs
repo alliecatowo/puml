@@ -256,7 +256,7 @@ fn export_artifact_summary(artifact: Option<&RenderArtifact>) -> Value {
         "diagnostics": artifact.diagnostics.len(),
         "invariants": artifact.invariant_report.as_ref().map(|report| {
             json!({
-                "violations": report.svg_violations,
+                "svgViolations": report.svg_violations,
                 "typedIssues": report.typed_issues.len(),
                 "typedMetrics": report.typed_metrics.len(),
                 "expansions": report.expansions,

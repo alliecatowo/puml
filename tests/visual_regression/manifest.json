@@ -105,6 +105,15 @@
       "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/11_multiline_bracket_description.png; baseline blessing deferred to Linux CI artifact inspection to avoid macOS raster drift."
     },
     {
+      "path": "docs/examples/component/12_style_stereotype_targets.puml",
+      "family": "component",
+      "expected_text": ["Component style selectors and stereotypes", "Public API", "Worker", "Events", "HTTPS", "dispatch", "publish", "serve"],
+      "min_text_elements": 10,
+      "png_baseline_required": false,
+      "png_baseline_issue": 594,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-style-targets-component.png; new selector fixture is structural until renderer compactness baselines are refreshed consistently."
+    },
+    {
       "path": "docs/examples/object/01_basic.puml",
       "family": "object",
       "expected_text": ["Alice : Person", "Bob : Person", "knows"],
@@ -240,6 +249,15 @@
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
       "png_baseline_deferred_reason": "Current nested group routing has known header and compactness debt."
+    },
+    {
+      "path": "docs/examples/deployment/09_style_kind_targets.puml",
+      "family": "deployment",
+      "expected_text": ["Deployment style selectors by kind", "Edge", "Web", "Jobs", "DB", "route", "enqueue", "persist"],
+      "min_text_elements": 8,
+      "png_baseline_required": false,
+      "png_baseline_issue": 594,
+      "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-style-targets-deployment.png; new selector fixture is structural until renderer compactness baselines are refreshed consistently."
     },
     {
       "path": "docs/examples/usecase/06_multi_system_boundary.puml",

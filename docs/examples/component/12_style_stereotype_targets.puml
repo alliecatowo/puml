@@ -1,0 +1,32 @@
+@startuml
+title Component style selectors and stereotypes
+skinparam componentStyle uml2
+
+<style>
+componentDiagram {
+  component<<service>> {
+    BackgroundColor #dcfce7
+    BorderColor #15803d
+    FontColor #14532d
+  }
+  interface {
+    BackgroundColor #fef3c7
+    BorderColor #b45309
+    FontColor #92400e
+  }
+  port {
+    BackgroundColor #e0f2fe
+    BorderColor #0369a1
+    FontColor #075985
+  }
+}
+</style>
+
+component "Public API" as API <<service>>
+component "Worker" as Worker
+interface Events
+port HTTPS
+API --> Worker : dispatch
+API --> Events : publish
+Worker --> HTTPS : serve
+@enduml

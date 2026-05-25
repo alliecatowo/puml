@@ -6,7 +6,7 @@ use puml::theme::{
     classify_wbs_skinparam, component_style_from_sequence_theme, css3_color_to_hex,
     hex_color_is_dark, mindmap_style_from_sequence_theme, resolve_sequence_theme_preset,
     state_style_from_sequence_theme, timing_style_from_sequence_theme, ComponentStyleMode,
-    GenericSkinParamValue, SkinParamSupport, LOCAL_SEQUENCE_THEME_CATALOG,
+    ComponentStyleTarget, GenericSkinParamValue, SkinParamSupport, LOCAL_SEQUENCE_THEME_CATALOG,
 };
 use puml::{
     normalize_family, parse, render_source_to_svg_for_family, DiagramFamily, NormalizedDocument,
@@ -269,6 +269,87 @@ fn deployment_style_cascade_applies_theme_skinparam_and_style_to_svg() {
 }
 
 #[test]
+fn component_style_cascade_applies_stereotype_interface_and_port_targets() {
+    let src = include_str!("fixtures/styling/valid_style_cascade_component_targets.puml");
+    let doc = parse(src).expect("component target style cascade should parse");
+    let normalized =
+        normalize_family(doc).expect("component target style cascade should normalize");
+    let NormalizedDocument::Family(family) = normalized else {
+        panic!("expected family document");
+    };
+    let Some(puml::model::FamilyStyle::Component(style)) = &family.family_style else {
+        panic!("expected component family style");
+    };
+    let service = style
+        .stereotype_styles
+        .get("service")
+        .expect("component stereotype style should be retained");
+    assert_eq!(service.background_color.as_deref(), Some("#dcfce7"));
+    assert_eq!(service.border_color.as_deref(), Some("#15803d"));
+    assert_eq!(service.font_color.as_deref(), Some("#14532d"));
+    let interface = style
+        .target_styles
+        .get(&ComponentStyleTarget::Interface)
+        .expect("interface target style should be retained");
+    assert_eq!(interface.background_color.as_deref(), Some("#fef3c7"));
+    assert_eq!(interface.border_color.as_deref(), Some("#b45309"));
+    let port = style
+        .target_styles
+        .get(&ComponentStyleTarget::Port)
+        .expect("port target style should be retained");
+    assert_eq!(port.background_color.as_deref(), Some("#e0f2fe"));
+    assert_eq!(port.font_color.as_deref(), Some("#075985"));
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Component)
+        .expect("component target style cascade should render");
+    for expected in [
+        "#dcfce7", "#15803d", "#14532d", "#fef3c7", "#b45309", "#e0f2fe", "#0369a1", "#075985",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "component target style {expected} should reach SVG: {svg}"
+        );
+    }
+}
+
+#[test]
+fn deployment_style_cascade_applies_distinct_shape_targets() {
+    let src = include_str!("fixtures/styling/valid_style_cascade_deployment_targets.puml");
+    let doc = parse(src).expect("deployment target style cascade should parse");
+    let normalized =
+        normalize_family(doc).expect("deployment target style cascade should normalize");
+    let NormalizedDocument::Family(family) = normalized else {
+        panic!("expected family document");
+    };
+    let Some(puml::model::FamilyStyle::Component(style)) = &family.family_style else {
+        panic!("expected component style for deployment family");
+    };
+    for target in [
+        ComponentStyleTarget::Node,
+        ComponentStyleTarget::Database,
+        ComponentStyleTarget::Queue,
+        ComponentStyleTarget::Cloud,
+    ] {
+        assert!(
+            style.target_styles.contains_key(&target),
+            "target style should be retained for {target:?}"
+        );
+    }
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Deployment)
+        .expect("deployment target style cascade should render");
+    for expected in [
+        "#dbeafe", "#2563eb", "#1e3a8a", "#fef3c7", "#b45309", "#78350f", "#fae8ff", "#a21caf",
+        "#701a75", "#ecfeff", "#0891b2", "#164e63",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "deployment target style {expected} should reach SVG: {svg}"
+        );
+    }
+}
+
+#[test]
 fn graph_style_unsupported_rules_warn_deterministically_but_render() {
     let src = "@startuml\n\
 <style>\n\
@@ -293,6 +374,43 @@ class A\n\
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class)
         .expect("unsupported graph style should still render");
     assert!(svg.contains(">A<"));
+}
+
+#[test]
+fn component_style_unsupported_targets_warn_deterministically_but_render() {
+    let src = "@startuml\n\
+<style>\n\
+componentDiagram {\n\
+  component {\n\
+    RoundCorner 12\n\
+  }\n\
+  cloud {\n\
+    BackgroundColor #ecfeff\n\
+  }\n\
+}\n\
+</style>\n\
+component API\n\
+@enduml\n";
+    let doc = parse(src).expect("unsupported component style should parse");
+    let normalized = normalize_family(doc).expect("unsupported component style should normalize");
+    let NormalizedDocument::Family(family) = normalized else {
+        panic!("expected family document");
+    };
+    let messages: Vec<&str> = family
+        .warnings
+        .iter()
+        .map(|warning| warning.message.as_str())
+        .collect();
+    assert_eq!(
+        messages,
+        vec![
+            "[W_STYLE_UNSUPPORTED] unsupported style `BackgroundColor` in selector `cloud`",
+            "[W_STYLE_UNSUPPORTED] unsupported style `RoundCorner` in selector `component`",
+        ]
+    );
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Component)
+        .expect("unsupported component style should still render");
+    assert!(svg.contains(">API<"));
 }
 
 #[test]
