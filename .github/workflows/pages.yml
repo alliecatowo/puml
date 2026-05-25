@@ -114,7 +114,7 @@ jobs:
         run: node site/scripts/smoke-inline-fence-preview.mjs site --require-wasm
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/public
 
