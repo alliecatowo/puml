@@ -266,18 +266,10 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifac
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place. Diagnostic-only violations are silently recorded.
-    artifact.invariant_report = Some(
-        render::validate::run_with_scene(
-            &mut artifact.svg,
-            artifact.scene.as_ref(),
-            render::validate::AutoCorrect::Apply,
-        )
-        .into(),
-    );
+    artifact.validate_svg(render::validate::AutoCorrect::Apply);
     if let Some(scale) = &family.scale {
         render::apply_scale_svg(&mut artifact.svg, scale);
     }
     artifact.refresh_svg_metadata();
-    artifact.diagnostics = family.warnings.clone();
-    artifact
+    artifact.with_diagnostics(family.warnings.clone())
 }
