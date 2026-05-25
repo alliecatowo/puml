@@ -1,0 +1,19 @@
+@startuml
+box "Client Side" #eef6ff
+participant Alice
+end box
+participant Bob
+
+Alice -> Bob : request
+activate Bob
+alt accepted
+  note right of Bob
+    validates typed
+    note geometry
+  end note
+  Bob --> Alice : ok
+else rejected
+  Bob --> Alice : retry
+end
+deactivate Bob
+@enduml

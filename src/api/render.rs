@@ -115,7 +115,7 @@ pub fn render_artifact_pages_from_model(model: &NormalizedDocument) -> Vec<Rende
                     scenes
                         .iter()
                         .map(|scene| {
-                            RenderArtifact::svg_only(render::render_svg(scene))
+                            render::render_sequence_artifact(scene)
                                 .with_diagnostics(sequence.warnings.clone())
                         })
                         .collect::<Vec<_>>()

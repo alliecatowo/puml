@@ -408,8 +408,8 @@ A --> B
 }
 
 #[test]
-fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
-    let source = "@startuml\nAlice -> Bob : hello\n@enduml\n";
+fn sequence_render_artifacts_preserve_svg_api_and_attach_typed_scene() {
+    let source = include_str!("fixtures/e2e/sequence_typed_scene_contract.puml");
     let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");
     assert_eq!(artifacts.len(), 1);
 
@@ -418,30 +418,118 @@ fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
     assert!(artifact
         .dimensions
         .is_some_and(|dimensions| dimensions.view_box.is_some()));
-    assert!(
-        artifact.scene.is_none(),
-        "sequence still lacks a typed RenderScene bridge and should say so explicitly"
-    );
-    assert!(
-        matches!(
-            artifact.scene_contract(),
-            puml::RenderSceneContract::NotMigrated
-        ),
-        "unmigrated scene absence should be explicit in the contract"
-    );
-    let err = artifact
+    let scene = artifact
         .require_typed_scene()
-        .expect_err("sequence should report not-migrated typed scene");
-    assert!(err.message.contains("E_RENDER_SCENE_NOT_MIGRATED"));
+        .expect("sequence should expose typed RenderScene");
+    assert!(
+        scene.nodes.contains_key("participant:Alice"),
+        "sequence scene should expose participant node boxes"
+    );
+    assert!(
+        scene.nodes.keys().any(|id| id.starts_with("activation:")),
+        "sequence scene should expose activation boxes"
+    );
+    assert_eq!(
+        scene.edges.len(),
+        3,
+        "sequence scene should expose one typed edge per rendered message"
+    );
+    assert!(
+        scene.groups.keys().any(|id| id.contains(":alt")),
+        "sequence scene should expose combined-fragment group frames"
+    );
+    assert!(
+        scene.nodes.keys().any(|id| id.starts_with("note:")),
+        "sequence scene should expose note boxes"
+    );
     assert_eq!(
         artifact.scene_availability,
-        SceneAvailability::NotMigrated,
-        "unmigrated renderers must be explicit instead of silent scene=None"
+        SceneAvailability::TypedScene,
+        "sequence renderers must make typed scene availability explicit"
     );
     assert_eq!(
         artifact.validation_state(),
-        RenderValidationState::NotRun,
-        "unmigrated non-family artifacts should expose that no scene validation ran"
+        RenderValidationState::TypedScene,
+        "sequence artifact validation should be explicitly tied to the typed scene"
+    );
+    let report = artifact
+        .invariant_report
+        .as_ref()
+        .expect("sequence artifact should retain invariant report");
+    assert_eq!(report.typed_issues, scene.validate_geometry());
+}
+
+#[test]
+fn sequence_typed_scene_checks_endpoint_labels_viewport_and_group_ownership() {
+    let source = include_str!("fixtures/e2e/sequence_typed_scene_contract.puml");
+    let artifact = puml::render_source_to_artifacts(source)
+        .expect("render artifacts")
+        .remove(0);
+    let scene = artifact
+        .require_typed_scene()
+        .expect("typed sequence scene");
+
+    for edge in scene.edges.values() {
+        assert!(
+            scene.nodes.contains_key(&edge.from),
+            "message source anchor owner should be a typed node"
+        );
+        assert!(
+            scene.nodes.contains_key(&edge.to),
+            "message target anchor owner should be a typed node"
+        );
+        assert!(
+            edge.labels
+                .iter()
+                .all(|label| label.owner_id.as_deref() == Some(edge.id.as_str())),
+            "message labels should be owned by their edge"
+        );
+    }
+
+    assert!(
+        scene
+            .labels
+            .values()
+            .all(|label| scene.viewport.contains_rect(label.label_box.bounds)),
+        "sequence label boxes should be validated inside the viewport"
+    );
+
+    let alt_group = scene
+        .groups
+        .values()
+        .find(|group| group.id.contains(":alt"))
+        .expect("alt group frame");
+    assert!(
+        alt_group.frame.header.is_some(),
+        "combined-fragment frames should expose a typed header strip"
+    );
+    assert!(
+        scene.groups.values().any(|group| group
+            .frame
+            .child_node_ids
+            .iter()
+            .any(|id| id == "participant:Alice")),
+        "sequence group frames should own contained participant nodes"
+    );
+}
+
+#[test]
+fn sequence_render_scene_summary_reports_typed_scene_availability() {
+    let source = include_str!("fixtures/e2e/sequence_typed_scene_contract.puml");
+    let document = puml::parse(source).expect("sequence source should parse");
+    let model = puml::normalize_family(document).expect("sequence source should normalize");
+    let artifacts = puml::render_artifact_pages_from_model(&model);
+
+    let summary = puml::normalized_artifact_scene_summary_to_json(&model, &artifacts);
+    assert_eq!(summary["kind"], "Sequence");
+    assert_eq!(summary["typed"], true);
+    assert_eq!(summary["sceneAvailability"], "TypedScene");
+    assert_eq!(summary["pages"][0]["kind"], "RenderScene");
+    assert!(
+        summary["pages"][0]["nodes"]
+            .as_array()
+            .is_some_and(|nodes| !nodes.is_empty()),
+        "renderScene JSON should expose typed sequence scene nodes"
     );
 }
 

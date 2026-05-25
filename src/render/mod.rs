@@ -82,7 +82,7 @@ pub use family::{
 };
 pub use mindmap::{render_mindmap_svg, render_wbs_svg};
 pub use salt::render_salt_svg;
-pub use sequence::render_svg;
+pub use sequence::{render_artifact as render_sequence_artifact, render_svg};
 pub use specialized::{
     render_archimate_svg, render_chart_svg, render_ditaa_svg, render_ebnf_svg, render_math_svg,
     render_nwdiag_artifact, render_nwdiag_svg, render_regex_svg, render_sdl_svg,

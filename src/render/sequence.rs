@@ -1,5 +1,6 @@
 use super::layout_constants::{MESSAGE_LABEL_LINE_GAP, REF_BODY_BASELINE_Y, REF_HEADER_HEIGHT};
 use super::svg::{creole_text, escape_text};
+use crate::output::RenderArtifact;
 use crate::scene::Scene;
 use std::collections::BTreeMap;
 
@@ -9,6 +10,7 @@ mod messages;
 mod metadata;
 mod notes;
 mod participants;
+mod scene;
 mod structures;
 
 use dimensions::compute_svg_dimensions;
@@ -21,7 +23,15 @@ use messages::{
 use metadata::{render_legend, render_mainframe, render_sequence_metadata_label};
 use notes::render_sequence_note_shape;
 use participants::{render_participant_box, render_participant_group_box};
+use scene::build_render_scene;
 use structures::render_sequence_structures;
+
+pub fn render_artifact(scene: &Scene) -> RenderArtifact {
+    let render_scene = build_render_scene(scene);
+    let mut artifact = RenderArtifact::with_scene(render_svg(scene), render_scene);
+    artifact.validate_svg(super::validate::AutoCorrect::EmitDiagnostic);
+    artifact
+}
 
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();
