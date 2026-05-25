@@ -3,12 +3,20 @@ use crate::render::layout_constants::COMPONENT_BOX_WIDTH;
 use crate::render_core::{Rect, RouteChannel};
 use std::collections::BTreeMap;
 
+pub(super) struct ChannelEdgeOwner<'a> {
+    pub(super) edge_id: &'a str,
+    pub(super) src_rank: usize,
+    pub(super) tgt_rank: usize,
+    pub(super) track: usize,
+}
+
 pub(super) struct RouteChannelBuildInput<'a, ChannelMidY, SymmetricOffset>
 where
     ChannelMidY: Fn(usize) -> f64,
     SymmetricOffset: Fn(usize, usize) -> f64,
 {
     pub(super) channel_max_track: &'a BTreeMap<usize, usize>,
+    pub(super) channel_edge_owners: &'a BTreeMap<(usize, usize), Vec<String>>,
     pub(super) positions: &'a BTreeMap<String, (f64, f64)>,
     pub(super) nodes: &'a [NodeSize],
     pub(super) group_bounds: &'a BTreeMap<String, (f64, f64, f64, f64)>,
@@ -46,10 +54,59 @@ where
                 max_x - min_x,
                 input.track_spacing.min(gap_height),
             );
-            route_channels.insert(id.clone(), RouteChannel { id, bounds });
+            let owner_edge_ids = input
+                .channel_edge_owners
+                .get(&(upper_rank, track))
+                .cloned()
+                .unwrap_or_default();
+            let boundary_group_ids = channel_boundary_group_ids(bounds, input.group_bounds);
+            route_channels.insert(
+                id.clone(),
+                RouteChannel::new(id, bounds).with_graph_channel_metadata(
+                    upper_rank,
+                    track,
+                    input.track_spacing,
+                    owner_edge_ids,
+                    boundary_group_ids,
+                ),
+            );
         }
     }
     route_channels
+}
+
+pub(super) fn collect_channel_edge_owners<'a, I>(
+    edge_owners: I,
+) -> BTreeMap<(usize, usize), Vec<String>>
+where
+    I: IntoIterator<Item = ChannelEdgeOwner<'a>>,
+{
+    let mut owners: BTreeMap<(usize, usize), Vec<String>> = BTreeMap::new();
+    for owner in edge_owners {
+        if owner.src_rank == owner.tgt_rank {
+            owners
+                .entry((owner.src_rank, owner.track))
+                .or_default()
+                .push(owner.edge_id.to_string());
+        } else {
+            let (min_r, max_r) = if owner.src_rank < owner.tgt_rank {
+                (owner.src_rank, owner.tgt_rank)
+            } else {
+                (owner.tgt_rank, owner.src_rank)
+            };
+            for ch in min_r..max_r {
+                owners
+                    .entry((ch, owner.track))
+                    .or_default()
+                    .push(owner.edge_id.to_string());
+            }
+        }
+    }
+    for edge_ids in owners.values_mut() {
+        edge_ids.sort();
+        edge_ids.dedup();
+    }
+    owners
 }
 
 fn route_channel_id(upper_rank: usize, track: usize) -> String {
@@ -81,4 +138,17 @@ fn route_channel_x_bounds(
     } else {
         (0.0, 0.0)
     }
+}
+
+fn channel_boundary_group_ids(
+    bounds: Rect,
+    group_bounds: &BTreeMap<String, (f64, f64, f64, f64)>,
+) -> Vec<String> {
+    group_bounds
+        .iter()
+        .filter_map(|(group_id, &(x, y, width, height))| {
+            let group_rect = Rect::new(x, y, width, height);
+            bounds.intersects(group_rect).then(|| group_id.clone())
+        })
+        .collect()
 }

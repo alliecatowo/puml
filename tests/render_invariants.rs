@@ -451,6 +451,35 @@ fn graph_family_artifacts_preserve_svg_api_for_class_and_deployment() {
 }
 
 #[test]
+fn usecase_and_c4_graph_artifacts_expose_route_channels_and_typed_edge_labels() {
+    let fixtures = [
+        include_str!("../docs/examples/usecase/06_multi_system_boundary.puml"),
+        include_str!("fixtures/families/valid_c4_full_system.puml"),
+    ];
+
+    for source in fixtures {
+        let artifact = render_family_artifact(source);
+        let scene = artifact.scene.as_ref().expect("graph-family scene");
+        let report = artifact
+            .invariant_report
+            .as_ref()
+            .expect("graph-family invariant report");
+
+        assert!(
+            !scene.route_channels.is_empty(),
+            "migrated graph family should expose shared route channels"
+        );
+        assert!(
+            scene.edges.values().any(|edge| !edge.labels.is_empty()),
+            "migrated graph family should expose typed edge labels"
+        );
+        assert!(report.typed_metrics.iter().any(
+            |metric| matches!(metric, GeometryMetric::RouteChannels { count, .. } if *count > 0)
+        ));
+    }
+}
+
+#[test]
 fn object_artifact_scene_uses_final_normalized_edge_paths() {
     let source = r#"
 @startuml

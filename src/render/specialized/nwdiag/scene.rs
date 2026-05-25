@@ -36,10 +36,7 @@ pub(super) fn build_nwdiag_scene(
         });
         scene.route_channels.insert(
             format!("{}:bus", lane.id),
-            RouteChannel {
-                id: format!("{}:bus", lane.id),
-                bounds: rect_from_tuple(lane.bus),
-            },
+            RouteChannel::new(format!("{}:bus", lane.id), rect_from_tuple(lane.bus)),
         );
     }
 
@@ -103,10 +100,11 @@ pub(super) fn build_nwdiag_scene(
     for route in peer_routes {
         scene.route_channels.insert(
             format!("nwdiag:peer-channel:{}", route.id),
-            RouteChannel {
-                id: format!("nwdiag:peer-channel:{}", route.id),
-                bounds: route_channel_bounds(&route.path),
-            },
+            RouteChannel::new(
+                format!("nwdiag:peer-channel:{}", route.id),
+                route_channel_bounds(&route.path),
+            )
+            .with_graph_channel_metadata(0, 0, 0.0, vec![route.id.clone()], Vec::new()),
         );
         let points = route
             .path

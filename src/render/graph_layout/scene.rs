@@ -105,6 +105,12 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
         });
         let source_rect = node_rect(&edge.from, &node_by_id, input.node_positions);
         let target_rect = node_rect(&edge.to, &node_by_id, input.node_positions);
+        let labels = edge
+            .label
+            .as_ref()
+            .map(|label| edge_label_box(&edge.id, label, &route))
+            .into_iter()
+            .collect();
         scene.add_edge(SceneEdge {
             id: edge.id.clone(),
             from: edge.from.clone(),
@@ -124,7 +130,7 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
                 target_point,
                 target_rect,
             ),
-            labels: Vec::new(),
+            labels,
         });
     }
 
@@ -164,6 +170,43 @@ fn centered_label(
         ),
         owner_id,
         role,
+    }
+}
+
+fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
+    let width = (text.chars().count() as f64 * 7.0 + 12.0).max(18.0);
+    let height = 14.0;
+    let placement = route
+        .segments()
+        .into_iter()
+        .max_by(|a, b| {
+            a.length()
+                .partial_cmp(&b.length())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|segment| {
+            let center = Point::new(
+                (segment.start.x + segment.end.x) / 2.0,
+                (segment.start.y + segment.end.y) / 2.0,
+            );
+            if segment.is_horizontal() {
+                Rect::new(
+                    center.x - width / 2.0,
+                    center.y - height - 8.0,
+                    width,
+                    height,
+                )
+            } else {
+                Rect::new(center.x + 8.0, center.y - height / 2.0, width, height)
+            }
+        })
+        .unwrap_or_else(|| Rect::new(0.0, 0.0, width, height));
+    LabelBox {
+        id: format!("edge:{edge_id}:label"),
+        text: text.to_string(),
+        bounds: placement,
+        owner_id: Some(edge_id.to_string()),
+        role: LabelRole::Edge,
     }
 }
 

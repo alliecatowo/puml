@@ -42,6 +42,7 @@ pub fn render_chen_svg(document: &ChenDocument) -> String {
             id: format!("rel{idx}"),
             from: rel.from.clone(),
             to: rel.to.clone(),
+            label: None,
         });
     }
     for (idx, inheritance) in document.inheritances.iter().enumerate() {
@@ -67,12 +68,14 @@ pub fn render_chen_svg(document: &ChenDocument) -> String {
             id: format!("inh{idx}_parent"),
             from: inheritance.parent.clone(),
             to: set_id.clone(),
+            label: None,
         });
         for (child_idx, child) in inheritance.children.iter().enumerate() {
             edges.push(EdgeSpec {
                 id: format!("inh{idx}_child{child_idx}"),
                 from: set_id.clone(),
                 to: child.clone(),
+                label: None,
             });
         }
     }
@@ -233,6 +236,7 @@ fn push_chen_attribute(
         id: format!("attr_{}_{}", edges.len(), sanitize_edge_id(&id)),
         from: owner.to_string(),
         to: id.clone(),
+        label: None,
     });
     for child in &attr.children {
         push_chen_attribute(render_nodes, edges, &id, child);
