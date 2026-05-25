@@ -153,7 +153,7 @@
     "test": "node ./tests/runTests.js"
   },
   "devDependencies": {
-    "@types/node": "^25.9.0",
+    "@types/node": "^25.9.1",
     "@types/vscode": "^1.95.0",
     "typescript": "^6.0.3",
     "vscode-languageclient": "^9.0.1"
