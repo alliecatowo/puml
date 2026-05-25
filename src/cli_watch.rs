@@ -105,12 +105,12 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
     let doc = puml::parse_with_pipeline_options(&raw, &options).map_err(|d| d.message.clone())?;
     let model = puml::normalize_family(doc).map_err(|d| d.message.clone())?;
 
-    let svg_pages = puml::render_svg_pages_from_model(&model);
-    if svg_pages.is_empty() {
+    let artifacts = puml::render_artifact_pages_from_model(&model);
+    let Some(first_artifact) = artifacts.first() else {
         return Err("renderer produced no output pages".to_string());
-    }
+    };
 
-    let out_bytes = svg_to_output_bytes(&svg_pages[0], cli.format, cli.dpi)?;
+    let out_bytes = svg_to_output_bytes(&first_artifact.svg, cli.format, cli.dpi)?;
 
     // Determine output path: explicit --output or derive from input stem.
     let out_path = match &cli.output {

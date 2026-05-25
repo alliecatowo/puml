@@ -40,7 +40,7 @@ mod wire;
 use crate::diagnostic::Diagnostic;
 use crate::model::ScaleSpec;
 use crate::render_core::RenderScene;
-use crate::render_core::{BackendFormat, Rect};
+use crate::render_core::{BackendFormat, Rect, SceneAvailability};
 
 #[derive(Debug)]
 pub struct RenderArtifact {
@@ -48,6 +48,7 @@ pub struct RenderArtifact {
     pub format: BackendFormat,
     pub dimensions: Option<RenderArtifactDimensions>,
     pub diagnostics: Vec<Diagnostic>,
+    pub scene_availability: SceneAvailability,
     pub scene: Option<RenderScene>,
     pub invariant_report: Option<validate::InvariantReport>,
 }
@@ -66,6 +67,7 @@ impl Default for RenderArtifact {
             format: BackendFormat::Svg,
             dimensions: None,
             diagnostics: Vec::new(),
+            scene_availability: SceneAvailability::NotMigrated,
             scene: None,
             invariant_report: None,
         }
@@ -79,6 +81,7 @@ impl RenderArtifact {
             format: BackendFormat::Svg,
             dimensions: None,
             diagnostics: Vec::new(),
+            scene_availability: SceneAvailability::NotMigrated,
             scene: None,
             invariant_report: None,
         };
@@ -92,11 +95,21 @@ impl RenderArtifact {
             format: BackendFormat::Svg,
             dimensions: None,
             diagnostics: Vec::new(),
+            scene_availability: SceneAvailability::TypedScene,
             scene: Some(scene),
             invariant_report: None,
         };
         artifact.refresh_svg_metadata();
         artifact
+    }
+
+    pub fn with_scene_availability(mut self, scene_availability: SceneAvailability) -> Self {
+        if matches!(scene_availability, SceneAvailability::TypedScene) && self.scene.is_none() {
+            self.scene_availability = SceneAvailability::NotMigrated;
+        } else {
+            self.scene_availability = scene_availability;
+        }
+        self
     }
 
     pub fn media_type(&self) -> &'static str {

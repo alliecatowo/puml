@@ -10,7 +10,8 @@
 use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
 use puml::render_core::validate::GeometryMetric;
 use puml::render_core::{
-    Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+    Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneAvailability,
+    SceneEdge, SceneNode,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,6 +373,11 @@ A --> B
         artifact.scene.is_some(),
         "graph-family artifact should expose the typed scene"
     );
+    assert_eq!(
+        artifact.scene_availability,
+        SceneAvailability::TypedScene,
+        "graph-family artifact should make typed scene availability explicit"
+    );
     assert!(
         artifact.invariant_report.is_some(),
         "graph-family artifact should retain the validation report from the same render pass"
@@ -392,6 +398,11 @@ fn sequence_render_artifacts_preserve_svg_api_and_dimensions_without_scene() {
     assert!(
         artifact.scene.is_none(),
         "sequence still lacks a typed RenderScene bridge and should say so explicitly"
+    );
+    assert_eq!(
+        artifact.scene_availability,
+        SceneAvailability::NotMigrated,
+        "unmigrated renderers must be explicit instead of silent scene=None"
     );
 }
 

@@ -18,7 +18,9 @@ pub use render::{
     render_source_to_svg_for_family, render_source_to_svgs, render_source_to_svgs_for_family,
     render_source_to_text, render_source_to_texts, render_svg_pages_from_model,
 };
-pub use render_scene::normalized_scene_summary_to_json;
+pub use render_scene::{
+    normalized_artifact_scene_summary_to_json, normalized_scene_summary_to_json,
+};
 pub use render_summary::normalized_model_summary_to_json;
 pub use types::{
     CompatMode, DeterminismMode, DiagramFamily, DiagramInput, FrontendSelection,

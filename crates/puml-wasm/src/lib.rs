@@ -5,7 +5,7 @@ use puml::ast::DiagramKind;
 use puml::diagnostic::Severity;
 use puml::language_service::{diagnostics_with_options, semantic_tokens, SemanticTokenKind};
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Diagnostic,
+    normalize_family, parse_with_pipeline_options, render_artifact_pages_from_model, Diagnostic,
     FrontendSelection, ParsePipelineOptions,
 };
 use wasm_bindgen::prelude::*;
@@ -137,7 +137,10 @@ fn render_svgs_for_frontend(
 
     let document = parse_with_pipeline_options(source, &wasm_parse_options(frontend))?;
     let model = normalize_family(document)?;
-    Ok(render_svg_pages_from_model(&model))
+    Ok(render_artifact_pages_from_model(&model)
+        .into_iter()
+        .map(|artifact| artifact.svg)
+        .collect())
 }
 
 fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> String {
