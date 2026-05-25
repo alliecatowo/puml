@@ -1,8 +1,8 @@
 use puml::diagnostic::Severity;
 use puml::language_service::{
     completion_items, definition, diagnostics, diagnostics_with_options, document_symbols, hover,
-    references, rename, resolve_completion_item, CompletionItemKind, DocumentSnapshot,
-    DocumentSymbolKind,
+    language_service_surface_json, references, rename, resolve_completion_item, CompletionItemKind,
+    DocumentSnapshot, DocumentSymbolKind,
 };
 use puml::source::Span;
 use puml::{CompatMode, DeterminismMode, FrontendSelection, ParsePipelineOptions};
@@ -46,9 +46,40 @@ fn completion_items_are_available_without_lsp_transport() {
     assert!(labels.contains(&"class"));
     assert!(labels.contains(&"state"));
     assert!(labels.contains(&"start"));
+    assert!(labels.contains(&"fork"));
+    assert!(labels.contains(&"!theme"));
+    assert!(labels.contains(&"component"));
+    assert!(labels.contains(&"ArrowColor"));
     assert!(labels.contains(&"autonumber stop"));
     assert!(labels.contains(&"|||"));
     assert!(labels.contains(&"-->>"));
+}
+
+#[test]
+fn language_service_surface_is_registry_backed_for_editor_adapters() {
+    let surface = language_service_surface_json();
+
+    assert_eq!(surface["schema"], "puml.languageService");
+    assert!(surface["families"]
+        .as_array()
+        .expect("families")
+        .iter()
+        .any(|family| family["name"] == "component"
+            && family["capabilities"]["languageService"] == true));
+    assert!(surface["graphElements"]
+        .as_array()
+        .expect("graph elements")
+        .iter()
+        .any(|element| element["keyword"] == "component"));
+    assert!(surface["completion"]["items"]
+        .as_array()
+        .expect("completion")
+        .iter()
+        .any(|item| item["label"] == "ArrowColor"
+            && item["documentation"]
+                .as_str()
+                .expect("documentation")
+                .contains("Value type: color")));
 }
 
 #[test]
@@ -67,6 +98,15 @@ fn hover_returns_documentation_for_arrow_symbols_without_lsp_transport() {
 
     assert!(markdown.contains("`-->`"));
     assert!(markdown.contains("Dashed message arrow"));
+}
+
+#[test]
+fn hover_returns_skinparam_value_type_docs_without_lsp_transport() {
+    let source = "@startuml\nskinparam ArrowColor #334155\nA -> B\n@enduml\n";
+    let markdown = hover(source, (1, 12)).expect("hover").markdown;
+
+    assert!(markdown.contains("`ArrowColor`"));
+    assert!(markdown.contains("Value type: color"));
 }
 
 #[test]

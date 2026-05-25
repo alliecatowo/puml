@@ -47,6 +47,17 @@ export type ExplainDiagnosticResult = {
   diagnostics: Array<{ message?: string; severity?: string; code?: string }>;
 };
 
+export type LanguageServiceSurfaceResult = {
+  schema?: string;
+  schemaVersion?: number;
+  families?: unknown[];
+  graphElements?: unknown[];
+  completion?: { items?: unknown[] };
+  syntax?: unknown;
+  semanticTokens?: unknown;
+  diagnostics?: Array<{ message?: string; severity?: string; code?: string }>;
+};
+
 export class PumlLspClient {
   private client: LanguageClient | undefined;
 
@@ -149,6 +160,17 @@ export class PumlLspClient {
     return this.client.sendRequest<ExplainDiagnosticResult>('workspace/executeCommand', {
       command: 'puml.explainDiagnostic',
       arguments: [diagnostic],
+    });
+  }
+
+  async languageServiceSurface(): Promise<LanguageServiceSurfaceResult> {
+    if (!this.client) {
+      throw new Error('puml-lsp client is not started');
+    }
+
+    return this.client.sendRequest<LanguageServiceSurfaceResult>('workspace/executeCommand', {
+      command: 'puml.languageService',
+      arguments: [],
     });
   }
 }

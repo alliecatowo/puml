@@ -9,5 +9,6 @@ puml.renderSvg
 puml.renderScene
 puml.export
 puml.explainDiagnostic
+puml.languageService
 --dump-capabilities
 server: "puml-lsp"

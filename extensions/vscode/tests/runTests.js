@@ -144,6 +144,14 @@ test('lspClient exposes renderScene/export/explainDiagnostic workspace commands'
     lspSrc.includes("command: 'puml.explainDiagnostic'"),
     'puml.explainDiagnostic command missing'
   );
+  assert.ok(
+    lspSrc.includes("command: 'puml.languageService'"),
+    'puml.languageService command missing'
+  );
+  assert.ok(
+    lspSrc.includes('LanguageServiceSurfaceResult'),
+    'language-service surface type missing'
+  );
 });
 
 test('renderer has CLI subprocess fallback', () => {

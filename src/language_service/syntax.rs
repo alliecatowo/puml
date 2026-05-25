@@ -52,7 +52,22 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             families: &["plantuml", "picouml"],
         },
         SyntaxTokenSpec {
+            lexeme: "!import",
+            kind: Preprocessor,
+            families: &["plantuml", "picouml"],
+        },
+        SyntaxTokenSpec {
             lexeme: "!if",
+            kind: Preprocessor,
+            families: &["plantuml", "picouml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!else",
+            kind: Preprocessor,
+            families: &["plantuml", "picouml"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "!endif",
             kind: Preprocessor,
             families: &["plantuml", "picouml"],
         },
@@ -112,6 +127,41 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             families: &["activity"],
         },
         SyntaxTokenSpec {
+            lexeme: "while",
+            kind: Keyword,
+            families: &["activity"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "repeat",
+            kind: Keyword,
+            families: &["activity"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "partition",
+            kind: Keyword,
+            families: &["activity"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "component",
+            kind: Keyword,
+            families: &["component"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "node",
+            kind: Keyword,
+            families: &["deployment"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "artifact",
+            kind: Keyword,
+            families: &["deployment"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "cloud",
+            kind: Keyword,
+            families: &["deployment"],
+        },
+        SyntaxTokenSpec {
             lexeme: "skinparam",
             kind: Keyword,
             families: &["plantuml", "picouml"],
@@ -157,6 +207,26 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             families: &["picouml"],
         },
         SyntaxTokenSpec {
+            lexeme: "<|--",
+            kind: Operator,
+            families: &["class"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "*--",
+            kind: Operator,
+            families: &["class"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "o--",
+            kind: Operator,
+            families: &["class"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "..>",
+            kind: Operator,
+            families: &["class", "component", "deployment"],
+        },
+        SyntaxTokenSpec {
             lexeme: "[*]",
             kind: Keyword,
             families: &["state"],
@@ -179,9 +249,13 @@ mod tests {
             "@startuml",
             "@startpicouml",
             "!include",
+            "!import",
             "class",
+            "component",
             "state",
             "start",
+            "fork",
+            "<|--",
             "=>",
             "[*]",
         ] {

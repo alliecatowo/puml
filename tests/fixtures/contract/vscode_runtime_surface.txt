@@ -14,4 +14,5 @@ puml.renderSvg
 puml.renderScene
 puml.export
 puml.explainDiagnostic
+puml.languageService
 ./scripts/vscode-smoke.sh

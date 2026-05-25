@@ -8,6 +8,7 @@ echo "[vscode-smoke] check puml capability manifest includes extension commands"
 capabilities="$(cargo run -- --dump-capabilities)"
 echo "$capabilities" | rg '"puml.applyFormat"' >/dev/null
 echo "$capabilities" | rg '"puml.renderSvg"' >/dev/null
+echo "$capabilities" | rg '"puml.languageService"' >/dev/null
 
 echo "[vscode-smoke] build extension scaffold"
 (

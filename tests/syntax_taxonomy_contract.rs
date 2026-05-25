@@ -50,4 +50,27 @@ fn textmate_and_site_tokenizers_cover_catalog_slice() {
         site_tokens.contains("'picouml'"),
         "site tokenizer should advertise PicoUML highlighting"
     );
+
+    for token in ["import", "o--"] {
+        assert!(
+            textmate.contains(token),
+            "TextMate grammar missing expanded contract token {token}"
+        );
+        assert!(
+            site_tokens.contains(token),
+            "site tokenizer missing expanded contract token {token}"
+        );
+    }
+    for (token, textmate_token, site_token) in
+        [("<|--", "<\\\\|--", "<\\|--"), ("*--", "\\\\*--", "\\*--")]
+    {
+        assert!(
+            textmate.contains(textmate_token),
+            "TextMate grammar missing expanded contract token {token}"
+        );
+        assert!(
+            site_tokens.contains(site_token),
+            "site tokenizer missing expanded contract token {token}"
+        );
+    }
 }

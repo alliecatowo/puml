@@ -27,9 +27,9 @@ const NOTE_KEYWORDS = new Set([
 ]);
 
 const SKINPARAM_KEYWORDS = new Set(['skinparam', 'skinparams']);
-const INCLUDE_KEYWORDS = new Set(['include', 'includesub', 'theme', 'startsub', 'endsub']);
+const INCLUDE_KEYWORDS = new Set(['include', 'includesub', 'import', 'theme', 'startsub', 'endsub']);
 
-const ARROW_RE = /^(?:=>|<=)|^[<o]?-{1,2}(?:\[[^\]]*\])?-?-?>>?|^[<o]?-{1,2}(?:\[[^\]]*\])?[xX]|^[<o]-{1,2}/;
+const ARROW_RE = /^(?:<\|--|\*--|o--|\.\.\|>|=>|<=|\.\.>)|^[<o]?-{1,2}(?:\[[^\]]*\])?-?-?>>?|^[<o]?-{1,2}(?:\[[^\]]*\])?[xX]|^[<o]-{1,2}/;
 
 const TOKEN_CLASS_BY_NAME = {
   comment: 'tok-comment',

@@ -53,6 +53,31 @@ export class WasmRenderer {
     }
     return { ok: true, svgs: pages };
   }
+
+  async compile(source, options = {}) {
+    await this.init();
+    const frontend = normalizeFrontendHint(options.frontend || options.dialect || options.language);
+    const raw = frontend && this.module.compile_json_with_frontend
+      ? this.module.compile_json_with_frontend(source, frontend)
+      : this.module.compile_json(source);
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return { schema: 'puml.compile', ok: false, diagnostics: [{ severity: 'error', message: `Compiler returned invalid JSON: ${e.message}` }] };
+    }
+  }
+
+  async languageService() {
+    await this.init();
+    if (!this.module.language_service_json) {
+      return { schema: 'puml.languageService', schemaVersion: 0, families: [], completion: { items: [] } };
+    }
+    try {
+      return JSON.parse(this.module.language_service_json());
+    } catch (e) {
+      return { schema: 'puml.languageService', schemaVersion: 0, diagnostics: [{ severity: 'error', message: `Language service returned invalid JSON: ${e.message}` }] };
+    }
+  }
 }
 
 export function diagnosticLabel(diag) {
