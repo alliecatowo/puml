@@ -350,6 +350,7 @@ fn build_scene(document: &WireDocument, layout: &WireLayout) -> RenderScene {
             from: link.from.component.clone(),
             to: link.to.component.clone(),
             route: Polyline::new(shifted),
+            route_channel_ids: Vec::new(),
             source_anchor: Anchor {
                 id: format!("{}:source", link.id),
                 owner_id: link.from.component.clone(),

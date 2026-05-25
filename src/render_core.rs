@@ -345,6 +345,7 @@ pub struct SceneEdge {
     pub from: String,
     pub to: String,
     pub route: Polyline,
+    pub route_channel_ids: Vec<String>,
     pub source_anchor: Anchor,
     pub target_anchor: Anchor,
     pub labels: Vec<LabelBox>,

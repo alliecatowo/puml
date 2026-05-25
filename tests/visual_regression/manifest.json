@@ -78,6 +78,15 @@
       "min_text_elements": 5
     },
     {
+      "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+      "family": "component",
+      "expected_text": ["Ports, lollipop interfaces, and required connectors", "Order Service", "Notification Service", "OrderController", "OrderDomain", "IOrderService", "IOrderRepository", "PostgreSQL", "RabbitMQ", "publish events"],
+      "min_text_elements": 18,
+      "png_baseline_required": false,
+      "png_baseline_issue": 739,
+      "png_baseline_deferred_reason": "PNG evidence rendered for refactor/graph-geometry-router-phase2 at /tmp/puml-graph-geometry-router-phase2/component-07-ports-lollipop.png; semantic manifest coverage is promoted while baseline blessing remains deferred pending Linux artifact review."
+    },
+    {
       "path": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
       "family": "component",
       "expected_text": ["CDN Layer", "API Cluster", "Storage Layer", "Event Bus", "Analytics Platform", "Edge Cache", "Load Balancer", "Primary DB", "Kafka", "aggregate"],

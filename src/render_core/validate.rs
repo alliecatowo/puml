@@ -41,6 +41,7 @@ pub enum GeometryMetric {
 pub fn validate_scene(scene: &RenderScene) -> SceneValidationReport {
     let mut report = SceneValidationReport::default();
     validate_viewport_containment(scene, &mut report.issues);
+    validate_group_and_lane_ownership(scene, &mut report.issues);
     validate_edge_routes(scene, &mut report.issues);
     collect_quality_metrics(scene, &mut report.metrics);
     report
@@ -81,6 +82,62 @@ fn validate_viewport_containment(scene: &RenderScene, issues: &mut Vec<GeometryI
                 bounds: label.label_box.bounds,
                 viewport: scene.viewport,
             });
+        }
+    }
+}
+
+fn validate_group_and_lane_ownership(scene: &RenderScene, issues: &mut Vec<GeometryIssue>) {
+    for group in scene.groups.values() {
+        for node_id in &group.frame.child_node_ids {
+            let Some(node) = scene.nodes.get(node_id) else {
+                continue;
+            };
+            let node_bounds = node.node_box.bounds;
+            if !group.frame.bounds.contains_rect(node_bounds) {
+                issues.push(GeometryIssue::GroupChildOutsideFrame {
+                    group_id: group.id.clone(),
+                    node_id: node.id.clone(),
+                    node_bounds,
+                    group_bounds: group.frame.bounds,
+                });
+            }
+            if let Some(header) = group.frame.header {
+                if node_bounds.intersects(header) {
+                    issues.push(GeometryIssue::GroupChildOverlapsHeader {
+                        group_id: group.id.clone(),
+                        node_id: node.id.clone(),
+                        node_bounds,
+                        header_bounds: header,
+                    });
+                }
+            }
+        }
+    }
+
+    for lane in scene.lanes.values() {
+        for node_id in &lane.child_node_ids {
+            let Some(node) = scene.nodes.get(node_id) else {
+                continue;
+            };
+            let node_bounds = node.node_box.bounds;
+            if !lane.bounds.contains_rect(node_bounds) {
+                issues.push(GeometryIssue::LaneChildOutsideFrame {
+                    lane_id: lane.id.clone(),
+                    node_id: node.id.clone(),
+                    node_bounds,
+                    lane_bounds: lane.bounds,
+                });
+            }
+            if let Some(header) = lane.header {
+                if node_bounds.intersects(header) {
+                    issues.push(GeometryIssue::LaneChildOverlapsHeader {
+                        lane_id: lane.id.clone(),
+                        node_id: node.id.clone(),
+                        node_bounds,
+                        header_bounds: header,
+                    });
+                }
+            }
         }
     }
 }
@@ -238,6 +295,19 @@ fn validate_edge_route_channel_ownership(
 ) {
     if scene.route_channels.is_empty() {
         return;
+    }
+    for channel_id in &edge.route_channel_ids {
+        match scene.route_channels.get(channel_id) {
+            Some(channel) if channel.owner_edge_ids.iter().any(|id| id == &edge.id) => {}
+            Some(_) => issues.push(GeometryIssue::EdgeReferencesUnownedRouteChannel {
+                edge_id: edge.id.clone(),
+                channel_id: channel_id.clone(),
+            }),
+            None => issues.push(GeometryIssue::EdgeReferencesMissingRouteChannel {
+                edge_id: edge.id.clone(),
+                channel_id: channel_id.clone(),
+            }),
+        }
     }
     for segment in edge.route.segments() {
         if !segment.is_horizontal() || segment.length() <= f64::EPSILON {
