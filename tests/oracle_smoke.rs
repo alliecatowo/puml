@@ -23,6 +23,10 @@ fn repo_path(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+fn ensure_target_dir() {
+    std::fs::create_dir_all(repo_path("target")).expect("target dir should be creatable");
+}
+
 // ---------------------------------------------------------------------------
 // oracle_skip_sentinel
 // ---------------------------------------------------------------------------
@@ -214,6 +218,7 @@ fn oracle_report_schema_is_stable() {
 
 #[test]
 fn oracle_promoted_fixture_gate_blocks_unexpected_regressions() {
+    ensure_target_dir();
     let report_file = repo_path("target/oracle_promoted_gate_report.json");
     let manifest_file = repo_path("target/oracle_promoted_gate_manifest.json");
 
@@ -294,6 +299,110 @@ fn oracle_promoted_fixture_gate_blocks_unexpected_regressions() {
         violation["path"].as_str() == Some("tests/fixtures/basic/regressed-jar-only.puml")
             && violation["regression_kind"].as_str() == Some("jar-only")
     }));
+}
+
+#[test]
+fn oracle_promoted_fixture_gate_blocks_missing_and_unknown_report_categories() {
+    ensure_target_dir();
+    let report_file = repo_path("target/oracle_promoted_gate_malformed_report.json");
+    let manifest_file = repo_path("target/oracle_promoted_gate_malformed_manifest.json");
+
+    let report = serde_json::json!({
+        "schema_version": "1.0",
+        "timestamp": "2026-05-25T00:00:00Z",
+        "jar_version": "PlantUML version 1.2026.3",
+        "summary": {
+            "total": 1,
+            "match": 0,
+            "drift": 0,
+            "puml_only": 0,
+            "jar_only": 0,
+            "both_fail": 0
+        },
+        "fixtures": [
+            {"path": "tests/fixtures/basic/unknown-category.puml", "category": "weird", "metrics": {}}
+        ]
+    });
+    let manifest = serde_json::json!({
+        "schema_version": "1.0",
+        "name": "malformed promoted fixtures",
+        "promoted_fixtures": [
+            {"path": "tests/fixtures/basic/unknown-category.puml"},
+            {"path": "tests/fixtures/basic/missing-from-report.puml"}
+        ]
+    });
+
+    std::fs::write(
+        &report_file,
+        serde_json::to_string_pretty(&report).expect("sample report should serialize"),
+    )
+    .expect("sample report should be writable");
+    std::fs::write(
+        &manifest_file,
+        serde_json::to_string_pretty(&manifest).expect("sample manifest should serialize"),
+    )
+    .expect("sample manifest should be writable");
+
+    let output = Command::new("python3")
+        .arg(oracle_promoted_gate_script())
+        .arg("--report")
+        .arg(&report_file)
+        .arg("--manifest")
+        .arg(&manifest_file)
+        .arg("--write")
+        .output()
+        .expect("failed to invoke oracle_promoted_gate.py");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "promoted gate should fail on unknown categories and missing rows"
+    );
+
+    let written = std::fs::read_to_string(&report_file)
+        .expect("annotated promoted gate report should be readable");
+    let annotated: serde_json::Value =
+        serde_json::from_str(&written).expect("annotated promoted gate report should parse");
+    let violations = annotated["promoted_gate"]["violations"]
+        .as_array()
+        .expect("promoted gate should report violation rows");
+
+    assert!(violations.iter().any(|violation| {
+        violation["path"].as_str() == Some("tests/fixtures/basic/unknown-category.puml")
+            && violation["regression_kind"].as_str() == Some("unknown-category")
+    }));
+    assert!(violations.iter().any(|violation| {
+        violation["path"].as_str() == Some("tests/fixtures/basic/missing-from-report.puml")
+            && violation["regression_kind"].as_str() == Some("missing")
+    }));
+}
+
+#[test]
+fn oracle_promoted_fixture_manifest_validates_without_jar_or_report() {
+    let output = Command::new("python3")
+        .arg(oracle_promoted_gate_script())
+        .arg("--manifest")
+        .arg(repo_path("tests/oracle_promoted_fixtures.json"))
+        .arg("--validate-manifest-only")
+        .arg("--repo-root")
+        .arg(repo_path(""))
+        .output()
+        .expect("failed to validate promoted oracle manifest");
+
+    assert!(
+        output.status.success(),
+        "promoted manifest validation should succeed without Java/JAR/report; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("validation output should be JSON");
+    assert_eq!(v["status"].as_str(), Some("pass"));
+    assert!(
+        v["total"].as_u64().unwrap_or(0) >= 2,
+        "expected checked-in promoted fixture manifest to contain promoted rows"
+    );
 }
 
 // ---------------------------------------------------------------------------

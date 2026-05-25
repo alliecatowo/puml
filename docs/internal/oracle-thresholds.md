@@ -11,7 +11,7 @@ compares SVG output produced by **puml** (our Rust renderer) against the
 `tests/fixtures/` and `docs/examples/`.
 
 In CI, `.github/workflows/oracle.yml` downloads the pinned PlantUML release
-JAR `plantuml-1.2024.7.jar` from the official PlantUML GitHub release URL,
+JAR `plantuml-1.2026.3.jar` from the official PlantUML GitHub release URL,
 caches it by version, verifies that it exists, prints `java -jar ... -version`,
 builds the release `puml` binary, and then runs `scripts/oracle.sh`. The
 workflow intentionally uses a pinned JAR; it does not use `latest`.
@@ -49,6 +49,15 @@ The broad oracle corpus remains advisory except for the below-50% match hard
 failure described later in this document. A smaller promoted fixture list in
 `tests/oracle_promoted_fixtures.json` is the blocking parity contract: every
 promoted fixture defaults to `allowed_categories: ["match"]`.
+
+Validate the promoted manifest without Java, PlantUML, or an oracle report:
+
+```bash
+python3 scripts/oracle_promoted_gate.py \
+  --manifest tests/oracle_promoted_fixtures.json \
+  --validate-manifest-only \
+  --repo-root .
+```
 
 When `scripts/oracle.sh` completes a live JAR-backed run, it invokes
 `scripts/oracle_promoted_gate.py` against the generated `oracle_report.json`.

@@ -147,6 +147,25 @@ fn renderer_changes_keep_wasm_and_docs_example_drift_coverage() {
 }
 
 #[test]
+fn promoted_oracle_gate_changes_run_full_oracle_and_sentinel_tests() {
+    for path in [
+        "tests/oracle_promoted_fixtures.json",
+        "scripts/oracle_promoted_gate.py",
+    ] {
+        let output = classify(&[path]);
+
+        assert_output_contains(
+            &output,
+            &[
+                "run_oracle=true",
+                "run_oracle_smoke=true",
+                "run_diff_oracle_smoke=false",
+            ],
+        );
+    }
+}
+
+#[test]
 fn empty_change_sets_take_the_conservative_path() {
     let output = classify(&[]);
 
