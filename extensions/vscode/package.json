@@ -18,6 +18,7 @@
     "onCommand:puml.export.svg",
     "onCommand:puml.export.png",
     "onCommand:puml.check",
+    "onCommand:puml.renderScene",
     "onCommand:puml.lsp.restart"
   ],
   "main": "./dist/extension.js",
@@ -65,6 +66,11 @@
         "icon": "$(pass)"
       },
       {
+        "command": "puml.renderScene",
+        "title": "PUML: Open Render Scene JSON",
+        "icon": "$(json)"
+      },
+      {
         "command": "puml.lsp.restart",
         "title": "PUML: Restart Language Server"
       }
@@ -97,6 +103,11 @@
           "command": "puml.check",
           "when": "resourceLangId == puml",
           "group": "puml@4"
+        },
+        {
+          "command": "puml.renderScene",
+          "when": "resourceLangId == puml",
+          "group": "puml@5"
         }
       ]
     },

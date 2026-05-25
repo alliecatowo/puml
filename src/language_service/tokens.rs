@@ -1,3 +1,4 @@
+use super::syntax::{syntax_token_specs, SyntaxTokenKind, SyntaxTokenSpec};
 use super::text::is_ident;
 use crate::source::Span;
 
@@ -37,24 +38,8 @@ pub fn semantic_token_legend() -> &'static [&'static str] {
 
 pub fn semantic_tokens(source: &str) -> Vec<SemanticToken> {
     let mut hits = Vec::<SemanticToken>::new();
-    for (text, kind) in [
-        ("participant", SemanticTokenKind::Keyword),
-        ("actor", SemanticTokenKind::Keyword),
-        ("note", SemanticTokenKind::Keyword),
-        ("alt", SemanticTokenKind::Keyword),
-        ("else", SemanticTokenKind::Keyword),
-        ("end", SemanticTokenKind::Keyword),
-        ("activate", SemanticTokenKind::Keyword),
-        ("deactivate", SemanticTokenKind::Keyword),
-        ("create", SemanticTokenKind::Keyword),
-        ("destroy", SemanticTokenKind::Keyword),
-        ("return", SemanticTokenKind::Keyword),
-        ("autonumber", SemanticTokenKind::Keyword),
-        ("-->", SemanticTokenKind::Operator),
-        ("<--", SemanticTokenKind::Operator),
-        ("->", SemanticTokenKind::Operator),
-    ] {
-        for span in find_token_spans(source, text) {
+    for (spec, kind) in semantic_token_specs() {
+        for span in find_token_spans(source, spec.lexeme) {
             hits.push(SemanticToken { span, kind });
         }
     }
@@ -74,6 +59,18 @@ pub fn semantic_tokens(source: &str) -> Vec<SemanticToken> {
         }
     }
     filtered
+}
+
+fn semantic_token_specs() -> impl Iterator<Item = (&'static SyntaxTokenSpec, SemanticTokenKind)> {
+    syntax_token_specs()
+        .iter()
+        .filter_map(|spec| match spec.kind {
+            SyntaxTokenKind::Keyword
+            | SyntaxTokenKind::Directive
+            | SyntaxTokenKind::Preprocessor => Some((spec, SemanticTokenKind::Keyword)),
+            SyntaxTokenKind::Operator => Some((spec, SemanticTokenKind::Operator)),
+            _ => None,
+        })
 }
 
 fn find_token_spans(source: &str, token: &str) -> Vec<Span> {
@@ -110,9 +107,19 @@ mod tests {
 
         let tokens = semantic_tokens(source);
 
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0].kind, SemanticTokenKind::Operator);
-        assert_eq!(&source[tokens[0].span.start..tokens[0].span.end], "-->");
+        let rendered = tokens
+            .iter()
+            .map(|token| (&source[token.span.start..token.span.end], token.kind))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            rendered,
+            vec![
+                ("@startuml", SemanticTokenKind::Keyword),
+                ("-->", SemanticTokenKind::Operator),
+                ("@enduml", SemanticTokenKind::Keyword),
+            ]
+        );
     }
 
     #[test]
@@ -129,9 +136,11 @@ mod tests {
         assert_eq!(
             rendered,
             vec![
+                ("@startuml", SemanticTokenKind::Keyword),
                 ("participant", SemanticTokenKind::Keyword),
                 ("->", SemanticTokenKind::Operator),
                 ("->", SemanticTokenKind::Operator),
+                ("@enduml", SemanticTokenKind::Keyword),
             ]
         );
     }

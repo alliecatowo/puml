@@ -9,9 +9,13 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { PumlLspClient } from './lspClient';
 import { exportPng, exportSvg } from './renderer';
 
-export function registerExportCommands(context: vscode.ExtensionContext): void {
+export function registerExportCommands(
+  context: vscode.ExtensionContext,
+  lsp: PumlLspClient
+): void {
   const exportSvgCmd = vscode.commands.registerCommand('puml.export.svg', async () => {
     await runExport(context, 'svg');
   });
@@ -60,9 +64,9 @@ async function runExport(
     async () => {
       try {
         if (format === 'svg') {
-          await exportSvg(document, target.fsPath, context);
+          await exportSvg(document, target.fsPath, context, lsp);
         } else {
-          await exportPng(document, target.fsPath, context);
+          await exportPng(document, target.fsPath, context, lsp);
         }
         const open = await vscode.window.showInformationMessage(
           `Exported: ${target.fsPath}`,

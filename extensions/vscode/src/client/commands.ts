@@ -112,5 +112,26 @@ export function registerPreviewCommands(
     );
   });
 
-  context.subscriptions.push(openPreview, restartLsp, checkCmd);
+  const renderSceneCmd = vscode.commands.registerCommand('puml.renderScene', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'puml') {
+      void vscode.window.showWarningMessage('Open a .puml document to inspect render scene JSON.');
+      return;
+    }
+
+    await lsp.start(context);
+    try {
+      const result = await lsp.renderScene(editor.document.uri.toString(), { frontend: 'auto' });
+      const sceneDoc = await vscode.workspace.openTextDocument({
+        language: 'json',
+        content: JSON.stringify(result, null, 2),
+      });
+      await vscode.window.showTextDocument(sceneDoc, vscode.ViewColumn.Beside, true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void vscode.window.showErrorMessage(`PUML render scene failed: ${msg}`);
+    }
+  });
+
+  context.subscriptions.push(openPreview, restartLsp, checkCmd, renderSceneCmd);
 }

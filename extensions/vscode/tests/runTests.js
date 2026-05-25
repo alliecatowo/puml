@@ -137,6 +137,15 @@ test('renderer has LSP-first path', () => {
   assert.ok(rendererSrc.includes('lsp.renderSvg'), 'LSP renderSvg call missing');
 });
 
+test('lspClient exposes renderScene/export/explainDiagnostic workspace commands', () => {
+  assert.ok(lspSrc.includes("command: 'puml.renderScene'"), 'puml.renderScene command missing');
+  assert.ok(lspSrc.includes("command: 'puml.export'"), 'puml.export command missing');
+  assert.ok(
+    lspSrc.includes("command: 'puml.explainDiagnostic'"),
+    'puml.explainDiagnostic command missing'
+  );
+});
+
 test('renderer has CLI subprocess fallback', () => {
   assert.ok(rendererSrc.includes('cp.spawn'), 'CLI subprocess spawn missing');
 });
@@ -144,6 +153,11 @@ test('renderer has CLI subprocess fallback', () => {
 test('renderer exports exportSvg and exportPng', () => {
   assert.ok(rendererSrc.includes('export async function exportSvg'), 'exportSvg missing');
   assert.ok(rendererSrc.includes('export async function exportPng'), 'exportPng missing');
+});
+
+test('renderer can persist LSP export content before CLI fallback', () => {
+  assert.ok(rendererSrc.includes('writeLspExportResult'), 'LSP export writer missing');
+  assert.ok(rendererSrc.includes('contentBase64'), 'base64 export path missing');
 });
 
 test('renderer writes temp file and cleans up', () => {
@@ -182,6 +196,11 @@ console.log('-- check command --');
 
 test('commands.ts registers puml.check', () => {
   assert.ok(commandsSrc.includes("'puml.check'"), "puml.check not registered");
+});
+
+test('commands.ts registers puml.renderScene JSON inspector', () => {
+  assert.ok(commandsSrc.includes("'puml.renderScene'"), "puml.renderScene not registered");
+  assert.ok(commandsSrc.includes('openTextDocument'), 'renderScene command should open JSON output');
 });
 
 test('check command creates VS Code diagnostic collection', () => {
@@ -271,6 +290,10 @@ test('package.json declares puml.check', () => {
   assert.ok(commandIds.includes('puml.check'), 'puml.check missing');
 });
 
+test('package.json declares puml.renderScene', () => {
+  assert.ok(commandIds.includes('puml.renderScene'), 'puml.renderScene missing');
+});
+
 test('package.json declares puml.lsp.restart', () => {
   assert.ok(commandIds.includes('puml.lsp.restart'), 'puml.lsp.restart missing');
 });
@@ -296,7 +319,7 @@ test('package.json has editor/title menu entry for preview', () => {
 test('package.json has editor/context entries for puml commands', () => {
   const menus = pkg.contributes.menus;
   assert.ok(
-    menus['editor/context'] && menus['editor/context'].length >= 4,
+    menus['editor/context'] && menus['editor/context'].length >= 5,
     'editor/context entries missing or incomplete'
   );
 });

@@ -2,6 +2,8 @@
 //! wasm-bindgen so the studio editor can render diagrams without a backend.
 
 use puml::ast::DiagramKind;
+use puml::diagnostic::Severity;
+use puml::language_service::{diagnostics_with_options, semantic_tokens, SemanticTokenKind};
 use puml::{
     normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Diagnostic,
     FrontendSelection, ParsePipelineOptions,
@@ -34,6 +36,33 @@ pub fn render_svgs(source: &str) -> Result<Box<[JsValue]>, JsValue> {
                 .into_boxed_slice()
         })
         .map_err(diagnostic_to_js)
+}
+
+/// JSON-encoded Studio compile DTO for browser/runtime callers.
+#[wasm_bindgen]
+pub fn compile_json(source: &str) -> String {
+    compile_json_for_frontend(source, FrontendSelection::Auto)
+}
+
+/// JSON-encoded Studio compile DTO using an explicit frontend/dialect hint.
+#[wasm_bindgen]
+pub fn compile_json_with_frontend(source: &str, frontend: &str) -> String {
+    let frontend = match frontend_selection_from_hint(frontend) {
+        Ok(frontend) => frontend,
+        Err(diag) => {
+            return serde_json::json!({
+                "schema": "puml.compile",
+                "schemaVersion": 1,
+                "ok": false,
+                "family": "unknown",
+                "pages": [],
+                "diagnostics": [diag.to_json_with_source(source)],
+                "semanticTokens": semantic_tokens_json(source),
+            })
+            .to_string();
+        }
+    };
+    compile_json_for_frontend(source, frontend)
 }
 
 /// JSON-encoded render result: `{ ok: ["svg", ...] }` on success or
@@ -111,6 +140,56 @@ fn render_svgs_for_frontend(
     Ok(render_svg_pages_from_model(&model))
 }
 
+fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> String {
+    let options = wasm_parse_options(frontend);
+    let diagnostics = diagnostics_with_options(source, &options)
+        .diagnostics
+        .iter()
+        .map(language_diagnostic_json)
+        .collect::<Vec<_>>();
+
+    match render_svgs_for_frontend(source, frontend) {
+        Ok(pages) => {
+            let family = detect_family_for_frontend(source, frontend)
+                .map(|family| family.as_str().to_string())
+                .unwrap_or_else(|_| "unknown".to_string());
+            serde_json::json!({
+                "schema": "puml.compile",
+                "schemaVersion": 1,
+                "ok": true,
+                "family": family,
+                "pageCount": pages.len(),
+                "pages": pages.iter().enumerate().map(|(index, svg)| {
+                    serde_json::json!({
+                        "index": index,
+                        "format": "svg",
+                        "svg": svg,
+                    })
+                }).collect::<Vec<_>>(),
+                "diagnostics": diagnostics,
+                "semanticTokens": semantic_tokens_json(source),
+            })
+            .to_string()
+        }
+        Err(diag) => serde_json::json!({
+            "schema": "puml.compile",
+            "schemaVersion": 1,
+            "ok": false,
+            "family": "unknown",
+            "pageCount": 0,
+            "pages": [],
+            "diagnostics": if diagnostics.is_empty() {
+                vec![serde_json::to_value(diag.to_json_with_source(source))
+                    .expect("diagnostic json serializes")]
+            } else {
+                diagnostics
+            },
+            "semanticTokens": semantic_tokens_json(source),
+        })
+        .to_string(),
+    }
+}
+
 fn detect_family_for_frontend(
     source: &str,
     frontend: FrontendSelection,
@@ -173,6 +252,53 @@ fn diagnostic_to_js(diag: puml::Diagnostic) -> JsValue {
     JsValue::from_str(&diag.message)
 }
 
+fn language_diagnostic_json(
+    diagnostic: &puml::language_service::LanguageDiagnostic,
+) -> serde_json::Value {
+    serde_json::json!({
+        "code": diagnostic.code,
+        "severity": severity_name(diagnostic.severity),
+        "message": diagnostic.message,
+        "span": diagnostic.span.map(|span| serde_json::json!({
+            "start": span.start,
+            "end": span.end,
+        })),
+        "range": diagnostic.range.map(|range| serde_json::json!({
+            "start": {
+                "line": range.start.line,
+                "column": range.start.column,
+            },
+            "end": {
+                "line": range.end.line,
+                "column": range.end.column,
+            },
+        })),
+    })
+}
+
+fn severity_name(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+    }
+}
+
+fn semantic_tokens_json(source: &str) -> Vec<serde_json::Value> {
+    semantic_tokens(source)
+        .into_iter()
+        .map(|token| {
+            serde_json::json!({
+                "start": token.span.start,
+                "end": token.span.end,
+                "kind": match token.kind {
+                    SemanticTokenKind::Keyword => "keyword",
+                    SemanticTokenKind::Operator => "operator",
+                },
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,6 +323,45 @@ mod tests {
         assert_eq!(pages.len(), 1);
         assert!(pages[0].contains("<svg"));
         assert!(pages[0].contains("request"));
+    }
+
+    #[test]
+    fn compile_json_reports_pages_family_diagnostics_and_tokens() {
+        let parsed: Value =
+            serde_json::from_str(&compile_json("@startuml\nclass User\n@enduml\n")).expect("json");
+
+        assert_eq!(parsed["schema"], "puml.compile");
+        assert_eq!(parsed["schemaVersion"], 1);
+        assert_eq!(parsed["ok"], true);
+        assert_eq!(parsed["family"], "class");
+        assert_eq!(parsed["pageCount"], 1);
+        assert!(parsed["pages"][0]["svg"]
+            .as_str()
+            .expect("svg")
+            .contains("User"));
+        assert!(parsed["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .is_empty());
+        assert!(parsed["semanticTokens"]
+            .as_array()
+            .expect("semantic tokens")
+            .iter()
+            .any(|token| token["kind"] == "keyword"));
+    }
+
+    #[test]
+    fn compile_json_with_frontend_preserves_mermaid_warning_contract() {
+        let parsed: Value = serde_json::from_str(&compile_json_with_frontend(
+            "flowchart LR\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot --> B\n",
+            "mermaid",
+        ))
+        .expect("json");
+
+        assert_eq!(parsed["schema"], "puml.compile");
+        assert_eq!(parsed["ok"], true);
+        assert_eq!(parsed["family"], "component");
+        assert_eq!(parsed["diagnostics"][0]["code"], "W_MERMAID_STYLE_PARTIAL");
     }
 
     #[test]

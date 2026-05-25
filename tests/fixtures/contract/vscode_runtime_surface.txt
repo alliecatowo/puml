@@ -11,4 +11,7 @@ puml.lsp.enabled
 puml.lsp.path
 puml.lsp.trace
 puml.renderSvg
+puml.renderScene
+puml.export
+puml.explainDiagnostic
 ./scripts/vscode-smoke.sh

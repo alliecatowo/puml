@@ -4,7 +4,11 @@
   "patterns": [
     { "include": "#directives" },
     { "include": "#comments" },
-    { "include": "#participantKeywords" },
+    { "include": "#strings" },
+    { "include": "#colors" },
+    { "include": "#stereotypes" },
+    { "include": "#preprocessor" },
+    { "include": "#diagramKeywords" },
     { "include": "#arrows" }
   ],
   "repository": {
@@ -12,7 +16,7 @@
       "patterns": [
         {
           "name": "keyword.control.puml",
-          "match": "@(?:startuml|enduml|autonumber|newpage)\\b"
+          "match": "@(?:startuml|enduml|startpicouml|endpicouml|start[a-zA-Z]+|end[a-zA-Z]+)\\b"
         }
       ]
     },
@@ -24,11 +28,47 @@
         }
       ]
     },
-    "participantKeywords": {
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.puml",
+          "match": "\"(?:\\\\.|[^\"\\\\])*\""
+        }
+      ]
+    },
+    "colors": {
+      "patterns": [
+        {
+          "name": "constant.other.color.puml",
+          "match": "#[0-9a-fA-F]{3,8}\\b"
+        }
+      ]
+    },
+    "stereotypes": {
+      "patterns": [
+        {
+          "name": "entity.name.type.stereotype.puml",
+          "match": "<<[^>]*>>"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "keyword.control.preprocessor.puml",
+          "match": "!(?:include|includesub|define|undef|if|ifdef|ifndef|else|endif|theme|import)\\b"
+        }
+      ]
+    },
+    "diagramKeywords": {
       "patterns": [
         {
           "name": "storage.type.actor.puml",
-          "match": "\\b(?:participant|actor|boundary|control|entity|database|collections|queue)\\b"
+          "match": "\\b(?:participant|actor|boundary|control|entity|database|collections|queue|class|interface|enum|abstract|object|state|usecase|component|node|cloud|frame|folder|package|rectangle|artifact|card|storage|file)\\b"
+        },
+        {
+          "name": "keyword.control.flow.puml",
+          "match": "\\b(?:start|stop|if|then|else|elseif|endif|while|endwhile|repeat|fork|again|partition|endpartition|note|legend|title|caption|header|footer|skinparam)\\b"
         }
       ]
     },
@@ -36,7 +76,7 @@
       "patterns": [
         {
           "name": "keyword.operator.arrow.puml",
-          "match": "(?:--?>|<--?|<-+>|<-+|->+|\\.{2,}>|<\\.{2,})"
+          "match": "(?:=>|<=|--?>|<--?|<-+>|<-+|->+|\\.{2,}>|<\\.{2,})"
         }
       ]
     }
