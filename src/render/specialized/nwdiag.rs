@@ -1,16 +1,24 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::model::NwdiagGroup;
+
 use super::*;
 
 mod layout;
 mod model;
+mod scene;
 mod svg;
 
 use layout::*;
 use model::*;
+use scene::*;
 use svg::*;
 
 pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
+    render_nwdiag_artifact(document).svg
+}
+
+pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
     let mut node_columns = Vec::new();
     for net in &document.networks {
         for node in &net.nodes {
@@ -24,12 +32,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             node_columns.push(node.name.clone());
         }
     }
-    for (from, to) in &document.peer_links {
-        if !node_columns.iter().any(|name| name == from) {
-            node_columns.push(from.clone());
+    for link in &document.peer_links {
+        if !node_columns.iter().any(|name| name == &link.from) {
+            node_columns.push(link.from.clone());
         }
-        if !node_columns.iter().any(|name| name == to) {
-            node_columns.push(to.clone());
+        if !node_columns.iter().any(|name| name == &link.to) {
+            node_columns.push(link.to.clone());
         }
     }
     let mut column_widths = BTreeMap::new();
@@ -68,9 +76,10 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     for node in &document.top_level_nodes {
         rendered_top_level_names.push(node.name.clone());
     }
-    for (from, to) in &document.peer_links {
-        for name in [from, to] {
-            if !node_is_in_network(document, name)
+    for link in &document.peer_links {
+        for name in [&link.from, &link.to] {
+            if link.network.is_none()
+                && !node_is_in_network(document, name)
                 && !rendered_top_level_names
                     .iter()
                     .any(|existing| existing == name)
@@ -104,6 +113,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     ));
     y += 24;
     let shared_node_spans = shared_node_spans(document, &column_x, &column_widths, y);
+    let mut network_lanes = Vec::new();
 
     // ── Pass 1: collect node rects so we can compute group overlays ──────────
     let mut node_rects: BTreeMap<String, Vec<NodeRect>> = BTreeMap::new();
@@ -113,10 +123,10 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             let bar_y = scan_y + 24;
             let node_y = bar_y + 30;
             for node in &net.nodes {
-                if shared_node_spans.contains_key(&node.name) {
-                    continue;
-                }
-                let x = column_x.get(&node.name).copied().unwrap_or(56);
+                let shared_span = shared_node_spans.get(&node.name);
+                let x = shared_span
+                    .map(|span| span.x)
+                    .unwrap_or_else(|| column_x.get(&node.name).copied().unwrap_or(56));
                 let h = node_height(node);
                 node_rects
                     .entry(node.name.clone())
@@ -124,8 +134,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                     .push(NodeRect {
                         x,
                         y: node_y,
-                        w: node_width(node),
+                        w: shared_span
+                            .map(|span| span.w)
+                            .unwrap_or_else(|| node_width(node)),
                         h,
+                        network: Some(net.name.clone()),
+                        physical: shared_span.is_none(),
                     });
             }
             scan_y = node_y + network_after_node_gap(net);
@@ -151,6 +165,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
                 y: top_level_node_y,
                 w: width,
                 h: height,
+                network: None,
+                physical: true,
             });
         }
         top_level_node_y
@@ -161,6 +177,8 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             y: span.y,
             w: span.w,
             h: span.h,
+            network: None,
+            physical: true,
         });
     }
 
@@ -168,17 +186,6 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     let group_pad_x = 8i32;
     let group_pad_bottom = 8i32;
     let group_header_height = 30i32;
-    struct GroupOverlay {
-        x: i32,
-        y: i32,
-        w: i32,
-        h: i32,
-        color: String,
-        style: String,
-        label: String,
-        shape: String,
-        connector_xs: Vec<i32>,
-    }
     let mut overlays: Vec<GroupOverlay> = Vec::new();
     for group in &document.groups {
         let mut min_x = i32::MAX;
@@ -187,7 +194,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let mut max_y = i32::MIN;
         for member in &group.nodes {
             if let Some(rects) = node_rects.get(member) {
-                for rect in rects {
+                for rect in rects.iter().filter(|rect| group_rect_matches(group, rect)) {
                     min_x = min_x.min(rect.x);
                     min_y = min_y.min(rect.y);
                     max_x = max_x.max(rect.x + rect.w);
@@ -204,14 +211,17 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let base_width = (max_x - min_x) + group_pad_x * 2;
         let span = expand_span_to_fit(base_x, base_width, label_width, 24, inner_width);
         let mut connector_xs = BTreeSet::new();
+        let mut child_node_ids = BTreeSet::new();
         for member in &group.nodes {
             if let Some(rects) = node_rects.get(member) {
-                for rect in rects {
+                for rect in rects.iter().filter(|rect| group_rect_matches(group, rect)) {
                     connector_xs.insert(rect.x + (rect.w / 2));
+                    child_node_ids.insert(member.clone());
                 }
             }
         }
         overlays.push(GroupOverlay {
+            id: scoped_group_id(group),
             x: span.x,
             y: min_y - group_header_height,
             w: span.w,
@@ -221,6 +231,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             label,
             shape: group.shape.clone().unwrap_or_else(|| "box".to_string()),
             connector_xs: connector_xs.into_iter().collect(),
+            child_node_ids: child_node_ids.into_iter().collect(),
         });
     }
 
@@ -258,6 +269,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let net_style = net.style.as_deref().unwrap_or("solid");
         let net_dash = nwdiag_stroke_dash(net_style);
         let (network_x, network_width) = network_geometry(net, &column_x, inner_width);
+        network_lanes.push(NetworkLaneGeom {
+            id: format!("nwdiag:network:{}", net.name),
+            label: network_label(net),
+            bounds: (network_x, y, network_width, network_row_step(net) - 2),
+            bus: (network_x, y + 24, network_width, 12),
+        });
         out.push_str(&format!(
             "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
             escape_text(net_style),
@@ -441,11 +458,13 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         ));
     }
 
-    for (from, to) in &document.peer_links {
-        let Some(from_rect) = node_rects.get(from).and_then(|rects| rects.first()) else {
+    let mut peer_routes = Vec::new();
+    for (index, link) in document.peer_links.iter().enumerate() {
+        let Some(from_rect) = peer_link_rect(&node_rects, &link.from, link.network.as_deref())
+        else {
             continue;
         };
-        let Some(to_rect) = node_rects.get(to).and_then(|rects| rects.first()) else {
+        let Some(to_rect) = peer_link_rect(&node_rects, &link.to, link.network.as_deref()) else {
             continue;
         };
         let from_x = from_rect.x + (from_rect.w / 2);
@@ -453,10 +472,28 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         let from_y = from_rect.y + from_rect.h;
         let to_y = to_rect.y + to_rect.h;
         let link_y = from_y.max(to_y) + 18;
+        let route_id = format!("nwdiag:peer:{index}:{}:{}", link.from, link.to);
+        peer_routes.push(PeerRouteGeom {
+            id: route_id,
+            from: link.from.clone(),
+            to: link.to.clone(),
+            path: vec![
+                (from_x, from_y),
+                (from_x, link_y),
+                (to_x, link_y),
+                (to_x, to_y),
+            ],
+        });
+        let network_attr = link
+            .network
+            .as_ref()
+            .map(|network| format!(" data-nwdiag-network=\"{}\"", escape_text(network)))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "<path class=\"nwdiag-peer-link\" data-nwdiag-peer-a=\"{}\" data-nwdiag-peer-b=\"{}\" d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"#475569\" stroke-width=\"2\" stroke-dasharray=\"4 2\" />",
-            escape_text(from),
-            escape_text(to),
+            "<path class=\"nwdiag-peer-link\" data-nwdiag-peer-a=\"{}\" data-nwdiag-peer-b=\"{}\"{} d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"#475569\" stroke-width=\"2\" stroke-dasharray=\"4 2\" />",
+            escape_text(&link.from),
+            escape_text(&link.to),
+            network_attr,
             from_x,
             from_y,
             from_x,
@@ -479,5 +516,46 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         ));
     }
     out.push_str("</svg>");
-    out
+    let scene = build_nwdiag_scene(
+        width,
+        height,
+        &node_rects,
+        &overlays,
+        &network_lanes,
+        &peer_routes,
+    );
+    RenderArtifact::with_scene(out, scene)
+}
+
+fn group_rect_matches(group: &NwdiagGroup, rect: &NodeRect) -> bool {
+    match group.network.as_deref() {
+        Some(network) => rect.network.as_deref() == Some(network),
+        None => rect.physical,
+    }
+}
+
+fn scoped_group_id(group: &NwdiagGroup) -> String {
+    match group.network.as_deref() {
+        Some(network) => format!("nwdiag:group:{network}:{}", group.name),
+        None => format!("nwdiag:group:{}", group.name),
+    }
+}
+
+fn peer_link_rect<'a>(
+    node_rects: &'a BTreeMap<String, Vec<NodeRect>>,
+    name: &str,
+    network: Option<&str>,
+) -> Option<&'a NodeRect> {
+    let rects = node_rects.get(name)?;
+    if let Some(network) = network {
+        rects
+            .iter()
+            .find(|rect| rect.network.as_deref() == Some(network))
+            .or_else(|| rects.iter().find(|rect| rect.physical))
+    } else {
+        rects
+            .iter()
+            .find(|rect| rect.physical)
+            .or_else(|| rects.first())
+    }
 }

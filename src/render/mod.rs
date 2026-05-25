@@ -77,7 +77,7 @@ pub use salt::render_salt_svg;
 pub use sequence::render_svg;
 pub use specialized::{
     render_archimate_svg, render_chart_svg, render_ditaa_svg, render_ebnf_svg, render_math_svg,
-    render_nwdiag_svg, render_regex_svg, render_sdl_svg,
+    render_nwdiag_artifact, render_nwdiag_svg, render_regex_svg, render_sdl_svg,
 };
 pub use state::render_state_svg;
 pub use stdlib::render_stdlib_svg;

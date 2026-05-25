@@ -1,0 +1,19 @@
+@startnwdiag
+nwdiag {
+  network public {
+    address = "203.0.113.0/24"
+    lb;
+    api [address = "203.0.113.10"];
+  }
+  network private {
+    address = "10.0.0.0/24"
+    api [address = "10.0.0.10"];
+    db;
+  }
+  network ops {
+    address = "172.16.0.0/24"
+    api [address = "172.16.0.10"];
+    metrics;
+  }
+}
+@endnwdiag

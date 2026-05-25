@@ -168,6 +168,71 @@ nwdiag {
     );
 }
 
+#[test]
+fn nwdiag_nested_network_groups_and_scoped_peer_links_render() {
+    let src = r##"@startnwdiag
+nwdiag {
+  network public {
+    address = "203.0.113.0/24"
+    group edge {
+      color = "#fef3c7"
+      api [address = "203.0.113.10"];
+      api -- router;
+    }
+  }
+  network private {
+    address = "10.0.0.0/24"
+    api [address = "10.0.0.10"];
+    db;
+  }
+}
+@endnwdiag
+"##;
+    let model = puml::parse(src)
+        .and_then(puml::normalize_family)
+        .expect("normalize nwdiag");
+    let puml::NormalizedDocument::Nwdiag(doc) = model else {
+        panic!("expected nwdiag model");
+    };
+
+    assert_eq!(doc.groups.len(), 1);
+    assert_eq!(doc.groups[0].network.as_deref(), Some("public"));
+    assert_eq!(doc.peer_links.len(), 1);
+    assert_eq!(doc.peer_links[0].network.as_deref(), Some("public"));
+    assert!(
+        doc.networks
+            .iter()
+            .find(|network| network.name == "public")
+            .is_some_and(|network| network.nodes.iter().any(|node| node.name == "router")),
+        "nodes declared inside a scoped group should remain members of the enclosing network"
+    );
+
+    let artifact = puml::render::render_nwdiag_artifact(&doc);
+    assert!(artifact.svg.contains("data-nwdiag-network=\"public\""));
+    assert!(artifact.svg.contains("group edge"));
+    assert_eq!(
+        svg_node_rect_count(&artifact.svg, "api"),
+        1,
+        "shared api should remain one physical node across both networks"
+    );
+    let scene = artifact.scene.as_ref().expect("nwdiag typed scene");
+    assert!(
+        scene.lanes.contains_key("nwdiag:network:public")
+            && scene.lanes.contains_key("nwdiag:network:private"),
+        "nwdiag scene should expose network rows as typed lanes"
+    );
+    assert!(
+        scene.groups.contains_key("nwdiag:group:public:edge"),
+        "scoped nwdiag group should be a typed group frame"
+    );
+    assert_eq!(scene.edges.len(), 1);
+    assert!(
+        scene.validate_geometry().is_empty(),
+        "typed nwdiag peer route should validate before SVG: {:?}",
+        scene.validate_geometry()
+    );
+}
+
 fn fixture(name: &str) -> String {
     format!(
         "{}/tests/fixtures/non_sequence/{name}",

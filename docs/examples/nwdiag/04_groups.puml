@@ -1,0 +1,19 @@
+@startnwdiag
+nwdiag {
+  network dmz {
+    address = "203.0.113.0/24"
+    group edge {
+      color = "#fef3c7"
+      style = "dotted"
+      router;
+      api;
+      router -- api;
+    }
+  }
+  network app {
+    address = "10.0.0.0/24"
+    api;
+    db;
+  }
+}
+@endnwdiag
