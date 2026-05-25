@@ -3,9 +3,11 @@ use crate::render::{self, TextOutputMode};
 use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 
 mod contract;
+mod svg_postprocess;
 pub use contract::{
     RenderArtifact, RenderArtifactDimensions, RenderInvariantReport, RenderSceneContract,
 };
+pub use svg_postprocess::{append_mainframe_svg, apply_scale_svg};
 
 #[cfg(feature = "cli")]
 use image::ImageEncoder as _;
@@ -91,9 +93,20 @@ pub struct RenderedArtifactOutput {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RenderArtifactOutputMetadata {
     pub format: BackendFormat,
-    pub dimensions: Option<crate::render::RenderArtifactDimensions>,
+    pub dimensions: Option<RenderArtifactDimensions>,
     pub scene_availability: crate::render_core::SceneAvailability,
     pub diagnostics: usize,
+}
+
+impl RenderArtifactOutputMetadata {
+    pub fn from_artifact(artifact: &RenderArtifact) -> Self {
+        Self {
+            format: artifact.format,
+            dimensions: artifact.dimensions,
+            scene_availability: artifact.scene_availability,
+            diagnostics: artifact.diagnostics.len(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -174,12 +187,7 @@ pub fn render_output_pages_from_artifacts(
             .map(|(idx, artifact)| RenderedArtifactOutput {
                 name_hint: output_name_hint(name_base, idx, artifacts.len(), format),
                 content: render_artifact_export_content(artifact, format),
-                artifact: Some(RenderArtifactOutputMetadata {
-                    format: artifact.format,
-                    dimensions: artifact.dimensions,
-                    scene_availability: artifact.scene_availability,
-                    diagnostics: artifact.diagnostics.len(),
-                }),
+                artifact: Some(RenderArtifactOutputMetadata::from_artifact(artifact)),
             })
             .collect(),
     }
@@ -455,6 +463,25 @@ mod tests {
         let artifact = outputs[0].artifact.expect("artifact metadata");
         assert_eq!(artifact.format, BackendFormat::Svg);
         assert!(artifact.dimensions.is_some());
+        assert_eq!(
+            artifact.scene_availability,
+            crate::render_core::SceneAvailability::TypedScene
+        );
+    }
+
+    #[test]
+    fn artifact_metadata_and_diagnostics_are_output_owned() {
+        let mut artifact = RenderArtifact::svg_only(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>".to_string(),
+        );
+        artifact.push_diagnostic(crate::Diagnostic::warning("existing warning"));
+        artifact.extend_diagnostics(vec![crate::Diagnostic::warning("later warning")]);
+
+        let metadata = RenderArtifactOutputMetadata::from_artifact(&artifact);
+
+        assert_eq!(metadata.format, BackendFormat::Svg);
+        assert!(metadata.dimensions.is_some());
+        assert_eq!(metadata.diagnostics, 2);
     }
 
     #[cfg(feature = "cli")]

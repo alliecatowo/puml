@@ -78,12 +78,9 @@ pub(super) fn run_render_mode(
             all.push(RenderedArtifactOutput {
                 name_hint,
                 content: render_artifact_export_content(&artifact, cli.format),
-                artifact: Some(puml::output::RenderArtifactOutputMetadata {
-                    format: artifact.format,
-                    dimensions: artifact.dimensions,
-                    scene_availability: artifact.scene_availability,
-                    diagnostics: artifact.diagnostics.len(),
-                }),
+                artifact: Some(puml::output::RenderArtifactOutputMetadata::from_artifact(
+                    &artifact,
+                )),
             });
             return Ok(all);
         }

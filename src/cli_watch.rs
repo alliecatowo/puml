@@ -150,12 +150,7 @@ fn watch_output_bytes(
             let output = RenderedArtifactOutput {
                 name_hint: None,
                 content: render_artifact_export_content(artifact, format),
-                artifact: Some(RenderArtifactOutputMetadata {
-                    format: artifact.format,
-                    dimensions: artifact.dimensions,
-                    scene_availability: artifact.scene_availability,
-                    diagnostics: artifact.diagnostics.len(),
-                }),
+                artifact: Some(RenderArtifactOutputMetadata::from_artifact(artifact)),
             };
             render_artifact_output_bytes(&output, format, dpi)
                 .map(|output| output.bytes)
