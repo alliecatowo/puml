@@ -148,13 +148,14 @@ pub(super) fn render_menu_bar(
 ) {
     let SaltCellBox { x, y, w, h } = cell_box;
     let pad = 8;
+    let menu_h = 20;
     out.push_str(&format!(
         "<rect data-salt-widget=\"menu\" data-salt-open=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
         items.len() > 4,
         x + 1,
         y + 2,
         w - 2,
-        h - 4,
+        menu_h,
         style.menu_fill,
         style.border_color
     ));
@@ -163,7 +164,7 @@ pub(super) fn render_menu_bar(
         salt_text(
             out,
             item_x,
-            y + h / 2 + 4,
+            y + 2 + menu_h / 2 + 4,
             &format!(
                 "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
                 style.font_family, style.text_color
@@ -172,6 +173,45 @@ pub(super) fn render_menu_bar(
             &style.text_color,
         );
         item_x += estimate_text_width(item) + 24;
+    }
+    if items.len() > 4 {
+        let dropdown_y = y + 2 + menu_h;
+        let item_h = 16;
+        let dropdown_w = items
+            .iter()
+            .skip(1)
+            .map(|item| estimate_text_width(item) + 24)
+            .max()
+            .unwrap_or(80)
+            .max(80)
+            .min(w - pad * 2);
+        let dropdown_h = ((items.len() - 1) as i32 * item_h).min(h - menu_h - 4);
+        out.push_str(&format!(
+            "<rect data-salt-widget=\"menu-dropdown\" data-salt-open-index=\"0\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            x + pad,
+            dropdown_y,
+            dropdown_w,
+            dropdown_h,
+            style.menu_fill,
+            style.border_color
+        ));
+        for (idx, item) in items.iter().skip(1).enumerate() {
+            let item_y = dropdown_y + (idx as i32) * item_h;
+            if item_y + item_h > dropdown_y + dropdown_h {
+                break;
+            }
+            salt_text(
+                out,
+                x + pad + 6,
+                item_y + 12,
+                &format!(
+                    "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                    style.font_family, style.text_color
+                ),
+                item,
+                &style.text_color,
+            );
+        }
     }
 }
 

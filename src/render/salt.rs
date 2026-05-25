@@ -24,7 +24,12 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     // Parse rows from the encoded node names.
     let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
     let mut salt_state = SaltTransformState::default();
-    let mut style = SaltRenderStyle::default();
+    let mut style = match &document.family_style {
+        Some(crate::model::FamilyStyle::Salt(style)) => {
+            SaltRenderStyle::from(style.as_ref().clone())
+        }
+        _ => SaltRenderStyle::default(),
+    };
     for node in &document.nodes {
         if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
             let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();

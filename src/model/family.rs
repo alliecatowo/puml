@@ -6,7 +6,8 @@ use crate::model::ScaleSpec;
 use crate::scene::TextOverflowPolicy;
 use crate::sprites::SpriteRegistry;
 use crate::theme::{
-    ActivityStyle, ClassStyle, ComponentStyle, MindMapStyle, SequenceStyle, StateStyle, TimingStyle,
+    ActivityStyle, ClassStyle, ComponentStyle, MindMapStyle, SaltStyle, SequenceStyle, StateStyle,
+    TimingStyle,
 };
 
 #[derive(Debug, Clone)]
@@ -25,6 +26,7 @@ pub enum FamilyStyle {
     Activity(ActivityStyle),
     Timing(TimingStyle),
     MindMap(MindMapStyle),
+    Salt(Box<SaltStyle>),
 }
 
 #[derive(Debug, Clone)]

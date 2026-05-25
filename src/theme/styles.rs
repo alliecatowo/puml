@@ -154,6 +154,175 @@ pub struct MindMapDepthStyle {
     pub border_color: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaltStyle {
+    pub canvas_fill: String,
+    pub panel_fill: String,
+    pub header_fill: String,
+    pub input_fill: String,
+    pub button_fill: String,
+    pub menu_fill: String,
+    pub tab_fill: String,
+    pub scroll_fill: String,
+    pub checkbox_fill: String,
+    pub radio_fill: String,
+    pub accent_fill: String,
+    pub border_color: String,
+    pub grid_color: String,
+    pub text_color: String,
+    pub header_text_color: String,
+    pub input_text_color: String,
+    pub button_text_color: String,
+    pub muted_text_color: String,
+    pub font_family: String,
+}
+
+impl Default for SaltStyle {
+    fn default() -> Self {
+        Self {
+            canvas_fill: "white".to_string(),
+            panel_fill: "white".to_string(),
+            header_fill: "#e2e8f0".to_string(),
+            input_fill: "white".to_string(),
+            button_fill: "#e8e8e8".to_string(),
+            menu_fill: "#eef2ff".to_string(),
+            tab_fill: "#eef2ff".to_string(),
+            scroll_fill: "#eef2ff".to_string(),
+            checkbox_fill: "white".to_string(),
+            radio_fill: "white".to_string(),
+            accent_fill: "#eef2ff".to_string(),
+            border_color: "#555".to_string(),
+            grid_color: "#ccc".to_string(),
+            text_color: "#222".to_string(),
+            header_text_color: "#222".to_string(),
+            input_text_color: "#222".to_string(),
+            button_text_color: "#222".to_string(),
+            muted_text_color: "#aaa".to_string(),
+            font_family: "monospace".to_string(),
+        }
+    }
+}
+
+impl SaltStyle {
+    pub fn apply_property(&mut self, scope: Option<&str>, key: &str, value: &str) -> bool {
+        let Some(scope) = scope else {
+            return self.apply_key(key, value);
+        };
+        let scope = scope
+            .trim()
+            .trim_matches('{')
+            .split_whitespace()
+            .last()
+            .unwrap_or(scope)
+            .to_ascii_lowercase();
+        let lower_key = key.trim().to_ascii_lowercase();
+        let mapped = match (scope.as_str(), lower_key.as_str()) {
+            ("saltdiagram" | "salt", _) => key.to_string(),
+            ("button", "backgroundcolor") => "saltButtonBackgroundColor".to_string(),
+            ("button", "fontcolor") => "saltButtonFontColor".to_string(),
+            ("input" | "textfield" | "textarea", "backgroundcolor") => {
+                "saltInputBackgroundColor".to_string()
+            }
+            ("input" | "textfield" | "textarea", "fontcolor") => "saltInputFontColor".to_string(),
+            ("header", "backgroundcolor") => "saltHeaderColor".to_string(),
+            ("header", "fontcolor") => "saltHeaderFontColor".to_string(),
+            ("menu", "backgroundcolor") => "saltMenuBackgroundColor".to_string(),
+            ("tab", "backgroundcolor") => "saltTabBackgroundColor".to_string(),
+            ("scrollbar", "backgroundcolor") => "saltScrollbarColor".to_string(),
+            ("checkbox", "backgroundcolor") => "saltCheckboxColor".to_string(),
+            ("radio", "backgroundcolor") => "saltRadioColor".to_string(),
+            (_, "linecolor" | "bordercolor") => "saltBorderColor".to_string(),
+            _ => key.to_string(),
+        };
+        self.apply_key(&mapped, value)
+    }
+
+    pub fn apply_key(&mut self, key: &str, value: &str) -> bool {
+        let Some(value) = crate::theme::color::resolve_css3_color_or_original(value) else {
+            return false;
+        };
+        match key.to_ascii_lowercase().as_str() {
+            "backgroundcolor" | "saltbackgroundcolor" | "canvascolor" => {
+                self.canvas_fill = value;
+                true
+            }
+            "saltpanelcolor" | "panelcolor" | "saltfillcolor" => {
+                self.panel_fill = value;
+                true
+            }
+            "saltheadercolor" | "headercolor" | "tableheadercolor" => {
+                self.header_fill = value;
+                true
+            }
+            "saltinputcolor" | "saltinputbackgroundcolor" | "inputbackgroundcolor" => {
+                self.input_fill = value;
+                true
+            }
+            "saltbuttoncolor" | "saltbuttonbackgroundcolor" | "buttonbackgroundcolor" => {
+                self.button_fill = value;
+                true
+            }
+            "saltmenucolor" | "saltmenubackgroundcolor" | "menubackgroundcolor" => {
+                self.menu_fill = value;
+                true
+            }
+            "salttabcolor" | "salttabbackgroundcolor" | "tabbackgroundcolor" => {
+                self.tab_fill = value;
+                true
+            }
+            "saltscrollbarcolor" | "scrollbarcolor" | "scrollbarbackgroundcolor" => {
+                self.scroll_fill = value;
+                true
+            }
+            "saltcheckboxcolor" | "checkboxbackgroundcolor" => {
+                self.checkbox_fill = value;
+                true
+            }
+            "saltradiocolor" | "radiobackgroundcolor" => {
+                self.radio_fill = value;
+                true
+            }
+            "saltaccentcolor" | "accentcolor" => {
+                self.accent_fill = value;
+                true
+            }
+            "bordercolor" | "linecolor" | "saltbordercolor" | "saltlinecolor" => {
+                self.border_color = value;
+                true
+            }
+            "saltgridcolor" | "gridcolor" => {
+                self.grid_color = value;
+                true
+            }
+            "fontcolor" | "saltfontcolor" => {
+                self.text_color = value;
+                true
+            }
+            "saltheaderfontcolor" | "headerfontcolor" => {
+                self.header_text_color = value;
+                true
+            }
+            "saltinputfontcolor" | "inputfontcolor" => {
+                self.input_text_color = value;
+                true
+            }
+            "saltbuttonfontcolor" | "buttonfontcolor" => {
+                self.button_text_color = value;
+                true
+            }
+            "saltmutedfontcolor" | "mutedfontcolor" => {
+                self.muted_text_color = value;
+                true
+            }
+            "handwritten" if value.eq_ignore_ascii_case("true") => {
+                self.font_family = "Comic Sans MS, cursive".to_string();
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 impl Default for SequenceStyle {
     fn default() -> Self {
         Self {
@@ -187,6 +356,36 @@ impl Default for SequenceStyle {
             lifeline_nosolid: false,
             sepia: false,
         }
+    }
+}
+
+pub fn salt_style_from_sequence_theme(style: &SequenceStyle) -> SaltStyle {
+    SaltStyle {
+        canvas_fill: style
+            .background_color
+            .clone()
+            .unwrap_or_else(|| style.group_background_color.clone()),
+        panel_fill: style.group_background_color.clone(),
+        header_fill: style.participant_background_color.clone(),
+        input_fill: style.note_background_color.clone(),
+        button_fill: style.participant_background_color.clone(),
+        menu_fill: style.group_background_color.clone(),
+        tab_fill: style.note_background_color.clone(),
+        scroll_fill: style.group_border_color.clone(),
+        checkbox_fill: style.note_background_color.clone(),
+        radio_fill: style.note_background_color.clone(),
+        accent_fill: style.note_background_color.clone(),
+        border_color: style.participant_border_color.clone(),
+        grid_color: style.group_border_color.clone(),
+        text_color: style.arrow_color.clone(),
+        header_text_color: style.participant_font_color_resolved().to_string(),
+        input_text_color: style.arrow_color.clone(),
+        button_text_color: style.participant_font_color_resolved().to_string(),
+        muted_text_color: style.group_border_color.clone(),
+        font_family: style
+            .default_font_name
+            .clone()
+            .unwrap_or_else(|| "monospace".to_string()),
     }
 }
 
