@@ -15,6 +15,7 @@ use super::paths::{
 use super::stdlib::{
     extract_include_tag, is_angle_bracket_include, is_stdlib_catalog_target,
     process_builtin_stdlib_include, process_stdlib_angle_include, resolve_stdlib_root,
+    stdlib_not_found_diagnostic,
 };
 use super::target::{glob_matches, parse_import_target, parse_include_target};
 use super::url::{extract_url, fetch_url_include, is_url_include_target};
@@ -406,6 +407,21 @@ pub(in crate::preproc) fn process_import_directive(
     let stdlib_root = resolve_stdlib_root(ctx.options, ctx.include_stack)?;
     if import_path_escapes_root(&stdlib_root, &target) {
         return Err(import_escape_diagnostic(&stdlib_root, &target));
+    }
+    if !stdlib_root.join(&target).exists() {
+        let requested_pack = target.to_str().and_then(crate::stdlib::stdlib_path_pack);
+        if requested_pack.is_some_and(crate::stdlib::is_known_missing_stdlib_pack) {
+            return Err(stdlib_not_found_diagnostic(
+                &stdlib_root,
+                requested_pack,
+                &target.display().to_string(),
+                &target,
+            ));
+        }
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_STDLIB_NOT_FOUND",
+            format!("stdlib import not found '{}'", target.display()),
+        ));
     }
     let resolved = resolve_import_path(&stdlib_root, &target)?;
     if !ctx.include_once_seen.insert(resolved.clone()) {
