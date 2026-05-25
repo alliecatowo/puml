@@ -7,11 +7,14 @@ use crate::preproc::control::preprocess_text;
 use crate::preproc::{ParseOptions, PreprocState};
 
 use super::diagnostics::{include_path_required, stack_cycle, url_includes_disabled};
-use super::paths::{normalize_path, resolve_import_path, resolve_include_path};
+use super::paths::{
+    import_escape_diagnostic, import_path_escapes_root, normalize_path,
+    parent_component_import_escape_diagnostic, path_contains_parent_component, resolve_import_path,
+    resolve_include_path,
+};
 use super::stdlib::{
     extract_include_tag, is_angle_bracket_include, is_stdlib_catalog_target,
     process_builtin_stdlib_include, process_stdlib_angle_include, resolve_stdlib_root,
-    stdlib_not_found_diagnostic,
 };
 use super::target::{glob_matches, parse_import_target, parse_include_target};
 use super::url::{extract_url, fetch_url_include, is_url_include_target};
@@ -381,6 +384,9 @@ pub(in crate::preproc) fn process_import_directive(
             ),
         ));
     }
+    if path_contains_parent_component(&target) {
+        return Err(parent_component_import_escape_diagnostic(&target));
+    }
 
     if let Some(builtin) = crate::stdlib::resolve_builtin_stdlib_include(&target) {
         return process_builtin_stdlib_include(
@@ -398,13 +404,8 @@ pub(in crate::preproc) fn process_import_directive(
     }
 
     let stdlib_root = resolve_stdlib_root(ctx.options, ctx.include_stack)?;
-    if !stdlib_root.join(&target).exists() {
-        return Err(stdlib_not_found_diagnostic(
-            &stdlib_root,
-            target.to_str().and_then(crate::stdlib::stdlib_path_pack),
-            &target.display().to_string(),
-            &target,
-        ));
+    if import_path_escapes_root(&stdlib_root, &target) {
+        return Err(import_escape_diagnostic(&stdlib_root, &target));
     }
     let resolved = resolve_import_path(&stdlib_root, &target)?;
     if !ctx.include_once_seen.insert(resolved.clone()) {

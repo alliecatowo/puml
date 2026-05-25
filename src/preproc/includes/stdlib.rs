@@ -7,7 +7,10 @@ use crate::preproc::control::preprocess_text;
 use crate::preproc::{ParseOptions, PreprocState};
 
 use super::diagnostics::stack_cycle;
-use super::paths::resolve_import_path;
+use super::paths::{
+    import_escape_diagnostic, import_path_escapes_root, parent_component_import_escape_diagnostic,
+    path_contains_parent_component, resolve_import_path,
+};
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(in crate::preproc) fn is_stdlib_catalog_target(raw_target: &str) -> bool {
@@ -44,6 +47,9 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
             ),
         ));
     }
+    if path_contains_parent_component(&path) {
+        return Err(parent_component_import_escape_diagnostic(&path));
+    }
 
     if let Some(builtin) = crate::stdlib::resolve_builtin_stdlib_include(&path) {
         return process_builtin_stdlib_include(
@@ -70,6 +76,9 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
             ),
         ));
     };
+    if import_path_escapes_root(&stdlib_root, &path) {
+        return Err(import_escape_diagnostic(&stdlib_root, &path));
+    }
 
     let resolved = if stdlib_root.join(&path).exists() {
         resolve_import_path(&stdlib_root, &path)?
