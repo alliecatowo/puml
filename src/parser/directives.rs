@@ -431,9 +431,7 @@ fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option
 }
 
 fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
-    let Some(selector) = nested_selector else {
-        return None;
-    };
+    let selector = nested_selector?;
     let selector = selector.trim();
     let scoped_key = |base: &str, prefix: &str| {
         style_selector_stereotype(selector, prefix)
@@ -470,9 +468,7 @@ fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Op
 }
 
 fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
-    let Some(selector) = nested_selector else {
-        return None;
-    };
+    let selector = nested_selector?;
     let selector = selector.trim();
     let scoped_key = |base: &str, prefix: &str| {
         style_selector_stereotype(selector, prefix)
