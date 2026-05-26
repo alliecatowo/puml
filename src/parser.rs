@@ -25,6 +25,7 @@ pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<S
     preprocess(source, options)
 }
 
+include!("parser/core_preprocessed.rs");
 include!("parser/core.rs");
 include!("parser/core/blocks.rs");
 include!("parser/core/families.rs");

@@ -6,9 +6,10 @@ mod tests {
     use tempfile::tempdir;
 
     mod activity;
-    mod family;
-    mod preprocessor_control;
-    mod preprocessor_includes;
-    mod sequence;
-    mod timeline;
+mod family;
+mod family_regressions;
+mod preprocessor_control;
+mod preprocessor_includes;
+mod sequence;
+mod timeline;
 }
