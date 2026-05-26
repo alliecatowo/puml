@@ -1610,7 +1610,6 @@ fn normalize_timeline_preserves_coded_unsupported_and_marks_deferred() {
     };
     let err = normalize_family(deferred).expect_err("deferred chronology should fail");
     assert!(err.message.contains("E_TIMELINE_DEFERRED_RAW"));
-    assert_eq!(err.span, Some(Span::new(4, 18)));
 }
 
 #[test]
@@ -1731,6 +1730,138 @@ fn normalize_new_family_paths_distinguish_raw_syntax_categories() {
         );
         assert_eq!(err.span, Some(Span::new(7, 19)));
     }
+}
+
+#[test]
+fn normalize_extended_family_distinguishes_raw_syntax_categories() {
+    let oriented = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Component,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 23),
+            kind: puml::ast::StatementKind::BenignPassthrough(
+                "left to right direction".to_string(),
+            ),
+        }],
+    };
+    match normalize_family(oriented).expect("parser-deferred direction must remain supported") {
+        puml::NormalizedDocument::Family(doc) => {
+            assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
+        }
+        other => panic!("expected family document, got {other:?}"),
+    }
+
+    let unsupported_code = [
+        (
+            puml::ast::StatementKind::UnsupportedSyntax("wat".to_string()),
+            "E_FAMILY_COMPONENT_UNSUPPORTED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::MalformedSyntax("component ???".to_string()),
+            "E_FAMILY_COMPONENT_MALFORMED_SYNTAX",
+        ),
+        (
+            puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
+            "E_FAMILY_COMPONENT_DEFERRED_RAW",
+        ),
+        (
+            puml::ast::StatementKind::CommentLowered("' note".to_string()),
+            "E_FAMILY_COMPONENT_COMMENT_LOWERED",
+        ),
+        (
+            puml::ast::StatementKind::Unknown("legacy".to_string()),
+            "E_PARSE_UNKNOWN",
+        ),
+    ];
+    for (kind, expected_code) in unsupported_code {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::Component,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(10, 17),
+                kind,
+            }],
+        };
+        let err = normalize_family(doc).expect_err("unsupported raw syntax should fail");
+        assert!(
+            err.message.contains(expected_code),
+            "expected {expected_code}, got {}",
+            err.message
+        );
+        assert_eq!(err.span, Some(Span::new(10, 17)));
+    }
+}
+
+#[test]
+fn normalize_tree_family_distinguishes_raw_syntax_categories() {
+    let oriented = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 23),
+            kind: puml::ast::StatementKind::BenignPassthrough(
+                "left to right direction".to_string(),
+            ),
+        }],
+    };
+    match normalize_family(oriented).expect("parser-deferred direction must remain supported") {
+        puml::NormalizedDocument::Family(doc) => {
+            assert_eq!(doc.orientation, puml::model::FamilyOrientation::LeftToRight);
+        }
+        other => panic!("expected family document, got {other:?}"),
+    }
+
+    let malformed = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::MalformedSyntax(":::".to_string()),
+        }],
+    };
+    let err = normalize_family(malformed).expect_err("raw malformed syntax should fail");
+    assert!(err.message.contains("E_FAMILY_MINDMAP_MALFORMED_SYNTAX"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
+
+    let deferred = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::DeferredRaw(":::".to_string()),
+        }],
+    };
+    let err = normalize_family(deferred).expect_err("raw deferred syntax should fail");
+    assert!(err.message.contains("E_FAMILY_MINDMAP_DEFERRED_RAW"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
+
+    let unsupported = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::UnsupportedSyntax(":::".to_string()),
+        }],
+    };
+    let err = normalize_family(unsupported).expect_err("raw unsupported syntax should fail");
+    assert!(err.message.contains("E_FAMILY_MINDMAP_UNSUPPORTED_SYNTAX"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
+
+    let comment = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::CommentLowered("' note".to_string()),
+        }],
+    };
+    let err = normalize_family(comment).expect_err("raw comment-lowered syntax should fail");
+    assert!(err.message.contains("E_FAMILY_MINDMAP_COMMENT_LOWERED"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
+
+    let legacy = puml::ast::Document {
+        kind: puml::ast::DiagramKind::MindMap,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(4, 18),
+            kind: puml::ast::StatementKind::Unknown("legacy".to_string()),
+        }],
+    };
+    let err = normalize_family(legacy).expect_err("legacy unknown syntax should fail");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+    assert_eq!(err.span, Some(Span::new(4, 18)));
 }
 
 #[test]

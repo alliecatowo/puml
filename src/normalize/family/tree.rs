@@ -289,19 +289,27 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if matches!(
-                    raw.category,
-                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed
-                ) {
-                    return Err(common::raw_syntax_diagnostic(
-                        raw,
-                        stmt.span,
-                        RawSyntaxContext::Family(family_kind),
-                    ));
-                }
                 let line = raw.line;
                 if line.trim().is_empty() {
                     continue;
+                }
+                match raw.category {
+                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                    }
+                    RawSyntaxCategory::BenignPassthrough => {
+                        if let Some(value) = parse_family_orientation_directive(line) {
+                            orientation = value;
+                            continue;
+                        }
+                    }
+                    RawSyntaxCategory::Unsupported
+                    | RawSyntaxCategory::Deferred
+                    | RawSyntaxCategory::CommentLowered => {}
                 }
                 if family_kind == DiagramKind::MindMap
                     && collect_mindmap_style_line(
@@ -311,12 +319,6 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     )
                 {
                     continue;
-                }
-                if raw.category == RawSyntaxCategory::BenignPassthrough {
-                    if let Some(value) = parse_family_orientation_directive(line) {
-                        orientation = value;
-                        continue;
-                    }
                 }
                 // MindMap `left side` / `right side` keyword switches which side
                 // subsequent depth-1 nodes appear on when no explicit +/- prefix.
