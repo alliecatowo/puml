@@ -38,15 +38,16 @@ impl SourceMap {
     pub fn line_map(original: &str, generated: &str) -> Self {
         let original_spans = line_spans(original);
         let generated_spans = line_spans(generated);
+        let fallback = original_spans
+            .last()
+            .copied()
+            .unwrap_or_else(|| Span::new(0, 0));
         let mappings = generated_spans
             .into_iter()
             .enumerate()
             .map(|(idx, generated)| MappedSpan {
                 generated,
-                original: original_spans
-                    .get(idx)
-                    .copied()
-                    .unwrap_or_else(|| Span::new(0, 0)),
+                original: original_spans.get(idx).copied().unwrap_or(fallback),
             })
             .collect();
         Self { mappings }
@@ -174,5 +175,18 @@ mod tests {
         assert_eq!(mapped.span, Some(Span::new(13, 43)));
         assert_eq!(mapped.line_col(original), Some((2, 1)));
         assert_eq!(SourceMap::line_map(original, generated).mappings.len(), 3);
+    }
+
+    #[test]
+    fn source_map_fallback_to_last_original_span_for_extra_generated_lines() {
+        let original = "flowchart TD\nA --> B\n";
+        let generated = "@startuml\nA --> B\n'; extra synthetic line\n@enduml\n";
+
+        let mappings = SourceMap::line_map(original, generated).mappings;
+        assert_eq!(mappings.len(), 4);
+        assert_eq!(mappings[0].original, Span::new(0, 12));
+        assert_eq!(mappings[1].original, Span::new(13, 20));
+        assert_eq!(mappings[2].original, Span::new(13, 20));
+        assert_eq!(mappings[3].original, Span::new(13, 20));
     }
 }

@@ -11,6 +11,7 @@ pub use markdown::extract_markdown_diagrams;
 pub use pipeline::{
     detect_diagram_family, normalize, normalize_family, parse, parse_with_pipeline_options,
     parse_with_pipeline_result_options, preprocess_with_pipeline_options,
+    preprocess_with_pipeline_result_options,
 };
 pub use render::{
     render_artifact_pages_from_model, render_family_document_artifact, render_family_document_svg,
@@ -24,5 +25,5 @@ pub use render_scene::{
 pub use render_summary::normalized_model_summary_to_json;
 pub use types::{
     CompatMode, DeterminismMode, DiagramFamily, DiagramInput, FrontendSelection,
-    ParsePipelineOptions, ParsePipelineResult,
+    ParsePipelineOptions, ParsePipelineResult, PreprocessPipelineResult,
 };
