@@ -50,6 +50,7 @@ impl SourceMap {
     pub fn line_map(original: &str, generated: &str) -> Self {
         let original_spans = line_spans(original);
         let generated_spans = line_spans(generated);
+        let fallback_original = original_spans.last().copied().unwrap_or(Span::new(0, 0));
         let mappings = generated_spans
             .into_iter()
             .enumerate()
@@ -58,7 +59,7 @@ impl SourceMap {
                 original: original_spans
                     .get(idx)
                     .copied()
-                    .unwrap_or_else(|| Span::new(0, 0)),
+                    .unwrap_or(fallback_original),
                 source: None,
             })
             .collect();

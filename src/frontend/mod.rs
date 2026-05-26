@@ -113,12 +113,25 @@ mod tests {
     fn source_map_fallback_to_last_original_span_for_extra_generated_lines() {
         let original = "flowchart TD\nA --> B\n";
         let generated = "@startuml\nA --> B\n'; extra synthetic line\n@enduml\n";
+        let source_map = SourceMap::line_map(original, generated);
 
-        let mappings = SourceMap::line_map(original, generated).mappings;
-        assert_eq!(mappings.len(), 4);
-        assert_eq!(mappings[0].original, Span::new(0, 12));
-        assert_eq!(mappings[1].original, Span::new(13, 20));
-        assert_eq!(mappings[2].original, Span::new(13, 20));
-        assert_eq!(mappings[3].original, Span::new(13, 20));
+        let mut line_offsets = Vec::new();
+        let mut offset = 0usize;
+        for line in generated.lines() {
+            let start = offset;
+            let end = offset + line.len();
+            line_offsets.push((start, end));
+            offset += line.len() + 1;
+        }
+
+        assert_eq!(source_map.len(), 4);
+        assert_eq!(line_offsets.len(), 4);
+        let first = source_map.map_span(Span::new(line_offsets[0].0 + 1, line_offsets[0].0 + 2));
+        let second = source_map.map_span(Span::new(line_offsets[1].0 + 1, line_offsets[1].0 + 2));
+        let third = source_map.map_span(Span::new(line_offsets[2].0 + 1, line_offsets[2].0 + 2));
+        let fourth = source_map.map_span(Span::new(line_offsets[3].0 + 1, line_offsets[3].0 + 2));
+        assert_ne!(first, second);
+        assert_eq!(second, third);
+        assert_eq!(second, fourth);
     }
 }
