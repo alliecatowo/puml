@@ -13,7 +13,7 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Option<Span>,
     pub severity: Severity,
-    pub source: Option<DiagnosticSource>,
+    pub source: Option<Box<DiagnosticSource>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -82,7 +82,7 @@ impl Diagnostic {
     }
 
     pub fn with_source(mut self, source: DiagnosticSource) -> Self {
-        self.source = Some(source);
+        self.source = Some(Box::new(source));
         self
     }
 
