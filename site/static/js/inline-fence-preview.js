@@ -2,7 +2,17 @@ import { siteBaseUrl } from './manifest.js';
 import { highlightPumlToHtml, PUML_HIGHLIGHT_LANGS } from './puml-tokens.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
-const SUPPORTED_LANGS = new Set(['puml', 'pumlx', 'plantuml', 'uml', 'puml-sequence', 'uml-sequence', 'picouml', 'mermaid']);
+const SUPPORTED_LANGS = new Set([
+  'puml',
+  'pumlx',
+  'plantuml',
+  'uml',
+  'puml-sequence',
+  'uml-sequence',
+  'picouml',
+  'mermaid',
+  'c4',
+]);
 
 let engine;
 let nextPreviewId = 1;

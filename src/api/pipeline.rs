@@ -1,6 +1,6 @@
 use super::types::{
     CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
-    ParsePipelineResult,
+    ParsePipelineResult, PreprocessPipelineResult,
 };
 use crate::ast::{self, Document};
 use crate::diagnostic::Diagnostic;
@@ -70,13 +70,21 @@ pub fn preprocess_with_pipeline_options(
     source: &str,
     options: &ParsePipelineOptions,
 ) -> Result<String, Diagnostic> {
+    preprocess_with_pipeline_result_options(source, options).map(|result| result.source)
+}
+
+pub fn preprocess_with_pipeline_result_options(
+    source: &str,
+    options: &ParsePipelineOptions,
+) -> Result<PreprocessPipelineResult, Diagnostic> {
     let parser_options = interpret_parser_contract(options)?;
     interpret_determinism_contract(options.determinism);
 
     match options.frontend {
-        FrontendSelection::Auto | FrontendSelection::Plantuml => {
-            parser::preprocess_with_options(source, &parser_options)
-        }
+        FrontendSelection::Auto | FrontendSelection::Plantuml => Ok(PreprocessPipelineResult {
+            source: parser::preprocess_with_options(source, &parser_options)?,
+            diagnostics: Vec::new(),
+        }),
         FrontendSelection::Mermaid => {
             let adapted = frontend::mermaid::adapt(source)?;
             let frontend::FrontendResult {
@@ -84,9 +92,12 @@ pub fn preprocess_with_pipeline_options(
                 source_map,
                 diagnostics,
             } = adapted;
-            let _ = diagnostics;
-            parser::preprocess_with_options(&adapted_source, &parser_options)
-                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
+            let source = parser::preprocess_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))?;
+            Ok(PreprocessPipelineResult {
+                source,
+                diagnostics,
+            })
         }
         FrontendSelection::Picouml => {
             let adapted = frontend::picouml::adapt(source)?;
@@ -95,9 +106,12 @@ pub fn preprocess_with_pipeline_options(
                 source_map,
                 diagnostics,
             } = adapted;
-            let _ = diagnostics;
-            parser::preprocess_with_options(&adapted_source, &parser_options)
-                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))
+            let source = parser::preprocess_with_options(&adapted_source, &parser_options)
+                .map_err(|diagnostic| source_map.map_diagnostic(diagnostic))?;
+            Ok(PreprocessPipelineResult {
+                source,
+                diagnostics,
+            })
         }
     }
 }

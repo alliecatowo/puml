@@ -7,8 +7,9 @@ use puml::source::{Source, Span};
 use puml::theme::Theme;
 use puml::{
     detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
-    parse_with_pipeline_result_options, render_source_to_svg, render_source_to_svg_for_family,
-    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    parse_with_pipeline_result_options, preprocess_with_pipeline_result_options,
+    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
+    DiagramFamily, FrontendSelection, ParsePipelineOptions,
 };
 
 #[test]
@@ -370,6 +371,27 @@ fn extract_markdown_diagrams_supports_tilde_fences_and_ignores_deep_indentation(
 }
 
 #[test]
+fn extract_markdown_diagrams_recognizes_c4_fence_frontend_alias() {
+    let src = concat!(
+        "```c4\n",
+        "@startuml\n",
+        "Person(u, \"User\")\n",
+        "System(s, \"System\")\n",
+        "Rel(u, s, \"uses\")\n",
+        "@enduml\n",
+        "```\n"
+    );
+
+    let diagrams = extract_markdown_diagrams(src);
+    assert_eq!(diagrams.len(), 1);
+    assert_eq!(diagrams[0].fence_frontend, FrontendSelection::Auto);
+
+    let family = detect_diagram_family(&diagrams[0].source)
+        .expect("c4 fixture should detect a supported diagram family");
+    assert_eq!(family, DiagramFamily::Component);
+}
+
+#[test]
 fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
@@ -424,6 +446,32 @@ note A,B : shared context
     };
     parse_with_pipeline_options(picouml, &pico_options)
         .expect("picouml multi-target shorthand note should adapt");
+}
+
+#[test]
+fn mermaid_preprocess_reports_adapter_warnings_with_original_span() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+        ..ParsePipelineOptions::default()
+    };
+    let source = "flowchart TD\nclassDef hot fill:#fef3c7,stroke:#92400e\nA[API]:::hot\n";
+
+    let result = preprocess_with_pipeline_result_options(source, &options)
+        .expect("partial Mermaid style support should stay non-fatal");
+
+    assert_eq!(result.diagnostics.len(), 1);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert!(diagnostic.message.contains("W_MERMAID_STYLE_PARTIAL"));
+    assert_eq!(diagnostic.line_col(source), Some((2, 1)));
+    assert_eq!(
+        diagnostic.span.map(|span| &source[span.start..span.end]),
+        Some("classDef hot fill:#fef3c7,stroke:#92400e")
+    );
+    assert!(result.source.starts_with("@startuml\n"));
 }
 
 #[test]

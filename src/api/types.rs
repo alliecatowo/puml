@@ -136,3 +136,9 @@ pub struct ParsePipelineResult {
     pub document: Document,
     pub diagnostics: Vec<Diagnostic>,
 }
+
+#[derive(Debug, Clone)]
+pub struct PreprocessPipelineResult {
+    pub source: String,
+    pub diagnostics: Vec<Diagnostic>,
+}
