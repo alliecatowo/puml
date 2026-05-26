@@ -7,35 +7,39 @@ fn parse_component_or_deployment_core(
     detected_kind: &mut Option<DiagramKind>,
     statements: &mut Vec<Statement>,
 ) -> Result<Option<usize>, Diagnostic> {
+    let current_kind = match *detected_kind {
+        Some(DiagramKind::Unknown) => None,
+        other => other,
+    };
     if !matches!(
-        detected_kind,
+        current_kind,
         None | Some(DiagramKind::Component | DiagramKind::Deployment)
     ) {
         return Ok(None);
     }
 
-    let ambiguous_class_interface = detected_kind.is_none()
+    let ambiguous_class_interface = current_kind.is_none()
         && line.starts_with("interface ")
         && later_lines_contain_class_family_declaration(lines, i);
-    let actor_prefers_non_component = detected_kind.is_none()
+    let actor_prefers_non_component = current_kind.is_none()
         && line.starts_with("actor ")
         && (line.contains("<<")
             || line.contains('"')
             || later_lines_contain_usecase_family_declaration(lines, i)
             || later_lines_contain_sequence_family_keywords(lines, i));
-    let ambiguous_sequence_participant_prefers_sequence = detected_kind.is_none()
+    let ambiguous_sequence_participant_prefers_sequence = current_kind.is_none()
         && component_decl_keyword(line).is_some_and(|(kw, _)| {
             is_ambiguous_sequence_participant_keyword(kw)
                 && later_lines_contain_sequence_family_keywords(lines, i)
         });
-    let ambiguous_activity_keyword_prefers_activity = detected_kind.is_none()
+    let ambiguous_activity_keyword_prefers_activity = current_kind.is_none()
         && component_decl_keyword(line).is_some_and(|(kw, _)| {
             is_ambiguous_activity_keyword(kw) && later_lines_contain_activity_context(lines, i)
         });
-    let ambiguous_usecase_prefers_usecase = detected_kind.is_none()
+    let ambiguous_usecase_prefers_usecase = current_kind.is_none()
         && (line.starts_with("usecase ") || line.starts_with('('))
         && later_lines_contain_usecase_family_declaration(lines, i);
-    let ambiguous_class_scope = detected_kind.is_none()
+    let ambiguous_class_scope = current_kind.is_none()
         && (line.starts_with("package ") || line.starts_with("namespace "))
         && line.trim_end().ends_with('{')
         && {
@@ -49,9 +53,9 @@ fn parse_component_or_deployment_core(
 
     if !ambiguous_class_scope {
         if let Some((kind, end_idx)) = parse_component_scoping_block(lines, i, line)? {
-            let family = component_scope_family(*detected_kind, &kind);
+            let family = component_scope_family(current_kind, &kind);
             *detected_kind = Some(select_diagram_kind_with_mixing(
-                *detected_kind,
+                current_kind,
                 family,
                 span,
                 allow_mixing,
@@ -71,10 +75,10 @@ fn parse_component_or_deployment_core(
         return Ok(None);
     }
 
-    if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+    if matches!(current_kind, Some(DiagramKind::Deployment)) {
         if let Some(kind) = parse_deployment_usecase_decl(line) {
             *detected_kind = Some(select_diagram_kind_with_mixing(
-                *detected_kind,
+                current_kind,
                 DiagramKind::Deployment,
                 span,
                 allow_mixing,
@@ -84,13 +88,13 @@ fn parse_component_or_deployment_core(
         }
     }
     if let Some((kind, end_idx)) = parse_component_multiline_decl(lines, i, line)? {
-        let family = if matches!(detected_kind, Some(DiagramKind::Component)) {
+        let family = if matches!(current_kind, Some(DiagramKind::Component)) {
             DiagramKind::Component
         } else {
             DiagramKind::Deployment
         };
         *detected_kind = Some(select_diagram_kind_with_mixing(
-            *detected_kind,
+            current_kind,
             family,
             span,
             allow_mixing,
@@ -101,7 +105,7 @@ fn parse_component_or_deployment_core(
     if let Some(kind) = parse_component_decl(line) {
         let family = component_decl_family(*detected_kind, &kind);
         *detected_kind = Some(select_diagram_kind_with_mixing(
-            *detected_kind,
+            current_kind,
             family,
             span,
             allow_mixing,

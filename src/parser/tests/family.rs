@@ -411,6 +411,58 @@ fn parses_c4_relations_before_object_declarations() {
 }
 
 #[test]
+fn parses_c4_relations_after_unsupported_line_without_losing_component_family() {
+    let doc = parse_with_options(
+        "unsupported thing\nRel_Dynamic(Service, User, \"calls\", \"HTTP\")\nSystemDb(db, \"Database\")\nRel_Back(Service, db, \"reads\")\n",
+        &ParseOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(doc.kind, DiagramKind::Component);
+    assert!(matches!(
+        doc.statements[0].kind,
+        StatementKind::UnsupportedSyntax(_)
+    ));
+    assert!(matches!(
+        doc.statements[1].kind,
+        StatementKind::FamilyRelation(_)
+    ));
+    assert!(matches!(
+        doc.statements[2].kind,
+        StatementKind::ObjectDecl(_)
+    ));
+    assert!(matches!(
+        doc.statements[3].kind,
+        StatementKind::FamilyRelation(_)
+    ));
+
+    match &doc.statements[1].kind {
+        StatementKind::FamilyRelation(rel) => {
+            assert_eq!(rel.from, "Service");
+            assert_eq!(rel.to, "User");
+            assert_eq!(rel.label.as_deref(), Some("[C4 Rel_Dynamic()] calls"));
+        }
+        other => panic!("unexpected statement: {other:?}"),
+    }
+
+    match &doc.statements[2].kind {
+        StatementKind::ObjectDecl(decl) => {
+            assert_eq!(decl.alias.as_ref().expect("alias"), "db <<system-db>>");
+        }
+        other => panic!("unexpected statement: {other:?}"),
+    }
+
+    match &doc.statements[3].kind {
+        StatementKind::FamilyRelation(rel) => {
+            assert_eq!(rel.from, "db");
+            assert_eq!(rel.to, "Service");
+            assert_eq!(rel.label.as_deref(), Some("reads"));
+        }
+        other => panic!("unexpected statement: {other:?}"),
+    }
+}
+
+#[test]
 fn parses_dynamic_relay_macro_with_index() {
     let doc = parse_with_options(
         "object Service\nobject User\nRel_Dynamic(Service, User, \"calls\", \"HTTP\", \"#00aa00\", 7)",

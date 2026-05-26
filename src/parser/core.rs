@@ -261,8 +261,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if let Some(kinds) = parse_family_relation(line, detected_kind) {
-            if detected_kind.is_none() {
+        let family_for_relation = match detected_kind {
+            Some(DiagramKind::Unknown) => None,
+            other => other,
+        };
+        if let Some(kinds) = parse_family_relation(line, family_for_relation) {
+            if family_for_relation.is_none() {
                 detected_kind = Some(DiagramKind::Component);
             }
             for kind in kinds {
@@ -325,7 +329,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
-        if detected_kind.is_none() {
+        if matches!(detected_kind, None | Some(DiagramKind::Unknown)) {
             if let Some(kind) = detect_non_sequence_family(line) {
                 let ambiguous_sequence_participant = matches!(kind, DiagramKind::Deployment)
                     && component_decl_keyword(line).is_some_and(|(kw, _)| {
@@ -345,8 +349,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         // Family-specific inline parsing for the newly-implemented families.
         if matches!(
             detected_kind,
-            Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
+            Some(DiagramKind::Component) | Some(DiagramKind::Deployment) | Some(DiagramKind::Unknown)
         ) {
+            let family_for_relation = match detected_kind {
+                Some(DiagramKind::Unknown) => None,
+                other => other,
+            };
             if matches!(detected_kind, Some(DiagramKind::Deployment)) {
                 if let Some(kind) = parse_deployment_usecase_decl(line) {
                     statements.push(Statement { span, kind });
@@ -370,7 +378,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 continue;
             }
             // Try a relation again now that detection settled.
-            if let Some(kinds) = parse_family_relation(line, detected_kind) {
+            if let Some(kinds) = parse_family_relation(line, family_for_relation) {
                 for kind in kinds {
                     statements.push(Statement { span, kind });
                 }
