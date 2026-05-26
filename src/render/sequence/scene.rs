@@ -275,6 +275,7 @@ impl<'a> SequenceSceneBuilder<'a> {
                 from: source.node_id.clone(),
                 to: target.node_id.clone(),
                 route: message_route(message),
+                route_channel_ids: Vec::new(),
                 source_anchor: self.anchor_for_endpoint(&edge_id, "source", source),
                 target_anchor: self.anchor_for_endpoint(&edge_id, "target", target),
                 labels: message_label_boxes(

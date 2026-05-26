@@ -112,7 +112,7 @@ pub fn normalize_family_with_options(
         | DiagramKind::Activity
         | DiagramKind::Timing => family::normalize_extended_family(document).map(NormalizedDocument::Family),
         DiagramKind::Unknown => Err(Diagnostic::error(
-            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
+            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/component/deployment/c4/gantt/chronology syntax",
         )),
     }
 }

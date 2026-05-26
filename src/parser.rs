@@ -37,6 +37,7 @@ include!("parser/family_declarations.rs");
 include!("parser/chen.rs");
 include!("parser/family_members.rs");
 include!("parser/family_relations.rs");
+include!("parser/family_relations_c4.rs");
 include!("parser/family_arrows.rs");
 include!("parser/family_scopes.rs");
 include!("parser/family_context_tail.rs");
