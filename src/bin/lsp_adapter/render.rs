@@ -168,6 +168,7 @@ fn frontend_selection_from_hint(raw: &str) -> Option<FrontendSelection> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "" | "auto" | "puml" | "pumlx" => Some(FrontendSelection::Auto),
         "plantuml" | "uml" | "puml-sequence" | "uml-sequence" => Some(FrontendSelection::Plantuml),
+        "c4" => Some(FrontendSelection::Auto),
         "mermaid" | "mmd" => Some(FrontendSelection::Mermaid),
         "picouml" | "pico" => Some(FrontendSelection::Picouml),
         _ => None,

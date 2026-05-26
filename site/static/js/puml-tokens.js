@@ -55,6 +55,7 @@ export const PUML_HIGHLIGHT_LANGS = new Set([
   'puml-sequence',
   'uml-sequence',
   'picouml',
+  'c4',
 ]);
 
 export function createPumlTokenizerState() {

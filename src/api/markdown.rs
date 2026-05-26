@@ -85,6 +85,9 @@ fn parse_diagram_fence_frontend(info: &str) -> Option<FrontendSelection> {
     if lang.eq_ignore_ascii_case("picouml") {
         return Some(FrontendSelection::Picouml);
     }
+    if lang.eq_ignore_ascii_case("c4") {
+        return Some(FrontendSelection::Auto);
+    }
 
     if is_plantuml_family_fence_lang(lang) {
         return Some(FrontendSelection::Auto);

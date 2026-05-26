@@ -90,7 +90,7 @@ pub fn render_svgs_json(source: &str) -> String {
 
 /// JSON-encoded render result using an explicit frontend/dialect hint.
 ///
-/// `frontend` accepts `auto`, `puml`, `plantuml`, `picouml`, or `mermaid`
+/// `frontend` accepts `auto`, `puml`, `plantuml`, `picouml`, `c4`, or `mermaid`
 /// plus the Markdown fence aliases used by the site.
 #[wasm_bindgen]
 pub fn render_svgs_json_with_frontend(source: &str, frontend: &str) -> String {
@@ -300,6 +300,7 @@ fn frontend_selection_from_hint(raw: &str) -> Result<FrontendSelection, Diagnost
     match raw.trim().to_ascii_lowercase().as_str() {
         "" | "auto" | "puml" | "pumlx" => Ok(FrontendSelection::Auto),
         "plantuml" | "uml" | "puml-sequence" | "uml-sequence" => Ok(FrontendSelection::Plantuml),
+        "c4" => Ok(FrontendSelection::Plantuml),
         "mermaid" | "mmd" => Ok(FrontendSelection::Mermaid),
         "picouml" | "pico" => Ok(FrontendSelection::Picouml),
         other => Err(Diagnostic::error_code(
@@ -472,6 +473,17 @@ mod tests {
         assert_eq!(pages.len(), 1);
         assert!(pages[0].contains("<svg"));
         assert!(pages[0].contains("User"));
+    }
+
+    #[test]
+    fn render_json_with_frontend_supports_c4_alias() {
+        let pages = ok_pages(&render_svgs_json_with_frontend(
+            "@startuml\nPerson(u, \"User\")\nSystem(s, \"System\")\nRel(u, s, \"uses\")\n@enduml\n",
+            "c4",
+        ));
+        assert_eq!(pages.len(), 1);
+        assert!(pages[0].contains("<svg"));
+        assert!(pages[0].contains("User") && pages[0].contains("System"));
     }
 
     #[test]

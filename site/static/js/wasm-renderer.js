@@ -91,6 +91,7 @@ export function normalizeFrontendHint(raw) {
   if (!hint) return '';
   if (hint === 'puml' || hint === 'pumlx' || hint === 'auto') return 'auto';
   if (hint === 'plantuml' || hint === 'uml' || hint === 'puml-sequence' || hint === 'uml-sequence') return 'plantuml';
+  if (hint === 'c4') return 'plantuml';
   if (hint === 'picouml' || hint === 'pico') return 'picouml';
   if (hint === 'mermaid' || hint === 'mmd') return 'mermaid';
   return hint;
