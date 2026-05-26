@@ -6,6 +6,7 @@ expression: json
   "diagnostics": [
     {
       "caret": "^^^^^^^^^^^",
+      "category": "parse-error",
       "code": "E_ARROW_INVALID",
       "column": 1,
       "line": 4,
