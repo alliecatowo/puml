@@ -4,6 +4,9 @@ fn parse_family_declaration(
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
     let (class_visibility, class_line) = strip_class_declaration_visibility(line);
+    if let Some(kind) = parse_parenthesized_c4_decl(class_line) {
+        return Ok(Some((kind, start)));
+    }
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),

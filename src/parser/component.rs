@@ -1,7 +1,14 @@
 fn parse_component_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+
+    if let Some(kind) = parse_parenthesized_c4_decl(trimmed) {
+        return Some(kind);
+    }
+
+    let lowered = trimmed.to_ascii_lowercase();
+
     for (kw, kind) in component_decl_keywords() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with(kw) {
+        if !lowered.starts_with(kw) {
             continue;
         }
         let rest_raw = trimmed[kw.len()..].trim();
@@ -17,7 +24,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if rest_raw.starts_with('-') || rest_raw.starts_with('.') || rest_raw.starts_with('<') {
             return None;
         }
-        if !trimmed
+        if !lowered
             .as_bytes()
             .get(kw.len())
             .copied()
@@ -118,14 +125,147 @@ fn component_decl_keywords() -> impl Iterator<Item = (&'static str, ComponentNod
 
 fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind)> {
     let trimmed = line.trim_start();
+    let lowered = trimmed.to_ascii_lowercase();
     component_decl_keywords().find(|(kw, _)| {
-        trimmed.starts_with(kw)
+        lowered.starts_with(kw)
             && trimmed
                 .as_bytes()
                 .get(kw.len())
                 .copied()
                 .is_some_and(|b| b == b' ' || b == b'\t')
     })
+}
+
+fn parse_parenthesized_c4_decl(trimmed: &str) -> Option<StatementKind> {
+    let open = trimmed.find('(')?;
+    let keyword_raw = trimmed[..open].trim();
+    if keyword_raw.is_empty() {
+        return None;
+    }
+
+    let after_open = &trimmed[open + 1..];
+    let mut close = None;
+    let mut in_quotes = false;
+    for (idx, ch) in after_open.char_indices() {
+        match ch {
+            '"' => in_quotes = !in_quotes,
+            ')' if !in_quotes => {
+                close = Some(idx);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let close = close?;
+    let args_raw = after_open[..close].trim();
+    let suffix = after_open[close + 1..].trim();
+    if !suffix.is_empty() {
+        return None;
+    }
+
+    let stereotype = c4_stereotype_for_function_keyword(keyword_raw)?;
+
+    let args = split_parenthesized_args(args_raw);
+    let alias_raw = args.first()?;
+    let alias = clean_ident(alias_raw);
+    if alias.is_empty() {
+        return None;
+    }
+
+    let name = args
+        .get(1)
+        .and_then(|value| {
+            let raw_label = unquote_if_quoted(value.trim());
+            if raw_label.is_empty() {
+                None
+            } else {
+                Some(raw_label.to_string())
+            }
+        })
+        .unwrap_or_else(|| alias.clone());
+
+    Some(StatementKind::ObjectDecl(ObjectDecl {
+        name,
+        alias: Some(format!("{alias} <<{stereotype}>>")),
+        members: Vec::new(),
+    }))
+}
+
+fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
+    match normalize_c4_keyword(keyword).as_str() {
+        "person" => Some("person"),
+        "person_ext" | "personext" | "person-ext" | "external_person" | "external-person" => {
+            Some("external-person")
+        }
+        "system" => Some("system"),
+        "system_ext" | "systemext" | "system-ext" | "external_system" | "external-system" => {
+            Some("external-system")
+        }
+        "system_db" | "systemdb" | "system-db" => Some("system-db"),
+        "system_queue" | "systemqueue" | "system-queue" => Some("system-queue"),
+        "container" => Some("container"),
+        "container_ext" | "containerext" | "container-ext" | "external_container" | "external-container" => {
+            Some("external-container")
+        }
+        "container_db" | "containerdb" | "container-db" => Some("container-db"),
+        "container_queue" | "containerqueue" | "container-queue" => Some("container-queue"),
+        "component" => Some("component"),
+        "component_ext" | "componentext" | "component-ext" | "external_component" | "external-component" => {
+            Some("external-component")
+        }
+        "component_db" | "componentdb" | "component-db" => Some("component-db"),
+        "component_queue" | "componentqueue" | "component-queue" => Some("component-queue"),
+        "boundary"
+        | "enterprise_boundary"
+        | "enterprise-boundary"
+        | "system_boundary"
+        | "system-boundary"
+        | "container_boundary"
+        | "container-boundary"
+        | "c4_boundary"
+        | "c4-boundary" => Some("boundary"),
+        _ => None,
+    }
+}
+
+fn normalize_c4_keyword(keyword: &str) -> String {
+    keyword
+        .trim()
+        .to_ascii_lowercase()
+        .replace([' ', '\t'], "")
+        .replace('-', "_")
+}
+
+fn split_parenthesized_args(input: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for ch in input.chars() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            current.push(ch);
+        } else if ch == ',' && !in_quotes {
+            out.push(std::mem::take(&mut current));
+        } else {
+            current.push(ch);
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+
+    out.into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn unquote_if_quoted(value: &str) -> &str {
+    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    }
 }
 
 fn split_component_trailing_tags(input: &str) -> (String, Vec<String>) {

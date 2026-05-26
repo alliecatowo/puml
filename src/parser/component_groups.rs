@@ -64,10 +64,12 @@ fn collect_scoped_component_group_content(
             idx += 1;
             continue;
         }
-        if let Some(StatementKind::FamilyRelation(rel)) =
-            parse_family_relation(line, Some(DiagramKind::Component))
-        {
-            content.relations.push(qualify_scoped_relation(rel, scope));
+        if let Some(kinds) = parse_family_relation(line, Some(DiagramKind::Component)) {
+            for kind in kinds {
+                if let StatementKind::FamilyRelation(rel) = kind {
+                    content.relations.push(qualify_scoped_relation(rel, scope));
+                }
+            }
             idx += 1;
             continue;
         }

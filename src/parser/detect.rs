@@ -1,5 +1,7 @@
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
-    if line.eq_ignore_ascii_case("stdlib") {
+    let line = line.to_ascii_lowercase();
+
+    if line == "stdlib" {
         return Some(DiagramKind::Stdlib);
     }
 
@@ -19,11 +21,31 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("card ")
         || line.starts_with("container ")
         || line.starts_with("actor ")
+        || line.starts_with("person(")
+        || line.starts_with("system(")
+        || line.starts_with("system_ext(")
+        || line.starts_with("systemext(")
+        || line.starts_with("system_db(")
+        || line.starts_with("systemdb(")
+        || line.starts_with("container(")
+        || line.starts_with("container_ext(")
+        || line.starts_with("containerext(")
+        || line.starts_with("container_db(")
+        || line.starts_with("containerdb(")
+        || line.starts_with("component(")
+        || line.starts_with("component_ext(")
+        || line.starts_with("componentext(")
+        || line.starts_with("component_db(")
+        || line.starts_with("componentdb(")
+        || line.starts_with("boundary(")
+        || line.starts_with("person_ext(")
+        || line.starts_with("personext(")
+        || line.starts_with("person-ext(")
         // `[Name]` shorthand for component — not [*]/[H]/[H*] pseudo-states
         || (line.starts_with('[')
             && !line.starts_with("[*]")
-            && !line.starts_with("[H]")
-            && !line.starts_with("[H*]"))
+            && !line.starts_with("[h]")
+            && !line.starts_with("[h*]"))
     {
         return Some(DiagramKind::Component);
     }
@@ -53,11 +75,11 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::Deployment);
     }
 
-    if line.starts_with("state ") || line == "[*]" || line == "[H]" || line == "[H*]" {
+    if line.starts_with("state ") || line == "[*]" || line == "[h]" || line == "[h*]" {
         return Some(DiagramKind::State);
     }
     // State transitions involving pseudo-states
-    if (line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]"))
+    if (line.starts_with("[*]") || line.starts_with("[h]") || line.starts_with("[h*]"))
         && line.contains("-->")
     {
         return Some(DiagramKind::State);
@@ -68,7 +90,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
             let rhs = line[idx + 3..].trim();
             // Strip label part
             let rhs_base = rhs.split(':').next().unwrap_or(rhs).trim();
-            if matches!(rhs_base, "[*]" | "[H]" | "[H*]") {
+            if matches!(rhs_base, "[*]" | "[h]" | "[h*]") {
                 return Some(DiagramKind::State);
             }
         }

@@ -261,8 +261,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if let Some(kind) = parse_family_relation(line, detected_kind) {
-            statements.push(Statement { span, kind });
+        if let Some(kinds) = parse_family_relation(line, detected_kind) {
+            if detected_kind.is_none() {
+                detected_kind = Some(DiagramKind::Component);
+            }
+            for kind in kinds {
+                statements.push(Statement { span, kind });
+            }
             i += 1;
             continue;
         }
@@ -365,8 +370,10 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 continue;
             }
             // Try a relation again now that detection settled.
-            if let Some(kind) = parse_family_relation(line, detected_kind) {
-                statements.push(Statement { span, kind });
+            if let Some(kinds) = parse_family_relation(line, detected_kind) {
+                for kind in kinds {
+                    statements.push(Statement { span, kind });
+                }
                 i += 1;
                 continue;
             }

@@ -1,4 +1,10 @@
-fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Vec<StatementKind>> {
+    // When family is still unknown, only C4 legacy relation macros are accepted.
+    // This supports valid C4 inputs where relations appear before declarations.
+    if family.is_none() {
+        return parse_c4_legacy_family_relation(line, None);
+    }
+
     match family {
         Some(DiagramKind::Class)
         | Some(DiagramKind::Object)
@@ -9,6 +15,10 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         | Some(DiagramKind::Component)
         | Some(DiagramKind::Deployment) => {}
         _ => return None,
+    }
+
+    if let Some(kinds) = parse_c4_legacy_family_relation(line, family) {
+        return Some(kinds);
     }
 
     let (core, raw_label) = split_family_relation_label(line);
@@ -51,7 +61,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     if from.is_empty() || to.is_empty() {
         return None;
     }
-    Some(StatementKind::FamilyRelation(FamilyRelation {
+    Some(vec![StatementKind::FamilyRelation(FamilyRelation {
         from,
         to,
         arrow,
@@ -68,7 +78,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         direction: relation_style.direction,
         left_lollipop,
         right_lollipop,
-    }))
+    })])
 }
 
 fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
