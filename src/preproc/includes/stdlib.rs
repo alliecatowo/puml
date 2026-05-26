@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::diagnostic::Diagnostic;
 use crate::preproc::control::preprocess_text;
 use crate::preproc::{ParseOptions, PreprocState};
+use crate::source::MappedSpan;
 
 use super::diagnostics::stack_cycle;
 use super::paths::{
@@ -33,6 +34,7 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     let target = parse_stdlib_angle_include_target(raw_target, directive_name)?;
     let inner = target.display_name.as_str();
@@ -63,6 +65,7 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
             depth,
             call_depth,
             out,
+            mappings,
         );
     }
 
@@ -137,6 +140,7 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
         depth + 1,
         call_depth,
         out,
+        mappings,
     )?;
     include_stack.pop();
     Ok(())
@@ -155,6 +159,7 @@ pub(in crate::preproc) fn process_builtin_stdlib_include(
     depth: usize,
     call_depth: usize,
     out: &mut String,
+    mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     if let Some(tag) = tag {
         return Err(Diagnostic::error_code(
@@ -189,6 +194,7 @@ pub(in crate::preproc) fn process_builtin_stdlib_include(
         depth + 1,
         call_depth,
         out,
+        mappings,
     )?;
     include_stack.pop();
     Ok(())

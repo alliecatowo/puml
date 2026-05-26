@@ -1,5 +1,5 @@
 use crate::model::NormalizedDocument;
-use crate::source::Span;
+use crate::source::{DiagnosticSource, Span};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +13,7 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Option<Span>,
     pub severity: Severity,
+    pub source: Option<Box<DiagnosticSource>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -27,6 +28,10 @@ pub struct DiagnosticJson {
     pub column: Option<usize>,
     pub snippet: Option<String>,
     pub caret: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<DiagnosticOriginJson>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub include_stack: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -35,12 +40,26 @@ pub struct DiagnosticSpanJson {
     pub end: usize,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DiagnosticOriginJson {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    pub span: DiagnosticSpanJson,
+    pub line: usize,
+    pub column: usize,
+    pub snippet: String,
+    pub caret: String,
+}
+
 impl Diagnostic {
     pub fn error(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
             span: None,
             severity: Severity::Error,
+            source: None,
         }
     }
 
@@ -53,11 +72,17 @@ impl Diagnostic {
             message: message.into(),
             span: None,
             severity: Severity::Warning,
+            source: None,
         }
     }
 
     pub fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
+        self
+    }
+
+    pub fn with_source(mut self, source: DiagnosticSource) -> Self {
+        self.source = Some(Box::new(source));
         self
     }
 
@@ -82,12 +107,19 @@ impl Diagnostic {
     pub fn to_json_with_source(&self, source: &str) -> DiagnosticJson {
         let code = diagnostic_code(&self.message);
         let (line, column) = self
-            .span
-            .map(|span| offset_to_line_col(source, span.start))
-            .map(|(l, c)| (Some(l), Some(c)))
+            .source
+            .as_ref()
+            .map(|origin| (Some(origin.line), Some(origin.column)))
+            .or_else(|| {
+                self.span
+                    .map(|span| offset_to_line_col(source, span.start))
+                    .map(|(l, c)| (Some(l), Some(c)))
+            })
             .unwrap_or((None, None));
 
-        let (snippet, caret) = if let Some(span) = self.span {
+        let (snippet, caret) = if let Some(origin) = &self.source {
+            (Some(origin.snippet.clone()), Some(origin.caret.clone()))
+        } else if let Some(span) = self.span {
             let (line_start, line_end) = containing_line_bounds(source, span.start);
             let line_src = source[line_start..line_end].to_string();
             let marker = render_caret_line(source, span)
@@ -99,9 +131,26 @@ impl Diagnostic {
         } else {
             (None, None)
         };
+        let origin = self.source.as_ref().map(|source| DiagnosticOriginJson {
+            file: source.file.clone(),
+            source: source.source_name.clone(),
+            span: DiagnosticSpanJson {
+                start: source.span.start,
+                end: source.span.end,
+            },
+            line: source.line,
+            column: source.column,
+            snippet: source.snippet.clone(),
+            caret: source.caret.clone(),
+        });
+        let include_stack = self
+            .source
+            .as_ref()
+            .map(|source| source.include_stack.clone())
+            .unwrap_or_default();
 
         DiagnosticJson {
-            file: None,
+            file: self.source.as_ref().and_then(|source| source.file.clone()),
             code,
             severity: match self.severity {
                 Severity::Error => "error",
@@ -116,6 +165,8 @@ impl Diagnostic {
             column,
             snippet,
             caret,
+            origin,
+            include_stack,
         }
     }
 }

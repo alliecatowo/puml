@@ -16,6 +16,9 @@ pub struct LanguageDiagnostic {
     pub message: String,
     pub span: Option<Span>,
     pub range: Option<SourceRange>,
+    pub file: Option<String>,
+    pub source: Option<String>,
+    pub include_stack: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,15 +132,45 @@ pub fn explain_diagnostic(code: Option<&str>, message: Option<&str>) -> Diagnost
 }
 
 fn language_diagnostic(source: &str, diagnostic: &Diagnostic) -> LanguageDiagnostic {
+    let range = diagnostic.source.as_ref().map_or_else(
+        || {
+            diagnostic.span.map(|span| SourceRange {
+                start: source_position(source, span.start),
+                end: source_position(source, span.end.max(span.start + 1)),
+            })
+        },
+        |origin| {
+            Some(SourceRange {
+                start: SourcePosition {
+                    line: origin.line,
+                    column: origin.column,
+                },
+                end: SourcePosition {
+                    line: origin.line,
+                    column: origin.column + origin.span.len().max(1),
+                },
+            })
+        },
+    );
     LanguageDiagnostic {
         code: diagnostic_code(&diagnostic.message),
         severity: diagnostic.severity,
         message: diagnostic.message.clone(),
         span: diagnostic.span,
-        range: diagnostic.span.map(|span| SourceRange {
-            start: source_position(source, span.start),
-            end: source_position(source, span.end.max(span.start + 1)),
-        }),
+        range,
+        file: diagnostic
+            .source
+            .as_ref()
+            .and_then(|source| source.file.clone()),
+        source: diagnostic
+            .source
+            .as_ref()
+            .and_then(|source| source.source_name.clone()),
+        include_stack: diagnostic
+            .source
+            .as_ref()
+            .map(|source| source.include_stack.clone())
+            .unwrap_or_default(),
     }
 }
 

@@ -7,8 +7,8 @@ use crate::ast::{
     VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
-use crate::preproc::preprocess;
 pub use crate::preproc::ParseOptions;
+use crate::preproc::{preprocess, preprocess_with_map};
 use crate::source::Span;
 
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {
@@ -16,8 +16,9 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
 }
 
 pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
-    let expanded = preprocess(source, options)?;
-    parse_preprocessed(&expanded)
+    let expanded = preprocess_with_map(source, options)?;
+    parse_preprocessed(&expanded.source)
+        .map_err(|diagnostic| expanded.source_map.map_diagnostic(diagnostic))
 }
 
 pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {

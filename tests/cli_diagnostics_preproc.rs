@@ -112,6 +112,78 @@ fn preproc_stdrpt_diagnostic_is_single_line_and_uses_mapped_location() {
 }
 
 #[test]
+fn cli_json_diagnostic_inside_include_reports_included_origin() {
+    let tmp = tempdir().unwrap();
+    let child = tmp.path().join("broken.puml");
+    fs::write(&child, "A -x B\n").unwrap();
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            "--include-root",
+            tmp.path().to_str().unwrap(),
+            "-",
+        ])
+        .write_stdin("@startuml\n!include broken.puml\n@enduml\n")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["code"], "E_ARROW_INVALID");
+    assert!(first["file"].as_str().unwrap().ends_with("broken.puml"));
+    assert_eq!(first["line"], 1);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "A -x B");
+    assert!(first["origin"]["file"]
+        .as_str()
+        .unwrap()
+        .ends_with("broken.puml"));
+    assert!(first["include_stack"][0]
+        .as_str()
+        .unwrap()
+        .ends_with("broken.puml"));
+}
+
+#[test]
+fn cli_json_missing_include_stays_on_authored_include_statement() {
+    let tmp = tempdir().unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            "--include-root",
+            tmp.path().to_str().unwrap(),
+            "-",
+        ])
+        .write_stdin("@startuml\n!include missing.puml\n@enduml\n")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["code"], "E_INCLUDE_READ");
+    assert_eq!(first["file"], Value::Null);
+    assert_eq!(first["line"], 2);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "!include missing.puml");
+    assert!(first["origin"].is_null());
+}
+
+#[test]
 fn check_fixture_stdrpt_warning_routes_through_warning_emitter() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
