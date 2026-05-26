@@ -194,10 +194,9 @@ pub fn render_artifact_pages_from_model(model: &NormalizedDocument) -> Vec<Rende
             &doc.warnings,
         )],
         NormalizedDocument::Chen(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_chen_svg(doc),
-                &doc.warnings,
-            )]
+            // Chen emits a typed RenderScene built from its actual drawn geometry.
+            // SVG output is unchanged; the scene is attached for the typed path.
+            vec![render::render_chen_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Board(doc) => {
             vec![artifact_with_diagnostics(

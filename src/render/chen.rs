@@ -1,8 +1,12 @@
 use std::collections::BTreeMap;
 
 use crate::model::{ChenAttribute, ChenDocument, ChenNode, ChenNodeKind};
+use crate::output::RenderArtifact;
 use crate::render::graph_layout::{layout_hierarchical, EdgeSpec, LayoutOptions, NodeSize};
 use crate::render::svg::escape_text;
+use crate::render_core::{
+    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum ChenShape {
@@ -27,6 +31,19 @@ struct RenderNode {
 }
 
 pub fn render_chen_svg(document: &ChenDocument) -> String {
+    render_chen_artifact(document).svg
+}
+
+/// Render a Chen ER diagram into a typed [`RenderArtifact`].
+///
+/// The SVG is still emitted directly (Chen draws bespoke entity/relationship/
+/// attribute shapes and straight border-to-border edges), but we also build a
+/// [`RenderScene`] from the *actual* drawn geometry — node boxes at their laid-out
+/// positions and edges along the same anchor lines the SVG uses — so the scene
+/// stays consistent with the output (no box_grid-style scene/SVG drift). Output
+/// is byte-identical to the legacy `render_chen_svg`; the scene is attached for
+/// the typed-geometry validation path.
+pub fn render_chen_artifact(document: &ChenDocument) -> RenderArtifact {
     let mut render_nodes = Vec::new();
     let mut edges = Vec::new();
 
@@ -184,7 +201,104 @@ pub fn render_chen_svg(document: &ChenDocument) -> String {
         ));
     }
     out.push_str("</svg>");
-    out
+
+    let scene = build_chen_scene(
+        &render_nodes,
+        &node_by_id,
+        pos,
+        &edges,
+        document,
+        width as f64,
+        height as f64,
+    );
+    RenderArtifact::with_scene(out, scene)
+}
+
+/// Build a typed [`RenderScene`] from Chen's laid-out geometry. Node boxes use
+/// the same positions/sizes the SVG draws; edge routes use the same
+/// `anchor_line` border-to-border segments, so scene and SVG never diverge.
+fn build_chen_scene(
+    render_nodes: &[RenderNode],
+    node_by_id: &BTreeMap<&str, &RenderNode>,
+    pos: &BTreeMap<String, (f64, f64)>,
+    edges: &[EdgeSpec],
+    document: &ChenDocument,
+    width: f64,
+    height: f64,
+) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, width, height));
+
+    for node in render_nodes {
+        if let Some(&(x, y)) = pos.get(&node.id) {
+            let bounds = Rect::new(x, y, node.width, node.height);
+            let label = LabelBox {
+                id: format!("{}::label", node.id),
+                text: node.label.clone(),
+                bounds,
+                owner_id: Some(node.id.clone()),
+                role: LabelRole::Node,
+            };
+            scene.add_node(SceneNode {
+                id: node.id.clone(),
+                node_box: NodeBox {
+                    id: node.id.clone(),
+                    bounds,
+                    ports: Vec::new(),
+                    labels: vec![label],
+                },
+            });
+        }
+    }
+
+    for (idx, rel) in document.relations.iter().enumerate() {
+        push_scene_edge(&mut scene, pos, node_by_id, format!("rel{idx}"), &rel.from, &rel.to);
+    }
+    for edge in edges.iter().filter(|edge| edge.id.starts_with("attr")) {
+        push_scene_edge(&mut scene, pos, node_by_id, edge.id.clone(), &edge.from, &edge.to);
+    }
+    for edge in edges.iter().filter(|edge| edge.id.starts_with("inh")) {
+        push_scene_edge(&mut scene, pos, node_by_id, edge.id.clone(), &edge.from, &edge.to);
+    }
+
+    scene
+}
+
+fn push_scene_edge(
+    scene: &mut RenderScene,
+    pos: &BTreeMap<String, (f64, f64)>,
+    node_by_id: &BTreeMap<&str, &RenderNode>,
+    id: String,
+    from: &str,
+    to: &str,
+) {
+    let (Some(src_rect), Some(tgt_rect)) =
+        (node_rect(pos, node_by_id, from), node_rect(pos, node_by_id, to))
+    else {
+        return;
+    };
+    let (x1, y1, x2, y2) = anchor_line(src_rect, tgt_rect);
+    let source_anchor = Anchor {
+        id: format!("{id}::src"),
+        owner_id: from.to_string(),
+        position: Point::new(x1, y1),
+        port: None,
+    };
+    let target_anchor = Anchor {
+        id: format!("{id}::tgt"),
+        owner_id: to.to_string(),
+        position: Point::new(x2, y2),
+        port: None,
+    };
+    scene.add_edge(SceneEdge {
+        id,
+        from: from.to_string(),
+        to: to.to_string(),
+        route: Polyline::from_tuples(&[(x1, y1), (x2, y2)]),
+        route_channel_ids: Vec::new(),
+        source_anchor,
+        target_anchor,
+        labels: Vec::new(),
+    });
 }
 
 fn push_chen_node(render_nodes: &mut Vec<RenderNode>, node: &ChenNode) {

@@ -73,7 +73,7 @@ impl RenderArtifact {
 
 pub use activity::render_activity_svg;
 pub use board_files::{render_board_svg, render_files_svg};
-pub use chen::render_chen_svg;
+pub use chen::{render_chen_artifact, render_chen_svg};
 pub use data::{render_json_svg, render_yaml_svg};
 pub use family::{
     render_class_artifact, render_class_svg, render_component_artifact, render_component_svg,
