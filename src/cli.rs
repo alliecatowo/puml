@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 mod options;
 pub use options::{
-    parse_define, parse_dpi, parse_threads, ColorChoice, CompatMode, DeterminismMode,
-    DiagnosticsFormat, Dialect, DumpKind, LintReportFormat,
+    parse_define, parse_dpi, parse_threads, ColorChoice, CompatMode, DiagnosticsFormat, Dialect,
+    DumpKind, LintReportFormat,
 };
 
 // Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
@@ -159,10 +159,6 @@ pub struct Cli {
     /// Compatibility policy for semantic interpretation.
     #[arg(long, value_enum, default_value_t = CompatMode::Strict)]
     pub compat: CompatMode,
-
-    /// Determinism policy for layout/output behavior.
-    #[arg(long, value_enum, default_value_t = DeterminismMode::Strict)]
-    pub determinism: DeterminismMode,
 
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]

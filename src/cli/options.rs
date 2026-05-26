@@ -84,12 +84,6 @@ pub enum CompatMode {
     Extended,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
-pub enum DeterminismMode {
-    Strict,
-    Full,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

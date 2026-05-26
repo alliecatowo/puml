@@ -10,7 +10,6 @@ fn defaults_parse_as_expected() {
     assert_eq!(cli.color, ColorChoice::Auto);
     assert_eq!(cli.dialect, Dialect::Auto);
     assert_eq!(cli.compat, CompatMode::Strict);
-    assert_eq!(cli.determinism, DeterminismMode::Strict);
     assert_eq!(cli.lint_report, LintReportFormat::Human);
     assert_eq!(cli.charset, "UTF-8");
     assert!(cli.encodesprite.is_empty());

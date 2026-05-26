@@ -1,6 +1,6 @@
 use super::types::{
-    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
-    ParsePipelineResult, PreprocessPipelineResult,
+    CompatMode, DiagramFamily, FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
+    PreprocessPipelineResult,
 };
 use crate::ast::{self, Document};
 use crate::diagnostic::Diagnostic;
@@ -24,7 +24,6 @@ pub fn parse_with_pipeline_result_options(
     options: &ParsePipelineOptions,
 ) -> Result<ParsePipelineResult, Diagnostic> {
     let parser_options = interpret_parser_contract(options)?;
-    interpret_determinism_contract(options.determinism);
 
     match options.frontend {
         FrontendSelection::Auto | FrontendSelection::Plantuml => {
@@ -78,7 +77,6 @@ pub fn preprocess_with_pipeline_result_options(
     options: &ParsePipelineOptions,
 ) -> Result<PreprocessPipelineResult, Diagnostic> {
     let parser_options = interpret_parser_contract(options)?;
-    interpret_determinism_contract(options.determinism);
 
     match options.frontend {
         FrontendSelection::Auto | FrontendSelection::Plantuml => Ok(PreprocessPipelineResult {
@@ -128,11 +126,6 @@ fn interpret_parser_contract(
         allow_url_includes: options.allow_url_includes,
         inject_vars: options.inject_vars.clone(),
     })
-}
-
-fn interpret_determinism_contract(_mode: DeterminismMode) {
-    // Determinism behavior is currently fully deterministic across modes.
-    // Keep this explicit interpretation point to avoid split-brain routing.
 }
 
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {

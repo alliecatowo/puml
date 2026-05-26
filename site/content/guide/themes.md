@@ -63,7 +63,7 @@ class Repository <<(R,#34d399) Data>>
 
 ## Determinism
 
-Themes and skinparams **do not** affect determinism. Two runs with identical source and identical effective tokens produce byte-identical SVG. The `--determinism strict` flag (the default) rejects sources that would otherwise rely on environment state.
+Themes and skinparams **do not** affect determinism. Two runs with identical source and identical effective tokens produce byte-identical SVG.
 
 ## See the gallery
 

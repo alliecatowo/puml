@@ -31,7 +31,6 @@ pub fn run_count(args: &CountArgs) -> Result<i32, (i32, String)> {
     let options = ParsePipelineOptions {
         frontend: puml::FrontendSelection::Auto,
         compat: puml::CompatMode::Strict,
-        determinism: puml::DeterminismMode::Strict,
         include_root: args.file.parent().map(|p| p.to_path_buf()),
         allow_url_includes: false,
         inject_vars: Default::default(),
@@ -385,7 +384,6 @@ mod tests {
         let options = ParsePipelineOptions {
             frontend: puml::FrontendSelection::Auto,
             compat: puml::CompatMode::Strict,
-            determinism: puml::DeterminismMode::Strict,
             include_root: None,
             allow_url_includes: false,
             inject_vars: Default::default(),

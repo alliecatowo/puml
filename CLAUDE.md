@@ -157,8 +157,8 @@ These are hard rules, not suggestions:
   before iterating. Nondeterministic output breaks the byte-identical output guarantee.
 - **No `unwrap()` or `panic!()` on user input.** Return a `Diagnostic` with a helpful
   message. Panics on bad `.puml` files are bugs, full stop.
-- **Same input → byte-identical output** (`DeterminismMode::Strict`). CI will catch
-  violations via the oracle conformance suite.
+- **Same input → byte-identical output.** Rendering is unconditionally deterministic
+  (BTreeMap/sorted-key discipline); there is no determinism mode toggle.
 - **Bless baselines only after visual inspection.** Never bless to make a red test
   green without first reading the rendered PNG.
 

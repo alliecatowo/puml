@@ -24,6 +24,6 @@ pub use render_scene::{
 };
 pub use render_summary::normalized_model_summary_to_json;
 pub use types::{
-    CompatMode, DeterminismMode, DiagramFamily, DiagramInput, FrontendSelection,
-    ParsePipelineOptions, ParsePipelineResult, PreprocessPipelineResult,
+    CompatMode, DiagramFamily, DiagramInput, FrontendSelection, ParsePipelineOptions,
+    ParsePipelineResult, PreprocessPipelineResult,
 };

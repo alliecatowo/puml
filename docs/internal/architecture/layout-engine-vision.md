@@ -97,7 +97,7 @@ These become first-class invariants enforced in tests:
 1. **No overlapping text, ever.** Two `<text>` elements never share canvas space. Enforce with a post-render bounding-box overlap check; treat failure as a render error.
 2. **All arrows attach to box edges.** No arrow shaft passes through a box body. Enforce via a post-render obstacle-intersection check.
 3. **All elements within canvas.** No clipping. Canvas auto-sizes after layout to fit + margin.
-4. **Deterministic byte-stable output.** Same source = same SVG. Already enforced by `DeterminismMode::Strict`.
+4. **Deterministic byte-stable output.** Same source = same SVG. Rendering is unconditionally deterministic (BTreeMap/sorted-key discipline).
 5. **Aesthetic spacing.** Margins, gutters, line spacing — define a "design token" set in `src/theme/tokens.rs` and use everywhere.
 
 ## Files to read for context
