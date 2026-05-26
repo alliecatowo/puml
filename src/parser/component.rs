@@ -139,6 +139,7 @@ fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind
 fn parse_parenthesized_c4_decl(trimmed: &str) -> Option<StatementKind> {
     let open = trimmed.find('(')?;
     let keyword_raw = trimmed[..open].trim();
+    let keyword_raw = strip_c4_macro_prefix(keyword_raw);
     if keyword_raw.is_empty() {
         return None;
     }
@@ -229,7 +230,7 @@ fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
 }
 
 fn normalize_c4_keyword(keyword: &str) -> String {
-    keyword
+    strip_c4_macro_prefix(keyword)
         .trim()
         .to_ascii_lowercase()
         .replace([' ', '\t'], "")

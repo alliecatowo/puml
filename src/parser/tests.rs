@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::{parse_with_options, ParseOptions};
+    use super::{parse_preprocessed, parse_with_options, ParseOptions};
     use crate::ast::{ActivityStepKind, DiagramKind, StatementKind};
     use std::fs;
     use tempfile::tempdir;
