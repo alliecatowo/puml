@@ -44,6 +44,7 @@ pub fn language_diagnostic_to_lsp_value(
         "severity":lsp_severity(diagnostic.severity),
         "source":"puml",
         "code":diagnostic.code.clone(),
+        "data":{"category":diagnostic.category.as_str()},
         "message":diagnostic.message.clone()
     })
 }
@@ -75,6 +76,7 @@ mod tests {
         assert_eq!(first["source"], "puml");
         assert_eq!(first["severity"], 1);
         assert_eq!(first["code"], "E_ARROW_INVALID");
+        assert_eq!(first["data"]["category"], "parse-error");
     }
 
     #[test]
@@ -93,5 +95,6 @@ mod tests {
         assert_eq!(first["source"], "puml");
         assert_eq!(first["severity"], 1);
         assert_eq!(first["code"], "E_INCLUDE_URL_DISABLED");
+        assert_eq!(first["data"]["category"], "parse-error");
     }
 }

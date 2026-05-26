@@ -1,5 +1,6 @@
 use crate::diagnostic::{
-    diagnostic_code, normalized_warnings, offset_to_line_col, Diagnostic, Severity,
+    diagnostic_category, diagnostic_code, normalized_warnings, offset_to_line_col, Diagnostic,
+    DiagnosticCategory, Severity,
 };
 use crate::source::Span;
 use crate::{normalize_family, parse_with_pipeline_result_options, ParsePipelineOptions};
@@ -13,6 +14,7 @@ pub struct DiagnosticsReport {
 pub struct LanguageDiagnostic {
     pub code: Option<String>,
     pub severity: Severity,
+    pub category: DiagnosticCategory,
     pub message: String,
     pub span: Option<Span>,
     pub range: Option<SourceRange>,
@@ -89,9 +91,25 @@ pub fn explain_diagnostic(code: Option<&str>, message: Option<&str>) -> Diagnost
             "The source references a URL include, but URL includes are disabled for this entry point.",
             "Use a local include or enable URL includes in a caller that explicitly permits network access.",
         ),
+        value if value.starts_with("W_MERMAID_") || value.starts_with("W_PICO") => (
+            "The source was adapted from another frontend and some authored syntax was not preserved exactly.",
+            "Inspect the mapped source span and replace the construct with supported PlantUML syntax if exact parity is required.",
+        ),
         value if value.starts_with("E_INCLUDE_") || value.starts_with("E_IMPORT_") => (
             "The preprocessor could not resolve an include or import.",
             "Check the include path, stdlib pack name, and the configured include root.",
+        ),
+        value if value.contains("PASSTHROUGH_UNCONSUMED") => (
+            "The parser deferred this line to a diagram family, but that family did not consume it.",
+            "Check whether the statement belongs to this diagram family or replace it with supported syntax.",
+        ),
+        value if value.contains("DEFERRED_RAW") => (
+            "Raw syntax was intentionally deferred, but no later normalizer consumed it.",
+            "Move the raw block to a supported diagram family or simplify it to supported syntax.",
+        ),
+        value if value.contains("MALFORMED") => (
+            "The syntax shape was recognized but malformed.",
+            "Fix the statement near the diagnostic span before rendering.",
         ),
         value if value.starts_with("E_PREPROC_") => (
             "The preprocessor rejected a directive or macro expression.",
@@ -155,6 +173,7 @@ fn language_diagnostic(source: &str, diagnostic: &Diagnostic) -> LanguageDiagnos
     LanguageDiagnostic {
         code: diagnostic_code(&diagnostic.message),
         severity: diagnostic.severity,
+        category: diagnostic_category(&diagnostic.message, diagnostic.severity),
         message: diagnostic.message.clone(),
         span: diagnostic.span,
         range,

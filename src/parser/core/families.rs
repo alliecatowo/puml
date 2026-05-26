@@ -272,6 +272,16 @@ fn parse_chronology_core_line(
     i + 1
 }
 
+fn is_common_orientation_directive(line: &str) -> bool {
+    let tokens = line.split_whitespace().collect::<Vec<_>>();
+    let is_axis = |value: &str| matches!(value, "left" | "right" | "top" | "bottom");
+    tokens.len() == 4
+        && tokens[1].eq_ignore_ascii_case("to")
+        && tokens[3].eq_ignore_ascii_case("direction")
+        && is_axis(tokens[0].to_ascii_lowercase().as_str())
+        && is_axis(tokens[2].to_ascii_lowercase().as_str())
+}
+
 fn parse_state_core_line(
     lines: &[(&str, Span)],
     i: usize,

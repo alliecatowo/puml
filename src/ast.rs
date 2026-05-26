@@ -218,6 +218,7 @@ pub enum StatementKind {
     StdlibInventory,
     UnsupportedSyntax(String),
     DeferredRaw(String),
+    BenignPassthrough(String),
     CommentLowered(String),
     MalformedSyntax(String),
     /// Legacy escape hatch for ASTs constructed before unsupported syntax was
@@ -230,6 +231,7 @@ pub enum RawSyntaxCategory {
     LegacyUnknown,
     Unsupported,
     Deferred,
+    BenignPassthrough,
     CommentLowered,
     Malformed,
 }
@@ -253,6 +255,10 @@ impl StatementKind {
             }),
             StatementKind::DeferredRaw(line) => Some(RawSyntax {
                 category: RawSyntaxCategory::Deferred,
+                line,
+            }),
+            StatementKind::BenignPassthrough(line) => Some(RawSyntax {
+                category: RawSyntaxCategory::BenignPassthrough,
                 line,
             }),
             StatementKind::CommentLowered(line) => Some(RawSyntax {

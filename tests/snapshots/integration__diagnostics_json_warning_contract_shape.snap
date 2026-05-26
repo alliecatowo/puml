@@ -6,6 +6,7 @@ expression: json
   "diagnostics": [
     {
       "caret": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+      "category": "unsupported-syntax",
       "code": "W_SKINPARAM_UNSUPPORTED",
       "column": 1,
       "line": 2,

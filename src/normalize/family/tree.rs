@@ -289,7 +289,10 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             }
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category == RawSyntaxCategory::Malformed {
+                if matches!(
+                    raw.category,
+                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed
+                ) {
                     return Err(common::raw_syntax_diagnostic(
                         raw,
                         stmt.span,
@@ -309,9 +312,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 {
                     continue;
                 }
-                if let Some(value) = parse_family_orientation_directive(line) {
-                    orientation = value;
-                    continue;
+                if raw.category == RawSyntaxCategory::BenignPassthrough {
+                    if let Some(value) = parse_family_orientation_directive(line) {
+                        orientation = value;
+                        continue;
+                    }
                 }
                 // MindMap `left side` / `right side` keyword switches which side
                 // subsequent depth-1 nodes appear on when no explicit +/- prefix.

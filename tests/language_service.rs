@@ -1,4 +1,4 @@
-use puml::diagnostic::Severity;
+use puml::diagnostic::{DiagnosticCategory, Severity};
 use puml::language_service::{
     completion_items, definition, diagnostics, diagnostics_with_options, document_symbols, hover,
     language_service_surface_json, references, rename, resolve_completion_item, CompletionItemKind,
@@ -174,6 +174,7 @@ fn diagnostics_reports_parse_errors_without_lsp_transport() {
     let diagnostic = &report.diagnostics[0];
     assert_eq!(diagnostic.code.as_deref(), Some("E_ARROW_INVALID"));
     assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.category, DiagnosticCategory::ParseError);
     assert_eq!(diagnostic.span, Some(Span::new(10, 14)));
     assert_eq!(diagnostic.range.unwrap().start.line, 2);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
@@ -203,6 +204,7 @@ fn diagnostics_reports_normalization_warnings_without_lsp_transport() {
     let diagnostic = &report.diagnostics[0];
     assert_eq!(diagnostic.code.as_deref(), Some("W_SKINPARAM_UNSUPPORTED"));
     assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.category, DiagnosticCategory::UnsupportedSyntax);
     assert_eq!(diagnostic.span, Some(Span::new(10, 43)));
     assert_eq!(diagnostic.range.unwrap().start.line, 2);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
@@ -221,6 +223,7 @@ fn diagnostics_reports_typed_state_unsupported_code_without_lsp_transport() {
         Some("E_STATE_UNSUPPORTED_SYNTAX")
     );
     assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.category, DiagnosticCategory::UnsupportedSyntax);
     assert_eq!(diagnostic.span, Some(Span::new(21, 41)));
     assert_eq!(diagnostic.range.unwrap().start.line, 3);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
@@ -243,6 +246,7 @@ fn diagnostics_reports_frontend_adapter_warnings_without_lsp_transport() {
     let diagnostic = &report.diagnostics[0];
     assert_eq!(diagnostic.code.as_deref(), Some("W_MERMAID_STYLE_PARTIAL"));
     assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.category, DiagnosticCategory::FeatureLoss);
     assert_eq!(diagnostic.span, Some(Span::new(13, 53)));
     assert_eq!(diagnostic.range.unwrap().start.line, 2);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);
@@ -265,6 +269,7 @@ fn diagnostics_reports_mermaid_class_adapter_warning_on_original_span() {
     let diagnostic = &report.diagnostics[0];
     assert_eq!(diagnostic.code.as_deref(), Some("W_MERMAID_CLASS_DEFERRED"));
     assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.category, DiagnosticCategory::FeatureLoss);
     assert_eq!(diagnostic.span, Some(Span::new(23, 41)));
     assert_eq!(diagnostic.range.unwrap().start.line, 3);
     assert_eq!(diagnostic.range.unwrap().start.column, 1);

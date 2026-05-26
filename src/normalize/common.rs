@@ -201,6 +201,27 @@ pub(super) fn raw_syntax_diagnostic(
                 raw.line
             )),
         },
+        RawSyntaxCategory::BenignPassthrough => match context {
+            RawSyntaxContext::Sequence => Diagnostic::error(format!(
+                "[E_SEQUENCE_PASSTHROUGH_UNCONSUMED] parser-deferred sequence syntax was not consumed: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::State => Diagnostic::error(format!(
+                "[E_STATE_PASSTHROUGH_UNCONSUMED] parser-deferred state syntax was not consumed: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::error(format!(
+                "[E_TIMELINE_PASSTHROUGH_UNCONSUMED] parser-deferred {} syntax was not consumed: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::error(format!(
+                "[E_FAMILY_{}_PASSTHROUGH_UNCONSUMED] parser-deferred {} syntax was not consumed: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
         RawSyntaxCategory::CommentLowered => match context {
             RawSyntaxContext::Sequence => Diagnostic::error(format!(
                 "[E_SEQUENCE_COMMENT_LOWERED] lowered comment is not valid sequence syntax: `{}`",
