@@ -2,7 +2,7 @@ use super::pipeline::map_ast_kind_to_family;
 use super::types::DiagramFamily;
 use crate::diagnostic::Diagnostic;
 use crate::model::{FamilyDocument, NormalizedDocument};
-use crate::output::RenderArtifact;
+use crate::output::{CommonCommandKind, CommonCommandPath, RenderArtifact, RenderCommonCommands};
 use crate::registry::FamilyRenderKind;
 use crate::render::{self, TextOutputMode};
 use crate::{layout, normalize as normalize_mod, parser, registry, specialized, LayoutOptions};
@@ -263,17 +263,25 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifac
         require_migrated_family_scene_contract(&mut artifact, render_kind);
         artifact
     });
+    let common_commands =
+        RenderCommonCommands::from_parts(family.scale.clone(), family.mainframe.clone());
+    if artifact.common_commands.is_empty() {
+        artifact = artifact.with_common_commands(common_commands);
+    }
     if let Some(title) = &family.mainframe {
-        crate::output::append_mainframe_svg(&mut artifact.svg, title);
+        if !artifact.common_command_applied(CommonCommandKind::Mainframe) {
+            crate::output::append_mainframe_svg(&mut artifact.svg, title);
+            artifact.mark_common_command_application(
+                CommonCommandKind::Mainframe,
+                CommonCommandPath::SvgCompatibilityBridge,
+            );
+        }
     }
     // Render-time invariants pass: enforce structural correctness.
     // Auto-corrections (viewBox expansion, label background rects) are applied
     // in-place. Diagnostic-only violations are silently recorded.
     artifact.validate_svg(render::validate::AutoCorrect::Apply);
-    if let Some(scale) = &family.scale {
-        crate::output::apply_scale_svg(&mut artifact.svg, scale);
-    }
-    artifact.refresh_svg_metadata();
+    artifact.apply_common_scale_to_svg_dimensions();
     artifact.extend_diagnostics(family.warnings.clone());
     artifact
 }

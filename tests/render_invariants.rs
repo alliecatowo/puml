@@ -408,6 +408,87 @@ A --> B
 }
 
 #[test]
+fn graph_family_common_commands_are_visible_on_artifact_contract() {
+    let source = r#"
+@startuml
+scale 240 width
+mainframe Domain Frame
+class A
+class B
+A --> B
+@enduml
+"#;
+    let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");
+    assert_eq!(artifacts.len(), 1);
+    let artifact = &artifacts[0];
+    let dimensions = artifact.dimensions.expect("artifact dimensions");
+    let scene = artifact.typed_scene().expect("graph typed scene");
+
+    assert_eq!(
+        artifact.common_commands.scale,
+        Some(puml::ScaleSpec::Width(240)),
+        "scale should be retained as typed artifact metadata"
+    );
+    assert_eq!(
+        artifact.common_commands.mainframe.as_deref(),
+        Some("Domain Frame"),
+        "mainframe should be retained as typed artifact metadata"
+    );
+    assert_eq!(
+        artifact.common_command_path(puml::CommonCommandKind::Mainframe),
+        Some(puml::CommonCommandPath::RendererEmission),
+        "migrated graph-family mainframe should be emitted by the renderer, not the API bridge"
+    );
+    assert_eq!(
+        artifact.common_command_path(puml::CommonCommandKind::Scale),
+        Some(puml::CommonCommandPath::ArtifactOutput),
+        "scale should be applied through artifact/output metadata"
+    );
+    assert_eq!(dimensions.width.round() as u32, 240);
+    assert_eq!(
+        dimensions.view_box,
+        Some(scene.viewport),
+        "typed scene viewport and final SVG viewBox should describe the same geometry"
+    );
+    assert!(artifact.svg.contains("class=\"uml-mainframe\""));
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::TypedScene
+    );
+}
+
+#[test]
+fn unmigrated_common_command_svg_bridge_is_explicit() {
+    let source = r#"
+@startuml
+mainframe Workflow
+start
+:Do work;
+stop
+@enduml
+"#;
+    let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");
+    assert_eq!(artifacts.len(), 1);
+    let artifact = &artifacts[0];
+
+    assert_eq!(
+        artifact.common_commands.mainframe.as_deref(),
+        Some("Workflow")
+    );
+    assert_eq!(
+        artifact.common_command_path(puml::CommonCommandKind::Mainframe),
+        Some(puml::CommonCommandPath::SvgCompatibilityBridge),
+        "unmigrated renderers should expose the temporary SVG bridge"
+    );
+    assert!(artifact.svg.contains("class=\"uml-mainframe\""));
+    assert_eq!(
+        artifact.validation_state(),
+        RenderValidationState::SvgBackstop,
+        "unmigrated common-command rendering still relies on the SVG backstop"
+    );
+}
+
+#[test]
 fn sequence_render_artifacts_preserve_svg_api_and_attach_typed_scene() {
     let source = include_str!("fixtures/e2e/sequence_typed_scene_contract.puml");
     let artifacts = puml::render_source_to_artifacts(source).expect("render artifacts");

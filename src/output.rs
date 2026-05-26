@@ -5,9 +5,10 @@ use crate::render_core::{BackendFormat, RenderBackend, SvgBackend};
 mod contract;
 mod svg_postprocess;
 pub use contract::{
-    RenderArtifact, RenderArtifactDimensions, RenderInvariantReport, RenderSceneContract,
+    CommonCommandApplication, CommonCommandKind, CommonCommandPath, RenderArtifact,
+    RenderArtifactDimensions, RenderCommonCommands, RenderInvariantReport, RenderSceneContract,
 };
-pub use svg_postprocess::{append_mainframe_svg, apply_scale_svg};
+pub use svg_postprocess::{append_mainframe_svg, append_optional_mainframe_svg, apply_scale_svg};
 
 #[cfg(feature = "cli")]
 use image::ImageEncoder as _;
