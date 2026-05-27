@@ -303,10 +303,7 @@ fn component_basic_typed_scene_has_nodes_and_edges() {
         "expected at least 2 nodes (Frontend, Backend), got {}",
         scene.nodes.len()
     );
-    assert!(
-        !scene.edges.is_empty(),
-        "expected at least 1 edge, got 0"
-    );
+    assert!(!scene.edges.is_empty(), "expected at least 1 edge, got 0");
 
     let geometry_issues = scene.validate_geometry();
     assert!(
