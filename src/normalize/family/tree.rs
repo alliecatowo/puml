@@ -290,16 +290,28 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
                 let line = raw.line;
+                let raw_category = raw.category;
                 if line.trim().is_empty() {
                     continue;
                 }
-                match raw.category {
-                    RawSyntaxCategory::LegacyUnknown | RawSyntaxCategory::Malformed => {
+                match raw_category {
+                    RawSyntaxCategory::Malformed => {
+                        // Parser-bug signal: remain a hard error.
                         return Err(common::raw_syntax_diagnostic(
                             raw,
                             stmt.span,
                             RawSyntaxContext::Family(family_kind),
                         ));
+                    }
+                    RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unknown line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                        continue;
                     }
                     RawSyntaxCategory::BenignPassthrough => {
                         if let Some(value) = parse_family_orientation_directive(line) {
@@ -384,6 +396,19 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     });
                     continue;
                 }
+                // Unsupported syntax that doesn't parse as a node: graceful degradation.
+                // Deferred/CommentLowered that reach here remain hard errors (parser bugs).
+                if raw_category == RawSyntaxCategory::Unsupported {
+                    // raw is Copy so still available here.
+                    warnings.push(common::raw_syntax_feature_loss_warning(
+                        raw,
+                        stmt.span,
+                        RawSyntaxContext::Family(family_kind),
+                    ));
+                    continue;
+                }
+                // BenignPassthrough (unconsumed), Deferred, or CommentLowered: hard error.
+                // raw is Copy so still available here.
                 return Err(common::raw_syntax_diagnostic(
                     raw,
                     stmt.span,

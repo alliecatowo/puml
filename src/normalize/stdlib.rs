@@ -10,6 +10,7 @@ pub(super) fn normalize_stdlib_catalog(
 ) -> Result<StdlibDocument, Diagnostic> {
     let mut title = None;
     let mut saw_catalog = false;
+    let mut stdlib_warnings: Vec<crate::diagnostic::Diagnostic> = Vec::new();
     for stmt in &document.statements {
         match &stmt.kind {
             StatementKind::StdlibInventory => saw_catalog = true,
@@ -30,11 +31,26 @@ pub(super) fn normalize_stdlib_catalog(
             | StatementKind::HideUnlinked
             | StatementKind::Mainframe(_) => {}
             kind if kind.raw_syntax().is_some() => {
-                return Err(common::raw_syntax_diagnostic(
-                    kind.raw_syntax().expect("raw syntax guard"),
-                    stmt.span,
-                    RawSyntaxContext::Family(DiagramKind::Stdlib),
-                ));
+                let raw = kind.raw_syntax().expect("raw syntax guard");
+                match raw.category {
+                    crate::ast::RawSyntaxCategory::Unsupported
+                    | crate::ast::RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        stdlib_warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(DiagramKind::Stdlib),
+                        ));
+                    }
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(DiagramKind::Stdlib),
+                        ));
+                    }
+                }
             }
             other => {
                 return Err(Diagnostic::error_code(
@@ -74,6 +90,6 @@ pub(super) fn normalize_stdlib_catalog(
         packs,
         aliases,
         missing_packs,
-        warnings: Vec::new(),
+        warnings: stdlib_warnings,
     })
 }

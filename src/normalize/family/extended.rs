@@ -388,15 +388,25 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 let raw = kind.raw_syntax().expect("raw syntax guard");
                 let line = raw.line;
                 match raw.category {
-                    RawSyntaxCategory::LegacyUnknown
-                    | RawSyntaxCategory::Malformed
+                    RawSyntaxCategory::Malformed
                     | RawSyntaxCategory::Deferred
                     | RawSyntaxCategory::CommentLowered => {
+                        // Parser-bug signals: remain hard errors.
                         return Err(common::raw_syntax_diagnostic(
                             raw,
                             stmt.span,
                             RawSyntaxContext::Family(family_kind),
                         ));
+                    }
+                    RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unknown line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        ext_warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                        continue;
                     }
                     RawSyntaxCategory::BenignPassthrough => {
                         // Handle `left to right direction` / `top to bottom direction`
@@ -411,8 +421,18 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                             normalize_activity_unknown_line(&mut nodes, &mut activity_state, line);
                             continue;
                         }
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        ext_warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                        continue;
                     }
                 }
+                // BenignPassthrough that wasn't consumed by a direction directive:
+                // fall through to the error below.
                 return Err(common::raw_syntax_diagnostic(
                     raw,
                     stmt.span,

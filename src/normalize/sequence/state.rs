@@ -150,7 +150,21 @@ impl SequenceNormalizeState {
             StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                handle_sequence_raw_syntax(stmt.span, raw)?
+                match raw.category {
+                    crate::ast::RawSyntaxCategory::Unsupported
+                    | crate::ast::RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        if raw.line.trim() != "---" {
+                            self.warnings.push(common::raw_syntax_feature_loss_warning(
+                                raw,
+                                stmt.span,
+                                common::RawSyntaxContext::Sequence,
+                            ));
+                        }
+                    }
+                    _ => handle_sequence_raw_syntax(stmt.span, raw)?,
+                }
             }
             _ => {
                 return Err(Diagnostic::error(

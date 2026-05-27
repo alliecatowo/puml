@@ -281,11 +281,25 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             StatementKind::StateRegionDivider => {}
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                return Err(common::raw_syntax_diagnostic(
-                    raw,
-                    stmt.span,
-                    RawSyntaxContext::State,
-                ));
+                match raw.category {
+                    crate::ast::RawSyntaxCategory::Unsupported
+                    | crate::ast::RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::State,
+                        ));
+                    }
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::State,
+                        ));
+                    }
+                }
             }
             _ => {
                 return Err(Diagnostic::error(

@@ -216,13 +216,15 @@ fn diagnostics_reports_typed_state_unsupported_code_without_lsp_transport() {
 
     let report = diagnostics(source);
 
+    // Unsupported syntax now degrades gracefully: the diagnostic is a warning
+    // (not an error) and the render still succeeds.
     assert_eq!(report.diagnostics.len(), 1);
     let diagnostic = &report.diagnostics[0];
     assert_eq!(
         diagnostic.code.as_deref(),
-        Some("E_STATE_UNSUPPORTED_SYNTAX")
+        Some("W_STATE_UNSUPPORTED_SYNTAX")
     );
-    assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.severity, Severity::Warning);
     assert_eq!(diagnostic.category, DiagnosticCategory::UnsupportedSyntax);
     assert_eq!(diagnostic.span, Some(Span::new(21, 41)));
     assert_eq!(diagnostic.range.unwrap().start.line, 3);

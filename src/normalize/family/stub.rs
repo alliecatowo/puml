@@ -392,12 +392,25 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             kind if family_kind == DiagramKind::Salt && kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                if raw.category != RawSyntaxCategory::BenignPassthrough {
-                    return Err(common::raw_syntax_diagnostic(
-                        raw,
-                        stmt.span,
-                        RawSyntaxContext::Family(family_kind),
-                    ));
+                match raw.category {
+                    RawSyntaxCategory::Unsupported | RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                        continue;
+                    }
+                    RawSyntaxCategory::BenignPassthrough => {}
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                    }
                 }
                 let line = raw.line;
                 if line.trim() == "---" {
@@ -426,12 +439,28 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         continue;
                     }
                 }
-                if raw.category != RawSyntaxCategory::BenignPassthrough {
-                    return Err(common::raw_syntax_diagnostic(
-                        raw,
-                        stmt.span,
-                        RawSyntaxContext::Family(family_kind),
-                    ));
+                match raw.category {
+                    RawSyntaxCategory::Unsupported | RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                        continue;
+                    }
+                    RawSyntaxCategory::BenignPassthrough => {
+                        // Unconsumed passthrough (direction not matched): still a
+                        // parser-bug signal, keep as hard error below.
+                    }
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(family_kind),
+                        ));
+                    }
                 }
                 if family_kind == DiagramKind::Salt {
                     let text = line.trim();

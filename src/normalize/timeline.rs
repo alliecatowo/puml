@@ -39,6 +39,7 @@ pub(super) fn normalize_timeline_baseline(
     let mut hide_resource_names = false;
     let mut hide_resource_footbox = false;
     let mut last_task_ref: Option<String> = None;
+    let mut warnings: Vec<crate::diagnostic::Diagnostic> = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -278,11 +279,25 @@ pub(super) fn normalize_timeline_baseline(
             },
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
-                return Err(common::raw_syntax_diagnostic(
-                    raw,
-                    stmt.span,
-                    RawSyntaxContext::Timeline(document.kind),
-                ));
+                match raw.category {
+                    crate::ast::RawSyntaxCategory::Unsupported
+                    | crate::ast::RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Timeline(document.kind),
+                        ));
+                    }
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Timeline(document.kind),
+                        ));
+                    }
+                }
             }
             _ => {
                 let family = family::family_kind_name(document.kind);
@@ -394,6 +409,6 @@ pub(super) fn normalize_timeline_baseline(
         hide_footbox,
         hide_resource_names,
         hide_resource_footbox,
-        warnings: Vec::new(),
+        warnings,
     })
 }
