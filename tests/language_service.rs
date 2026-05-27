@@ -5,7 +5,7 @@ use puml::language_service::{
     DocumentSnapshot, DocumentSymbolKind,
 };
 use puml::source::Span;
-use puml::{CompatMode, DeterminismMode, FrontendSelection, ParsePipelineOptions};
+use puml::{CompatMode, FrontendSelection, ParsePipelineOptions};
 use std::fs;
 use tempfile::tempdir;
 
@@ -235,7 +235,6 @@ fn diagnostics_reports_frontend_adapter_warnings_without_lsp_transport() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -258,7 +257,6 @@ fn diagnostics_reports_mermaid_class_adapter_warning_on_original_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };

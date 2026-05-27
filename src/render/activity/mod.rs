@@ -3,15 +3,27 @@ use super::layout_constants::{
 };
 use super::svg::escape_text;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
+use crate::output::RenderArtifact;
 use crate::theme::ActivityStyle;
 
 mod arrows;
 mod branches;
 mod layout;
 mod nodes;
+mod scene;
 mod swimlanes;
 
 pub fn render_activity_svg(doc: &FamilyDocument) -> String {
+    render_activity_artifact(doc).svg
+}
+
+/// Render an activity diagram into a typed [`RenderArtifact`].
+///
+/// The SVG output is byte-identical to the legacy `render_activity_svg`. We
+/// additionally build a [`RenderScene`] from the *exact* geometry the SVG uses
+/// — node boxes at their drawn positions/sizes, edges along the same routing
+/// coordinates the SVG draws — so the scene and the visual output never diverge.
+pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     // -----------------------------------------------------------------------
     // 1. Style + global metrics
     // -----------------------------------------------------------------------
@@ -356,5 +368,31 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     );
 
     out.push_str("</svg>");
-    out
+
+    // -----------------------------------------------------------------------
+    // 11. Build typed RenderScene from the SAME geometry the SVG uses
+    // -----------------------------------------------------------------------
+    let scene = scene::build_activity_scene(
+        doc,
+        &metas,
+        &node_layouts,
+        &hidden_nodes,
+        &fork_bar_half_widths,
+        &redirected_extra_arrows,
+        &direct_arrows,
+        &suppress_prev_arrow,
+        &lanes,
+        &lane_spans,
+        sequential_partition_lanes,
+        lane_area_x,
+        lane_w,
+        stacked_partition_blocks,
+        header_h,
+        lane_header_h,
+        width,
+        height,
+        box_w,
+    );
+
+    RenderArtifact::with_scene(out, scene)
 }

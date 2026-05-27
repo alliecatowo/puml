@@ -1,15 +1,18 @@
 use super::{escape_text, FamilyDocument, MindMapSide};
+use crate::output::RenderArtifact;
 
-const MINDMAP_CHAR_PX: i32 = 7;
-const MINDMAP_NODE_PAD_X: i32 = 20;
+pub(super) const MINDMAP_CHAR_PX: i32 = 7;
+pub(super) const MINDMAP_NODE_PAD_X: i32 = 20;
 
 mod labels;
 mod nodes;
+mod scene;
 mod style;
 mod tree;
 mod wbs;
+mod wbs_scene;
 
-pub use wbs::render_wbs_svg;
+pub use wbs::{render_wbs_artifact, render_wbs_svg};
 
 use labels::{multiline_char_width, prepare_mindmap_label, render_mindmap_node_label};
 use nodes::{draw_mindmap_subtree, mindmap_empty_svg};
@@ -19,6 +22,16 @@ use tree::{assign_y_positions, family_tree_child_indices};
 use wbs::wbs_orientation_attr;
 
 pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
+    render_mindmap_artifact(doc).svg
+}
+
+/// Render a `@startmindmap` document into a typed [`RenderArtifact`].
+///
+/// The SVG is emitted unchanged (byte-identical to the legacy `render_mindmap_svg`).
+/// A [`RenderScene`] is built from the same laid-out geometry the SVG draws — each
+/// node box at its computed `(x, y, w, h)`, and each parent→child connector along
+/// the same line segment — so the scene and SVG stay in sync.
+pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
     const X_STEP: i32 = 180;
     const Y_STEP: i32 = 48;
     const NODE_H: i32 = 34;
@@ -37,7 +50,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     // Depth 0 = root. Depth 1+ inherit side from their nearest depth-1 ancestor.
     let nodes = &doc.nodes;
     if nodes.is_empty() {
-        return mindmap_empty_svg(doc);
+        return RenderArtifact::svg_only(mindmap_empty_svg(doc));
     }
 
     // Build parent indices and side assignments.
@@ -385,5 +398,24 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
+
+    scene::build_mindmap_artifact(
+        out,
+        nodes,
+        &display_names,
+        &parent,
+        &side,
+        &y_positions,
+        &right_roots,
+        &left_roots,
+        root_cx,
+        root_cy,
+        root_w,
+        NODE_H,
+        NODE_PAD_X,
+        maximum_width,
+        x_step,
+        canvas_w,
+        canvas_h,
+    )
 }

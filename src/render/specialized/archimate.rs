@@ -1,6 +1,16 @@
 use super::*;
 
 pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
+    render_archimate_artifact(document).svg
+}
+
+pub fn render_archimate_artifact(document: &ArchimateDocument) -> crate::output::RenderArtifact {
+    let svg = render_archimate_svg_inner(document);
+    let scene = super::archimate_scene::build_archimate_scene(document);
+    crate::output::RenderArtifact::with_scene(svg, scene)
+}
+
+fn render_archimate_svg_inner(document: &ArchimateDocument) -> String {
     let width = 760;
     let layers = [
         "strategy",

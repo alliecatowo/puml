@@ -96,17 +96,10 @@ pub enum CompatMode {
     Extended,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeterminismMode {
-    Strict,
-    Full,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsePipelineOptions {
     pub frontend: FrontendSelection,
     pub compat: CompatMode,
-    pub determinism: DeterminismMode,
     pub include_root: Option<PathBuf>,
     /// When true, permit `!include https://...`, `!includeurl`, and `file://` URL targets.
     /// Default: false, so parsing never performs network IO or URL-addressed
@@ -123,7 +116,6 @@ impl Default for ParsePipelineOptions {
         Self {
             frontend: FrontendSelection::Auto,
             compat: CompatMode::Strict,
-            determinism: DeterminismMode::Strict,
             include_root: None,
             allow_url_includes: false,
             inject_vars: BTreeMap::new(),

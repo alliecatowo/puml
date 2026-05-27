@@ -1,15 +1,23 @@
 use super::super::{escape_text, FamilyDocument, FamilyOrientation, WbsCheckbox};
 use super::style::{mindmap_node_border_color, mindmap_style, tree_node_fill_resolved};
 use super::tree::{family_tree_child_indices, node_sibling_index};
+use super::wbs_scene::{build_wbs_artifact, wbs_empty_svg};
+use crate::output::RenderArtifact;
 use std::collections::BTreeMap;
 
 // ─── WBS renderer ─────────────────────────────────────────────────────────────
 
-/// Render a `@startwbs` document as SVG.
+pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
+    render_wbs_artifact(doc).svg
+}
+
+/// Render a `@startwbs` document into a typed [`RenderArtifact`].
 ///
 /// Layout: vertical tree, top-down, rectangular nodes. WBS annotations
-/// (`[x]`, `[ ]`, `[%NN]`) are rendered inline in the node.
-pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
+/// (`[x]`, `[ ]`, `[%NN]`) are rendered inline in the node. SVG output is
+/// byte-identical to the legacy `render_wbs_svg`; a [`RenderScene`] is attached
+/// so the typed-geometry validation path can inspect the drawn positions.
+pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
     const X_STEP: i32 = 200;
     const Y_STEP: i32 = 54;
     const NODE_H: i32 = 36;
@@ -19,14 +27,14 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
 
     let nodes = &doc.nodes;
     if nodes.is_empty() {
-        return wbs_empty_svg(doc);
+        return RenderArtifact::svg_only(wbs_empty_svg(doc));
     }
     let style = mindmap_style(doc);
 
     let n = nodes.len();
 
     fn wbs_node_width(node: &super::super::FamilyNode) -> i32 {
-        (node.name.chars().count() as i32 * 7 + 24).clamp(80, 200)
+        (crate::render::text_metrics::default_monospace_width(&node.name) + 24).clamp(80, 200)
     }
 
     // Count leaves in each subtree for horizontal distribution.
@@ -531,22 +539,18 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
-}
 
-fn wbs_empty_svg(doc: &FamilyDocument) -> String {
-    let mut out = String::new();
-    out.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"300\" height=\"80\" viewBox=\"0 0 300 80\">");
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
-    if let Some(title) = &doc.title {
-        out.push_str(&format!(
-            "<text x=\"12\" y=\"28\" font-family=\"monospace\" font-size=\"14\" font-weight=\"600\">{}</text>",
-            escape_text(title)
-        ));
-    }
-    out.push_str("<text x=\"12\" y=\"52\" font-family=\"monospace\" font-size=\"12\" fill=\"#64748b\">(empty wbs)</text>");
-    out.push_str("</svg>");
-    out
+    build_wbs_artifact(
+        out,
+        nodes,
+        &x_positions,
+        &y_positions,
+        &children_of,
+        &parent_of,
+        canvas_w,
+        canvas_h,
+        NODE_H,
+    )
 }
 
 pub(super) fn wbs_orientation_attr(orientation: FamilyOrientation) -> &'static str {

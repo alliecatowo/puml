@@ -51,6 +51,17 @@ fn sdl_compute_ranks(document: &SdlDocument) -> BTreeMap<&str, usize> {
 }
 
 pub fn render_sdl_svg(document: &SdlDocument) -> String {
+    render_sdl_artifact(document).svg
+}
+
+/// Render an SDL diagram into a typed [`RenderArtifact`].
+///
+/// The SVG is emitted directly from the laid-out grid geometry. We also build a
+/// [`RenderScene`] from the *same* positions and transition endpoints the SVG uses,
+/// so the scene stays consistent with the rendered output. SVG output is
+/// byte-identical to the legacy `render_sdl_svg`; the scene is attached for the
+/// typed-geometry validation path.
+pub fn render_sdl_artifact(document: &SdlDocument) -> RenderArtifact {
     let col_w = 260;
     let row_h = 96;
     let margin_x = 40;
@@ -142,19 +153,26 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
     }
     out.push_str(&transition_labels);
     out.push_str("</svg>");
-    out
+
+    let scene = super::sdl_scene::build_sdl_scene(
+        &positions,
+        &document.transitions,
+        width as f64,
+        height as f64,
+    );
+    RenderArtifact::with_scene(out, scene)
 }
 
-const SDL_NODE_W: i32 = 168;
+pub(super) const SDL_NODE_W: i32 = 168;
 const SDL_NODE_H: i32 = 48;
 
 #[derive(Debug, Clone, Copy)]
-struct SdlNodeBox {
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    kind: SdlStateKind,
+pub(super) struct SdlNodeBox {
+    pub(super) x: i32,
+    pub(super) y: i32,
+    pub(super) w: i32,
+    pub(super) h: i32,
+    pub(super) kind: SdlStateKind,
 }
 
 fn sdl_node_box(x: i32, y: i32, kind: SdlStateKind) -> SdlNodeBox {
@@ -298,7 +316,7 @@ fn sdl_circle_params(node: SdlNodeBox) -> (i32, i32, i32) {
     (cx, cy, r)
 }
 
-fn sdl_transition_endpoints(from: SdlNodeBox, to: SdlNodeBox) -> (i32, i32, i32, i32) {
+pub(super) fn sdl_transition_endpoints(from: SdlNodeBox, to: SdlNodeBox) -> (i32, i32, i32, i32) {
     // Centre points (used for direction computation).
     // For circular nodes (Start/Stop) use the actual circle centre (y + 18);
     // for rectangular nodes use the bounding-box centre.

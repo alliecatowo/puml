@@ -567,8 +567,6 @@ fn strict_modes_parse_and_route_without_regression() {
         .args([
             "--compat",
             "strict",
-            "--determinism",
-            "strict",
             "--check",
             &fixture("single_valid.puml"),
         ])

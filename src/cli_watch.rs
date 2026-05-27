@@ -99,7 +99,6 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
     let options = puml::ParsePipelineOptions {
         frontend: puml::FrontendSelection::Auto,
         compat: puml::CompatMode::Strict,
-        determinism: puml::DeterminismMode::Strict,
         include_root,
         allow_url_includes: cli.allow_url_includes,
         inject_vars,

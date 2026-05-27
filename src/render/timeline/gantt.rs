@@ -1,6 +1,20 @@
 use super::*;
 
-pub(super) fn render_gantt_svg(document: &TimelineDocument) -> String {
+/// Render a Gantt diagram and attach a [`RenderScene`] built from the same
+/// laid-out geometry. SVG bytes are identical to the former `render_gantt_svg`;
+/// the scene records each task bar and milestone at its exact pixel rect so the
+/// typed-geometry path stays in sync with the output.
+pub(super) fn render_gantt_artifact(document: &TimelineDocument) -> RenderArtifact {
+    let svg = render_gantt_svg_inner(document);
+    RenderArtifact::with_scene(svg.svg, svg.scene)
+}
+
+struct GanttSvgResult {
+    svg: String,
+    scene: RenderScene,
+}
+
+fn render_gantt_svg_inner(document: &TimelineDocument) -> GanttSvgResult {
     // Extra right padding so the last date-header label (≤10 chars × ~7px + gap) is
     // never clipped by the canvas edge (#485).  80px covers "YYYY-MM-DD" comfortably.
     let scale_options = parse_gantt_scale_render_options(&document.scale_options);
@@ -547,5 +561,22 @@ pub(super) fn render_gantt_svg(document: &TimelineDocument) -> String {
     });
 
     out.push_str("</svg>");
-    out
+
+    let scene = super::gantt_scene::build_gantt_scene(
+        document,
+        &ordered_tasks,
+        &milestone_day,
+        width,
+        total_h,
+        chart_top,
+        bar_height,
+        row_gap,
+        task_count,
+        &bar_geom,
+        &day_to_x,
+        chart_left,
+        chart_w,
+    );
+
+    GanttSvgResult { svg: out, scene }
 }

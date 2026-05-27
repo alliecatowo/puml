@@ -1,56 +1,10 @@
 use super::*;
 use crate::model::StateTransition;
+use crate::output::RenderArtifact;
 
-// Layout constants
-const STATE_NODE_W: i32 = 140;
-const STATE_NODE_H: i32 = 40;
-const STATE_NODE_GAP_X: i32 = 60;
-const STATE_NODE_GAP_Y: i32 = 60;
-const STATE_MARGIN: i32 = 30;
 // Removed STATE_LEFT_GUTTER: initial node placement no longer adds a fixed
 // left offset. The left-edge gutter pre-pass (below) conditionally shifts all
 // nodes right only when a transition label would actually clip the left edge.
-// X-offset of the right-side gutter column used for sink states.
-const STATE_SINK_GUTTER_GAP: i32 = 80;
-const COMPOSITE_PAD_X: i32 = 16;
-const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
-const COMPOSITE_PAD_BOT: i32 = 12;
-const REGION_DIVIDER_GAP: i32 = 24; // gap between concurrent regions / divider clearance
-const STATE_LABEL_LINE_H: i32 = 14;
-const STATE_LABEL_CHAR_W: i32 = 7;
-const STATE_LABEL_NODE_CLEARANCE: i32 = 12;
-const STATE_LABEL_LABEL_CLEARANCE: i32 = 8;
-const STATE_LABEL_WRAP_COLS: usize = 24;
-const STATE_NOTE_FILL: &str = "#fff8c4";
-const STATE_NOTE_BORDER: &str = "#111111";
-const STATE_NOTE_PAD_X: i32 = 10;
-const STATE_NOTE_PAD_Y: i32 = 10;
-
-/// A placed node entry in the flat coord map.
-/// Stores the node's top-left (x, y) and its full rendered size (w, h).
-#[derive(Clone, Copy)]
-struct PlacedNode {
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-}
-
-#[derive(Clone)]
-struct StateLabelLayout {
-    cx: i32,
-    top: i32,
-    lines: Vec<String>,
-    bounds: LabelBounds,
-}
-
-#[derive(Clone, Copy)]
-struct LabelBounds {
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-}
 
 mod edges;
 mod labels;
@@ -58,6 +12,8 @@ mod layout;
 mod node_render;
 mod nodes;
 mod projection;
+mod scene;
+mod types;
 
 use edges::*;
 use labels::*;
@@ -65,8 +21,21 @@ use layout::*;
 use node_render::{render_node, NodeEdgeCounts, NodeFrame, RenderNodeContext};
 use nodes::*;
 use projection::{render_state_json_projection, state_projection_layout};
+use types::*;
 
 pub fn render_state_svg(document: &StateDocument) -> String {
+    render_state_artifact(document).svg
+}
+
+/// Render a state machine diagram into a typed [`RenderArtifact`].
+///
+/// SVG output is byte-identical to the legacy `render_state_svg`; the
+/// [`RenderScene`] is built from the *same* laid-out geometry the SVG draws —
+/// node boxes at their final `placed` positions/sizes, transitions as
+/// polyline routes along the orthogonal path the SVG emits, and composite
+/// states as [`SceneGroup`]s capturing child containment — so scene and SVG
+/// never diverge. The scene is attached for the typed-geometry validation path.
+pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
     let nodes = &document.nodes;
     let transitions = &document.transitions;
     let state_style = &document.state_style;
@@ -580,5 +549,14 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
+
+    let scene = scene::build_state_scene(
+        nodes,
+        transitions,
+        &placed,
+        &child_node_names,
+        width as f64,
+        height as f64,
+    );
+    RenderArtifact::with_scene(out, scene)
 }

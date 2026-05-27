@@ -8,8 +8,8 @@ use puml::theme::Theme;
 use puml::{
     detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
     parse_with_pipeline_result_options, preprocess_with_pipeline_result_options,
-    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
-    DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DiagramFamily,
+    FrontendSelection, ParsePipelineOptions,
 };
 
 #[test]
@@ -396,7 +396,6 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -421,7 +420,6 @@ class A hot
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -440,7 +438,6 @@ note A,B : shared context
     let pico_options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -453,7 +450,6 @@ fn mermaid_preprocess_reports_adapter_warnings_with_original_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -479,7 +475,6 @@ fn mermaid_flowchart_style_warnings_survive_parse_pipeline() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -501,7 +496,6 @@ fn mermaid_state_deferred_construct_reports_typed_warning() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -526,7 +520,6 @@ fn mermaid_flowchart_comment_lowering_reports_original_source_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -548,7 +541,6 @@ fn mermaid_class_deferred_construct_reports_original_source_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -577,7 +569,6 @@ fn mermaid_er_deferred_construct_reports_original_source_span() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -606,7 +597,6 @@ fn picouml_block_comment_stripping_keeps_later_parse_error_on_original_line() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -627,7 +617,6 @@ fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -653,7 +642,6 @@ fn picouml_pipeline_supports_reverse_custom_arrows() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -737,7 +725,6 @@ fn picouml_pipeline_selection_routes_deterministically_in_library_api() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -750,7 +737,6 @@ fn picouml_pipeline_rejects_mixed_marker_forms_deterministically() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -774,7 +760,6 @@ fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -788,7 +773,6 @@ fn mermaid_pipeline_accepts_supported_block_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -806,7 +790,6 @@ fn mermaid_pipeline_supports_note_sides_and_destroy_lifecycle() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -820,7 +803,6 @@ fn mermaid_pipeline_accepts_create_and_link_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };
@@ -843,7 +825,6 @@ fn mermaid_pipeline_reports_empty_and_generic_construct_errors() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: None,
         ..ParsePipelineOptions::default()
     };

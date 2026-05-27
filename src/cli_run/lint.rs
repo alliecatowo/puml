@@ -10,8 +10,8 @@ use super::{
     EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION, SUPPORTED_MARKDOWN_FENCES,
 };
 use crate::cli::{
-    Cli, CompatMode as CliCompatMode, DeterminismMode as CliDeterminismMode, DiagnosticsFormat,
-    Dialect as CliDialect, LintArgs, LintFormat,
+    Cli, CompatMode as CliCompatMode, DiagnosticsFormat, Dialect as CliDialect, LintArgs,
+    LintFormat,
 };
 use glob::glob;
 use puml::diagnostic::{normalized_warnings, offset_to_line_col};
@@ -88,7 +88,6 @@ pub(super) struct LintSubcommandContext {
     pub(super) include_root: Option<PathBuf>,
     pub(super) dialect: CliDialect,
     pub(super) compat: CliCompatMode,
-    pub(super) determinism: CliDeterminismMode,
     pub(super) from_markdown: bool,
     pub(super) allow_url_includes: bool,
     pub(super) inject_vars: BTreeMap<String, String>,
@@ -160,7 +159,6 @@ pub(super) fn run_lint_subcommand(
             include_root.clone(),
             context.dialect,
             context.compat,
-            context.determinism,
             source.frontend_hint,
             context.allow_url_includes,
             context.inject_vars.clone(),
@@ -413,7 +411,6 @@ pub(super) fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 include_root.clone(),
                 cli.dialect,
                 cli.compat,
-                cli.determinism,
                 source.frontend_hint,
                 cli.allow_url_includes,
                 inject_vars.clone(),

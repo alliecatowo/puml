@@ -7,8 +7,7 @@ use puml::sprites::{
 };
 use puml::stdlib::{format_stdlib_listing, inventory_from_root, stdlib_paths_json};
 use puml::{
-    extract_metadata, normalize_family, parse, CompatMode, DeterminismMode, FrontendSelection,
-    ParsePipelineOptions,
+    extract_metadata, normalize_family, parse, CompatMode, FrontendSelection, ParsePipelineOptions,
 };
 use tempfile::tempdir;
 
@@ -301,7 +300,6 @@ fn pipeline_with_root(root: &std::path::Path) -> ParsePipelineOptions {
     ParsePipelineOptions {
         frontend: FrontendSelection::Plantuml,
         compat: CompatMode::Strict,
-        determinism: DeterminismMode::Strict,
         include_root: Some(root.to_path_buf()),
         allow_url_includes: false,
         inject_vars: Default::default(),

@@ -7,16 +7,18 @@ pub(super) fn estimate_text_width(text: &str) -> i32 {
 
 pub(super) fn estimate_salt_text_width(text: &str) -> i32 {
     let lines = crate::creole::tokenize_creole(text);
-    let max_chars = lines
+    let max_plain: String = lines
         .iter()
         .map(|line| {
             line.iter()
-                .map(|span| span.text.chars().count() as i32)
-                .sum()
+                .map(|span| span.text.as_str())
+                .collect::<String>()
         })
-        .max()
-        .unwrap_or(0);
-    max_chars * 7
+        .max_by_key(|s| s.chars().count())
+        .unwrap_or_default();
+    // Use the canonical monospace char-width helper (7px per char) rather than
+    // an inline literal, so the two never diverge.
+    default_monospace_width(&max_plain)
 }
 
 pub(super) fn salt_text_line_count(text: &str) -> usize {

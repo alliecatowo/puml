@@ -14,8 +14,20 @@ use self::text::{estimate_text_width, salt_text};
 use self::transform::{transform_salt_row, SaltTransformState};
 use self::widgets::{render_salt_cell_svg, SaltCellBox};
 use super::*;
+use crate::render_core::{LabelBox, LabelRole, NodeBox, Rect, RenderScene, SceneNode};
 
 pub fn render_salt_svg(document: &FamilyDocument) -> String {
+    render_salt_artifact(document).svg
+}
+
+/// Render a salt (UI wireframe) diagram into a typed [`RenderArtifact`].
+///
+/// The SVG is emitted byte-identically to the legacy `render_salt_svg` path.
+/// In addition we build a [`RenderScene`] from the *exact* x/y/w/h coordinates
+/// the SVG uses for each drawn widget cell, so the scene and SVG never diverge.
+/// Each non-separator cell becomes one [`SceneNode`] identified by its stable
+/// `r{row}c{col}` grid index. Separator rows are skipped (no geometry node).
+pub fn render_salt_artifact(document: &FamilyDocument) -> RenderArtifact {
     const DEFAULT_CELL_H: i32 = 20;
     const CELL_PAD_X: i32 = 10;
     const MARGIN: i32 = 6;
@@ -41,7 +53,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     if rows.is_empty() {
         // Fallback: render a minimal empty wireframe
-        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"60\" viewBox=\"0 0 120 60\"><rect width=\"120\" height=\"60\" fill=\"white\"/><text x=\"10\" y=\"30\" font-family=\"monospace\" font-size=\"11\" fill=\"#666\">[salt]</text></svg>".to_string();
+        return RenderArtifact::svg_only("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"60\" viewBox=\"0 0 120 60\"><rect width=\"120\" height=\"60\" fill=\"white\"/><text x=\"10\" y=\"30\" font-family=\"monospace\" font-size=\"11\" fill=\"#666\">[salt]</text></svg>".to_string());
     }
 
     // Compute number of columns from the max row width.
@@ -253,5 +265,151 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
+
+    let scene = build_salt_scene(
+        &rows,
+        &row_heights,
+        &col_widths,
+        MARGIN,
+        top_extra,
+        total_w as f64,
+        svg_h as f64,
+    );
+    RenderArtifact::with_scene(out, scene)
+}
+
+/// Build a typed [`RenderScene`] from the same grid geometry the SVG uses.
+///
+/// Each non-separator cell becomes one [`SceneNode`] with id `r{row}c{col}`.
+/// Separator rows are skipped — they have no widget geometry. The viewport is
+/// the full SVG canvas (`total_w × svg_h`), matching the root SVG element's
+/// `width`/`height` attributes.
+fn build_salt_scene(
+    rows: &[Vec<SaltCellRender>],
+    row_heights: &[i32],
+    col_widths: &[i32],
+    margin: i32,
+    top_extra: i32,
+    total_w: f64,
+    svg_h: f64,
+) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, total_w, svg_h));
+
+    let min_cell_w = col_widths.iter().copied().min().unwrap_or(80);
+    let mut current_y = margin + top_extra;
+    for (row_idx, cells) in rows.iter().enumerate() {
+        let row_h = row_heights[row_idx];
+        let row_y = current_y;
+        current_y += row_h;
+
+        // Separator rows produce an SVG <line> only; no widget scene node.
+        if is_salt_separator_row(cells) {
+            continue;
+        }
+
+        let rendered = salt_row_layout(cells, col_widths, min_cell_w);
+        let mut col_x = margin;
+        let mut col_idx = 0usize;
+        for cell in &rendered {
+            let node_id = format!("r{row_idx}c{col_idx}");
+            let bounds = Rect::new(col_x as f64, row_y as f64, cell.width as f64, row_h as f64);
+            let label = LabelBox {
+                id: format!("{node_id}::label"),
+                text: cell.cell.text().to_string(),
+                bounds,
+                owner_id: Some(node_id.clone()),
+                role: LabelRole::Node,
+            };
+            scene.add_node(SceneNode {
+                id: node_id.clone(),
+                node_box: NodeBox {
+                    id: node_id,
+                    bounds,
+                    ports: Vec::new(),
+                    labels: vec![label],
+                },
+            });
+            col_x += cell.width;
+            col_idx += cell.colspan;
+        }
+    }
+
+    scene
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render_artifact_from_source(src: &str) -> RenderArtifact {
+        let document = crate::parse(src).expect("parse");
+        let model = crate::normalize_family(document).expect("normalize");
+        match model {
+            crate::model::NormalizedDocument::Family(family) => render_salt_artifact(&family),
+            other => panic!("expected NormalizedDocument::Family, got {other:?}"),
+        }
+    }
+
+    /// A login form with 3 rows × 2 columns of input widgets.
+    /// Expected scene nodes = 3 rows × 2 cells = 6 nodes (no separator rows,
+    /// no spanning). Geometry issues must be empty (bounds are from the same
+    /// geometry the SVG uses, so they are always valid).
+    #[test]
+    fn salt_artifact_scene_node_count_matches_widget_grid() {
+        let src = "@startsalt\n{\n| Name | \"Enter your name\" |\n| Email | \"email@example.com\" |\n| [OK] | [Cancel] |\n}\n@endsalt\n";
+        let artifact = render_artifact_from_source(src);
+
+        // SVG must still be valid.
+        assert!(
+            artifact.svg.contains("<svg"),
+            "SVG output must be non-empty"
+        );
+
+        let scene = artifact
+            .typed_scene()
+            .expect("salt artifact must carry a typed RenderScene");
+
+        // 3 rows × 2 cols = 6 widget nodes.
+        assert_eq!(
+            scene.nodes.len(),
+            6,
+            "scene node count must match widget cell count; got {}",
+            scene.nodes.len()
+        );
+
+        // All geometry issues must be absent — coords come from the same
+        // calculation the SVG uses, so no drift is possible.
+        let issues = scene.validate_geometry();
+        assert!(
+            issues.is_empty(),
+            "RenderScene geometry must be valid; issues: {issues:?}"
+        );
+    }
+
+    /// A salt diagram with a separator row (`---`) must not create a scene
+    /// node for the separator — only real widget cells are nodes.
+    #[test]
+    fn salt_artifact_separator_rows_excluded_from_scene() {
+        // 2 widget rows + 1 separator row → 4 cells total (2×2 grid), sep skipped.
+        let src = "@startsalt\n{\n| Name | Value |\n| --- |\n| Email | Example |\n}\n@endsalt\n";
+        let artifact = render_artifact_from_source(src);
+
+        let scene = artifact
+            .typed_scene()
+            .expect("salt artifact must carry a typed RenderScene");
+
+        // Separator row is excluded; 2 non-separator rows × 2 cols = 4 nodes.
+        assert_eq!(
+            scene.nodes.len(),
+            4,
+            "separator rows must not create scene nodes; got {}",
+            scene.nodes.len()
+        );
+
+        let issues = scene.validate_geometry();
+        assert!(
+            issues.is_empty(),
+            "RenderScene geometry must be valid; issues: {issues:?}"
+        );
+    }
 }

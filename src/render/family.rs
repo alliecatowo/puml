@@ -17,6 +17,7 @@ mod group_frames;
 mod node_shapes;
 mod projections;
 mod tree;
+mod tree_scene;
 
 pub use self::box_grid::{
     render_component_artifact, render_component_svg, render_deployment_artifact,
@@ -25,7 +26,7 @@ pub use self::box_grid::{
 pub use self::class_render::{
     render_class_artifact, render_class_svg, render_family_stub_artifact, render_family_stub_svg,
 };
-pub use self::tree::render_family_tree_svg;
+pub use self::tree::{render_family_tree_artifact, render_family_tree_svg};
 
 pub(crate) use self::class_members::family_node_label;
 pub(crate) use self::family_node_shapes::render_note_card;

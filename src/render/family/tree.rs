@@ -1,5 +1,6 @@
 use crate::ast::MemberModifier;
 use crate::model::{FamilyDocument, FamilyOrientation};
+use crate::output::RenderArtifact;
 use crate::render::relation::usecase_dependency_label;
 use crate::render::svg::escape_text;
 use crate::render::text_metrics::{ellipsize_with_dots, wrap_line_by_chars};
@@ -8,16 +9,18 @@ use super::class_members::{
     builtin_type_stereotype_label, parse_member_modifiers, parse_visibility_member,
 };
 
+// Scene builder lives in family/tree_scene.rs (declared by family.rs)
+
 #[derive(Debug, Clone)]
-struct NodeLayout {
-    label_lines: Vec<String>,
-    width: i32,
-    height: i32,
-    x: i32,
-    y: i32,
+pub(super) struct NodeLayout {
+    pub(super) label_lines: Vec<String>,
+    pub(super) width: i32,
+    pub(super) height: i32,
+    pub(super) x: i32,
+    pub(super) y: i32,
 }
 
-fn wrap_text(
+pub(super) fn wrap_text(
     text: String,
     max_chars: usize,
     policy: crate::scene::TextOverflowPolicy,
@@ -145,7 +148,7 @@ pub(super) fn render_centered_multiline_text(
     start_y + ((lines.len() as i32 - 1) * line_height)
 }
 
-pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
+pub(super) fn render_family_tree_svg_inner(document: &FamilyDocument) -> String {
     const MARGIN: i32 = 24;
     const CHAR_WIDTH: i32 = 7;
     const NODE_FONT_SIZE: i32 = 12;
@@ -520,4 +523,12 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
+    render_family_tree_artifact(document).svg
+}
+
+pub fn render_family_tree_artifact(document: &FamilyDocument) -> RenderArtifact {
+    super::tree_scene::render_family_tree_artifact_inner(document)
 }

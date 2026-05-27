@@ -45,7 +45,6 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --dialect auto|plantuml|mermaid|picouml
                              select frontend input dialect; auto uses file extensions and fences
 --compat strict|extended     semantic compatibility policy (default: strict)
---determinism strict|full    determinism policy (default: strict)
 --include-root DIR           resolve `!include` from this root for stdin
 --allow-url-includes         allow URL includes for trusted compatibility runs
 --no-url-includes            compatibility no-op; URL includes are disabled by default
