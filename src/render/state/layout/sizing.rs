@@ -69,6 +69,13 @@ pub(in crate::render::state) fn compute_node_size(
                 // Composite state: size from children
                 let n_regions = node.regions.len().max(1) as i32;
                 if n_regions > 1 {
+                    // Compute children's sizes first so concurrent_region_metrics
+                    // has accurate per-child dimensions.  (compute_region_size
+                    // populates `sizes` as a side-effect via recursive calls to
+                    // compute_node_size.)
+                    for region in &node.regions {
+                        compute_region_size(region, sizes);
+                    }
                     let (column_w, content_h) = concurrent_region_metrics(&node.regions, sizes);
                     let content_w = column_w * n_regions + REGION_DIVIDER_GAP * (n_regions - 1);
                     let w = content_w + COMPOSITE_PAD_X * 2;
