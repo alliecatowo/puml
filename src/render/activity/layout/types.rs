@@ -54,5 +54,8 @@ pub(in crate::render::activity) struct LayoutParams<'a> {
     pub fork_col_w: i32,
     pub lane_w: i32,
     pub lane_center_x: &'a dyn Fn(&str) -> i32,
+    /// Minimum column width per branch: box_w + inter-node gap so adjacent
+    /// fork-branch boxes never overlap each other.
+    pub min_fork_col_w: i32,
 }
 use super::super::arrows::ActivityArrowStyle;

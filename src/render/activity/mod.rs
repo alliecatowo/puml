@@ -150,6 +150,11 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     // -----------------------------------------------------------------------
     // 5. Pass 1 — layout
     // -----------------------------------------------------------------------
+    // Minimum per-branch column width: node box + a small gap so adjacent
+    // fork branches never visually overlap.
+    let inter_node_gap = 24i32;
+    let min_fork_col_w = box_w + inter_node_gap;
+
     let layout_result = layout::compute_layout(
         doc,
         &metas,
@@ -161,6 +166,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             fork_col_w,
             lane_w,
             lane_center_x: &lane_center_x,
+            min_fork_col_w,
         },
     );
     let layout::LayoutResult {
@@ -193,7 +199,26 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         .unwrap_or(header_h + step_h)
         + 60;
 
-    let lane_spans = if sequential_partition_lanes {
+    // Re-derive canvas width from actual node positions so that forks whose
+    // effective_col_w exceeds the originally-budgeted fork_col_w don't clip
+    // their rightmost branch boxes.  The original width is used as a floor.
+    let actual_max_right: i32 = doc
+        .nodes
+        .iter()
+        .zip(node_layouts.iter())
+        .filter_map(|(node, layout)| match node.kind {
+            FamilyNodeKind::ActivityAction
+            | FamilyNodeKind::Note
+            | FamilyNodeKind::ActivityDecision
+            | FamilyNodeKind::ActivityFork
+            | FamilyNodeKind::ActivityForkEnd => Some(layout.cx + box_w / 2 + 32),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let width = width.max(actual_max_right);
+
+    let (lane_spans, lane_min_node_cx) = if sequential_partition_lanes {
         swimlanes::compute_lane_spans(
             doc,
             &metas,
@@ -205,7 +230,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             height,
         )
     } else {
-        vec![None; lanes.len()]
+        (vec![None; lanes.len()], vec![None; lanes.len()])
     };
 
     // -----------------------------------------------------------------------
@@ -311,9 +336,11 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         &mut out,
         &lanes,
         &lane_spans,
+        &lane_min_node_cx,
         sequential_partition_lanes,
         lane_area_x,
         lane_w,
+        box_w,
         stacked_partition_blocks,
         header_h,
         lane_header_h,
