@@ -155,10 +155,6 @@ pub(super) fn class_build_label_overrides(
         text: String,
         lx: i32,
         ly: i32,
-        x1: i32,
-        y1: i32,
-        x2: i32,
-        y2: i32,
     }
     let mut raw_labels: Vec<RawLabel> = Vec::new();
 
@@ -198,23 +194,38 @@ pub(super) fn class_build_label_overrides(
             None
         };
         let (lx, ly) = if let Some(ref pts) = ortho_pts {
-            let longest_horiz = pts
+            // Find the longest non-degenerate segment overall to use as the
+            // label anchor.  Skip zero-length degenerate waypoints.  For
+            // horizontal segments, place the label slightly above the segment
+            // (y - 12); for vertical/diagonal segments use the midpoint with
+            // a small y offset.
+            //
+            // We do NOT prefer horizontal legs exclusively because the horizontal
+            // bend in a parallel-edge route is often very short (a few pixels)
+            // and close to a node boundary, which causes the label to land inside
+            // a node box and get nudged far off course (#1258).
+            let longest_seg = pts
                 .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    let longest_seg = pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                .filter(|seg| seg[0] != seg[1])
+                .max_by_key(|seg| {
+                    let (ax, ay) = seg[0];
+                    let (bx, by_) = seg[1];
+                    (bx - ax).pow(2) + (by_ - ay).pow(2)
+                });
+            match longest_seg {
+                Some(seg) => {
+                    let mx = (seg[0].0 + seg[1].0) / 2;
+                    let my = (seg[0].1 + seg[1].1) / 2;
+                    if seg[0].1 == seg[1].1 {
+                        // Horizontal segment: label above the line.
+                        (mx, my - 12)
+                    } else {
+                        // Vertical or diagonal: label at midpoint (nudge will
+                        // move it clear of any overlapping node box).
+                        (mx, my - 12)
                     }
                 }
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
             }
         } else {
             ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
@@ -226,52 +237,51 @@ pub(super) fn class_build_label_overrides(
             text: label_text.unwrap_or_default().to_string(),
             lx,
             ly,
-            x1,
-            y1,
-            x2,
-            y2,
         });
     }
 
     // ── Target-based fan (≥ 2 labels → same target node) ─────────────────────
+    //
+    // Anchor fans to the *edge midpoint* already computed in `lx/ly` rather
+    // than to node-box coordinates.  Using node-box anchors placed labels far
+    // from their edges when the edges are routed through the graph layout engine
+    // (#1258).  We sort the labels by their natural edge-midpoint x position and
+    // spread them apart only enough to prevent overlap, preserving y (on-edge).
     let mut by_target: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, rl) in raw_labels.iter().enumerate() {
         by_target.entry(rl.to_name.clone()).or_default().push(i);
     }
-    for (to_name, group) in &by_target {
+    for group in by_target.values() {
         if group.len() < 2 {
             continue;
         }
-        let target_box = match node_boxes.get(to_name.as_str()) {
-            Some(b) => b,
-            None => continue,
-        };
-        let anchor_y = target_box.y - 14;
-        let anchor_cx = target_box.x + target_box.w / 2;
-        let n = group.len() as i32;
+        // Sort by the natural edge-midpoint x so spread is left-to-right.
         let mut sorted = group.clone();
-        sorted.sort_unstable();
+        sorted.sort_by_key(|&i| raw_labels[i].lx);
+        let n = sorted.len() as i32;
         let total_width = sorted
             .iter()
             .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
             .sum::<i32>()
             + (n - 1) * LABEL_FAN_GAP;
+        // Anchor x to the mean edge-midpoint x so the fan centres on the edges.
+        let mean_lx = sorted.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / n;
         let mut cursor = -total_width / 2;
         for &raw_idx in &sorted {
-            let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
+            let rl = &raw_labels[raw_idx];
+            let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
             let center_offset = cursor + label_half_w;
-            let anchor = class_nudge_label_y(
-                anchor_cx + center_offset,
-                anchor_y,
-                label_half_w,
-                node_boxes,
-            );
-            label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
+            // Keep y on the edge (use the per-edge midpoint y, not node-box y).
+            let anchor =
+                class_nudge_label_y(mean_lx + center_offset, rl.ly, label_half_w, node_boxes);
+            label_override.insert(rl.rel_idx, anchor);
             cursor += label_half_w * 2 + LABEL_FAN_GAP;
         }
     }
 
     // ── Source-based fan (≥ 2 labelled edges share the same source node) ─────
+    //
+    // Same principle: anchor to edge midpoints, spread only in x.
     let mut by_source: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, rl) in raw_labels.iter().enumerate() {
         if !label_override.contains_key(&rl.rel_idx) {
@@ -283,39 +293,52 @@ pub(super) fn class_build_label_overrides(
             continue;
         }
         let mut sorted = group.clone();
-        sorted.sort_unstable();
+        sorted.sort_by_key(|&i| raw_labels[i].lx);
         let count = sorted.len();
-        for (slot, &raw_idx) in sorted.iter().enumerate() {
+        let n = count as i32;
+        let total_width = sorted
+            .iter()
+            .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+            .sum::<i32>()
+            + (n - 1) * LABEL_FAN_GAP;
+        let mean_lx = sorted.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / n;
+        let mut cursor = -total_width / 2;
+        for &raw_idx in &sorted {
             let rl = &raw_labels[raw_idx];
-            let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
-            let dx = rl.x2 - rl.x1;
-            let dy = rl.y2 - rl.y1;
-            let lx = rl.x1 + (dx as f64 * frac) as i32;
-            let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
-            let (lx, ly) = if dy.abs() > dx.abs() {
-                (lx + 14, ly)
-            } else {
-                (lx, ly - 2)
-            };
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
-            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, node_boxes);
+            let center_offset = cursor + label_half_w;
+            let (lx, ly) =
+                class_nudge_label_y(mean_lx + center_offset, rl.ly, label_half_w, node_boxes);
             label_override.insert(rl.rel_idx, (lx, ly));
+            cursor += label_half_w * 2 + LABEL_FAN_GAP;
         }
     }
 
-    // ── Same-y cluster fan (remaining labels in the same horizontal channel) ──
+    // ── Same-y cluster fan (labels that genuinely overlap in both x and y) ─────
+    //
+    // Earlier implementation clustered ALL labels in the same horizontal band
+    // regardless of x distance, spreading unrelated edges across the diagram
+    // (#1258).  The revised pass only fans labels whose pixel bounding boxes
+    // actually intersect so that labels already far apart in x are left alone.
     let mut y_clusters: Vec<Vec<usize>> = Vec::new();
     for i in 0..raw_labels.len() {
         if label_override.contains_key(&raw_labels[i].rel_idx) {
             continue;
         }
-        let ly_i = raw_labels[i].ly;
+        let rl_i = &raw_labels[i];
+        let hw_i = ((rl_i.text.chars().count() as i32) * 3).max(18);
+        let ly_i = rl_i.ly;
+        let lx_i = rl_i.lx;
+        // Find an existing cluster whose representative overlaps with label i
+        // in BOTH y (within LABEL_CLUSTER_BAND) and x (bounding boxes touch).
         let found = y_clusters.iter().position(|cluster| {
-            let rep = cluster
-                .first()
-                .map(|&idx| raw_labels[idx].ly)
-                .unwrap_or(ly_i);
-            (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
+            cluster.iter().any(|&existing| {
+                let rl_e = &raw_labels[existing];
+                let hw_e = ((rl_e.text.chars().count() as i32) * 3).max(18);
+                let dy_ok = (ly_i - rl_e.ly).abs() <= LABEL_CLUSTER_BAND;
+                let dx_ok = (lx_i - rl_e.lx).abs() < hw_i + hw_e + LABEL_FAN_GAP;
+                dy_ok && dx_ok
+            })
         });
         match found {
             Some(ci) => y_clusters[ci].push(i),

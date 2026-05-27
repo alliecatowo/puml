@@ -280,7 +280,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
 
     // Build lateral-offset map for parallel edges and render all relations.
     // Delegate to helper to keep this orchestrator function concise.
-    const PARALLEL_EDGE_GAP: i32 = 12;
+    const PARALLEL_EDGE_GAP: i32 = 20;
     let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
         std::collections::BTreeMap::new();
     for (i, rel) in document.relations.iter().enumerate() {

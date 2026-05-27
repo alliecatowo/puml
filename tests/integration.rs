@@ -5611,17 +5611,21 @@ fn class_parallel_relations_stagger_labels_for_shared_node_pairs() {
     let svg =
         render_source_to_svg(&fs::read_to_string(example("class/12_all_relations.puml")).unwrap())
             .expect("class all relations example should render");
-    let extends_label = svg_text_positions(&svg, "&lt;&lt;extend&gt;&gt;")
+    // The inheritance edge label is "inheritance (B extends A)" — this is the
+    // correct text.  The old test looked for "<<extend>>" because a buggy
+    // substring match in usecase_dependency_label was reclassifying the label;
+    // that bug is now fixed (#1261).
+    let inheritance_label = svg_text_positions(&svg, "inheritance (B extends A)")
         .into_iter()
         .next()
-        .expect("extends stereotype position");
+        .expect("inheritance label position");
     let association_label = svg_text_positions(&svg, "association")
         .into_iter()
         .next()
         .expect("association label position");
     assert!(
-        (extends_label.0 - association_label.0).abs() >= 12
-            || (extends_label.1 - association_label.1).abs() >= 12,
+        (inheritance_label.0 - association_label.0).abs() >= 12
+            || (inheritance_label.1 - association_label.1).abs() >= 12,
         "shared-pair labels should not overlap"
     );
 }
