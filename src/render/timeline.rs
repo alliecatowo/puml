@@ -52,7 +52,7 @@ mod tests {
     fn parse_timeline(src: &str) -> TimelineDocument {
         let ast = crate::parser::parse(src).expect("parse failed");
         match crate::normalize::normalize_family(ast).expect("normalize failed") {
-            crate::model::NormalizedDocument::Timeline(doc) => *doc,
+            crate::model::NormalizedDocument::Timeline(doc) => doc,
             other => panic!("expected Timeline, got {:?}", other),
         }
     }

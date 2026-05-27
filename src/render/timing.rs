@@ -170,10 +170,10 @@ mod tests {
     use crate::render_core::SceneAvailability;
 
     fn parse_timing_doc(src: &str) -> FamilyDocument {
-        use crate::normalize::normalize;
+        use crate::normalize::normalize_family;
         use crate::parser::parse;
         let parsed = parse(src).expect("parse failed");
-        let normalized = normalize(parsed).expect("normalize failed");
+        let normalized = normalize_family(parsed).expect("normalize failed");
         match normalized {
             crate::model::NormalizedDocument::Family(doc) => doc,
             other => panic!("expected Family document, got {other:?}"),

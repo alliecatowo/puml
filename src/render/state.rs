@@ -828,9 +828,10 @@ mod tests {
 
     fn parse_state(src: &str) -> StateDocument {
         let ast = parser::parse(src).expect("parse failed");
-        normalize::normalize(ast)
-            .into_state()
-            .expect("expected state document")
+        match normalize::normalize_family(ast).expect("normalize failed") {
+            crate::model::NormalizedDocument::State(doc) => doc,
+            other => panic!("expected state document, got {other:?}"),
+        }
     }
 
     #[test]
