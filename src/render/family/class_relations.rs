@@ -8,8 +8,8 @@ use crate::render::svg::escape_text;
 
 use super::class_relation_labels::{relation_label_svg, resolve_relation_endpoint_key};
 use super::class_routing::{
-    class_box_anchor_toward_point, class_nudge_label_y, class_port_side_from_box_anchor,
-    class_route_with_row_ports, qualified_row_anchor,
+    class_box_anchor_toward_point, class_nudge_label_x, class_nudge_label_y,
+    class_port_side_from_box_anchor, class_route_with_row_ports, qualified_row_anchor,
 };
 use super::class_types::{ClassEndpointAnchor, ClassNodeBox};
 
@@ -29,6 +29,10 @@ pub(super) struct ClassRelationCtx<'a> {
     pub(super) margin_x: i32,
     pub(super) margin_top: i32,
     pub(super) svg_width: i32,
+    /// True when every node is an `Object` (object diagram).  In object diagrams
+    /// relation labels are expected to stay near the edge midpoint (centred on
+    /// the vertical line), so the box-clearance x-nudge is suppressed.
+    pub(super) is_object_diagram: bool,
 }
 
 /// Render all edges (relations) for a class/object/usecase SVG diagram.
@@ -333,36 +337,43 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             // `label_override` provides de-collided positions when multiple
             // labels would otherwise overlap (#1258, #1261).  Fall back to the
             // edge-path midpoint (`label_mx/label_my`) for single-edge cases.
-            let (lx, ly) = if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
-                (ox, oy)
-            } else if ortho_pts.is_some() {
-                // No override: use label_mx/label_my from the longest-segment
-                // midpoint (already computed above from the actual edge path).
-                if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
-                } else {
-                    (label_mx, label_my - 14)
-                }
-            } else {
-                let dx = x2 - x1;
-                let dy = y2 - y1;
-                let dx_abs = dx.abs();
-                let dy_abs = dy.abs();
-                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
-                if edge_len <= 2 {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else {
-                    let clearance = 30i32;
-                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
-                    let raw_x = x1 + dx * t_num / edge_len;
-                    let raw_y = y1 + dy * t_num / edge_len;
-                    if dy_abs > dx_abs {
-                        (raw_x + 14, raw_y - 6)
+            //
+            // `label_on_vertical_edge` tracks whether this specific placement
+            // came from a vertical segment (dy > dx).  In that case we apply an
+            // additional x-nudge after the y-nudge so the label clears the
+            // adjacent class boxes horizontally (#1258 clearance invariant).
+            let (lx, ly, label_on_vertical_edge) =
+                if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
+                    // De-collided override already accounts for box clearance.
+                    (ox, oy, false)
+                } else if ortho_pts.is_some() {
+                    // No override: use label_mx/label_my from the longest-segment
+                    // midpoint (already computed above from the actual edge path).
+                    if edge_dy.abs() > edge_dx.abs() {
+                        (label_mx + 14, label_my, true)
                     } else {
-                        (raw_x, raw_y - 14)
+                        (label_mx, label_my - 14, false)
                     }
-                }
-            };
+                } else {
+                    let dx = x2 - x1;
+                    let dy = y2 - y1;
+                    let dx_abs = dx.abs();
+                    let dy_abs = dy.abs();
+                    let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                    if edge_len <= 2 {
+                        ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false)
+                    } else {
+                        let clearance = 30i32;
+                        let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                        let raw_x = x1 + dx * t_num / edge_len;
+                        let raw_y = y1 + dy * t_num / edge_len;
+                        if dy_abs > dx_abs {
+                            (raw_x + 14, raw_y - 6, true)
+                        } else {
+                            (raw_x, raw_y - 14, false)
+                        }
+                    }
+                };
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
             let lx = lx.clamp(
                 ctx.margin_x + 8 + label_half_w,
@@ -370,6 +381,18 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // For vertical-edge labels only: push rightward out of any node box
+            // so the label clears adjacent class boxes (#1258 clearance invariant).
+            // This is intentionally NOT applied to fan-out overrides (those already
+            // spread labels apart) or to horizontal-edge labels (those clear boxes
+            // vertically via the y-nudge above).
+            // Suppressed for object diagrams where labels are expected to stay
+            // centred on the vertical edge, not pushed to the side.
+            let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
+                class_nudge_label_x(lx, label_half_w, ctx.node_boxes)
+            } else {
+                lx
+            };
             out.push_str(&relation_label_svg(
                 lx,
                 ly,

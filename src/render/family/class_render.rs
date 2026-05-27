@@ -300,6 +300,11 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
         }
     }
+    let is_object_diagram = !document.nodes.is_empty()
+        && document
+            .nodes
+            .iter()
+            .all(|node| matches!(node.kind, FamilyNodeKind::Object));
     render_class_relations(
         &mut out,
         &ClassRelationCtx {
@@ -316,6 +321,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             margin_x,
             margin_top,
             svg_width,
+            is_object_diagram,
         },
     );
 
