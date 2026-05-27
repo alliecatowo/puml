@@ -149,7 +149,7 @@ pub(super) fn render_centered_multiline_text(
     start_y + ((lines.len() as i32 - 1) * line_height)
 }
 
-pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
+fn render_family_tree_svg_inner(document: &FamilyDocument) -> String {
     const MARGIN: i32 = 24;
     const CHAR_WIDTH: i32 = 7;
     const NODE_FONT_SIZE: i32 = 12;
@@ -526,8 +526,12 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     out
 }
 
+pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
+    render_family_tree_artifact(document).svg
+}
+
 pub fn render_family_tree_artifact(document: &FamilyDocument) -> RenderArtifact {
-    let svg = render_family_tree_svg(document);
+    let svg = render_family_tree_svg_inner(document);
     let scene = build_family_tree_scene(document);
     RenderArtifact::with_scene(svg, scene)
 }

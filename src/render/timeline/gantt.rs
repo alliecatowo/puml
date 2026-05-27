@@ -584,6 +584,10 @@ fn render_gantt_svg_inner(document: &TimelineDocument) -> GanttSvgResult {
 /// Build a [`RenderScene`] from the laid-out Gantt geometry. Each task bar
 /// and milestone diamond centre is recorded as a [`SceneNode`] at the
 /// exact pixel position the SVG draws it, so scene and SVG never diverge.
+// Scene builder threads the already-computed Gantt layout geometry (widths,
+// row tops, bar height, day map); grouping into a struct would just duplicate
+// the layout fields one-to-one.
+#[allow(clippy::too_many_arguments)]
 fn build_gantt_scene(
     document: &TimelineDocument,
     ordered_tasks: &[&TimelineTask],

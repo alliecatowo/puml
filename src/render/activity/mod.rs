@@ -702,6 +702,9 @@ fn build_activity_scene(
 }
 
 /// Push a simple 2-point edge (straight line) into the scene.
+// Threads the edge id, endpoints, and four route coordinates straight into the
+// scene; a context struct would only mirror these fields one-to-one.
+#[allow(clippy::too_many_arguments)]
 fn push_activity_edge(
     scene: &mut RenderScene,
     id: String,

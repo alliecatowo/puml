@@ -96,10 +96,10 @@ fn svg_height(row_count: usize) -> f64 {
 /// Build a typed [`RenderScene`] from the laid-out row geometry.
 ///
 /// Each row cell is captured as a [`SceneNode`] whose `node_box.bounds` matches
-/// the `<rect>` drawn by `render_structured_svg` — `x=TABLE_X`, `y=FIRST_ROW_TOP_Y
-/// + index*ROW_HEIGHT`, `width=TABLE_WIDTH`, `height=ROW_HEIGHT`. Node ids are
-/// derived from the slash-separated cell path so they are stable and deterministic
-/// across repeated renders (BTreeMap discipline: no random ordering).
+/// the `<rect>` drawn by `render_structured_svg` (same `TABLE_X`, row top,
+/// `TABLE_WIDTH`, and `ROW_HEIGHT`). Node ids are derived from the
+/// slash-separated cell path so they are stable and deterministic across
+/// repeated renders (BTreeMap discipline: no random ordering).
 fn build_data_scene(
     rows: &[RenderRow],
     family: DataFamily,
