@@ -68,12 +68,15 @@ fn split_state_label_explicit_lines(label: &str) -> Vec<String> {
 }
 
 pub(super) fn measure_state_label(lines: &[String]) -> (i32, i32) {
-    let max_cols = lines
+    // Width uses the shared monospace metric (7 px/char) rather than the local
+    // STATE_LABEL_CHAR_W constant copy — arithmetic is byte-identical because
+    // DEFAULT_MONOSPACE_CHAR_WIDTH == STATE_LABEL_CHAR_W == 7.
+    let max_line = lines
         .iter()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0) as i32;
-    let width = (max_cols * STATE_LABEL_CHAR_W).max(24);
+        .map(String::as_str)
+        .max_by_key(|line| line.chars().count())
+        .unwrap_or("");
+    let width = crate::render::text_metrics::default_monospace_width(max_line).max(24);
     let height = (lines.len() as i32 * STATE_LABEL_LINE_H).max(STATE_LABEL_LINE_H);
     (width, height)
 }

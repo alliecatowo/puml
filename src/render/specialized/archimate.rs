@@ -1,6 +1,23 @@
 use super::*;
+use crate::output::RenderArtifact;
+use crate::render_core::{
+    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+};
 
 pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
+    render_archimate_artifact(document).svg
+}
+
+/// Render an ArchiMate diagram into a typed [`RenderArtifact`].
+///
+/// The SVG is still emitted directly (ArchiMate draws bespoke layer bands, shaped
+/// element boxes, and straight border-to-border relationship lines), but we also
+/// build a [`RenderScene`] from the *actual* drawn geometry — node boxes at their
+/// computed positions/sizes and edges along the same anchor segments the SVG uses —
+/// so the scene stays consistent with the output.  SVG output is byte-identical to
+/// the legacy `render_archimate_svg`; the scene is attached for the typed-geometry
+/// validation path.
+pub fn render_archimate_artifact(document: &ArchimateDocument) -> RenderArtifact {
     let width = 760;
     let layers = [
         "strategy",
@@ -137,7 +154,95 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
     }
     out.push_str(&element_markup);
     out.push_str("</svg>");
-    out
+
+    let scene = build_archimate_scene(
+        &element_bounds,
+        &document.relations,
+        width as f64,
+        height as f64,
+    );
+    RenderArtifact::with_scene(out, scene)
+}
+
+/// Build a typed [`RenderScene`] from ArchiMate's laid-out geometry.  Node boxes
+/// use the same `(x, y, w, h)` tuples stored in `element_bounds`; edge routes use
+/// the same `compute_edge_anchors_for_direction` anchor points the SVG draws, so
+/// scene and SVG never diverge.
+fn build_archimate_scene(
+    element_bounds: &BTreeMap<String, (i32, i32, i32, i32)>,
+    relations: &[crate::model::ArchimateRelation],
+    width: f64,
+    height: f64,
+) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, width, height));
+
+    // Add a scene node for every element that has a known bounding box.
+    // Because element_bounds may contain both the canonical name and an alias
+    // pointing at the same rectangle, we deduplicate by (x, y, w, h) to avoid
+    // registering the same box twice.
+    let mut seen_bounds: BTreeMap<(i32, i32, i32, i32), String> = BTreeMap::new();
+    for (name, &(x, y, w, h)) in element_bounds {
+        if seen_bounds.contains_key(&(x, y, w, h)) {
+            // This entry is the alias — the canonical name was inserted first;
+            // skip to avoid duplicate nodes in the scene.
+            continue;
+        }
+        seen_bounds.insert((x, y, w, h), name.clone());
+        let bounds = Rect::new(x as f64, y as f64, w as f64, h as f64);
+        let label = LabelBox {
+            id: format!("{name}::label"),
+            text: name.clone(),
+            bounds,
+            owner_id: Some(name.clone()),
+            role: LabelRole::Node,
+        };
+        scene.add_node(SceneNode {
+            id: name.clone(),
+            node_box: NodeBox {
+                id: name.clone(),
+                bounds,
+                ports: Vec::new(),
+                labels: vec![label],
+            },
+        });
+    }
+
+    // Add a scene edge for every relation whose endpoints are in the bounds map.
+    for (idx, rel) in relations.iter().enumerate() {
+        let Some(&from) = element_bounds.get(&rel.from) else {
+            continue;
+        };
+        let Some(&to) = element_bounds.get(&rel.to) else {
+            continue;
+        };
+        let (x1, y1, x2, y2) =
+            compute_edge_anchors_for_direction(from, to, rel.direction.as_deref());
+        let edge_id = format!("rel{idx}");
+        let source_anchor = Anchor {
+            id: format!("{edge_id}::src"),
+            owner_id: rel.from.clone(),
+            position: Point::new(x1 as f64, y1 as f64),
+            port: None,
+        };
+        let target_anchor = Anchor {
+            id: format!("{edge_id}::tgt"),
+            owner_id: rel.to.clone(),
+            position: Point::new(x2 as f64, y2 as f64),
+            port: None,
+        };
+        scene.add_edge(SceneEdge {
+            id: edge_id,
+            from: rel.from.clone(),
+            to: rel.to.clone(),
+            route: Polyline::from_tuples(&[(x1 as f64, y1 as f64), (x2 as f64, y2 as f64)]),
+            route_channel_ids: Vec::new(),
+            source_anchor,
+            target_anchor,
+            labels: Vec::new(),
+        });
+    }
+
+    scene
 }
 
 struct ArchimateRelationStyle<'a> {
@@ -409,4 +514,102 @@ fn render_archimate_relation_marker_defs(out: &mut String, arrow_stroke: &str) {
         escape_text(arrow_stroke),
         escape_text(arrow_stroke)
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{ArchimateElement, ArchimateRelation};
+
+    fn make_doc() -> ArchimateDocument {
+        ArchimateDocument {
+            title: Some("Test".to_string()),
+            elements: vec![
+                ArchimateElement {
+                    name: "Customer".to_string(),
+                    alias: Some("cust".to_string()),
+                    layer: "business".to_string(),
+                    kind: "actor".to_string(),
+                    fill: None,
+                    stroke: None,
+                },
+                ArchimateElement {
+                    name: "Order Service".to_string(),
+                    alias: Some("svc".to_string()),
+                    layer: "application".to_string(),
+                    kind: "service".to_string(),
+                    fill: None,
+                    stroke: None,
+                },
+                ArchimateElement {
+                    name: "Database".to_string(),
+                    alias: Some("db".to_string()),
+                    layer: "technology".to_string(),
+                    kind: "node".to_string(),
+                    fill: None,
+                    stroke: None,
+                },
+            ],
+            relations: vec![ArchimateRelation {
+                from: "svc".to_string(),
+                to: "cust".to_string(),
+                kind: "serving".to_string(),
+                label: None,
+                direction: None,
+                style: None,
+            }],
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn archimate_artifact_scene_node_count_matches_element_count() {
+        let doc = make_doc();
+        let artifact = render_archimate_artifact(&doc);
+
+        // SVG must be present and non-empty.
+        assert!(
+            artifact.svg.contains("<svg"),
+            "artifact must contain SVG markup"
+        );
+
+        // The scene must have exactly as many nodes as there are unique elements
+        // in the document.  Aliases map to the same box so the canonical name is
+        // the one inserted; we therefore expect one node per element.
+        let scene = artifact
+            .typed_scene()
+            .expect("archimate artifact must carry a typed RenderScene");
+        assert_eq!(
+            scene.nodes.len(),
+            doc.elements.len(),
+            "scene node count must equal element count (got {} nodes for {} elements)",
+            scene.nodes.len(),
+            doc.elements.len()
+        );
+    }
+
+    #[test]
+    fn archimate_artifact_scene_has_no_geometry_issues() {
+        let doc = make_doc();
+        let artifact = render_archimate_artifact(&doc);
+        let scene = artifact
+            .typed_scene()
+            .expect("archimate artifact must carry a typed RenderScene");
+        let issues = scene.validate_geometry();
+        assert!(
+            issues.is_empty(),
+            "scene geometry validation must pass, got issues: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn archimate_artifact_svg_is_byte_identical_to_render_archimate_svg() {
+        let doc = make_doc();
+        let svg_direct = render_archimate_svg(&doc);
+        let artifact = render_archimate_artifact(&doc);
+        assert_eq!(
+            artifact.svg, svg_direct,
+            "render_archimate_svg must be byte-identical to render_archimate_artifact(...).svg"
+        );
+    }
 }

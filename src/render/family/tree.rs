@@ -1,8 +1,12 @@
 use crate::ast::MemberModifier;
 use crate::model::{FamilyDocument, FamilyOrientation};
+use crate::output::RenderArtifact;
 use crate::render::relation::usecase_dependency_label;
 use crate::render::svg::escape_text;
-use crate::render::text_metrics::{ellipsize_with_dots, wrap_line_by_chars};
+use crate::render::text_metrics::{default_monospace_width, ellipsize_with_dots, wrap_line_by_chars};
+use crate::render_core::{
+    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+};
 
 use super::class_members::{
     builtin_type_stereotype_label, parse_member_modifiers, parse_visibility_member,
@@ -146,8 +150,17 @@ pub(super) fn render_centered_multiline_text(
 }
 
 pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
+    render_family_tree_artifact(document).svg
+}
+
+/// Render a family/class tree diagram into a typed [`RenderArtifact`].
+///
+/// The SVG is byte-identical to the legacy `render_family_tree_svg` output.
+/// In addition a [`RenderScene`] is constructed from the *same* laid-out
+/// geometry — node boxes at their drawn positions and edges along the same
+/// anchor segments — so the scene stays consistent with the SVG output.
+pub fn render_family_tree_artifact(document: &FamilyDocument) -> RenderArtifact {
     const MARGIN: i32 = 24;
-    const CHAR_WIDTH: i32 = 7;
     const NODE_FONT_SIZE: i32 = 12;
     const NODE_MIN_WIDTH: i32 = 220;
     const NODE_MAX_WIDTH: i32 = 360;
@@ -177,13 +190,13 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
             |alias| format!("{} as {}", node.name, alias),
         );
         let lines = wrap_text(raw_label, MAX_LINE_CHARS, document.text_overflow_policy);
-        let width_chars = lines
+        let label_text_width = lines
             .iter()
-            .map(|line| line.chars().count() as i32)
+            .map(|line| default_monospace_width(line))
             .max()
-            .unwrap_or(1);
+            .unwrap_or(7);
         let width =
-            (width_chars * CHAR_WIDTH + (NODE_PADDING_X * 2)).clamp(NODE_MIN_WIDTH, NODE_MAX_WIDTH);
+            (label_text_width + (NODE_PADDING_X * 2)).clamp(NODE_MIN_WIDTH, NODE_MAX_WIDTH);
         let member_count = if hide_empty_members && node.members.is_empty() {
             0
         } else {
@@ -519,5 +532,194 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     ));
 
     out.push_str("</svg>");
-    out
+
+    let scene = build_family_tree_scene(&layouts, document, width, height);
+    RenderArtifact::with_scene(out, scene)
+}
+
+/// Build a typed [`RenderScene`] from the family tree's laid-out geometry.
+///
+/// Node boxes use the same positions/sizes the SVG draws; edge routes use the
+/// same orientation-based anchor points the SVG line elements use, so the
+/// scene and SVG never diverge.
+fn build_family_tree_scene(
+    layouts: &[NodeLayout],
+    document: &FamilyDocument,
+    width: i32,
+    height: i32,
+) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, width as f64, height as f64));
+
+    for (idx, layout) in layouts.iter().enumerate() {
+        let node = &document.nodes[idx];
+        let id = node.name.clone();
+        let bounds = Rect::new(
+            layout.x as f64,
+            layout.y as f64,
+            layout.width as f64,
+            layout.height as f64,
+        );
+        let label_text = layout.label_lines.join("\n");
+        let label = LabelBox {
+            id: format!("{id}::label"),
+            text: label_text,
+            bounds,
+            owner_id: Some(id.clone()),
+            role: LabelRole::Node,
+        };
+        scene.add_node(SceneNode {
+            id: id.clone(),
+            node_box: NodeBox {
+                id: id.clone(),
+                bounds,
+                ports: Vec::new(),
+                labels: vec![label],
+            },
+        });
+    }
+
+    for (rel_idx, relation) in document.relations.iter().enumerate() {
+        let from_idx = document
+            .nodes
+            .iter()
+            .position(|n| n.name == relation.from)
+            .or_else(|| {
+                document
+                    .nodes
+                    .iter()
+                    .position(|n| n.alias.as_deref() == Some(relation.from.as_str()))
+            });
+        let to_idx = document
+            .nodes
+            .iter()
+            .position(|n| n.name == relation.to)
+            .or_else(|| {
+                document
+                    .nodes
+                    .iter()
+                    .position(|n| n.alias.as_deref() == Some(relation.to.as_str()))
+            });
+
+        if let (Some(from), Some(to)) = (from_idx, to_idx) {
+            let from_layout = &layouts[from];
+            let to_layout = &layouts[to];
+            let (x1, y1, x2, y2) = match document.orientation {
+                FamilyOrientation::TopToBottom => (
+                    from_layout.x + from_layout.width / 2,
+                    from_layout.y + from_layout.height,
+                    to_layout.x + to_layout.width / 2,
+                    to_layout.y,
+                ),
+                FamilyOrientation::BottomToTop => (
+                    from_layout.x + from_layout.width / 2,
+                    from_layout.y,
+                    to_layout.x + to_layout.width / 2,
+                    to_layout.y + to_layout.height,
+                ),
+                FamilyOrientation::LeftToRight => (
+                    from_layout.x + from_layout.width,
+                    from_layout.y + from_layout.height / 2,
+                    to_layout.x,
+                    to_layout.y + to_layout.height / 2,
+                ),
+                FamilyOrientation::RightToLeft => (
+                    from_layout.x,
+                    from_layout.y + from_layout.height / 2,
+                    to_layout.x + to_layout.width,
+                    to_layout.y + to_layout.height / 2,
+                ),
+            };
+            let from_name = document.nodes[from].name.clone();
+            let to_name = document.nodes[to].name.clone();
+            let edge_id = format!("rel{rel_idx}");
+            let source_anchor = Anchor {
+                id: format!("{edge_id}::src"),
+                owner_id: from_name.clone(),
+                position: Point::new(x1 as f64, y1 as f64),
+                port: None,
+            };
+            let target_anchor = Anchor {
+                id: format!("{edge_id}::tgt"),
+                owner_id: to_name.clone(),
+                position: Point::new(x2 as f64, y2 as f64),
+                port: None,
+            };
+            scene.add_edge(SceneEdge {
+                id: edge_id,
+                from: from_name,
+                to: to_name,
+                route: Polyline::from_tuples(&[(x1 as f64, y1 as f64), (x2 as f64, y2 as f64)]),
+                route_channel_ids: Vec::new(),
+                source_anchor,
+                target_anchor,
+                labels: Vec::new(),
+            });
+        }
+    }
+
+    scene
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{normalize_family, parser, NormalizedDocument};
+
+    #[test]
+    fn family_tree_artifact_scene_node_count_matches_tree_nodes_and_geometry_is_valid() {
+        let src = "@startuml\nclass Animal\nclass Dog\nclass Cat\nAnimal <|-- Dog\nAnimal <|-- Cat\n@enduml\n";
+        let parsed = parser::parse(src).expect("parse family tree");
+        let NormalizedDocument::Family(family) =
+            normalize_family(parsed).expect("normalize family tree")
+        else {
+            panic!("expected family model");
+        };
+
+        let artifact = render_family_tree_artifact(&family);
+
+        assert!(artifact.svg.contains("<svg"), "svg should be present");
+        let scene = artifact.scene.expect("family tree scene should be present");
+        // Three class nodes: Animal, Dog, Cat
+        assert_eq!(
+            scene.nodes.len(),
+            family.nodes.len(),
+            "scene node count must equal tree node count"
+        );
+        // Two edges: Animal->Dog and Animal->Cat
+        assert_eq!(
+            scene.edges.len(),
+            family.relations.len(),
+            "scene edge count must equal relation count"
+        );
+        assert!(
+            scene.validate_geometry().is_empty(),
+            "family tree scene must satisfy typed geometry invariants; issues: {:?}",
+            scene.validate_geometry()
+        );
+    }
+
+    #[test]
+    fn family_tree_svg_is_byte_identical_via_artifact_wrapper() {
+        let src = "@startuml\nclass Foo\nclass Bar\nFoo --> Bar\n@enduml\n";
+        let parsed_a = parser::parse(src).expect("parse a");
+        let parsed_b = parser::parse(src).expect("parse b");
+        let NormalizedDocument::Family(family_a) =
+            normalize_family(parsed_a).expect("normalize a")
+        else {
+            panic!("expected family a");
+        };
+        let NormalizedDocument::Family(family_b) =
+            normalize_family(parsed_b).expect("normalize b")
+        else {
+            panic!("expected family b");
+        };
+
+        let svg_direct = render_family_tree_svg(&family_a);
+        let svg_via_artifact = render_family_tree_artifact(&family_b).svg;
+
+        assert_eq!(
+            svg_direct, svg_via_artifact,
+            "render_family_tree_svg and render_family_tree_artifact must produce byte-identical SVG"
+        );
+    }
 }

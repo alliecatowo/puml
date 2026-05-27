@@ -1,5 +1,19 @@
 use super::*;
 
+/// Render a Chronology diagram and attach a [`RenderScene`] built from the
+/// same laid-out geometry. SVG bytes are identical to the former
+/// `render_chronology_svg`; each event card is recorded at its exact pixel
+/// rect so typed-geometry validation stays in sync with the output.
+pub(super) fn render_chronology_artifact(document: &TimelineDocument) -> RenderArtifact {
+    let result = render_chronology_inner(document);
+    RenderArtifact::with_scene(result.svg, result.scene)
+}
+
+struct ChronologySvgResult {
+    svg: String,
+    scene: RenderScene,
+}
+
 struct ChronologyRenderEvent<'a> {
     event: &'a TimelineChronologyEvent,
     start_day: Option<i32>,
@@ -12,7 +26,7 @@ struct ChronologyPlacedEvent<'a> {
     label_y: i32,
 }
 
-pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
+fn render_chronology_inner(document: &TimelineDocument) -> ChronologySvgResult {
     let width: i32 = 900;
     let margin_x: i32 = 36;
     let axis_x: i32 = 220;
@@ -242,7 +256,45 @@ pub(super) fn render_chronology_svg(document: &TimelineDocument) -> String {
     }
 
     out.push_str("</svg>");
-    out
+
+    let scene = build_chronology_scene(&placed_events, width, total_h, card_x, card_w);
+    ChronologySvgResult { svg: out, scene }
+}
+
+/// Build a [`RenderScene`] from the chronology's placed event cards. Each
+/// card rect matches the position/size drawn in the SVG so geometry stays
+/// in sync with the visual output.
+fn build_chronology_scene(
+    placed_events: &[ChronologyPlacedEvent<'_>],
+    width: i32,
+    total_h: i32,
+    card_x: i32,
+    card_w: i32,
+) -> RenderScene {
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, width as f64, total_h as f64));
+    for (idx, placed) in placed_events.iter().enumerate() {
+        let label_y = placed.label_y;
+        let card_y = label_y - 22;
+        let id = format!("chrono::{idx}::{}", placed.entry.event.subject);
+        let bounds = Rect::new(card_x as f64, card_y as f64, card_w as f64, 44.0);
+        let label = LabelBox {
+            id: format!("{id}::label"),
+            text: placed.entry.event.subject.clone(),
+            bounds,
+            owner_id: Some(id.clone()),
+            role: LabelRole::Node,
+        };
+        scene.add_node(SceneNode {
+            id: id.clone(),
+            node_box: NodeBox {
+                id,
+                bounds,
+                ports: Vec::new(),
+                labels: vec![label],
+            },
+        });
+    }
+    scene
 }
 
 fn chronology_y_for_day(
