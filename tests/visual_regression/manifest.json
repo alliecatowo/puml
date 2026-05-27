@@ -356,6 +356,15 @@
       "png_baseline_deferred_reason": "Promoted for nested-frame and transition-label invariants before PNG blessing."
     },
     {
+      "path": "docs/examples/state/10_parallel_regions_shared_events.puml",
+      "family": "state",
+      "expected_text": ["Parallel regions with shared events", "MediaPlayer", "Playing", "Paused", "Stopped", "Normal", "Muted", "EQOff", "EQOn", "pause", "mute", "enableEQ", "powerOff"],
+      "min_text_elements": 13,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "state layout change; re-bless on Linux"
+    },
+    {
       "path": "docs/examples/timing/05_concurrent_timelines_message_arrows.puml",
       "family": "timing",
       "expected_text": ["CPU", "Cache L1", "Memory Bus", "I/O Controller", "System Clock", "ReadReq", "ReadResp", "DmaKick", "DmaAck"],
