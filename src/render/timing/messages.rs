@@ -60,7 +60,17 @@ pub(super) fn render_timing_relations(
         ));
         if let Some(label) = relation.label.as_deref().filter(|label| !label.is_empty()) {
             let lx = (x1 + x2) / 2;
-            let ly = ((y1 + y2) / 2 - 6).clamp(axis_top + 12, chart_bottom - 6);
+            // Nudge the label 10 px above the arrow midpoint so it does not sit on a lane
+            // border stroke.  A semi-transparent background rect makes it legible even when
+            // the arrow crosses a state-block edge.
+            let ly = ((y1 + y2) / 2 - 10).clamp(axis_top + 12, chart_bottom - 6);
+            let label_half_w = (label.len() as i32 * 6 / 2 + 4).max(12);
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"13\" fill=\"white\" fill-opacity=\"0.85\" rx=\"2\"/>",
+                lx - label_half_w,
+                ly - 10,
+                label_half_w * 2
+            ));
             out.push_str(&format!(
                 "<text class=\"timing-message-label\" x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
                 escape_text(&style.font_color),

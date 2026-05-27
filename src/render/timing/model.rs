@@ -202,6 +202,20 @@ impl TimingLayout {
     pub(super) fn rows_h(&self) -> i32 {
         self.n_signals * self.row_h
     }
+
+    /// Returns the time value at which all waveforms should end their last state block.
+    ///
+    /// Guarantees that the end position is at least `tail_extra` pixels past `t_max` on the
+    /// canvas, so that the last state block (which starts at `t_max`) always has enough room
+    /// to display its label without being clipped at the right edge.
+    pub(super) fn waveform_end_t(&self) -> i64 {
+        // Ensure the tail is at least `TAIL_EXTRA` canvas pixels past t_max.
+        const TAIL_EXTRA_PX: i64 = 80;
+        let tail_min_t = (TAIL_EXTRA_PX * self.t_span) / (self.chart_w as i64).max(1);
+        // Also keep the 5% minimum for cases where chart_w is very large.
+        let five_pct_t = (self.t_span as f64 * 0.05) as i64;
+        self.t_min + self.t_span + five_pct_t.max(tail_min_t) + 1
+    }
 }
 
 fn collect_global_events(events: &[&FamilyNode]) -> Vec<(i64, String)> {

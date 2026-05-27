@@ -47,7 +47,7 @@ pub(super) fn render_timing_rows(
                     sig_events: &sig_events,
                     t_min: model.t_min,
                     t_max: model.t_max,
-                    t_span: model.t_span,
+                    waveform_end_t: layout.waveform_end_t(),
                     wave_y_hi,
                     wave_y_lo,
                     wave_mid,
@@ -184,7 +184,7 @@ fn render_binary_signal(out: &mut String, ctx: RowRender<'_>) {
         matches!(l.as_str(), "1" | "high" | "on" | "true")
     };
     let mut segments: Vec<(i64, i64, bool)> = Vec::new();
-    let end_t = waveform_end_t(ctx.model);
+    let end_t = waveform_end_t(ctx.layout);
     if ctx.sig_events.is_empty() {
         segments.push((ctx.model.t_min, end_t, false));
     } else {
@@ -318,7 +318,7 @@ fn render_robust_signal(out: &mut String, signal: &FamilyNode, ctx: RowRender<'_
     let state_color_idx =
         |s: &str| -> usize { state_order.iter().position(|x| x == s).unwrap_or(0) };
 
-    let end_t = waveform_end_t(ctx.model);
+    let end_t = waveform_end_t(ctx.layout);
     let transition_w = 6i32;
 
     if ctx.sig_events.is_empty() {
@@ -376,7 +376,7 @@ fn render_robust_signal(out: &mut String, signal: &FamilyNode, ctx: RowRender<'_
 }
 
 fn render_concise_signal(out: &mut String, ctx: RowRender<'_>) {
-    let end_t = waveform_end_t(ctx.model);
+    let end_t = waveform_end_t(ctx.layout);
     if ctx.sig_events.is_empty() {
         out.push_str(&format!(
             "<line x1=\"{x1}\" y1=\"{wave_mid}\" x2=\"{x2}\" y2=\"{wave_mid}\" stroke=\"#94a3b8\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
@@ -462,8 +462,8 @@ fn render_state_label(
     ));
 }
 
-fn waveform_end_t(model: &TimingModel<'_>) -> i64 {
-    model.t_max + (model.t_span as f64 * 0.05) as i64 + 1
+fn waveform_end_t(layout: &TimingLayout) -> i64 {
+    layout.waveform_end_t()
 }
 
 fn timing_state_color(state: &str, idx: usize) -> &'static str {

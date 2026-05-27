@@ -5,7 +5,8 @@ pub(super) struct TimingAnalogRender<'a> {
     pub(super) sig_events: &'a [(i64, String)],
     pub(super) t_min: i64,
     pub(super) t_max: i64,
-    pub(super) t_span: i64,
+    /// Pre-computed waveform end time from `TimingLayout::waveform_end_t()`.
+    pub(super) waveform_end_t: i64,
     pub(super) wave_y_hi: i32,
     pub(super) wave_y_lo: i32,
     pub(super) wave_mid: i32,
@@ -45,7 +46,7 @@ pub(super) fn render_timing_analog_signal(out: &mut String, ctx: TimingAnalogRen
         "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
         (ctx.time_to_x)(ctx.t_min),
         ctx.wave_y_lo,
-        (ctx.time_to_x)(ctx.t_max + (ctx.t_span as f64 * 0.05) as i64 + 1),
+        (ctx.time_to_x)(ctx.waveform_end_t),
         ctx.wave_y_lo
     ));
     if ctx.sig_events.is_empty() {
