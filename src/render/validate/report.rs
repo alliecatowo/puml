@@ -1,10 +1,7 @@
 /// Result of a full invariant run.
 use crate::render_core::{validate::GeometryMetric, GeometryIssue, RenderScene};
 
-use super::invariants::{
-    check_edge_label_proximity, check_edge_node_clearance, check_endpoint_connectivity,
-    check_label_edge_clearance, check_labels_inside_viewbox, check_package_headers_from_svg,
-};
+use super::invariants::{check_label_edge_clearance, check_labels_inside_viewbox};
 use super::types::{AutoCorrect, InvariantViolation};
 
 #[derive(Debug, Default)]
@@ -45,27 +42,23 @@ pub fn run(svg: &mut String, mode: AutoCorrect) -> InvariantReport {
     run_with_scene(svg, None, mode)
 }
 
-/// Run typed pre-SVG validation when a scene is available, then fall back to
-/// SVG-string checks for unmigrated artifacts.
+/// Run typed pre-SVG validation when a scene is available, then apply SVG-string
+/// corrections for viewBox expansion and edge-label background rects.
 ///
 /// SVG auto-corrections (viewBox expansion, label-background `<rect>`s) always
 /// run regardless of scene availability — they mutate the SVG string and must
 /// not be skipped.
 ///
-/// When a typed [`RenderScene`] is present, the four **check-only** (no SVG
-/// mutation) passes are superseded by the scene's own geometry validation:
+/// When a typed [`RenderScene`] is present it is the authoritative source of
+/// geometry issue reporting (edge crossings, label proximity, endpoint
+/// connectivity, group-header violations).  The two correction-only helpers
+/// (`check_labels_inside_viewbox`, `check_label_edge_clearance`) still run
+/// because they mutate the SVG string; they are not geometry checks.
 ///
-/// | SVG-regex helper             | Role        | Status with TypedScene        |
+/// | SVG-string helper            | Role        | Disposition                   |
 /// |------------------------------|-------------|-------------------------------|
 /// | `check_labels_inside_viewbox`| CORRECTION  | always runs (viewBox expand)  |
 /// | `check_label_edge_clearance` | CORRECTION  | always runs (bg rect insert)  |
-/// | `check_edge_label_proximity` | CHECK-only  | superseded by typed scene     |
-/// | `check_edge_node_clearance`  | CHECK-only  | superseded by typed scene     |
-/// | `check_package_headers_from_svg` | CHECK-only | superseded by typed scene  |
-/// | `check_endpoint_connectivity`| CHECK-only  | superseded by typed scene     |
-///
-/// The four CHECK-only helpers are safe to delete in a later visually-gated
-/// pass once every renderer has migrated to a typed scene (Refs #1258).
 pub fn run_with_scene(
     svg: &mut String,
     scene: Option<&RenderScene>,
@@ -97,33 +90,10 @@ pub fn run_with_scene(
 
     // ── GEOMETRY CHECKS ──────────────────────────────────────────────────────
     //
-    // When a typed scene is present it is the authoritative source of geometry
-    // issue reporting. The SVG-regex check-only helpers are skipped to avoid
-    // duplicated diagnostics and unnecessary regex work. For non-migrated and
-    // unsupported artifacts the SVG-string helpers remain as the fallback.
+    // The typed scene is the authoritative source of all geometry issue
+    // reporting.  SVG-regex check-only helpers have been removed (Refs #1258).
     if let Some(scene) = scene {
-        // Typed scene is authoritative: source all geometry checks from it.
         report.attach_typed_scene(scene);
-    } else {
-        // SVG-string fallback for non-migrated / unsupported renderers.
-
-        // Edge labels should stay near visible routes. Diagnostic-only until
-        // typed label ownership is available before SVG emission.
-        report
-            .violations
-            .extend(check_edge_label_proximity(svg, 96));
-
-        // Invariant #1: edge-vs-node intersection (diagnostic; layout engine
-        // auto-corrects upstream at layout time).
-        report.violations.extend(check_edge_node_clearance(svg));
-
-        // Invariant #4: group/package header reservation (diagnostic fallback).
-        report
-            .violations
-            .extend(check_package_headers_from_svg(svg));
-
-        // Invariant #6: edge endpoint connectivity (diagnostic).
-        report.violations.extend(check_endpoint_connectivity(svg));
     }
 
     report

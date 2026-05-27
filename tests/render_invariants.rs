@@ -11,8 +11,8 @@ use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, Pse
 use puml::render::RenderValidationState;
 use puml::render_core::validate::GeometryMetric;
 use puml::render_core::{
-    Anchor, GeometryIssue, NodeBox, Point, Polyline, Rect, RenderScene, SceneAvailability,
-    SceneEdge, SceneNode,
+    Anchor, GeometryIssue, GroupFrame, NodeBox, Point, Polyline, Rect, RenderScene,
+    SceneAvailability, SceneEdge, SceneGroup, SceneNode,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,7 +96,8 @@ A --> B
 #[test]
 fn invariant1_no_violations_on_simple_linear_class_diagram() {
     // A simple chain A → B → C should never have edges cross intermediate nodes
-    // in a hierarchical layout.
+    // in a hierarchical layout.  Assert via the typed scene — no EdgeCrossesNode
+    // issues expected for a well-formed linear graph.
     let source = r#"
 @startuml
 class A
@@ -106,39 +107,73 @@ A --> B
 B --> C
 @enduml
 "#;
-    let svg = render_to_svg(source);
-    let violations = validate::check_edge_node_clearance(&svg);
-    // We don't assert zero violations here because intermediate SVG nodes may
-    // lack `data-uml-id` attributes that the checker needs — but we do assert
-    // that check_edge_node_clearance runs without panicking and returns a Vec.
-    let _ = violations; // just confirm the invariant pass doesn't crash
+    let artifact = render_family_artifact(source);
+    let scene = artifact
+        .scene
+        .as_ref()
+        .expect("class diagram should produce a typed scene");
+    let issues = scene.validate_geometry();
+    let crossing_issues: Vec<_> = issues
+        .iter()
+        .filter(|i| matches!(i, GeometryIssue::EdgeCrossesNode { .. }))
+        .collect();
+    assert!(
+        crossing_issues.is_empty(),
+        "simple linear A→B→C should have no EdgeCrossesNode violations; got: {crossing_issues:?}"
+    );
 }
 
 #[test]
 fn invariant1_check_returns_structured_violations() {
-    // Craft a synthetic SVG with an edge that provably crosses an intermediate
-    // node to verify the violation struct is correct.
-    // Note: SVG is assembled without r#"…"# to avoid # terminating raw strings.
-    let svg = [
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
-        r#"<rect class="uml-node" id="node_A" x="10" y="100" width="80" height="40"/>"#,
-        r#"<rect class="uml-node" id="node_B" x="160" y="100" width="80" height="40"/>"#,
-        r#"<rect class="uml-node" id="node_obstacle" x="100" y="90" width="50" height="60"/>"#,
-        "<polyline class=\"uml-relation\" data-uml-from=\"node_A\" data-uml-to=\"node_B\" points=\"90,120 240,120\" fill=\"none\" stroke=\"#333\" stroke-width=\"2\"/>",
-        r#"</svg>"#,
-    ].join("\n");
-    let svg = svg.as_str();
-    let violations = validate::check_edge_node_clearance(svg);
-    // The edge 90,120 → 240,120 passes through node_obstacle at x=100..150, y=90..150.
-    // At y=120 the horizontal segment crosses the obstacle's x-range [100+2, 150-2].
+    // Build a synthetic typed RenderScene with an obstacle node that a route
+    // provably crosses, and verify that validate_geometry() reports EdgeCrossesNode.
+    //
+    // Layout:  node_A (10,100 80×40)  --edge-->  node_B (160,100 80×40)
+    //          node_obstacle (100,90 50×60) sits between them; the straight
+    //          horizontal route at y=120 passes through the obstacle's interior.
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 400.0, 300.0));
+    let make_node = |id: &str, x: f64, y: f64, w: f64, h: f64| SceneNode {
+        id: id.to_string(),
+        node_box: NodeBox {
+            id: id.to_string(),
+            bounds: Rect::new(x, y, w, h),
+            ports: vec![],
+            labels: vec![],
+        },
+    };
+    scene.add_node(make_node("node_A", 10.0, 100.0, 80.0, 40.0));
+    scene.add_node(make_node("node_B", 160.0, 100.0, 80.0, 40.0));
+    scene.add_node(make_node("node_obstacle", 100.0, 90.0, 50.0, 60.0));
+    // Route goes straight across at y=120, entering node_obstacle's interior.
+    scene.add_edge(SceneEdge {
+        id: "edge:node_A:node_B".to_string(),
+        from: "node_A".to_string(),
+        to: "node_B".to_string(),
+        route: Polyline::from_tuples(&[(90.0, 120.0), (160.0, 120.0)]),
+        route_channel_ids: Vec::new(),
+        source_anchor: Anchor {
+            id: "node_A:right".to_string(),
+            owner_id: "node_A".to_string(),
+            position: Point::new(90.0, 120.0),
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "node_B:left".to_string(),
+            owner_id: "node_B".to_string(),
+            position: Point::new(160.0, 120.0),
+            port: None,
+        },
+        labels: vec![],
+    });
+
+    let issues = scene.validate_geometry();
+    // The horizontal segment (90,120)→(160,120) crosses node_obstacle (100,90,50,60).
     assert!(
-        !violations.is_empty(),
-        "expected edge-crosses-node violation for synthetic SVG"
+        issues
+            .iter()
+            .any(|i| matches!(i, GeometryIssue::EdgeCrossesNode { node_id, .. } if node_id == "node_obstacle")),
+        "expected EdgeCrossesNode for node_obstacle; got: {issues:?}"
     );
-    assert!(matches!(
-        violations[0].kind,
-        InvariantKind::EdgeCrossesNode { .. }
-    ));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -819,35 +854,127 @@ fn invariant4_edge_below_header_no_violation() {
 
 #[test]
 fn invariant4_extracts_group_headers_from_svg() {
-    let svg = concat!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
-        r#"<rect class="uml-group-frame" data-uml-group="Domain" x="40" y="60" width="300" height="180"/>"#,
-        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="20,72 360,72" fill="none" stroke="#333" stroke-width="2"/>"##,
-        r#"</svg>"#
-    );
-    let frames = validate::extract_package_frames(svg);
-    assert_eq!(frames.len(), 1, "expected one extracted group frame");
-    assert_eq!(frames[0].id, "Domain");
+    // Build a synthetic typed RenderScene with a group whose header strip is
+    // crossed by an edge route, and verify that validate_geometry() reports
+    // EdgeCrossesGroupHeader.
+    //
+    // Group "Domain" occupies (40,60,300,180); its header strip is the top 30px
+    // row: (40,60,300,30).  The edge route goes horizontally at y=72 right
+    // through the header interior.
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 400.0, 300.0));
+    let make_node = |id: &str, x: f64, y: f64, w: f64, h: f64| SceneNode {
+        id: id.to_string(),
+        node_box: NodeBox {
+            id: id.to_string(),
+            bounds: Rect::new(x, y, w, h),
+            ports: vec![],
+            labels: vec![],
+        },
+    };
+    // Source and target nodes sit outside the group header strip.
+    scene.add_node(make_node("A", 10.0, 150.0, 30.0, 20.0));
+    scene.add_node(make_node("B", 360.0, 150.0, 30.0, 20.0));
+    scene.add_group(SceneGroup {
+        id: "Domain".to_string(),
+        frame: GroupFrame {
+            id: "Domain".to_string(),
+            bounds: Rect::new(40.0, 60.0, 300.0, 180.0),
+            // Header strip: top 30px of the frame.
+            header: Some(Rect::new(40.0, 60.0, 300.0, 30.0)),
+            child_node_ids: vec![],
+            labels: vec![],
+        },
+    });
+    // Route at y=72 passes through the header interior (y ∈ [60, 90]).
+    scene.add_edge(SceneEdge {
+        id: "edge:A:B".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::from_tuples(&[(40.0, 72.0), (340.0, 72.0)]),
+        route_channel_ids: Vec::new(),
+        source_anchor: Anchor {
+            id: "A:right".to_string(),
+            owner_id: "A".to_string(),
+            position: Point::new(40.0, 72.0),
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "B:left".to_string(),
+            owner_id: "B".to_string(),
+            position: Point::new(340.0, 72.0),
+            port: None,
+        },
+        labels: vec![],
+    });
 
-    let violations = validate::check_package_headers_from_svg(svg);
+    let issues = scene.validate_geometry();
     assert!(
-        !violations.is_empty(),
-        "route through extracted header strip should be reported"
+        issues
+            .iter()
+            .any(|i| matches!(i, GeometryIssue::EdgeCrossesGroupHeader { group_id, .. } if group_id == "Domain")),
+        "route through group header strip should be reported as EdgeCrossesGroupHeader; got: {issues:?}"
     );
 }
 
 #[test]
 fn invariant_label_proximity_detects_detached_edge_label() {
-    let svg = concat!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
-        r##"<polyline class="uml-relation" data-uml-from="A" data-uml-to="B" points="20,220 380,220" fill="none" stroke="#333" stroke-width="2"/>"##,
-        r#"<text class="uml-edge-label" data-uml-label-role="edge" x="200" y="40" text-anchor="middle">detached</text>"#,
-        r#"</svg>"#
-    );
-    let violations = validate::check_edge_label_proximity(svg, 64);
+    // Build a typed RenderScene with an edge label whose center is much farther
+    // than 96px from the nearest route segment, and verify EdgeLabelDetached.
+    //
+    // Route: horizontal at y=220 from x=20 to x=380.
+    // Label center: (200, 40) — 180px above the route, well beyond the 96px threshold.
+    use puml::render_core::LabelBox;
+    use puml::render_core::LabelRole;
+
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 400.0, 300.0));
+    let make_node = |id: &str, x: f64, y: f64, w: f64, h: f64| SceneNode {
+        id: id.to_string(),
+        node_box: NodeBox {
+            id: id.to_string(),
+            bounds: Rect::new(x, y, w, h),
+            ports: vec![],
+            labels: vec![],
+        },
+    };
+    scene.add_node(make_node("A", 10.0, 210.0, 20.0, 20.0));
+    scene.add_node(make_node("B", 380.0, 210.0, 20.0, 20.0));
+    // Label centered at (200, 40) — 180px above the route at y=220.
+    let detached_label = LabelBox {
+        id: "label:detached".to_string(),
+        text: "detached".to_string(),
+        bounds: Rect::new(170.0, 30.0, 60.0, 20.0),
+        owner_id: Some("edge:A:B".to_string()),
+        role: LabelRole::Edge,
+    };
+    scene.add_edge(SceneEdge {
+        id: "edge:A:B".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::from_tuples(&[(20.0, 220.0), (380.0, 220.0)]),
+        route_channel_ids: Vec::new(),
+        source_anchor: Anchor {
+            id: "A:right".to_string(),
+            owner_id: "A".to_string(),
+            position: Point::new(20.0, 220.0),
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "B:left".to_string(),
+            owner_id: "B".to_string(),
+            position: Point::new(380.0, 220.0),
+            port: None,
+        },
+        labels: vec![detached_label],
+    });
+
+    let issues = scene.validate_geometry();
     assert!(
-        !violations.is_empty(),
-        "edge label far from all route segments should be reported"
+        issues.iter().any(|i| matches!(
+            i,
+            GeometryIssue::EdgeLabelDetached { edge_id, label_id, .. }
+            if edge_id == "edge:A:B" && label_id == "label:detached"
+        )),
+        "edge label 180px from route should be reported as EdgeLabelDetached; got: {issues:?}"
     );
 }
 
@@ -960,37 +1087,103 @@ fn invariant5_synthetic_duplicate_initial_is_caught() {
 
 #[test]
 fn invariant6_floating_endpoint_detected() {
-    // Edge from "A" whose first point (5,50) is far from the "A" node box at (100,100).
-    let svg_parts = [
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
-        r#"<rect class="uml-node" id="A" x="100" y="100" width="80" height="40"/>"#,
-        r#"<rect class="uml-node" id="B" x="250" y="100" width="80" height="40"/>"#,
-        "<polyline class=\"uml-relation\" data-uml-from=\"A\" data-uml-to=\"B\" points=\"5,50 250,120\" fill=\"none\" stroke=\"#333\" stroke-width=\"2\"/>",
-        r#"</svg>"#,
-    ];
-    let svg = svg_parts.join("\n");
-    let violations = validate::check_endpoint_connectivity(&svg);
+    // Build a typed RenderScene where the source anchor position does not match
+    // the first route point, triggering EdgeEndpointDetached.
+    //
+    // Node A is at (100,100,80,40); its right-side anchor is at (180,120).
+    // The edge route starts at (5,50) — far from the declared anchor (180,120),
+    // so the typed scene reports the endpoint as detached.
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 400.0, 300.0));
+    let make_node = |id: &str, x: f64, y: f64, w: f64, h: f64| SceneNode {
+        id: id.to_string(),
+        node_box: NodeBox {
+            id: id.to_string(),
+            bounds: Rect::new(x, y, w, h),
+            ports: vec![],
+            labels: vec![],
+        },
+    };
+    scene.add_node(make_node("A", 100.0, 100.0, 80.0, 40.0));
+    scene.add_node(make_node("B", 250.0, 100.0, 80.0, 40.0));
+    scene.add_edge(SceneEdge {
+        id: "edge:A:B".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        // Route starts at (5,50) but the declared source anchor is at (180,120).
+        route: Polyline::from_tuples(&[(5.0, 50.0), (250.0, 120.0)]),
+        route_channel_ids: Vec::new(),
+        source_anchor: Anchor {
+            id: "A:right".to_string(),
+            owner_id: "A".to_string(),
+            position: Point::new(180.0, 120.0), // mismatch: route[0] = (5,50)
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "B:left".to_string(),
+            owner_id: "B".to_string(),
+            position: Point::new(250.0, 120.0),
+            port: None,
+        },
+        labels: vec![],
+    });
+
+    let issues = scene.validate_geometry();
     assert!(
-        !violations.is_empty(),
-        "edge starting at (5,50) should not be connected to node A at (100,100)"
+        issues.iter().any(|i| matches!(
+            i,
+            GeometryIssue::EdgeEndpointDetached { edge_id, anchor_id, .. }
+            if edge_id == "edge:A:B" && anchor_id == "A:right"
+        )),
+        "route first point (5,50) does not match source anchor (180,120); expected EdgeEndpointDetached; got: {issues:?}"
     );
 }
 
 #[test]
 fn invariant6_properly_connected_edge_no_violation() {
-    // Edge from "A" (100,100 80×40) starting at (180,120) — on the right edge.
-    let svg_parts = [
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">"#,
-        r#"<rect class="uml-node" id="A" x="100" y="100" width="80" height="40"/>"#,
-        r#"<rect class="uml-node" id="B" x="250" y="100" width="80" height="40"/>"#,
-        "<polyline class=\"uml-relation\" data-uml-from=\"A\" data-uml-to=\"B\" points=\"180,120 250,120\" fill=\"none\" stroke=\"#333\" stroke-width=\"2\"/>",
-        r#"</svg>"#,
-    ];
-    let svg = svg_parts.join("\n");
-    let violations = validate::check_endpoint_connectivity(&svg);
+    // Build a typed RenderScene where both anchors match their route endpoints
+    // exactly, so no EdgeEndpointDetached issues are reported.
+    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, 400.0, 300.0));
+    let make_node = |id: &str, x: f64, y: f64, w: f64, h: f64| SceneNode {
+        id: id.to_string(),
+        node_box: NodeBox {
+            id: id.to_string(),
+            bounds: Rect::new(x, y, w, h),
+            ports: vec![],
+            labels: vec![],
+        },
+    };
+    scene.add_node(make_node("A", 100.0, 100.0, 80.0, 40.0));
+    scene.add_node(make_node("B", 250.0, 100.0, 80.0, 40.0));
+    // Route: (180,120) → (250,120); source anchor at (180,120), target at (250,120).
+    scene.add_edge(SceneEdge {
+        id: "edge:A:B".to_string(),
+        from: "A".to_string(),
+        to: "B".to_string(),
+        route: Polyline::from_tuples(&[(180.0, 120.0), (250.0, 120.0)]),
+        route_channel_ids: Vec::new(),
+        source_anchor: Anchor {
+            id: "A:right".to_string(),
+            owner_id: "A".to_string(),
+            position: Point::new(180.0, 120.0),
+            port: None,
+        },
+        target_anchor: Anchor {
+            id: "B:left".to_string(),
+            owner_id: "B".to_string(),
+            position: Point::new(250.0, 120.0),
+            port: None,
+        },
+        labels: vec![],
+    });
+
+    let issues = scene.validate_geometry();
+    let endpoint_issues: Vec<_> = issues
+        .iter()
+        .filter(|i| matches!(i, GeometryIssue::EdgeEndpointDetached { .. }))
+        .collect();
     assert!(
-        violations.is_empty(),
-        "properly connected edge should have no endpoint violations"
+        endpoint_issues.is_empty(),
+        "properly connected edge should have no EdgeEndpointDetached violations; got: {endpoint_issues:?}"
     );
 }
 
