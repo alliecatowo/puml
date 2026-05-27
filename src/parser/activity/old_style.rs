@@ -1,11 +1,12 @@
-fn looks_like_old_activity_flow(line: &str) -> bool {
+use super::*;
+pub(crate) fn looks_like_old_activity_flow(line: &str) -> bool {
     let trimmed = line.trim();
     trimmed.starts_with("(*)")
         || trimmed.starts_with("-->")
         || (trimmed.contains("-->") && trimmed.contains("(*)"))
 }
 
-fn parse_activity_old_style_flow(line: &str) -> Option<Vec<StatementKind>> {
+pub(crate) fn parse_activity_old_style_flow(line: &str) -> Option<Vec<StatementKind>> {
     let trimmed = line.trim();
     let arrow_idx = trimmed.find("-->")?;
     let lhs = trimmed[..arrow_idx].trim();
@@ -35,7 +36,7 @@ fn parse_activity_old_style_flow(line: &str) -> Option<Vec<StatementKind>> {
     (!steps.is_empty()).then_some(steps)
 }
 
-fn parse_old_activity_arrow_target(rhs: &str) -> Option<String> {
+pub(crate) fn parse_old_activity_arrow_target(rhs: &str) -> Option<String> {
     let mut rest = rhs.trim();
     if let Some(after_label) = rest.strip_prefix('[') {
         let close = after_label.find(']')?;
@@ -63,7 +64,7 @@ fn parse_old_activity_arrow_target(rhs: &str) -> Option<String> {
     (!label.is_empty()).then(|| label.to_string())
 }
 
-fn parse_quoted_activity_label(input: &str) -> Option<String> {
+pub(crate) fn parse_quoted_activity_label(input: &str) -> Option<String> {
     let input = input.trim();
     let rest = input.strip_prefix('"')?;
     let end = rest.find('"')?;

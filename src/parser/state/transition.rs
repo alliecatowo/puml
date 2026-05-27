@@ -1,5 +1,6 @@
+use super::*;
 /// Parse `From --> To` or `From --> To : label`
-fn parse_state_transition(line: &str) -> Option<StateTransition> {
+pub(crate) fn parse_state_transition(line: &str) -> Option<StateTransition> {
     let (core, label) = split_message_label(line);
     let (from_raw, arrow, relation_style, to_raw) = split_family_arrow_styled(core)?;
 
@@ -20,7 +21,7 @@ fn parse_state_transition(line: &str) -> Option<StateTransition> {
 }
 
 /// Parse `State : entry / action` or `State : exit / action` or `State : event / action`
-fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
+pub(crate) fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
     let (state_part, rest) = line.split_once(':')?;
     let state = state_part.trim();
     if state.is_empty() || state.contains("-->") {
@@ -46,7 +47,10 @@ fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
     })
 }
 
-fn parse_state_bare_internal_action(parent_state: &str, line: &str) -> Option<StateInternalAction> {
+pub(crate) fn parse_state_bare_internal_action(
+    parent_state: &str,
+    line: &str,
+) -> Option<StateInternalAction> {
     let trimmed = line.trim().trim_end_matches(';').trim();
     if trimmed.is_empty() || trimmed.contains("-->") || trimmed.starts_with("state ") {
         return None;

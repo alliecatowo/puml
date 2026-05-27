@@ -1,4 +1,5 @@
-fn parse_activity_note_step(line: &str) -> Option<String> {
+use super::*;
+pub(crate) fn parse_activity_note_step(line: &str) -> Option<String> {
     let lower = line.to_ascii_lowercase();
     let (_, side, floating) = parse_activity_note_prefix(line, &lower)?;
     let prefix = ACTIVITY_NOTE_PREFIXES
@@ -18,7 +19,7 @@ fn parse_activity_note_step(line: &str) -> Option<String> {
     Some(activity_note_label(side, floating, &text))
 }
 
-fn parse_activity_multiline_note_block(
+pub(crate) fn parse_activity_multiline_note_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -66,7 +67,7 @@ fn parse_activity_multiline_note_block(
     None
 }
 
-const ACTIVITY_NOTE_PREFIXES: &[(&str, &str, bool)] = &[
+pub(crate) const ACTIVITY_NOTE_PREFIXES: &[(&str, &str, bool)] = &[
     ("floating note left", "left", true),
     ("floating note right", "right", true),
     ("floating note", "right", true),
@@ -76,7 +77,7 @@ const ACTIVITY_NOTE_PREFIXES: &[(&str, &str, bool)] = &[
     ("note bottom", "bottom", false),
 ];
 
-fn parse_activity_note_prefix(
+pub(crate) fn parse_activity_note_prefix(
     line: &str,
     lower: &str,
 ) -> Option<(&'static str, &'static str, bool)> {
@@ -90,7 +91,7 @@ fn parse_activity_note_prefix(
     Some((*prefix, *side, *floating))
 }
 
-fn activity_note_label(side: &str, floating: bool, text: &str) -> String {
+pub(crate) fn activity_note_label(side: &str, floating: bool, text: &str) -> String {
     format!(
         "\x1factivity:note:side={side}:floating={}\x1f{text}",
         u8::from(floating)

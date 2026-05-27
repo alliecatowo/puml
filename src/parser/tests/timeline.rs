@@ -219,7 +219,6 @@ fn parses_chronology_between_years_and_datetime_subjects() {
     ));
 }
 
-
 #[test]
 fn start_end_timeline_markers_accept_optional_block_suffixes() {
     let gantt = parse_with_options(

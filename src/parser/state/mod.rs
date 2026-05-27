@@ -1,4 +1,5 @@
-fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     if let Some(kind) = parse_keyword(trimmed) {
         return Some(kind);
@@ -60,7 +61,7 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn parse_chronology_subject_and_tail<'a>(
+pub(crate) fn parse_chronology_subject_and_tail<'a>(
     line: &'a str,
     verb: &str,
 ) -> Option<(String, &'a str)> {
@@ -84,7 +85,7 @@ fn parse_chronology_subject_and_tail<'a>(
     (!subject.is_empty()).then_some((subject, tail))
 }
 
-fn parse_chronology_leading_span<'a>(
+pub(crate) fn parse_chronology_leading_span<'a>(
     line: &'a str,
     keyword: &str,
 ) -> Option<(String, &'a str)> {
@@ -109,7 +110,7 @@ fn parse_chronology_leading_span<'a>(
     (!subject.is_empty()).then_some((subject, tail))
 }
 
-fn clean_chronology_subject(raw: &str) -> String {
+pub(crate) fn clean_chronology_subject(raw: &str) -> String {
     raw.trim()
         .trim_matches('"')
         .trim_matches('[')
@@ -118,7 +119,7 @@ fn clean_chronology_subject(raw: &str) -> String {
         .to_string()
 }
 
-fn parse_chronology_time_tail(
+pub(crate) fn parse_chronology_time_tail(
     raw: &str,
     default_bracket: bool,
 ) -> Option<(String, Option<String>, Option<String>, bool)> {
@@ -166,9 +167,14 @@ fn parse_chronology_time_tail(
     Some((when, end, color, bracket))
 }
 
-fn split_chronology_color(raw: &str) -> (&str, Option<String>) {
+pub(crate) fn split_chronology_color(raw: &str) -> (&str, Option<String>) {
     let lower = raw.to_ascii_lowercase();
-    for marker in [" is colored in ", " is coloured in ", " is colored ", " is coloured "] {
+    for marker in [
+        " is colored in ",
+        " is coloured in ",
+        " is colored ",
+        " is coloured ",
+    ] {
         if let Some(idx) = lower.rfind(marker) {
             let color = raw[idx + marker.len()..].trim();
             if !color.is_empty() {
@@ -181,7 +187,7 @@ fn split_chronology_color(raw: &str) -> (&str, Option<String>) {
 
 /// Parse a state diagram statement from the current line.
 /// Returns `Some((kind, end_index))` where `end_index` is the last consumed line.
-fn parse_state_statement(
+pub(crate) fn parse_state_statement(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -325,11 +331,7 @@ fn parse_state_statement(
     Ok(None)
 }
 
-include!("state/block.rs");
-include!("state/declaration.rs");
-include!("state/transition.rs");
-
-fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
+pub(crate) fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
     matches!(
         kind,
         StatementKind::Title(_)
@@ -343,3 +345,11 @@ fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
             | StatementKind::Pragma(_)
     )
 }
+
+pub(crate) mod block;
+pub(crate) mod declaration;
+pub(crate) mod transition;
+
+pub(crate) use block::*;
+pub(crate) use declaration::*;
+pub(crate) use transition::*;

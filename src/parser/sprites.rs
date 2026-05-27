@@ -1,4 +1,5 @@
-fn parse_sprite_statement(
+use super::*;
+pub(crate) fn parse_sprite_statement(
     lines: &[(&str, Span)],
     start_idx: usize,
     line: &str,
@@ -8,13 +9,17 @@ fn parse_sprite_statement(
     };
     let mut parts = rest.split_whitespace();
     let Some(raw_name) = parts.next() else {
-        return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite name is missing")
-            .with_span(lines[start_idx].1));
+        return Err(
+            Diagnostic::error("[E_SPRITE_INVALID] sprite name is missing")
+                .with_span(lines[start_idx].1),
+        );
     };
     let after_name = rest[raw_name.len()..].trim();
     if after_name.is_empty() {
-        return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite body is missing")
-            .with_span(lines[start_idx].1));
+        return Err(
+            Diagnostic::error("[E_SPRITE_INVALID] sprite body is missing")
+                .with_span(lines[start_idx].1),
+        );
     }
 
     if after_name.starts_with("jar:") {
@@ -49,8 +54,10 @@ fn parse_sprite_statement(
 
     let (spec, after_spec) = if after_name.starts_with('[') {
         let Some(close) = after_name.find(']') else {
-            return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite size spec is not closed")
-                .with_span(lines[start_idx].1));
+            return Err(
+                Diagnostic::error("[E_SPRITE_INVALID] sprite size spec is not closed")
+                    .with_span(lines[start_idx].1),
+            );
         };
         (&after_name[..=close], after_name[close + 1..].trim())
     } else {
@@ -59,12 +66,14 @@ fn parse_sprite_statement(
     let parsed_spec = if spec.is_empty() {
         None
     } else {
-        Some(crate::sprites::parse_sprite_header_spec(spec).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "[E_SPRITE_INVALID] invalid sprite size/depth spec `{spec}`"
-            ))
-            .with_span(lines[start_idx].1)
-        })?)
+        Some(
+            crate::sprites::parse_sprite_header_spec(spec).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "[E_SPRITE_INVALID] invalid sprite size/depth spec `{spec}`"
+                ))
+                .with_span(lines[start_idx].1)
+            })?,
+        )
     };
 
     if let Some(first_payload) = after_spec.strip_prefix('{') {
@@ -117,8 +126,7 @@ fn parse_sprite_statement(
                 .with_span(lines[start_idx].1));
             }
         }
-        let (width, height, levels, _compressed) =
-            parsed_spec.unwrap_or((0, 0, 16, false));
+        let (width, height, levels, _compressed) = parsed_spec.unwrap_or((0, 0, 16, false));
         let sprite = crate::sprites::parse_hex_grid_sprite(
             raw_name,
             (width > 0).then_some(width),
@@ -132,16 +140,13 @@ fn parse_sprite_statement(
 
     if let Some((width, height, levels, compressed)) = parsed_spec {
         if after_spec.is_empty() {
-            return Err(Diagnostic::error("[E_SPRITE_INVALID] encoded sprite payload is missing")
-                .with_span(lines[start_idx].1));
+            return Err(
+                Diagnostic::error("[E_SPRITE_INVALID] encoded sprite payload is missing")
+                    .with_span(lines[start_idx].1),
+            );
         }
         let sprite = crate::sprites::parse_packed_sprite(
-            raw_name,
-            width,
-            height,
-            levels,
-            compressed,
-            after_spec,
+            raw_name, width, height, levels, compressed, after_spec,
         )
         .map_err(|d| d.with_span(lines[start_idx].1))?;
         return Ok(Some((StatementKind::SpriteDef(sprite), start_idx)));

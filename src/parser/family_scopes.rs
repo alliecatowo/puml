@@ -1,12 +1,13 @@
+use super::*;
 #[derive(Debug, Clone, Default)]
-struct ScopedGroupContent {
-    members: Vec<String>,
-    relations: Vec<FamilyRelation>,
+pub(crate) struct ScopedGroupContent {
+    pub(crate) members: Vec<String>,
+    pub(crate) relations: Vec<FamilyRelation>,
 }
 
 /// Parse `together { ... }`, `package "name" { ... }`, `namespace ns { ... }` blocks.
 /// Returns (StatementKind, end_line_index) where end_line_index points to the closing `}`.
-fn parse_class_scoping_block(
+pub(crate) fn parse_class_scoping_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -125,7 +126,7 @@ fn parse_class_scoping_block(
     Ok(None)
 }
 
-fn collect_scoped_class_group_content(
+pub(crate) fn collect_scoped_class_group_content(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,
@@ -153,14 +154,12 @@ fn collect_scoped_class_group_content(
             }) {
                 content.members.push(scoped_association.clone());
             }
-            content
-                .relations
-                .extend(association_class_family_relations(
-                    qualify_scoped_identifier(left, scope),
-                    qualify_scoped_identifier(right, scope),
-                    scoped_association,
-                    arrow,
-                ));
+            content.relations.extend(association_class_family_relations(
+                qualify_scoped_identifier(left, scope),
+                qualify_scoped_identifier(right, scope),
+                scoped_association,
+                arrow,
+            ));
             idx += 1;
             continue;
         }
@@ -464,7 +463,7 @@ fn collect_scoped_class_group_content(
     content
 }
 
-fn scoped_prefix(scope: &[String]) -> String {
+pub(crate) fn scoped_prefix(scope: &[String]) -> String {
     scope
         .iter()
         .filter(|s| !s.is_empty())
@@ -473,7 +472,7 @@ fn scoped_prefix(scope: &[String]) -> String {
         .join("::")
 }
 
-fn qualify_scoped_identifier(name: String, scope: &[String]) -> String {
+pub(crate) fn qualify_scoped_identifier(name: String, scope: &[String]) -> String {
     let prefix = scoped_prefix(scope);
     if prefix.is_empty()
         || name.is_empty()
@@ -488,7 +487,7 @@ fn qualify_scoped_identifier(name: String, scope: &[String]) -> String {
     }
 }
 
-fn qualify_scoped_relation(mut rel: FamilyRelation, scope: &[String]) -> FamilyRelation {
+pub(crate) fn qualify_scoped_relation(mut rel: FamilyRelation, scope: &[String]) -> FamilyRelation {
     rel.from = qualify_scoped_identifier(rel.from, scope);
     rel.to = qualify_scoped_identifier(rel.to, scope);
     rel

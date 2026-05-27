@@ -1,12 +1,12 @@
-struct ParsedStateDeclHead {
-    name_alias_part: String,
-    description: Option<String>,
-    stereotype: Option<String>,
-    style: crate::ast::StateDeclStyle,
-    has_block: bool,
+pub(crate) struct ParsedStateDeclHead {
+    pub(crate) name_alias_part: String,
+    pub(crate) description: Option<String>,
+    pub(crate) stereotype: Option<String>,
+    pub(crate) style: crate::ast::StateDeclStyle,
+    pub(crate) has_block: bool,
 }
 
-fn parse_state_decl_head(rest: &str) -> ParsedStateDeclHead {
+pub(crate) fn parse_state_decl_head(rest: &str) -> ParsedStateDeclHead {
     let mut head = rest.trim().to_string();
     let has_block = head.ends_with('{');
     if has_block {
@@ -26,7 +26,7 @@ fn parse_state_decl_head(rest: &str) -> ParsedStateDeclHead {
     }
 }
 
-fn split_state_description(head: &mut String) -> Option<String> {
+pub(crate) fn split_state_description(head: &mut String) -> Option<String> {
     let mut in_quotes = false;
     let mut prev = '\0';
     for (idx, ch) in head.char_indices() {
@@ -43,7 +43,7 @@ fn split_state_description(head: &mut String) -> Option<String> {
     None
 }
 
-fn extract_state_stereotype(head: &mut String) -> Option<String> {
+pub(crate) fn extract_state_stereotype(head: &mut String) -> Option<String> {
     let start = head.find("<<")?;
     let after = &head[start + 2..];
     let end_rel = after.find(">>")?;
@@ -53,7 +53,7 @@ fn extract_state_stereotype(head: &mut String) -> Option<String> {
     (!stereotype.is_empty()).then_some(stereotype)
 }
 
-fn extract_state_inline_style(head: &mut String) -> crate::ast::StateDeclStyle {
+pub(crate) fn extract_state_inline_style(head: &mut String) -> crate::ast::StateDeclStyle {
     let Some(style_start) = first_state_style_marker(head) else {
         return Default::default();
     };
@@ -62,7 +62,7 @@ fn extract_state_inline_style(head: &mut String) -> crate::ast::StateDeclStyle {
     parse_state_inline_style(&style_part)
 }
 
-fn first_state_style_marker(head: &str) -> Option<usize> {
+pub(crate) fn first_state_style_marker(head: &str) -> Option<usize> {
     let mut in_quotes = false;
     let mut prev = '\0';
     for (idx, ch) in head.char_indices() {
@@ -77,7 +77,7 @@ fn first_state_style_marker(head: &str) -> Option<usize> {
     None
 }
 
-fn parse_state_inline_style(style_part: &str) -> crate::ast::StateDeclStyle {
+pub(crate) fn parse_state_inline_style(style_part: &str) -> crate::ast::StateDeclStyle {
     let mut style = crate::ast::StateDeclStyle::default();
     let compact = style_part.split_whitespace().collect::<String>();
     let mut tokens = Vec::new();
@@ -110,7 +110,7 @@ fn parse_state_inline_style(style_part: &str) -> crate::ast::StateDeclStyle {
     style
 }
 
-fn parse_state_style_token(token: &str, style: &mut crate::ast::StateDeclStyle) {
+pub(crate) fn parse_state_style_token(token: &str, style: &mut crate::ast::StateDeclStyle) {
     let token = token.trim().trim_end_matches(';');
     if token.is_empty() {
         return;
@@ -164,7 +164,7 @@ fn parse_state_style_token(token: &str, style: &mut crate::ast::StateDeclStyle) 
     }
 }
 
-fn parse_state_border_modifier(rest: &str) -> (&str, &str) {
+pub(crate) fn parse_state_border_modifier(rest: &str) -> (&str, &str) {
     if let Some(after_open) = rest.strip_prefix('[') {
         if let Some(end) = after_open.find(']') {
             let modifiers = &after_open[..end];
@@ -175,7 +175,10 @@ fn parse_state_border_modifier(rest: &str) -> (&str, &str) {
     ("", rest)
 }
 
-fn apply_state_border_modifiers(modifiers: &str, style: &mut crate::ast::StateDeclStyle) {
+pub(crate) fn apply_state_border_modifiers(
+    modifiers: &str,
+    style: &mut crate::ast::StateDeclStyle,
+) {
     for modifier in modifiers.split(',').map(str::trim) {
         match modifier {
             "dashed" | "dotted" => style.border_dashed = true,
@@ -185,7 +188,7 @@ fn apply_state_border_modifiers(modifiers: &str, style: &mut crate::ast::StateDe
     }
 }
 
-fn normalize_state_color_token(token: &str) -> String {
+pub(crate) fn normalize_state_color_token(token: &str) -> String {
     let raw = token.trim().trim_start_matches('#');
     let is_hex = matches!(raw.len(), 3 | 4 | 6 | 8) && raw.chars().all(|c| c.is_ascii_hexdigit());
     if is_hex {

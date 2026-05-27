@@ -1,4 +1,5 @@
-fn group_body_contains_component_family(
+use super::*;
+pub(crate) fn group_body_contains_component_family(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,
@@ -27,7 +28,11 @@ fn group_body_contains_component_family(
     false
 }
 
-fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
+pub(crate) fn group_body_contains_class_family(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> bool {
     let mut idx = start + 1;
     while idx < end_idx {
         let line = strip_inline_plantuml_comment(lines[idx].0).trim();
@@ -66,7 +71,11 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
     false
 }
 
-fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
+pub(crate) fn group_body_contains_object_family(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> bool {
     let mut idx = start + 1;
     while idx < end_idx {
         let line = strip_inline_plantuml_comment(lines[idx].0).trim();
@@ -83,7 +92,9 @@ fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_i
             idx = nested_end.saturating_add(1);
             continue;
         }
-        if lower.starts_with("object ") || lower.starts_with("map ") || lower.starts_with("diamond ")
+        if lower.starts_with("object ")
+            || lower.starts_with("map ")
+            || lower.starts_with("diamond ")
         {
             return true;
         }
@@ -92,7 +103,7 @@ fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_i
     false
 }
 
-fn group_body_contains_usecase_family(
+pub(crate) fn group_body_contains_usecase_family(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,
@@ -125,7 +136,7 @@ fn group_body_contains_usecase_family(
     false
 }
 
-fn scoped_family_kind_for_block(
+pub(crate) fn scoped_family_kind_for_block(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,

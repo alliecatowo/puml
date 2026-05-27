@@ -91,8 +91,8 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/render_e2e.rs");
     let oracle_smoke = fs::read_to_string(repo_path("tests/oracle_smoke.rs"))
         .expect("failed to read tests/oracle_smoke.rs");
-    let mut parser_tests = fs::read_to_string(repo_path("src/parser/tests.rs"))
-        .expect("failed to read src/parser/tests.rs");
+    let mut parser_tests = fs::read_to_string(repo_path("src/parser/tests/mod.rs"))
+        .expect("failed to read src/parser/tests/mod.rs");
     for entry in fs::read_dir(repo_path("src/parser/tests"))
         .expect("failed to read src/parser/tests directory")
     {
@@ -143,7 +143,9 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
                     oracle_smoke.contains(&needle),
                     "missing oracle_smoke anchor referenced by matrix: {anchor}"
                 ),
-                "src/parser/tests.rs" => assert!(
+                // Note: parser tests were refactored from src/parser/tests.rs to
+                // src/parser/tests/mod.rs + submodules; both paths match the same content.
+                "src/parser/tests.rs" | "src/parser/tests/mod.rs" => assert!(
                     parser_tests.contains(&needle),
                     "missing parser anchor referenced by matrix: {anchor}"
                 ),

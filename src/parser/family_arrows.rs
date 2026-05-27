@@ -1,17 +1,18 @@
+use super::*;
 #[derive(Debug, Clone, Default)]
-struct ParsedFamilyRelationStyle {
-    line_color: Option<String>,
-    dashed: bool,
-    hidden: bool,
-    thickness: Option<u8>,
-    direction: Option<String>,
+pub(crate) struct ParsedFamilyRelationStyle {
+    pub(crate) line_color: Option<String>,
+    pub(crate) dashed: bool,
+    pub(crate) hidden: bool,
+    pub(crate) thickness: Option<u8>,
+    pub(crate) direction: Option<String>,
 }
 
-fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
+pub(crate) fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
     split_family_arrow_styled(core).map(|(lhs, arrow, _, rhs)| (lhs, arrow, rhs))
 }
 
-fn split_family_arrow_styled(
+pub(crate) fn split_family_arrow_styled(
     core: &str,
 ) -> Option<(&str, String, ParsedFamilyRelationStyle, &str)> {
     let mut in_quote = false;
@@ -86,7 +87,7 @@ fn split_family_arrow_styled(
     None
 }
 
-fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
+pub(crate) fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
     let mut style = ParsedFamilyRelationStyle::default();
     let mut rest = raw_arrow;
     while let Some(open) = rest.find('[') {
@@ -120,7 +121,9 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
                         if let Ok(n) = value.trim().parse::<u8>() {
                             style.thickness = Some(n.clamp(1, 8));
                         }
-                    } else if let Some(color) = crate::theme::color::parse_relation_color_token(token) {
+                    } else if let Some(color) =
+                        crate::theme::color::parse_relation_color_token(token)
+                    {
                         style.line_color = Some(color);
                     }
                 }
@@ -131,7 +134,7 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
     style
 }
 
-fn parse_family_relation_direction(raw_arrow: &str) -> Option<String> {
+pub(crate) fn parse_family_relation_direction(raw_arrow: &str) -> Option<String> {
     let mut cleaned = String::new();
     let mut in_bracket = false;
     for ch in raw_arrow.chars() {
@@ -160,7 +163,7 @@ fn parse_family_relation_direction(raw_arrow: &str) -> Option<String> {
     None
 }
 
-fn family_arrow_token_len(s: &str) -> Option<usize> {
+pub(crate) fn family_arrow_token_len(s: &str) -> Option<usize> {
     if let Some(len) = directional_family_arrow_token_len(s) {
         return Some(len);
     }
@@ -200,7 +203,7 @@ fn family_arrow_token_len(s: &str) -> Option<usize> {
     }
 }
 
-fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
+pub(crate) fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
     let dirs = ["left", "right", "up", "down", "l", "r", "u", "d"];
     for prefix_len in 1..=2 {
         let prefix = s.get(..prefix_len)?;
@@ -284,11 +287,11 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
     None
 }
 
-fn is_family_arrow_token(token: &str) -> bool {
+pub(crate) fn is_family_arrow_token(token: &str) -> bool {
     token.contains('-') || token.contains('.')
 }
 
-fn normalize_family_arrow_token(token: &str) -> String {
+pub(crate) fn normalize_family_arrow_token(token: &str) -> String {
     let mut out = String::new();
     let mut chars = token.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -311,7 +314,7 @@ fn normalize_family_arrow_token(token: &str) -> String {
     out
 }
 
-fn clean_bracketed_ident(s: &str) -> String {
+pub(crate) fn clean_bracketed_ident(s: &str) -> String {
     let trimmed = s.trim();
     // Preserve special state markers like [*] verbatim.
     if trimmed == "[*]" || trimmed == "[H]" || trimmed == "[H*]" {

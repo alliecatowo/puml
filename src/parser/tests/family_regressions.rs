@@ -12,7 +12,11 @@ fn parses_case_insensitive_parenthesized_c4_declarations() {
 
     match &doc.statements[0].kind {
         StatementKind::ObjectDecl(decl) => {
-            assert!(decl.alias.as_ref().expect("alias").contains("<<external-person>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<external-person>>"));
             assert_eq!(decl.name, "User");
             assert!(decl.alias.as_ref().expect("alias").contains("user"));
         }
@@ -20,7 +24,11 @@ fn parses_case_insensitive_parenthesized_c4_declarations() {
     }
     match &doc.statements[1].kind {
         StatementKind::ObjectDecl(decl) => {
-            assert!(decl.alias.as_ref().expect("alias").contains("<<external-system>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<external-system>>"));
             assert_eq!(decl.name, "External System");
             assert!(decl.alias.as_ref().expect("alias").contains("system"));
         }
@@ -28,7 +36,11 @@ fn parses_case_insensitive_parenthesized_c4_declarations() {
     }
     match &doc.statements[2].kind {
         StatementKind::ObjectDecl(decl) => {
-            assert!(decl.alias.as_ref().expect("alias").contains("<<container-db>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<container-db>>"));
             assert_eq!(decl.name, "Database");
             assert!(decl.alias.as_ref().expect("alias").contains("db"));
         }
@@ -54,13 +66,34 @@ fn parses_parenthesized_c4_macros_when_object_family_is_already_detected() {
 
     assert_eq!(doc.kind, DiagramKind::Object);
     assert_eq!(doc.statements.len(), 8);
-    assert!(matches!(doc.statements[0].kind, StatementKind::ObjectDecl(_)));
-    assert!(matches!(doc.statements[1].kind, StatementKind::ObjectDecl(_)));
-    assert!(matches!(doc.statements[2].kind, StatementKind::ObjectDecl(_)));
-    assert!(matches!(doc.statements[3].kind, StatementKind::ObjectDecl(_)));
-    assert!(matches!(doc.statements[4].kind, StatementKind::FamilyRelation(_)));
-    assert!(matches!(doc.statements[5].kind, StatementKind::FamilyRelation(_)));
-    assert!(matches!(doc.statements[6].kind, StatementKind::FamilyRelation(_)));
+    assert!(matches!(
+        doc.statements[0].kind,
+        StatementKind::ObjectDecl(_)
+    ));
+    assert!(matches!(
+        doc.statements[1].kind,
+        StatementKind::ObjectDecl(_)
+    ));
+    assert!(matches!(
+        doc.statements[2].kind,
+        StatementKind::ObjectDecl(_)
+    ));
+    assert!(matches!(
+        doc.statements[3].kind,
+        StatementKind::ObjectDecl(_)
+    ));
+    assert!(matches!(
+        doc.statements[4].kind,
+        StatementKind::FamilyRelation(_)
+    ));
+    assert!(matches!(
+        doc.statements[5].kind,
+        StatementKind::FamilyRelation(_)
+    ));
+    assert!(matches!(
+        doc.statements[6].kind,
+        StatementKind::FamilyRelation(_)
+    ));
 
     let back = &doc.statements[4];
     match &back.kind {
@@ -140,7 +173,11 @@ fn parses_c4_relations_before_object_declarations() {
     match &doc.statements[1].kind {
         StatementKind::ObjectDecl(decl) => {
             assert_eq!(decl.name, "Database");
-            assert!(decl.alias.as_ref().expect("alias").contains("<<system-db>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<system-db>>"));
         }
         other => panic!("unexpected statement: {other:?}"),
     }
@@ -223,7 +260,11 @@ fn parses_leading_bang_parenthesized_c4_declarations_and_relations() {
     }
     match &doc.statements[1].kind {
         StatementKind::ObjectDecl(decl) => {
-            assert!(decl.alias.as_ref().expect("alias").contains("<<container>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<container>>"));
             assert_eq!(decl.name, "Container");
         }
         other => panic!("unexpected statement: {other:?}"),
@@ -259,7 +300,11 @@ fn parses_leading_bang_c4_relation_before_c4_declarations() {
     }
     match &doc.statements[1].kind {
         StatementKind::ObjectDecl(decl) => {
-            assert!(decl.alias.as_ref().expect("alias").contains("<<system-db>>"));
+            assert!(decl
+                .alias
+                .as_ref()
+                .expect("alias")
+                .contains("<<system-db>>"));
             assert_eq!(decl.name, "Database");
         }
         other => panic!("unexpected statement: {other:?}"),

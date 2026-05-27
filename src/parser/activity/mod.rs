@@ -1,4 +1,5 @@
-fn parse_activity_step(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_activity_step(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     if let Some(label) = parse_activity_swimlane(trimmed) {
         return Some(activity_step_statement(
@@ -162,7 +163,10 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     }
     if trimmed == "}" || trimmed == "end group" {
         // Treat lone `}` inside activity as partition close.
-        return Some(activity_step_statement(ActivityStepKind::PartitionEnd, None));
+        return Some(activity_step_statement(
+            ActivityStepKind::PartitionEnd,
+            None,
+        ));
     }
     if let Some(rest) = trimmed.strip_prefix("label ") {
         return Some(activity_step_statement(
@@ -212,7 +216,12 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     None
 }
 
-include!("activity/old_style.rs");
-include!("activity/style.rs");
-include!("activity/notes.rs");
-include!("activity/conditions.rs");
+pub(crate) mod conditions;
+pub(crate) mod notes;
+pub(crate) mod old_style;
+pub(crate) mod style;
+
+pub(crate) use conditions::*;
+pub(crate) use notes::*;
+pub(crate) use old_style::*;
+pub(crate) use style::*;

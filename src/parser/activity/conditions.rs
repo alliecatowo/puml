@@ -1,4 +1,4 @@
-fn parse_activity_if_label(input: &str) -> String {
+pub(crate) fn parse_activity_if_label(input: &str) -> String {
     let lower = input.to_ascii_lowercase();
     if let Some(idx) = lower.find(" then ") {
         let condition_raw = input[..idx].trim();
@@ -15,7 +15,7 @@ fn parse_activity_if_label(input: &str) -> String {
     extract_paren_label(body).unwrap_or_else(|| body.to_string())
 }
 
-fn parse_activity_condition_with_branches(input: &str) -> String {
+pub(crate) fn parse_activity_condition_with_branches(input: &str) -> String {
     let trimmed = input.trim();
     let condition = extract_first_paren_label(trimmed).unwrap_or_else(|| {
         trimmed
@@ -39,7 +39,7 @@ fn parse_activity_condition_with_branches(input: &str) -> String {
     parts.join(" / ")
 }
 
-fn extract_first_paren_label(input: &str) -> Option<String> {
+pub(crate) fn extract_first_paren_label(input: &str) -> Option<String> {
     let s = input.trim();
     let open = s.find('(')?;
     let close = s[open + 1..].find(')')? + open + 1;
@@ -49,7 +49,7 @@ fn extract_first_paren_label(input: &str) -> Option<String> {
     Some(s[open + 1..close].trim().to_string())
 }
 
-fn extract_paren_label(input: &str) -> Option<String> {
+pub(crate) fn extract_paren_label(input: &str) -> Option<String> {
     let s = input.trim();
     let open = s.find('(')?;
     let close = s.rfind(')')?;

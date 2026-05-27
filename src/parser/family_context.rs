@@ -1,4 +1,8 @@
-fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
+use super::*;
+pub(crate) fn later_lines_contain_class_family_declaration(
+    lines: &[(&str, Span)],
+    start: usize,
+) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         line.starts_with("abstract class ")
@@ -17,14 +21,14 @@ fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: u
     })
 }
 
-fn later_lines_contain_ie_family_context(lines: &[(&str, Span)], start: usize) -> bool {
+pub(crate) fn later_lines_contain_ie_family_context(lines: &[(&str, Span)], start: usize) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         line.starts_with("entity ") && line.ends_with('{') || line_contains_ie_relation_token(line)
     })
 }
 
-fn line_contains_ie_relation_token(line: &str) -> bool {
+pub(crate) fn line_contains_ie_relation_token(line: &str) -> bool {
     [
         "||--", "||..", "|o--", "|o..", "}o--", "}o..", "}|--", "}|..", "--||", "..||", "--o|",
         "..o|", "--o{", "..o{", "--|{", "..|{",
@@ -33,7 +37,10 @@ fn line_contains_ie_relation_token(line: &str) -> bool {
     .any(|token| line.contains(token))
 }
 
-fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
+pub(crate) fn later_lines_contain_usecase_family_declaration(
+    lines: &[(&str, Span)],
+    start: usize,
+) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         line.starts_with("usecase ")
@@ -46,7 +53,10 @@ fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start:
 /// Returns `true` if any subsequent line is an unambiguous sequence-diagram keyword.
 /// Used to suppress the component-family heuristic when `actor` appears in a context
 /// that is clearly a sequence diagram (fixes #776).
-fn later_lines_contain_sequence_family_keywords(lines: &[(&str, Span)], start: usize) -> bool {
+pub(crate) fn later_lines_contain_sequence_family_keywords(
+    lines: &[(&str, Span)],
+    start: usize,
+) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         let lower = line.to_ascii_lowercase();
@@ -85,7 +95,7 @@ fn later_lines_contain_sequence_family_keywords(lines: &[(&str, Span)], start: u
     })
 }
 
-fn later_lines_contain_activity_context(lines: &[(&str, Span)], start: usize) -> bool {
+pub(crate) fn later_lines_contain_activity_context(lines: &[(&str, Span)], start: usize) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         looks_like_old_activity_flow(line) || parse_activity_step(line).is_some()

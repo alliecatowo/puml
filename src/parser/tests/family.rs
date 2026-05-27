@@ -50,8 +50,7 @@ fn parses_scoped_association_class_tuple_as_class_family() {
 #[test]
 fn parses_object_and_usecase_bootstrap_kinds() {
     let object_doc =
-        parse_with_options("object Order\nobject Customer\n", &ParseOptions::default())
-            .unwrap();
+        parse_with_options("object Order\nobject Customer\n", &ParseOptions::default()).unwrap();
     assert_eq!(object_doc.kind, DiagramKind::Object);
 
     let usecase_doc = parse_with_options(
@@ -294,7 +293,6 @@ fn parses_scoped_core_uml_relations_and_lollipop_endpoints() {
     }
 }
 
-
 #[test]
 fn parses_family_declaration_blocks_with_members() {
     let doc = parse_with_options(
@@ -325,7 +323,6 @@ fn unclosed_family_declaration_block_reports_deterministic_error() {
     .unwrap_err();
     assert!(err.message.contains("E_FAMILY_DECL_BLOCK_UNCLOSED"));
 }
-
 
 #[test]
 fn parses_usecase_relations_with_alias_and_label() {
@@ -368,8 +365,11 @@ fn state_keyword_is_parsed_as_state_decl() {
 
 #[test]
 fn family_newpage_parses_as_page_break() {
-    let doc = parse_with_options("class A\nnewpage Page Two\nclass B\n", &ParseOptions::default())
-        .unwrap();
+    let doc = parse_with_options(
+        "class A\nnewpage Page Two\nclass B\n",
+        &ParseOptions::default(),
+    )
+    .unwrap();
     assert_eq!(doc.kind, DiagramKind::Class);
     assert!(matches!(doc.statements[1].kind, StatementKind::NewPage(_)));
 }
@@ -392,7 +392,6 @@ fn start_enduml_markers_accept_optional_block_suffixes() {
         .collect::<Vec<_>>();
     assert_eq!(labels, vec!["one", "two"]);
 }
-
 
 #[test]
 fn mismatched_start_end_family_markers_report_deterministic_error() {

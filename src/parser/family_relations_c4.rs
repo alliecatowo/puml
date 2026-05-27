@@ -1,4 +1,5 @@
-fn parse_c4_legacy_family_relation(
+use super::*;
+pub(crate) fn parse_c4_legacy_family_relation(
     line: &str,
     family: Option<DiagramKind>,
 ) -> Option<Vec<StatementKind>> {
@@ -13,8 +14,11 @@ fn parse_c4_legacy_family_relation(
     if !matches!(
         family,
         None | Some(
-            DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase
-                | DiagramKind::Component | DiagramKind::Deployment
+            DiagramKind::Class
+                | DiagramKind::Object
+                | DiagramKind::UseCase
+                | DiagramKind::Component
+                | DiagramKind::Deployment
         )
     ) {
         return None;
@@ -38,14 +42,7 @@ fn parse_c4_legacy_family_relation(
     }
 
     match normalized.as_str() {
-        "rel"
-        | "rel_u"
-        | "rel_d"
-        | "rel_l"
-        | "rel_r"
-        | "rel_left"
-        | "rel_right"
-        | "rel_up"
+        "rel" | "rel_u" | "rel_d" | "rel_l" | "rel_r" | "rel_left" | "rel_right" | "rel_up"
         | "rel_down" => {
             let label = label.to_string();
             Some(vec![StatementKind::FamilyRelation(FamilyRelation {
@@ -67,26 +64,24 @@ fn parse_c4_legacy_family_relation(
                 right_lollipop: false,
             })])
         }
-        "rel_back" => {
-            Some(vec![StatementKind::FamilyRelation(FamilyRelation {
-                from: to,
-                to: from,
-                arrow: "->".to_string(),
-                label: Some(label.to_string()),
-                stereotype: Some("c4-rel-back".to_string()),
-                left_cardinality: None,
-                right_cardinality: None,
-                left_role: None,
-                right_role: None,
-                line_color: None,
-                dashed: false,
-                hidden: false,
-                thickness: None,
-                direction: None,
-                left_lollipop: false,
-                right_lollipop: false,
-            })])
-        }
+        "rel_back" => Some(vec![StatementKind::FamilyRelation(FamilyRelation {
+            from: to,
+            to: from,
+            arrow: "->".to_string(),
+            label: Some(label.to_string()),
+            stereotype: Some("c4-rel-back".to_string()),
+            left_cardinality: None,
+            right_cardinality: None,
+            left_role: None,
+            right_role: None,
+            line_color: None,
+            dashed: false,
+            hidden: false,
+            thickness: None,
+            direction: None,
+            left_lollipop: false,
+            right_lollipop: false,
+        })]),
         "rel_dynamic" => {
             let mut c4_label = "[C4 Rel_Dynamic()]".to_string();
             let mut line_color = None;
@@ -202,7 +197,7 @@ fn parse_c4_legacy_family_relation(
     }
 }
 
-fn is_c4_legacy_relation_macro(normalized: &str) -> bool {
+pub(crate) fn is_c4_legacy_relation_macro(normalized: &str) -> bool {
     matches!(
         normalized,
         "rel"

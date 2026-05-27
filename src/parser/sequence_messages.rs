@@ -1,4 +1,5 @@
-fn parse_message(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_message(line: &str) -> Option<StatementKind> {
     let (line, parallel) = split_parallel_message_prefix(line);
     let (core, label) = split_message_label(line);
     let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
@@ -52,7 +53,7 @@ fn parse_message(line: &str) -> Option<StatementKind> {
     }))
 }
 
-fn split_parallel_message_prefix(line: &str) -> (&str, bool) {
+pub(crate) fn split_parallel_message_prefix(line: &str) -> (&str, bool) {
     let trimmed = line.trim_start();
     if let Some(rest) = trimmed.strip_prefix('&') {
         let rest = rest.trim_start();
@@ -63,7 +64,7 @@ fn split_parallel_message_prefix(line: &str) -> (&str, bool) {
     (line, false)
 }
 
-fn parse_arrow_style(arrow: &str) -> MessageStyle {
+pub(crate) fn parse_arrow_style(arrow: &str) -> MessageStyle {
     let mut style = MessageStyle::default();
     if strip_sequence_arrow_brackets(arrow).contains('.') {
         style.dotted = true;
@@ -126,7 +127,7 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
     style
 }
 
-fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
+pub(crate) fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
     let (side, kind) = match id {
         "[" => (VirtualEndpointSide::Left, VirtualEndpointKind::Plain),
         "]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Plain),
@@ -157,7 +158,7 @@ fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoi
     Some(VirtualEndpoint { side, kind })
 }
 
-fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
+pub(crate) fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
     if split_family_arrow(line).is_none() {
         return split_message_label(line);
     }
@@ -198,7 +199,7 @@ fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
     (line.trim_end(), None)
 }
 
-fn suffix_has_family_relation_arrow(suffix: &str) -> bool {
+pub(crate) fn suffix_has_family_relation_arrow(suffix: &str) -> bool {
     suffix.contains("--")
         || suffix.contains("..")
         || suffix.contains("->")
@@ -207,7 +208,7 @@ fn suffix_has_family_relation_arrow(suffix: &str) -> bool {
         || suffix.contains("<|")
 }
 
-fn split_message_label(line: &str) -> (&str, Option<String>) {
+pub(crate) fn split_message_label(line: &str) -> (&str, Option<String>) {
     if let Some(colon) = line.find(':') {
         let text = line[colon + 1..].trim();
         (
@@ -219,7 +220,7 @@ fn split_message_label(line: &str) -> (&str, Option<String>) {
     }
 }
 
-fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
+pub(crate) fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     fn is_arrow_char(c: char) -> bool {
         matches!(
             c,
@@ -329,7 +330,7 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     None
 }
 
-fn parse_arrow(arrow: &str) -> Option<String> {
+pub(crate) fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
     ];
@@ -450,7 +451,7 @@ fn parse_arrow(arrow: &str) -> Option<String> {
     None
 }
 
-fn strip_sequence_arrow_brackets(arrow: &str) -> String {
+pub(crate) fn strip_sequence_arrow_brackets(arrow: &str) -> String {
     let mut out = String::with_capacity(arrow.len());
     let mut chars = arrow.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -467,7 +468,7 @@ fn strip_sequence_arrow_brackets(arrow: &str) -> String {
     out
 }
 
-fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
+pub(crate) fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
     for suffix in ["++", "--", "**", "!!"] {
         if let Some(base) = endpoint.trim_end().strip_suffix(suffix) {
             return (base.trim_end(), Some(suffix));
@@ -476,7 +477,7 @@ fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
     (endpoint, None)
 }
 
-fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
+pub(crate) fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
     let t = raw.trim().trim_matches('"');
     let lower = t.to_ascii_lowercase();
     match lower.as_str() {
@@ -494,12 +495,12 @@ fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
     }
 }
 
-fn looks_like_virtual_endpoint_syntax(raw: &str) -> bool {
+pub(crate) fn looks_like_virtual_endpoint_syntax(raw: &str) -> bool {
     let t = raw.trim().trim_matches('"').to_ascii_lowercase();
     t.contains('[') || t.contains(']') || t == "?"
 }
 
-fn looks_like_arrow_syntax(line: &str) -> bool {
+pub(crate) fn looks_like_arrow_syntax(line: &str) -> bool {
     if line.starts_with('!') || line.starts_with('@') {
         return false;
     }

@@ -1,4 +1,5 @@
-fn parse_skinparam_block(
+use super::*;
+pub(crate) fn parse_skinparam_block(
     lines: &[(&str, Span)],
     start_idx: usize,
     line: &str,
@@ -69,7 +70,7 @@ fn parse_skinparam_block(
 /// - `deploymentDiagram { node { ... } }`
 /// - `saltDiagram { button/input/menu/tab/... { ... } }`
 /// - declarations in `Property Value` or `Property: Value;` form
-fn parse_style_block(
+pub(crate) fn parse_style_block(
     lines: &[(&str, Span)],
     start_idx: usize,
     line: &str,
@@ -166,14 +167,14 @@ fn parse_style_block(
         });
     }
 
-    Err(Diagnostic::error(
-        "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
+    Err(
+        Diagnostic::error("[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`")
+            .with_span(lines[start_idx].1),
     )
-    .with_span(lines[start_idx].1))
 }
 
 #[derive(Clone, Copy)]
-enum StyleBlockTarget {
+pub(crate) enum StyleBlockTarget {
     Sequence,
     Class,
     UseCase,
@@ -213,7 +214,10 @@ impl StyleBlockTarget {
     }
 }
 
-fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleBlockTarget> {
+pub(crate) fn style_block_target(
+    lines: &[(&str, Span)],
+    start_idx: usize,
+) -> Option<StyleBlockTarget> {
     for (raw, _) in lines.iter().skip(start_idx + 1) {
         let inner = strip_inline_plantuml_comment(raw).trim();
         if inner.eq_ignore_ascii_case("</style>") {
@@ -252,7 +256,7 @@ fn style_block_target(lines: &[(&str, Span)], start_idx: usize) -> Option<StyleB
     None
 }
 
-fn style_selector_stereotype(selector: &str, prefix: &str) -> Option<String> {
+pub(crate) fn style_selector_stereotype(selector: &str, prefix: &str) -> Option<String> {
     let trimmed = selector.trim();
     let rest = trimmed.strip_prefix(prefix)?.trim();
     let stereotype = rest.strip_prefix("<<")?.strip_suffix(">>")?.trim();
@@ -263,7 +267,10 @@ fn style_selector_stereotype(selector: &str, prefix: &str) -> Option<String> {
     }
 }
 
-fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn sequence_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     match nested_selector {
         None => match key {
             "arrowcolor" => Some("ArrowColor".to_string()),
@@ -293,7 +300,7 @@ fn sequence_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Opt
     }
 }
 
-fn salt_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn salt_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
     match nested_selector {
         None => match key {
             "backgroundcolor" => Some("SaltBackgroundColor".to_string()),
@@ -342,7 +349,10 @@ fn salt_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<
     }
 }
 
-fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn class_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     let Some(selector) = nested_selector else {
         return match key {
             "arrowcolor" | "linecolor" => Some("ClassArrowColor".to_string()),
@@ -430,7 +440,10 @@ fn class_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option
     }
 }
 
-fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn component_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     let selector = nested_selector?;
     let selector = selector.trim();
     let scoped_key = |base: &str, prefix: &str| {
@@ -467,7 +480,10 @@ fn component_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Op
     }
 }
 
-fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn deployment_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     let selector = nested_selector?;
     let selector = selector.trim();
     let scoped_key = |base: &str, prefix: &str| {
@@ -484,17 +500,13 @@ fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> O
         },
         _ if selector == "artifact" || selector.starts_with("artifact<<") => match key {
             "backgroundcolor" => Some(scoped_key("ArtifactBackgroundColor", "artifact")),
-            "bordercolor" | "linecolor" => {
-                Some(scoped_key("ArtifactBorderColor", "artifact"))
-            }
+            "bordercolor" | "linecolor" => Some(scoped_key("ArtifactBorderColor", "artifact")),
             "fontcolor" => Some(scoped_key("ArtifactFontColor", "artifact")),
             _ => None,
         },
         _ if selector == "database" || selector.starts_with("database<<") => match key {
             "backgroundcolor" => Some(scoped_key("DatabaseBackgroundColor", "database")),
-            "bordercolor" | "linecolor" => {
-                Some(scoped_key("DatabaseBorderColor", "database"))
-            }
+            "bordercolor" | "linecolor" => Some(scoped_key("DatabaseBorderColor", "database")),
             "fontcolor" => Some(scoped_key("DatabaseFontColor", "database")),
             _ => None,
         },
@@ -520,16 +532,17 @@ fn deployment_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> O
             component_style_skinparam_key(Some(selector), key)
         }
         "arrow" | "relation" => match key {
-            "linecolor" | "arrowcolor" | "bordercolor" => {
-                Some("DeploymentArrowColor".to_string())
-            }
+            "linecolor" | "arrowcolor" | "bordercolor" => Some("DeploymentArrowColor".to_string()),
             _ => None,
         },
         _ => None,
     }
 }
 
-fn state_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn state_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     match nested_selector {
         None => match key {
             "arrowcolor" => Some("StateArrowColor".to_string()),
@@ -550,7 +563,10 @@ fn state_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option
     }
 }
 
-fn activity_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
+pub(crate) fn activity_style_skinparam_key(
+    nested_selector: Option<&str>,
+    key: &str,
+) -> Option<String> {
     match nested_selector {
         None => match key {
             "arrowcolor" => Some("ActivityArrowColor".to_string()),

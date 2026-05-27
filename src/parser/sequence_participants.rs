@@ -1,4 +1,5 @@
-fn parse_participant(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_participant(line: &str) -> Option<StatementKind> {
     let roles = [
         ("participant", ParticipantRole::Participant),
         ("actor", ParticipantRole::Actor),
@@ -60,7 +61,7 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn split_participant_order(input: &str) -> (&str, Option<i32>) {
+pub(crate) fn split_participant_order(input: &str) -> (&str, Option<i32>) {
     let trimmed = input.trim();
     let mut tokens = trimmed.rsplitn(3, char::is_whitespace);
     let value = tokens.next().unwrap_or("");

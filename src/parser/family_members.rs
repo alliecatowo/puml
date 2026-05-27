@@ -1,4 +1,5 @@
-fn parse_family_decl_members(
+use super::*;
+pub(crate) fn parse_family_decl_members(
     lines: &[(&str, Span)],
     start: usize,
     keyword: &str,
@@ -24,7 +25,7 @@ fn parse_family_decl_members(
 /// Parse a single member line, extracting any `{field}`, `{method}`, `{abstract}`,
 /// `{static}`, or `{class}` modifier token (trailing or leading), as well as
 /// `<<abstract>>` and `<<static>>` stereotype tokens.
-fn parse_class_member(raw: &str) -> ClassMember {
+pub(crate) fn parse_class_member(raw: &str) -> ClassMember {
     // Check for leading brace modifier: `{field} +id: UUID`
     if let Some(rest) = try_strip_leading_brace_modifier(raw) {
         let modifier = parse_brace_modifier_word(leading_brace_word(raw));
@@ -65,7 +66,7 @@ fn parse_class_member(raw: &str) -> ClassMember {
     }
 }
 
-fn leading_brace_word(s: &str) -> &str {
+pub(crate) fn leading_brace_word(s: &str) -> &str {
     // returns the content between the first { and }
     if let Some(rest) = s.strip_prefix('{') {
         if let Some(end) = rest.find('}') {
@@ -75,7 +76,7 @@ fn leading_brace_word(s: &str) -> &str {
     ""
 }
 
-fn try_strip_leading_brace_modifier(s: &str) -> Option<&str> {
+pub(crate) fn try_strip_leading_brace_modifier(s: &str) -> Option<&str> {
     let s = s.trim_start();
     if !s.starts_with('{') {
         return None;
@@ -90,7 +91,7 @@ fn try_strip_leading_brace_modifier(s: &str) -> Option<&str> {
     }
 }
 
-fn try_strip_trailing_brace_modifier(s: &str) -> Option<(&str, &str)> {
+pub(crate) fn try_strip_trailing_brace_modifier(s: &str) -> Option<(&str, &str)> {
     let s = s.trim_end();
     if !s.ends_with('}') {
         return None;
@@ -104,7 +105,7 @@ fn try_strip_trailing_brace_modifier(s: &str) -> Option<(&str, &str)> {
     }
 }
 
-fn try_strip_leading_stereotype_modifier(s: &str) -> Option<(MemberModifier, &str)> {
+pub(crate) fn try_strip_leading_stereotype_modifier(s: &str) -> Option<(MemberModifier, &str)> {
     let s = s.trim_start();
     if !s.starts_with("<<") {
         return None;
@@ -120,7 +121,7 @@ fn try_strip_leading_stereotype_modifier(s: &str) -> Option<(MemberModifier, &st
     Some((modifier, rest[end + 2..].trim()))
 }
 
-fn try_strip_trailing_stereotype_modifier(s: &str) -> Option<(&str, MemberModifier)> {
+pub(crate) fn try_strip_trailing_stereotype_modifier(s: &str) -> Option<(&str, MemberModifier)> {
     let s = s.trim_end();
     if !s.ends_with(">>") {
         return None;
@@ -135,14 +136,14 @@ fn try_strip_trailing_stereotype_modifier(s: &str) -> Option<(&str, MemberModifi
     Some((&s[..start], modifier))
 }
 
-fn is_member_modifier_word(word: &str) -> bool {
+pub(crate) fn is_member_modifier_word(word: &str) -> bool {
     matches!(
         word.to_ascii_lowercase().as_str(),
         "field" | "method" | "abstract" | "static" | "class"
     )
 }
 
-fn parse_brace_modifier_word(word: &str) -> Option<MemberModifier> {
+pub(crate) fn parse_brace_modifier_word(word: &str) -> Option<MemberModifier> {
     match word.to_ascii_lowercase().as_str() {
         "field" => Some(MemberModifier::Field),
         "method" => Some(MemberModifier::Method),
@@ -152,7 +153,7 @@ fn parse_brace_modifier_word(word: &str) -> Option<MemberModifier> {
     }
 }
 
-fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
+pub(crate) fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         if raw.trim() == "}" {
             return idx;

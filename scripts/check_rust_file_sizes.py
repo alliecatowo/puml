@@ -19,6 +19,10 @@ ALLOWLIST_REASONS = {
     "src/bootstrap_icons.rs": "generated Bootstrap Icons SVG table",
     "src/material_icons.rs": "generated Material Icons SVG table",
     "src/openiconic.rs": "generated Open Iconic SVG table",
+    # Was 584 lines before parser-unmonolith refactor; 23 lines added for required
+    # pub(crate) visibility annotations on cross-module struct fields (FamilyDeclParts,
+    # FamilyHeritage, FamilyInlineStyle). Split is tracked in #1258.
+    "src/parser/family_declarations.rs": "pre-existing large module; +23 lines from refactor visibility annotations",
 }
 
 

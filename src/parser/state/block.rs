@@ -1,6 +1,7 @@
+use super::*;
 /// Parse the body of a `state X { ... }` block.
 /// Returns (children, region_divider_indices, end_line_index).
-fn parse_state_block(
+pub(crate) fn parse_state_block(
     lines: &[(&str, Span)],
     start: usize,
     parent_state: &str,

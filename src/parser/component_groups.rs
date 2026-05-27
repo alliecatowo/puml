@@ -1,4 +1,5 @@
-fn parse_component_scoping_block(
+use super::*;
+pub(crate) fn parse_component_scoping_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -49,7 +50,7 @@ fn parse_component_scoping_block(
     )))
 }
 
-fn collect_scoped_component_group_content(
+pub(crate) fn collect_scoped_component_group_content(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,
@@ -95,14 +96,17 @@ fn collect_scoped_component_group_content(
                 }
             }
         }
-        if let Some((StatementKind::ComponentDecl {
-            kind,
-            name,
-            alias,
-            label,
-            members,
-            ..
-        }, decl_end)) = parse_component_multiline_decl(lines, idx, line)
+        if let Some((
+            StatementKind::ComponentDecl {
+                kind,
+                name,
+                alias,
+                label,
+                members,
+                ..
+            },
+            decl_end,
+        )) = parse_component_multiline_decl(lines, idx, line)
             .ok()
             .flatten()
         {
@@ -138,7 +142,7 @@ fn collect_scoped_component_group_content(
     content
 }
 
-fn push_scoped_component_decl(
+pub(crate) fn push_scoped_component_decl(
     content: &mut ScopedGroupContent,
     scope: &[String],
     kind: ComponentNodeKind,
@@ -180,7 +184,7 @@ fn push_scoped_component_decl(
     content.members.push(encoded);
 }
 
-fn clean_component_group_label(raw: &str) -> String {
+pub(crate) fn clean_component_group_label(raw: &str) -> String {
     let trimmed = raw.trim_end_matches('{').trim();
     if let Some(stripped) = trimmed.strip_prefix('"') {
         if let Some(end) = stripped.find('"') {
@@ -196,7 +200,7 @@ fn clean_component_group_label(raw: &str) -> String {
     clean_ident(trimmed.trim_matches('"'))
 }
 
-fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
+pub(crate) fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
     match kind {
         ComponentNodeKind::Action => "action",
         ComponentNodeKind::Agent => "agent",
@@ -231,12 +235,15 @@ fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
     }
 }
 
-fn component_scoping_block_head<'a>(
+pub(crate) fn component_scoping_block_head<'a>(
     trimmed: &'a str,
     lower: &str,
 ) -> Option<(&'static str, &'a str)> {
     if lower.starts_with("namespace ") {
-        return Some(("namespace", trimmed.strip_prefix("namespace ").unwrap_or("").trim()));
+        return Some((
+            "namespace",
+            trimmed.strip_prefix("namespace ").unwrap_or("").trim(),
+        ));
     }
     component_decl_keywords()
         .map(|(keyword, _)| keyword)
@@ -254,7 +261,7 @@ fn component_scoping_block_head<'a>(
         })
 }
 
-fn append_component_declaration_metadata(
+pub(crate) fn append_component_declaration_metadata(
     display: Option<String>,
     members: &[ClassMember],
 ) -> Option<String> {
@@ -274,7 +281,7 @@ fn append_component_declaration_metadata(
     Some(label)
 }
 
-fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
+pub(crate) fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
     let mut depth = 0usize;
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start) {
         let trimmed = strip_inline_plantuml_comment(raw).trim();
