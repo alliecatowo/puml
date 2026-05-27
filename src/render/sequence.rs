@@ -279,7 +279,8 @@ pub fn render_svg(scene: &Scene) -> String {
                 ));
             } else {
                 // No label — kind only.
-                let notch_w = (g.kind.chars().count() as i32 * 7 + 16).clamp(40, g.width - 4);
+                let notch_w = (crate::render::text_metrics::monospace_width(&g.kind, 7) + 16)
+                    .clamp(40, g.width - 4);
                 let notch_h = 20_i32;
                 let cut = 6_i32;
                 out.push_str(&format!(

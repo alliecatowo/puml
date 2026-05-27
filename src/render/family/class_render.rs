@@ -73,7 +73,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             .nodes
             .iter()
             .flat_map(|n| n.members.iter())
-            .map(|m| m.text.chars().count() as i32 * 7 + 24)
+            .map(|m| crate::render::text_metrics::monospace_width(&m.text, 7) + 24)
             .max()
             .unwrap_or(0);
         name_px.max(member_px).clamp(160, 600)
@@ -87,12 +87,12 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             let label_w = rel
                 .label
                 .as_ref()
-                .map(|label| (label.chars().count() as i32) * 7 + 24)
+                .map(|label| crate::render::text_metrics::monospace_width(label, 7) + 24)
                 .unwrap_or(0);
             let stereotype_w = rel
                 .stereotype
                 .as_ref()
-                .map(|label| (label.chars().count() as i32) * 7 + 56)
+                .map(|label| crate::render::text_metrics::monospace_width(label, 7) + 56)
                 .unwrap_or(0);
             label_w.max(stereotype_w)
         })

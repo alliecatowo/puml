@@ -77,7 +77,7 @@ pub(super) fn render_legend(out: &mut String, text: &str, scene: &Scene) {
     let line_count = lines.len().max(1) as i32;
     let max_line_width = lines
         .iter()
-        .map(|line| (line.chars().count() as i32) * 7)
+        .map(|line| crate::render::text_metrics::monospace_width(line, 7))
         .max()
         .unwrap_or(0);
     let box_width = (max_line_width + 16).max(200);

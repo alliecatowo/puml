@@ -60,8 +60,8 @@ pub(super) fn render_box_grid_relation_labels(
     }
 
     let labels_overlap = |left: &BoxGridPendingLabel, right: &BoxGridPendingLabel| {
-        let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
-        let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
+        let left_half_w = (crate::render::text_metrics::monospace_width(&left.text, 7) + 2) / 2;
+        let right_half_w = (crate::render::text_metrics::monospace_width(&right.text, 7) + 2) / 2;
         left.x + left_half_w + LABEL_CLEARANCE_X >= right.x - right_half_w - LABEL_CLEARANCE_X
             && right.x + right_half_w + LABEL_CLEARANCE_X
                 >= left.x - left_half_w - LABEL_CLEARANCE_X
@@ -128,8 +128,10 @@ pub(super) fn render_box_grid_relation_labels(
             let labels_overlap = sorted_idx.windows(2).any(|pair| {
                 let left = &pending_labels[pair[0]];
                 let right = &pending_labels[pair[1]];
-                let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
-                let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
+                let left_half_w =
+                    (crate::render::text_metrics::monospace_width(&left.text, 7) + 2) / 2;
+                let right_half_w =
+                    (crate::render::text_metrics::monospace_width(&right.text, 7) + 2) / 2;
                 left.x + left_half_w + LABEL_CLEARANCE_X
                     >= right.x - right_half_w - LABEL_CLEARANCE_X
             });
@@ -268,7 +270,7 @@ fn clear_labels_from_obstacles(
             if !label_overlaps_any(*lx, *ly, text) {
                 break;
             }
-            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+            let half_w = (crate::render::text_metrics::monospace_width(text, 7) + 2) / 2;
             let mut moved = false;
             for &(bx, by, bw, bh) in &edge_obstacles {
                 if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
@@ -305,7 +307,7 @@ fn label_overlaps_box(
     text: &str,
     (bx, by, bw, bh): (i32, i32, i32, i32),
 ) -> bool {
-    let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+    let half_w = (crate::render::text_metrics::monospace_width(text, 7) + 2) / 2;
     lx + half_w + LABEL_CLEARANCE_X >= bx
         && lx - half_w - LABEL_CLEARANCE_X <= bx + bw
         && ly + 4 + LABEL_CLEARANCE_Y >= by

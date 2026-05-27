@@ -470,7 +470,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .relations
         .iter()
         .filter_map(|rel| rel.label.as_ref())
-        .map(|label| ((label.chars().count() as i32) * 7 + 12) / 2)
+        .map(|label| (crate::render::text_metrics::monospace_width(label, 7) + 12) / 2)
         .max()
         .unwrap_or(0);
     let right_gutter = if family == "deployment" {
