@@ -1,7 +1,8 @@
+use super::*;
 /// Parse an inline `json $alias { ... }` or `yaml $alias { ... }` block.
 /// Returns the projection statement and closing line index if found, else `None`.
 /// Errors if a projection block is found but no matching closing `}` appears.
-fn parse_json_projection_block(
+pub(crate) fn parse_json_projection_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -145,7 +146,7 @@ fn parse_json_projection_block(
     .with_span(lines[start].1))
 }
 
-fn dedent_projection_body(lines: &[&str]) -> String {
+pub(crate) fn dedent_projection_body(lines: &[&str]) -> String {
     let common_indent = lines
         .iter()
         .filter_map(|line| {
@@ -169,16 +170,14 @@ fn dedent_projection_body(lines: &[&str]) -> String {
 /// Parse a single salt wireframe row line into a `SaltGridRow` statement.
 /// A row is a `|`-delimited sequence of cell tokens.
 /// Returns `None` if the line does not start with `|`.
-fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     let lower = trimmed.to_ascii_lowercase();
     // `^combo^` or `^open^^item1^^item2^` patterns are whole-line combo/droplist widgets.
     let is_combo_line = trimmed.starts_with('^') && trimmed.ends_with('^') && trimmed.len() >= 3;
     // `[====  ]` progress bar — must only contain `=` and spaces inside `[...]`.
-    let is_progress_bar = trimmed.starts_with('[')
-        && trimmed.ends_with(']')
-        && trimmed.len() >= 3
-        && {
+    let is_progress_bar =
+        trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() >= 3 && {
             let inner = &trimmed[1..trimmed.len() - 1];
             !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=')
         };
@@ -228,7 +227,7 @@ fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
 }
 
 /// Parse a single salt cell token into a `SaltCell` variant.
-fn parse_salt_cell(text: &str) -> SaltCell {
+pub(crate) fn parse_salt_cell(text: &str) -> SaltCell {
     // `"placeholder"` → Input
     if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
         let inner = &text[1..text.len() - 1];

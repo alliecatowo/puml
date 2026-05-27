@@ -1,4 +1,5 @@
-fn parse_activity_swimlane(line: &str) -> Option<String> {
+use super::*;
+pub(crate) fn parse_activity_swimlane(line: &str) -> Option<String> {
     if !line.starts_with('|') || !line.ends_with('|') {
         return None;
     }
@@ -21,7 +22,7 @@ fn parse_activity_swimlane(line: &str) -> Option<String> {
     parts.last().map(|part| activity_style_label(*part, color))
 }
 
-fn parse_activity_colored_action(line: &str) -> Option<(String, Option<String>)> {
+pub(crate) fn parse_activity_colored_action(line: &str) -> Option<(String, Option<String>)> {
     let rest = line.strip_prefix('#')?;
     let (_color, body) = rest.split_once(':')?;
     if body.trim_start().starts_with('(') {
@@ -36,22 +37,17 @@ fn parse_activity_colored_action(line: &str) -> Option<(String, Option<String>)>
     } else {
         body_text.to_string()
     };
-    (!label.is_empty()).then(|| {
-        (
-            label,
-            Some(normalize_activity_color_token(_color)),
-        )
-    })
+    (!label.is_empty()).then(|| (label, Some(normalize_activity_color_token(_color))))
 }
 
-fn parse_activity_colored_connector(line: &str) -> Option<(String, Option<String>)> {
+pub(crate) fn parse_activity_colored_connector(line: &str) -> Option<(String, Option<String>)> {
     let rest = line.strip_prefix('#')?;
     let (color, body) = rest.split_once(':')?;
     let label = parse_activity_connector(body.trim())?;
     Some((label, Some(normalize_activity_color_token(color))))
 }
 
-fn parse_activity_connector(line: &str) -> Option<String> {
+pub(crate) fn parse_activity_connector(line: &str) -> Option<String> {
     let trimmed = line.trim().trim_end_matches(';').trim();
     let rest = trimmed.strip_prefix('(')?;
     let close = rest.find(')')?;
@@ -67,7 +63,7 @@ fn parse_activity_connector(line: &str) -> Option<String> {
     })
 }
 
-fn parse_activity_partition_like(line: &str) -> Option<(String, Option<String>)> {
+pub(crate) fn parse_activity_partition_like(line: &str) -> Option<(String, Option<String>)> {
     let (keyword, rest) = ["partition ", "group ", "package ", "rectangle ", "card "]
         .iter()
         .find_map(|prefix| line.strip_prefix(prefix).map(|rest| (*prefix, rest)))?;
@@ -100,7 +96,7 @@ fn parse_activity_partition_like(line: &str) -> Option<(String, Option<String>)>
     }
 }
 
-fn parse_activity_arrow_directive(line: &str) -> Option<String> {
+pub(crate) fn parse_activity_arrow_directive(line: &str) -> Option<String> {
     let trimmed = line.trim().trim_end_matches(';').trim();
     if !trimmed.starts_with('-') {
         return None;
@@ -172,7 +168,7 @@ fn parse_activity_arrow_directive(line: &str) -> Option<String> {
 ///   `\`  → parallelogram slanting left (output)
 ///   `]`  → right bracket / condition
 ///   `}`  → closing brace / return
-fn parse_activity_action_terminator(rest: &str) -> (&str, Option<&'static str>) {
+pub(crate) fn parse_activity_action_terminator(rest: &str) -> (&str, Option<&'static str>) {
     let raw = rest.trim_end();
     let (stripped, terminator) = match raw.as_bytes().last() {
         Some(b';') => (&raw[..raw.len() - 1], None),
@@ -188,7 +184,7 @@ fn parse_activity_action_terminator(rest: &str) -> (&str, Option<&'static str>) 
     (stripped.trim(), terminator)
 }
 
-fn activity_style_label(label: impl Into<String>, fill_color: Option<&str>) -> String {
+pub(crate) fn activity_style_label(label: impl Into<String>, fill_color: Option<&str>) -> String {
     let label = label.into();
     match fill_color {
         Some(color) if !color.trim().is_empty() => {
@@ -202,11 +198,11 @@ fn activity_style_label(label: impl Into<String>, fill_color: Option<&str>) -> S
     }
 }
 
-fn activity_partition_block_label(label: String) -> String {
+pub(crate) fn activity_partition_block_label(label: String) -> String {
     format!("\x1factivity:partition:block\x1f{label}")
 }
 
-fn normalize_activity_color_token(token: &str) -> String {
+pub(crate) fn normalize_activity_color_token(token: &str) -> String {
     let raw = token.trim().trim_start_matches('#');
     let is_hex = matches!(raw.len(), 3 | 4 | 6 | 8) && raw.chars().all(|c| c.is_ascii_hexdigit());
     if is_hex {
@@ -216,7 +212,7 @@ fn normalize_activity_color_token(token: &str) -> String {
     }
 }
 
-fn strip_wrapping_quotes(input: &str) -> &str {
+pub(crate) fn strip_wrapping_quotes(input: &str) -> &str {
     let trimmed = input.trim();
     trimmed
         .strip_prefix('"')
@@ -224,6 +220,9 @@ fn strip_wrapping_quotes(input: &str) -> &str {
         .unwrap_or(trimmed)
 }
 
-fn activity_step_statement(kind: ActivityStepKind, label: Option<String>) -> StatementKind {
+pub(crate) fn activity_step_statement(
+    kind: ActivityStepKind,
+    label: Option<String>,
+) -> StatementKind {
     StatementKind::ActivityStep(ActivityStep { kind, label })
 }

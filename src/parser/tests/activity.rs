@@ -25,8 +25,7 @@ fn parses_activity_switch_split_goto_and_terminal_controls() {
         .any(|step| step.kind == ActivityStepKind::Else && step.label.as_deref() == Some("A")));
     assert!(steps
         .iter()
-        .any(|step| step.kind == ActivityStepKind::Fork
-            && step.label.as_deref() == Some("split")));
+        .any(|step| step.kind == ActivityStepKind::Fork && step.label.as_deref() == Some("split")));
     assert!(steps
         .iter()
         .any(|step| step.kind == ActivityStepKind::Action
@@ -37,18 +36,16 @@ fn parses_activity_switch_split_goto_and_terminal_controls() {
         .iter()
         .any(|step| step.kind == ActivityStepKind::Action
             && step.label.as_deref() == Some("continue")));
-    assert!(steps
-        .iter()
-        .any(|step| step.kind == ActivityStepKind::Action
-            && step.label.as_deref() == Some("break")));
+    assert!(steps.iter().any(
+        |step| step.kind == ActivityStepKind::Action && step.label.as_deref() == Some("break")
+    ));
     assert!(steps
         .iter()
         .any(|step| step.kind == ActivityStepKind::Action
             && step.label.as_deref() == Some("backward retry path")));
-    assert!(steps
-        .iter()
-        .any(|step| step.kind == ActivityStepKind::Detach
-            && step.label.as_deref() == Some("detach")));
+    assert!(steps.iter().any(
+        |step| step.kind == ActivityStepKind::Detach && step.label.as_deref() == Some("detach")
+    ));
 }
 
 #[test]
@@ -95,21 +92,16 @@ fn parses_activity_new_metadata_steps() {
     assert!(steps.iter().any(|step| {
         step.kind == ActivityStepKind::PartitionStart
             && step.label.as_deref()
-                == Some(
-                    "\u{1f}style:fill:LightYellow\u{1f}\u{1f}activity:partition:block\u{1f}Ops"
-                )
+                == Some("\u{1f}style:fill:LightYellow\u{1f}\u{1f}activity:partition:block\u{1f}Ops")
     }));
     assert!(steps.iter().any(|step| {
         step.kind == ActivityStepKind::PartitionStart
-            && step.label.as_deref()
-                == Some("\u{1f}activity:partition:block\u{1f}Audit")
+            && step.label.as_deref() == Some("\u{1f}activity:partition:block\u{1f}Audit")
     }));
     assert!(steps
         .iter()
-        .any(|step| step.kind == ActivityStepKind::Kill
-            && step.label.as_deref() == Some("kill")));
+        .any(|step| step.kind == ActivityStepKind::Kill && step.label.as_deref() == Some("kill")));
 }
-
 
 #[test]
 fn parses_activity_oldstyle_baseline_statements() {

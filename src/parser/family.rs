@@ -1,4 +1,5 @@
-fn parse_family_declaration(
+use super::*;
+pub(crate) fn parse_family_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,

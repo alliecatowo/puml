@@ -1,4 +1,5 @@
-fn clean_ident(s: &str) -> String {
+use super::*;
+pub(crate) fn clean_ident(s: &str) -> String {
     let mut out = s.trim().trim_matches('"').to_string();
     if let Some(rest) = out.strip_prefix("()") {
         out = rest.trim().to_string();
@@ -16,13 +17,16 @@ fn clean_ident(s: &str) -> String {
     out
 }
 
-fn strip_c4_macro_prefix(input: &str) -> &str {
-    input.trim().strip_prefix('!').unwrap_or_else(|| input.trim())
+pub(crate) fn strip_c4_macro_prefix(input: &str) -> &str {
+    input
+        .trim()
+        .strip_prefix('!')
+        .unwrap_or_else(|| input.trim())
 }
 
 /// Extract the class/interface/enum name from a member line inside a package/namespace block.
 /// E.g. "class Service" → "Service", "interface IRepo" → "IRepo", "MyClass" → "MyClass".
-fn extract_class_member_name(s: &str) -> String {
+pub(crate) fn extract_class_member_name(s: &str) -> String {
     let t = s.trim();
     let lower = t.to_ascii_lowercase();
     for kw in &[
@@ -67,7 +71,7 @@ fn extract_class_member_name(s: &str) -> String {
     clean_ident(t)
 }
 
-fn extract_component_group_member_name(s: &str) -> String {
+pub(crate) fn extract_component_group_member_name(s: &str) -> String {
     if let Some(StatementKind::ComponentDecl { name, alias, .. }) = parse_component_decl(s) {
         return alias.unwrap_or(name);
     }

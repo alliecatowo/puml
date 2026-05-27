@@ -226,7 +226,6 @@ fn parses_typed_group_end_keyword() {
     }
 }
 
-
 #[test]
 fn parses_sequence_decorated_arrow_styles_as_portable_arrow_core() {
     let doc = parse_with_options(
@@ -284,7 +283,6 @@ fn parses_sequence_participants_in_theme_fixture_context() {
     assert!(matches!(doc.statements[3].kind, StatementKind::Message(_)));
     assert!(matches!(doc.statements[4].kind, StatementKind::Message(_)));
 }
-
 
 #[test]
 fn apostrophe_comments_are_ignored_but_preserved_inside_quotes() {
@@ -368,9 +366,10 @@ end
         "par..also..end diagram must be detected as sequence"
     );
     // Verify `also` parsed as a Group statement
-    let also_stmt = doc.statements.iter().find(|s| {
-        matches!(&s.kind, StatementKind::Group(g) if g.kind == "also")
-    });
+    let also_stmt = doc
+        .statements
+        .iter()
+        .find(|s| matches!(&s.kind, StatementKind::Group(g) if g.kind == "also"));
     assert!(
         also_stmt.is_some(),
         "`also` keyword must produce a Group statement"

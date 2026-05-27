@@ -1,4 +1,5 @@
-fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
+use super::*;
+pub(crate) fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
     let trimmed = line.trim();
     let stripped = trimmed.strip_prefix('[')?;
     let end = stripped.find(']')?;
@@ -9,7 +10,7 @@ fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
     let rest = stripped[end + 1..].trim();
     Some((name, rest))
 }
-fn parse_multiline_keyword_block(
+pub(crate) fn parse_multiline_keyword_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -32,12 +33,10 @@ fn parse_multiline_keyword_block(
             return None;
         }
     } else {
-        let aligned_metadata = ["left", "center", "right"]
-            .into_iter()
-            .find_map(|align| {
-                let rest = lower.strip_prefix(&(align.to_string() + " "))?;
-                matches!(rest, "header" | "footer").then_some((rest, align))
-            });
+        let aligned_metadata = ["left", "center", "right"].into_iter().find_map(|align| {
+            let rest = lower.strip_prefix(&(align.to_string() + " "))?;
+            matches!(rest, "header" | "footer").then_some((rest, align))
+        });
         if let Some((k, align)) = aligned_metadata {
             (k, None, Some(align))
         } else {
@@ -100,7 +99,7 @@ fn parse_multiline_keyword_block(
     None
 }
 
-fn parse_multiline_note_block(
+pub(crate) fn parse_multiline_note_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -183,7 +182,7 @@ fn parse_multiline_note_block(
     None
 }
 
-fn is_inline_note_boundary(line: &str) -> bool {
+pub(crate) fn is_inline_note_boundary(line: &str) -> bool {
     if line.is_empty() || line.contains("-->") || line.starts_with('@') {
         return true;
     }
@@ -194,7 +193,7 @@ fn is_inline_note_boundary(line: &str) -> bool {
         || lower.starts_with("yaml ")
 }
 
-fn is_valid_note_head_line(line: &str, lower: &str) -> bool {
+pub(crate) fn is_valid_note_head_line(line: &str, lower: &str) -> bool {
     let Some(note_kw) = (if lower.starts_with("note ") {
         Some("note")
     } else if lower.starts_with("hnote ") {
@@ -212,7 +211,7 @@ fn is_valid_note_head_line(line: &str, lower: &str) -> bool {
     is_valid_note_position(&position)
 }
 
-fn parse_state_note_head(head: &str) -> (String, Option<String>) {
+pub(crate) fn parse_state_note_head(head: &str) -> (String, Option<String>) {
     let lower = head.trim().to_ascii_lowercase();
     if lower == "on link" {
         return ("over".to_string(), Some("on link".to_string()));
@@ -225,7 +224,7 @@ fn parse_state_note_head(head: &str) -> (String, Option<String>) {
     parse_note_head(head)
 }
 
-fn parse_multiline_ref_block(
+pub(crate) fn parse_multiline_ref_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,

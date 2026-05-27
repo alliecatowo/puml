@@ -1,4 +1,5 @@
-fn parse_component_or_deployment_core(
+use super::*;
+pub(crate) fn parse_component_or_deployment_core(
     lines: &[(&str, Span)],
     i: usize,
     line: &str,
@@ -116,7 +117,10 @@ fn parse_component_or_deployment_core(
     Ok(None)
 }
 
-fn component_scope_family(detected_kind: Option<DiagramKind>, kind: &StatementKind) -> DiagramKind {
+pub(crate) fn component_scope_family(
+    detected_kind: Option<DiagramKind>,
+    kind: &StatementKind,
+) -> DiagramKind {
     let is_deployment_scope = matches!(detected_kind, Some(DiagramKind::Deployment))
         || matches!(
             kind,
@@ -144,7 +148,10 @@ fn component_scope_family(detected_kind: Option<DiagramKind>, kind: &StatementKi
     }
 }
 
-fn component_decl_family(detected_kind: Option<DiagramKind>, kind: &StatementKind) -> DiagramKind {
+pub(crate) fn component_decl_family(
+    detected_kind: Option<DiagramKind>,
+    kind: &StatementKind,
+) -> DiagramKind {
     if matches!(detected_kind, Some(DiagramKind::Deployment)) {
         return DiagramKind::Deployment;
     }
@@ -183,7 +190,7 @@ fn component_decl_family(detected_kind: Option<DiagramKind>, kind: &StatementKin
     }
 }
 
-fn parse_timeline_or_state_core(
+pub(crate) fn parse_timeline_or_state_core(
     lines: &[(&str, Span)],
     i: usize,
     line: &str,
@@ -192,18 +199,20 @@ fn parse_timeline_or_state_core(
     statements: &mut Vec<Statement>,
 ) -> Result<Option<usize>, Diagnostic> {
     match detected_kind {
-        Some(DiagramKind::Gantt) => {
-            Ok(Some(parse_gantt_core_line(lines, i, line, span, statements)?))
-        }
+        Some(DiagramKind::Gantt) => Ok(Some(parse_gantt_core_line(
+            lines, i, line, span, statements,
+        )?)),
         Some(DiagramKind::Chronology) => Ok(Some(parse_chronology_core_line(
             lines, i, line, span, statements,
         ))),
-        Some(DiagramKind::State) => Ok(Some(parse_state_core_line(lines, i, line, span, statements)?)),
+        Some(DiagramKind::State) => Ok(Some(parse_state_core_line(
+            lines, i, line, span, statements,
+        )?)),
         _ => Ok(None),
     }
 }
 
-fn parse_gantt_core_line(
+pub(crate) fn parse_gantt_core_line(
     lines: &[(&str, Span)],
     i: usize,
     line: &str,
@@ -243,7 +252,7 @@ fn parse_gantt_core_line(
     Ok(i + 1)
 }
 
-fn parse_chronology_core_line(
+pub(crate) fn parse_chronology_core_line(
     lines: &[(&str, Span)],
     i: usize,
     line: &str,
@@ -276,7 +285,7 @@ fn parse_chronology_core_line(
     i + 1
 }
 
-fn is_common_orientation_directive(line: &str) -> bool {
+pub(crate) fn is_common_orientation_directive(line: &str) -> bool {
     let tokens = line.split_whitespace().collect::<Vec<_>>();
     let is_axis = |value: &str| matches!(value, "left" | "right" | "top" | "bottom");
     tokens.len() == 4
@@ -286,7 +295,7 @@ fn is_common_orientation_directive(line: &str) -> bool {
         && is_axis(tokens[2].to_ascii_lowercase().as_str())
 }
 
-fn parse_state_core_line(
+pub(crate) fn parse_state_core_line(
     lines: &[(&str, Span)],
     i: usize,
     line: &str,

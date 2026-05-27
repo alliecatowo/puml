@@ -1,4 +1,5 @@
-fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
+use super::*;
+pub(crate) fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     let line = line.to_ascii_lowercase();
     let c4_line = line.strip_prefix('!').unwrap_or(&line);
 
