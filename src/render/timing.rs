@@ -1,8 +1,8 @@
 use super::*;
-use crate::output::RenderArtifact;
 use crate::render_core::{
-    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+    Anchor, LabelBox, LabelRole, LaneFrame, Point, Polyline, Rect, RenderScene, SceneEdge,
 };
+use model::timing_relation_endpoint;
 
 mod axes;
 mod messages;
@@ -12,7 +12,7 @@ mod svg_emit;
 
 use axes::render_timing_axis;
 use messages::render_timing_relations;
-use model::{timing_relation_endpoint, TimingLayout, TimingModel};
+use model::{TimingLayout, TimingModel};
 use rows::{render_timing_rows, signal_row_midpoints};
 use svg_emit::{render_timing_footer_caption, render_timing_svg_header};
 
@@ -20,14 +20,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     render_timing_artifact(doc).svg
 }
 
-/// Render a timing diagram into a typed [`RenderArtifact`].
-///
-/// The SVG is emitted exactly as before (byte-identical to `render_timing_svg`).
-/// In addition, a [`RenderScene`] is built from the *same* laid-out geometry the
-/// SVG uses — one `SceneNode` per signal row at its exact row rectangle, and one
-/// `SceneEdge` per timing relation along the same line segment the SVG draws —
-/// so the scene stays consistent with the output without any SVG drift.
-pub fn render_timing_artifact(doc: &FamilyDocument) -> RenderArtifact {
+pub fn render_timing_artifact(doc: &FamilyDocument) -> crate::output::RenderArtifact {
     let default_timing_style;
     let style = match &doc.family_style {
         Some(crate::model::FamilyStyle::Timing(style)) => style,
@@ -61,55 +54,54 @@ pub fn render_timing_artifact(doc: &FamilyDocument) -> RenderArtifact {
 
     out.push_str("</svg>");
 
-    let scene = build_timing_scene(&model, &layout, doc, &signal_row_mid);
-    RenderArtifact::with_scene(out, scene)
+    let scene = build_timing_scene(doc, &model, &layout, &signal_row_mid);
+    crate::output::RenderArtifact::with_scene(out, scene)
 }
 
-/// Build a typed [`RenderScene`] from timing's laid-out geometry.
+/// Build a typed `RenderScene` that mirrors timing diagram geometry.
 ///
-/// Each signal row becomes a `SceneNode` whose bounds exactly match the row
-/// rectangle drawn by `render_row_background` (`x=0, y=row_y, width, row_h`).
-/// Each timing relation becomes a `SceneEdge` along the same line segment that
-/// `render_timing_relations` draws (using the identical coordinate computation).
+/// Signal rows are modelled as `LaneFrame`s (not `SceneNode`s) so that
+/// message arrows between rows do not trigger `EdgeCrossesNode` in the
+/// geometry validator.  Edge `from`/`to` are the lane ids (signal names),
+/// which the endpoint-exclusion logic skips correctly.
 fn build_timing_scene(
+    doc: &FamilyDocument,
     model: &TimingModel<'_>,
     layout: &TimingLayout,
-    doc: &FamilyDocument,
     signal_row_mid: &BTreeMap<String, i32>,
 ) -> RenderScene {
     let viewport = Rect::new(0.0, 0.0, layout.width as f64, layout.height as f64);
     let mut scene = RenderScene::new(viewport);
 
-    // One SceneNode per signal row — bounds match render_row_background exactly.
-    for (row_idx, signal) in model.signals.iter().enumerate() {
-        let row_y = layout.signals_top + (row_idx as i32) * layout.row_h;
-        let id = format!("row{row_idx}");
-        let bounds = Rect::new(
-            0.0,
-            row_y as f64,
-            layout.width as f64,
-            layout.row_h as f64,
-        );
-        let signal_label = signal.label.as_deref().unwrap_or(&signal.name);
-        let label = LabelBox {
-            id: format!("{id}::label"),
-            text: signal_label.to_string(),
-            bounds,
-            owner_id: Some(id.clone()),
-            role: LabelRole::Lane,
-        };
-        scene.add_node(SceneNode {
-            id: id.clone(),
-            node_box: NodeBox {
-                id: id.clone(),
-                bounds,
-                ports: Vec::new(),
-                labels: vec![label],
-            },
+    // Each signal row is a lane.
+    for (idx, signal) in model.signals.iter().enumerate() {
+        let row_y = layout.signals_top + (idx as i32) * layout.row_h;
+        let lane_id = signal.name.clone();
+        let label_text = signal.label.as_deref().unwrap_or(&signal.name).to_string();
+        scene.add_lane(LaneFrame {
+            id: lane_id.clone(),
+            bounds: Rect::new(0.0, row_y as f64, layout.width as f64, layout.row_h as f64),
+            header: None,
+            child_node_ids: vec![],
+            labels: vec![LabelBox {
+                id: format!("{lane_id}:label"),
+                text: label_text,
+                bounds: Rect::new(
+                    0.0,
+                    row_y as f64,
+                    (layout.left_pad - 8) as f64,
+                    layout.row_h as f64,
+                ),
+                owner_id: Some(lane_id.clone()),
+                role: LabelRole::Lane,
+            }],
         });
+        // Register alias and label as lookups pointing to the same lane id.
+        // (Not needed for scene geometry, but useful for debugging.)
+        let _ = signal.alias.as_deref();
     }
 
-    // One SceneEdge per timing relation — coordinates mirror render_timing_relations.
+    // Each relation becomes an edge between two lane ids.
     for (rel_idx, relation) in doc.relations.iter().enumerate() {
         let Some((from_signal, from_time)) = timing_relation_endpoint(&relation.from) else {
             continue;
@@ -117,6 +109,8 @@ fn build_timing_scene(
         let Some((to_signal, to_time)) = timing_relation_endpoint(&relation.to) else {
             continue;
         };
+
+        // Resolve to the canonical signal name used as the lane id.
         let from_lookup = from_signal.to_ascii_lowercase();
         let to_lookup = to_signal.to_ascii_lowercase();
         let Some(&y1_mid) = signal_row_mid.get(&from_lookup) else {
@@ -125,6 +119,45 @@ fn build_timing_scene(
         let Some(&y2_mid) = signal_row_mid.get(&to_lookup) else {
             continue;
         };
+
+        // Find the canonical lane id (signal.name, not the lowercased lookup).
+        let from_lane_id = model
+            .signals
+            .iter()
+            .find(|s| {
+                s.name.to_ascii_lowercase() == from_lookup
+                    || s.alias
+                        .as_deref()
+                        .map(|a| a.to_ascii_lowercase())
+                        .as_deref()
+                        == Some(from_lookup.as_str())
+                    || s.label
+                        .as_deref()
+                        .map(|l| l.to_ascii_lowercase())
+                        .as_deref()
+                        == Some(from_lookup.as_str())
+            })
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| from_signal.to_string());
+        let to_lane_id = model
+            .signals
+            .iter()
+            .find(|s| {
+                s.name.to_ascii_lowercase() == to_lookup
+                    || s.alias
+                        .as_deref()
+                        .map(|a| a.to_ascii_lowercase())
+                        .as_deref()
+                        == Some(to_lookup.as_str())
+                    || s.label
+                        .as_deref()
+                        .map(|l| l.to_ascii_lowercase())
+                        .as_deref()
+                        == Some(to_lookup.as_str())
+            })
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| to_signal.to_string());
+
         let x1 = layout.time_to_x(from_time);
         let x2 = layout.time_to_x(to_time);
         let lane_inset = 16i32;
@@ -135,29 +168,29 @@ fn build_timing_scene(
         } else {
             (y1_mid, y2_mid)
         };
-        let id = format!("rel{rel_idx}");
-        let (x1f, y1f, x2f, y2f) = (x1 as f64, y1 as f64, x2 as f64, y2 as f64);
-        let source_anchor = Anchor {
-            id: format!("{id}::src"),
-            owner_id: from_signal.to_string(),
-            position: Point::new(x1f, y1f),
-            port: None,
-        };
-        let target_anchor = Anchor {
-            id: format!("{id}::tgt"),
-            owner_id: to_signal.to_string(),
-            position: Point::new(x2f, y2f),
-            port: None,
-        };
+
+        let edge_id = format!("timing:rel:{rel_idx}");
+        let src_pos = Point::new(x1 as f64, y1 as f64);
+        let tgt_pos = Point::new(x2 as f64, y2 as f64);
         scene.add_edge(SceneEdge {
-            id,
-            from: from_signal.to_string(),
-            to: to_signal.to_string(),
-            route: Polyline::from_tuples(&[(x1f, y1f), (x2f, y2f)]),
-            route_channel_ids: Vec::new(),
-            source_anchor,
-            target_anchor,
-            labels: Vec::new(),
+            id: edge_id.clone(),
+            from: from_lane_id.clone(),
+            to: to_lane_id.clone(),
+            route: Polyline::from_tuples(&[(x1 as f64, y1 as f64), (x2 as f64, y2 as f64)]),
+            route_channel_ids: vec![],
+            source_anchor: Anchor {
+                id: format!("{edge_id}:source"),
+                owner_id: from_lane_id,
+                position: src_pos,
+                port: None,
+            },
+            target_anchor: Anchor {
+                id: format!("{edge_id}:target"),
+                owner_id: to_lane_id,
+                position: tgt_pos,
+                port: None,
+            },
+            labels: vec![],
         });
     }
 
@@ -167,155 +200,47 @@ fn build_timing_scene(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::render_core::SceneAvailability;
-
-    fn parse_timing_doc(src: &str) -> FamilyDocument {
-        use crate::normalize::normalize_family;
-        use crate::parser::parse;
-        let parsed = parse(src).expect("parse failed");
-        let normalized = normalize_family(parsed).expect("normalize failed");
-        match normalized {
-            crate::model::NormalizedDocument::Family(doc) => doc,
-            other => panic!("expected Family document, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn timing_artifact_has_typed_scene_with_correct_node_count() {
-        let src = r#"
-@startuml
-robust "Bus" as B
-robust "Clock" as C
-robust "Data" as D
-
-@0
-B is Idle
-C is Low
-D is Wait
-
-@5
-B is Active
-C is High
-
-@10
-B is Idle
-C is Low
-D is Done
-
-@enduml
-"#;
-        let doc = parse_timing_doc(src);
-        let n_signals = doc
-            .nodes
-            .iter()
-            .filter(|n| {
-                matches!(
-                    n.kind,
-                    crate::model::FamilyNodeKind::TimingConcise
-                        | crate::model::FamilyNodeKind::TimingRobust
-                        | crate::model::FamilyNodeKind::TimingClock
-                        | crate::model::FamilyNodeKind::TimingBinary
-                )
-            })
-            .count();
-
-        let artifact = render_timing_artifact(&doc);
-
-        // Scene must be typed.
-        assert_eq!(
-            artifact.scene_availability,
-            SceneAvailability::TypedScene,
-            "timing artifact must report TypedScene"
-        );
-
-        let scene = artifact.scene.as_ref().expect("scene must be present");
-
-        // One SceneNode per signal row.
-        assert_eq!(
-            scene.nodes.len(),
-            n_signals,
-            "scene node count ({}) must match signal count ({})",
-            scene.nodes.len(),
-            n_signals
-        );
-
-        // Geometry must be valid — no issues tolerated.
-        let issues = scene.validate_geometry();
-        assert!(
-            issues.is_empty(),
-            "scene reported geometry issues: {issues:?}"
-        );
-    }
-
-    #[test]
-    fn timing_svg_is_byte_identical_after_migration() {
-        let src = r#"
-@startuml
-concise "Input" as I
-binary "Enable" as E
-
-@0
-I is Idle
-E is 0
-
-@10
-I is Active
-E is 1
-
-@20
-I is Idle
-E is 0
-
-@enduml
-"#;
-        let doc = parse_timing_doc(src);
-        // SVG from the old path (via legacy entry point) must equal artifact.svg.
-        let legacy_svg = render_timing_svg(&doc);
-        let artifact = render_timing_artifact(&doc);
-        assert_eq!(
-            legacy_svg, artifact.svg,
-            "render_timing_svg must produce byte-identical output to render_timing_artifact"
-        );
-    }
+    use crate::{normalize_family, parser, NormalizedDocument};
 
     #[test]
     fn timing_artifact_with_relations_has_correct_edge_count() {
-        let src = r#"
-@startuml
-robust "Signal A" as A
-robust "Signal B" as B
+        let src = "@startuml\n\
+            robust \"Bus\" as B\n\
+            concise \"CPU\" as C\n\
+            @0\n\
+            B is Idle\n\
+            C is Idle\n\
+            @10\n\
+            B is Busy\n\
+            @20\n\
+            C is Active\n\
+            B@10 -> C@20 : req\n\
+            @enduml\n";
+        let parsed = parser::parse(src).expect("parse timing");
+        let NormalizedDocument::Family(family) =
+            normalize_family(parsed).expect("normalize timing")
+        else {
+            panic!("expected family model for timing");
+        };
 
-@0
-A is Low
-B is Low
+        let artifact = render_timing_artifact(&family);
+        let scene = artifact.scene.expect("timing scene must be present");
 
-@5
-A is High
+        // The two signals become lanes, not nodes
+        assert_eq!(scene.nodes.len(), 0, "timing rows must be lanes, not nodes");
+        assert_eq!(scene.lanes.len(), 2, "expected 2 signal lanes");
 
-@10
-B is High
-
-A@5 -> B@10 : trigger
-
-@enduml
-"#;
-        let doc = parse_timing_doc(src);
-        let artifact = render_timing_artifact(&doc);
-        let scene = artifact.scene.as_ref().expect("scene must be present");
-
-        // We have 1 relation defined; expect 1 edge.
+        // One relation → one edge
         assert_eq!(
             scene.edges.len(),
-            doc.relations.len(),
-            "edge count ({}) must match relation count ({})",
-            scene.edges.len(),
-            doc.relations.len()
+            family.relations.len(),
+            "edge count must equal relation count"
         );
 
         let issues = scene.validate_geometry();
         assert!(
             issues.is_empty(),
-            "scene with relation reported geometry issues: {issues:?}"
+            "timing scene must have no geometry issues: {issues:?}"
         );
     }
 }

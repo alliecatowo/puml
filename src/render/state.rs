@@ -658,10 +658,8 @@ fn build_state_scene(
     // Add top-level transitions as SceneEdges.
     // Skip note connectors and intra-composite transitions (both endpoints
     // are children); those are structural decoration, not typed graph edges.
-    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
-        .iter()
-        .map(|n| (n.name.as_str(), &n.kind))
-        .collect();
+    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> =
+        nodes.iter().map(|n| (n.name.as_str(), &n.kind)).collect();
     // Also gather child node kinds for composite-internal transitions
     fn collect_node_kinds<'a>(
         node: &'a StateNode,
@@ -824,7 +822,7 @@ fn state_orthogonal_polyline_tuples(x1: i32, y1: i32, x2: i32, y2: i32) -> Vec<(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{parser, normalize};
+    use crate::{normalize, parser};
 
     fn parse_state(src: &str) -> StateDocument {
         let ast = parser::parse(src).expect("parse failed");
@@ -837,9 +835,7 @@ mod tests {
     #[test]
     fn render_state_artifact_basic_scene_counts() {
         // 3 state nodes: [*]__start, Active, [*]__end; 2 transitions.
-        let doc = parse_state(
-            "@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n",
-        );
+        let doc = parse_state("@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n");
         let artifact = render_state_artifact(&doc);
 
         // SVG must still look like an SVG
@@ -872,10 +868,7 @@ mod tests {
         // Validate scene geometry: report any issues but don't hard-fail on
         // issues the validator catches as warnings only.
         let issues = scene.validate_geometry();
-        assert!(
-            issues.is_empty(),
-            "scene geometry issues: {issues:?}"
-        );
+        assert!(issues.is_empty(), "scene geometry issues: {issues:?}");
     }
 
     #[test]

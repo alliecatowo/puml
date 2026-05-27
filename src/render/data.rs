@@ -178,7 +178,12 @@ mod tests {
         let expected_count = expected_rows.len();
 
         assert_eq!(
-            artifact.scene.as_ref().expect("scene must be present").nodes.len(),
+            artifact
+                .scene
+                .as_ref()
+                .expect("scene must be present")
+                .nodes
+                .len(),
             expected_count,
             "scene node count must match drawn row count"
         );
@@ -223,8 +228,14 @@ mod tests {
         for (i, node) in scene.nodes.values().enumerate() {
             let b = node.node_box.bounds;
             assert_eq!(b.origin.x, TABLE_X, "row {i} x should be {TABLE_X}");
-            assert_eq!(b.size.width, TABLE_WIDTH, "row {i} width should be {TABLE_WIDTH}");
-            assert_eq!(b.size.height, ROW_HEIGHT, "row {i} height should be {ROW_HEIGHT}");
+            assert_eq!(
+                b.size.width, TABLE_WIDTH,
+                "row {i} width should be {TABLE_WIDTH}"
+            );
+            assert_eq!(
+                b.size.height, ROW_HEIGHT,
+                "row {i} height should be {ROW_HEIGHT}"
+            );
             assert!(
                 b.origin.y >= FIRST_ROW_TOP_Y,
                 "row {i} y={} should be >= {FIRST_ROW_TOP_Y}",
@@ -246,7 +257,12 @@ mod tests {
         let expected_count = expected_rows.len();
 
         assert_eq!(
-            artifact.scene.as_ref().expect("scene must be present").nodes.len(),
+            artifact
+                .scene
+                .as_ref()
+                .expect("scene must be present")
+                .nodes
+                .len(),
             expected_count,
             "scene node count must match drawn row count"
         );
@@ -288,8 +304,14 @@ mod tests {
         for (i, node) in scene.nodes.values().enumerate() {
             let b = node.node_box.bounds;
             assert_eq!(b.origin.x, TABLE_X, "row {i} x should be {TABLE_X}");
-            assert_eq!(b.size.width, TABLE_WIDTH, "row {i} width should be {TABLE_WIDTH}");
-            assert_eq!(b.size.height, ROW_HEIGHT, "row {i} height should be {ROW_HEIGHT}");
+            assert_eq!(
+                b.size.width, TABLE_WIDTH,
+                "row {i} width should be {TABLE_WIDTH}"
+            );
+            assert_eq!(
+                b.size.height, ROW_HEIGHT,
+                "row {i} height should be {ROW_HEIGHT}"
+            );
             assert!(
                 b.origin.y >= FIRST_ROW_TOP_Y,
                 "row {i} y={} should be >= {FIRST_ROW_TOP_Y}",

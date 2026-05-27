@@ -157,7 +157,12 @@ pub fn render_sdl_artifact(document: &SdlDocument) -> RenderArtifact {
     out.push_str(&transition_labels);
     out.push_str("</svg>");
 
-    let scene = build_sdl_scene(&positions, &document.transitions, width as f64, height as f64);
+    let scene = build_sdl_scene(
+        &positions,
+        &document.transitions,
+        width as f64,
+        height as f64,
+    );
     RenderArtifact::with_scene(out, scene)
 }
 

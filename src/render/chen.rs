@@ -251,13 +251,34 @@ fn build_chen_scene(
     }
 
     for (idx, rel) in document.relations.iter().enumerate() {
-        push_scene_edge(&mut scene, pos, node_by_id, format!("rel{idx}"), &rel.from, &rel.to);
+        push_scene_edge(
+            &mut scene,
+            pos,
+            node_by_id,
+            format!("rel{idx}"),
+            &rel.from,
+            &rel.to,
+        );
     }
     for edge in edges.iter().filter(|edge| edge.id.starts_with("attr")) {
-        push_scene_edge(&mut scene, pos, node_by_id, edge.id.clone(), &edge.from, &edge.to);
+        push_scene_edge(
+            &mut scene,
+            pos,
+            node_by_id,
+            edge.id.clone(),
+            &edge.from,
+            &edge.to,
+        );
     }
     for edge in edges.iter().filter(|edge| edge.id.starts_with("inh")) {
-        push_scene_edge(&mut scene, pos, node_by_id, edge.id.clone(), &edge.from, &edge.to);
+        push_scene_edge(
+            &mut scene,
+            pos,
+            node_by_id,
+            edge.id.clone(),
+            &edge.from,
+            &edge.to,
+        );
     }
 
     scene
@@ -271,9 +292,10 @@ fn push_scene_edge(
     from: &str,
     to: &str,
 ) {
-    let (Some(src_rect), Some(tgt_rect)) =
-        (node_rect(pos, node_by_id, from), node_rect(pos, node_by_id, to))
-    else {
+    let (Some(src_rect), Some(tgt_rect)) = (
+        node_rect(pos, node_by_id, from),
+        node_rect(pos, node_by_id, to),
+    ) else {
         return;
     };
     let (x1, y1, x2, y2) = anchor_line(src_rect, tgt_rect);

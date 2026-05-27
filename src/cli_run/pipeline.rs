@@ -114,4 +114,3 @@ fn map_compat(mode: CliCompatMode) -> CompatMode {
         CliCompatMode::Extended => CompatMode::Extended,
     }
 }
-

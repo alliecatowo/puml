@@ -312,12 +312,7 @@ fn build_salt_scene(
         let mut col_idx = 0usize;
         for cell in &rendered {
             let node_id = format!("r{row_idx}c{col_idx}");
-            let bounds = Rect::new(
-                col_x as f64,
-                row_y as f64,
-                cell.width as f64,
-                row_h as f64,
-            );
+            let bounds = Rect::new(col_x as f64, row_y as f64, cell.width as f64, row_h as f64);
             let label = LabelBox {
                 id: format!("{node_id}::label"),
                 text: cell.cell.text().to_string(),
@@ -396,8 +391,7 @@ mod tests {
     #[test]
     fn salt_artifact_separator_rows_excluded_from_scene() {
         // 2 widget rows + 1 separator row → 4 cells total (2×2 grid), sep skipped.
-        let src =
-            "@startsalt\n{\n| Name | Value |\n| --- |\n| Email | Example |\n}\n@endsalt\n";
+        let src = "@startsalt\n{\n| Name | Value |\n| --- |\n| Email | Example |\n}\n@endsalt\n";
         let artifact = render_artifact_from_source(src);
 
         let scene = artifact

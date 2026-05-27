@@ -1,23 +1,20 @@
 use super::*;
-use crate::output::RenderArtifact;
 use crate::render_core::{
-    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+    Anchor, LabelBox, LabelRole, LaneFrame, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge,
+    SceneNode,
 };
 
 pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
     render_archimate_artifact(document).svg
 }
 
-/// Render an ArchiMate diagram into a typed [`RenderArtifact`].
-///
-/// The SVG is still emitted directly (ArchiMate draws bespoke layer bands, shaped
-/// element boxes, and straight border-to-border relationship lines), but we also
-/// build a [`RenderScene`] from the *actual* drawn geometry — node boxes at their
-/// computed positions/sizes and edges along the same anchor segments the SVG uses —
-/// so the scene stays consistent with the output.  SVG output is byte-identical to
-/// the legacy `render_archimate_svg`; the scene is attached for the typed-geometry
-/// validation path.
-pub fn render_archimate_artifact(document: &ArchimateDocument) -> RenderArtifact {
+pub fn render_archimate_artifact(document: &ArchimateDocument) -> crate::output::RenderArtifact {
+    let svg = render_archimate_svg_inner(document);
+    let scene = build_archimate_scene(document);
+    crate::output::RenderArtifact::with_scene(svg, scene)
+}
+
+fn render_archimate_svg_inner(document: &ArchimateDocument) -> String {
     let width = 760;
     let layers = [
         "strategy",
@@ -154,95 +151,7 @@ pub fn render_archimate_artifact(document: &ArchimateDocument) -> RenderArtifact
     }
     out.push_str(&element_markup);
     out.push_str("</svg>");
-
-    let scene = build_archimate_scene(
-        &element_bounds,
-        &document.relations,
-        width as f64,
-        height as f64,
-    );
-    RenderArtifact::with_scene(out, scene)
-}
-
-/// Build a typed [`RenderScene`] from ArchiMate's laid-out geometry.  Node boxes
-/// use the same `(x, y, w, h)` tuples stored in `element_bounds`; edge routes use
-/// the same `compute_edge_anchors_for_direction` anchor points the SVG draws, so
-/// scene and SVG never diverge.
-fn build_archimate_scene(
-    element_bounds: &BTreeMap<String, (i32, i32, i32, i32)>,
-    relations: &[crate::model::ArchimateRelation],
-    width: f64,
-    height: f64,
-) -> RenderScene {
-    let mut scene = RenderScene::new(Rect::new(0.0, 0.0, width, height));
-
-    // Add a scene node for every element that has a known bounding box.
-    // Because element_bounds may contain both the canonical name and an alias
-    // pointing at the same rectangle, we deduplicate by (x, y, w, h) to avoid
-    // registering the same box twice.
-    let mut seen_bounds: BTreeMap<(i32, i32, i32, i32), String> = BTreeMap::new();
-    for (name, &(x, y, w, h)) in element_bounds {
-        if seen_bounds.contains_key(&(x, y, w, h)) {
-            // This entry is the alias — the canonical name was inserted first;
-            // skip to avoid duplicate nodes in the scene.
-            continue;
-        }
-        seen_bounds.insert((x, y, w, h), name.clone());
-        let bounds = Rect::new(x as f64, y as f64, w as f64, h as f64);
-        let label = LabelBox {
-            id: format!("{name}::label"),
-            text: name.clone(),
-            bounds,
-            owner_id: Some(name.clone()),
-            role: LabelRole::Node,
-        };
-        scene.add_node(SceneNode {
-            id: name.clone(),
-            node_box: NodeBox {
-                id: name.clone(),
-                bounds,
-                ports: Vec::new(),
-                labels: vec![label],
-            },
-        });
-    }
-
-    // Add a scene edge for every relation whose endpoints are in the bounds map.
-    for (idx, rel) in relations.iter().enumerate() {
-        let Some(&from) = element_bounds.get(&rel.from) else {
-            continue;
-        };
-        let Some(&to) = element_bounds.get(&rel.to) else {
-            continue;
-        };
-        let (x1, y1, x2, y2) =
-            compute_edge_anchors_for_direction(from, to, rel.direction.as_deref());
-        let edge_id = format!("rel{idx}");
-        let source_anchor = Anchor {
-            id: format!("{edge_id}::src"),
-            owner_id: rel.from.clone(),
-            position: Point::new(x1 as f64, y1 as f64),
-            port: None,
-        };
-        let target_anchor = Anchor {
-            id: format!("{edge_id}::tgt"),
-            owner_id: rel.to.clone(),
-            position: Point::new(x2 as f64, y2 as f64),
-            port: None,
-        };
-        scene.add_edge(SceneEdge {
-            id: edge_id,
-            from: rel.from.clone(),
-            to: rel.to.clone(),
-            route: Polyline::from_tuples(&[(x1 as f64, y1 as f64), (x2 as f64, y2 as f64)]),
-            route_channel_ids: Vec::new(),
-            source_anchor,
-            target_anchor,
-            labels: Vec::new(),
-        });
-    }
-
-    scene
+    out
 }
 
 struct ArchimateRelationStyle<'a> {
@@ -516,36 +425,173 @@ fn render_archimate_relation_marker_defs(out: &mut String, arrow_stroke: &str) {
     ));
 }
 
+/// Build a typed `RenderScene` that mirrors the geometry emitted by
+/// [`render_archimate_svg_inner`].
+///
+/// Nodes are keyed by element **name** (the same string used in
+/// `element_bounds.insert(elem.name.clone(), ...)`).  Alias → name resolution
+/// is applied so that edge `from`/`to` always refer to a real node id even
+/// when the relation was written using an alias.
+fn build_archimate_scene(document: &ArchimateDocument) -> RenderScene {
+    let width = 760;
+    let layers = [
+        "strategy",
+        "business",
+        "application",
+        "technology",
+        "motivation",
+        "junction",
+    ];
+    let lane_height = 80;
+    let populated_layer_count = layers
+        .iter()
+        .filter(|&&layer| document.elements.iter().any(|e| e.layer == layer))
+        .count()
+        .max(1);
+    let height = 80 + (populated_layer_count as i32) * lane_height;
+
+    let viewport = Rect::new(0.0, 0.0, width as f64, height as f64);
+    let mut scene = RenderScene::new(viewport);
+
+    // alias → element name resolution map
+    let mut alias_to_name: BTreeMap<String, String> = BTreeMap::new();
+    for elem in &document.elements {
+        if let Some(alias) = &elem.alias {
+            alias_to_name.insert(alias.clone(), elem.name.clone());
+        }
+    }
+
+    // geometry mirrors render_archimate_svg_inner exactly
+    let mut y = 44i32; // 28 + 16 as in the SVG emitter
+    let mut element_bounds: BTreeMap<String, (i32, i32, i32, i32)> = BTreeMap::new();
+
+    for layer in layers.iter() {
+        let layer_elements: Vec<_> = document
+            .elements
+            .iter()
+            .filter(|e| e.layer == *layer)
+            .collect();
+        if layer_elements.is_empty() {
+            continue;
+        }
+        let layer_y = y;
+
+        // Lane for this layer band
+        scene.add_lane(LaneFrame {
+            id: format!("lane:{layer}"),
+            bounds: Rect::new(24.0, layer_y as f64, 712.0, lane_height as f64),
+            header: Some(Rect::new(24.0, layer_y as f64, 712.0, 14.0)),
+            child_node_ids: layer_elements.iter().map(|e| e.name.clone()).collect(),
+            labels: vec![LabelBox {
+                id: format!("lane:{layer}:label"),
+                text: layer.to_string(),
+                bounds: Rect::new(32.0, (layer_y + 14) as f64, 80.0, 12.0),
+                owner_id: Some(format!("lane:{layer}")),
+                role: LabelRole::Lane,
+            }],
+        });
+
+        let mut x = 100i32;
+        for elem in layer_elements {
+            let elem_y = layer_y + 22;
+            let bounds = Rect::new(x as f64, elem_y as f64, 140.0, 40.0);
+            let label = LabelBox {
+                id: format!("{}:label", elem.name),
+                text: elem.name.clone(),
+                bounds: Rect::new((x + 8) as f64, (layer_y + 46) as f64, 100.0, 14.0),
+                owner_id: Some(elem.name.clone()),
+                role: LabelRole::Node,
+            };
+            scene.add_node(SceneNode {
+                id: elem.name.clone(),
+                node_box: NodeBox {
+                    id: elem.name.clone(),
+                    bounds,
+                    ports: vec![],
+                    labels: vec![label],
+                },
+            });
+            element_bounds.insert(elem.name.clone(), (x, elem_y, 140, 40));
+            if let Some(alias) = &elem.alias {
+                element_bounds.insert(alias.clone(), (x, elem_y, 140, 40));
+            }
+            x += 150;
+            if x + 140 > 736 {
+                break;
+            }
+        }
+        y += lane_height;
+    }
+
+    // Resolve alias or name to node id (element name).
+    let resolve_id = |id: &str| -> String {
+        alias_to_name
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| id.to_string())
+    };
+
+    for (rel_idx, rel) in document.relations.iter().enumerate() {
+        let Some(&from_rect) = element_bounds.get(&rel.from) else {
+            continue;
+        };
+        let Some(&to_rect) = element_bounds.get(&rel.to) else {
+            continue;
+        };
+        let (x1, y1, x2, y2) =
+            compute_edge_anchors_for_direction(from_rect, to_rect, rel.direction.as_deref());
+        let from_id = resolve_id(&rel.from);
+        let to_id = resolve_id(&rel.to);
+        let edge_id = format!("rel:{rel_idx}");
+        let src_pos = Point::new(x1 as f64, y1 as f64);
+        let tgt_pos = Point::new(x2 as f64, y2 as f64);
+        scene.add_edge(SceneEdge {
+            id: edge_id.clone(),
+            from: from_id.clone(),
+            to: to_id.clone(),
+            route: Polyline::from_tuples(&[(x1 as f64, y1 as f64), (x2 as f64, y2 as f64)]),
+            route_channel_ids: vec![],
+            source_anchor: Anchor {
+                id: format!("{edge_id}:source"),
+                owner_id: from_id,
+                position: src_pos,
+                port: None,
+            },
+            target_anchor: Anchor {
+                id: format!("{edge_id}:target"),
+                owner_id: to_id,
+                position: tgt_pos,
+                port: None,
+            },
+            labels: vec![],
+        });
+    }
+
+    scene
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::{ArchimateElement, ArchimateRelation};
 
-    fn make_doc() -> ArchimateDocument {
+    fn make_doc_with_alias_relation() -> ArchimateDocument {
         ArchimateDocument {
             title: Some("Test".to_string()),
             elements: vec![
+                ArchimateElement {
+                    name: "Order Service".to_string(),
+                    alias: Some("svc".to_string()),
+                    layer: "application".to_string(),
+                    kind: "component".to_string(),
+                    fill: None,
+                    stroke: None,
+                },
                 ArchimateElement {
                     name: "Customer".to_string(),
                     alias: Some("cust".to_string()),
                     layer: "business".to_string(),
                     kind: "actor".to_string(),
-                    fill: None,
-                    stroke: None,
-                },
-                ArchimateElement {
-                    name: "Order Service".to_string(),
-                    alias: Some("svc".to_string()),
-                    layer: "application".to_string(),
-                    kind: "service".to_string(),
-                    fill: None,
-                    stroke: None,
-                },
-                ArchimateElement {
-                    name: "Database".to_string(),
-                    alias: Some("db".to_string()),
-                    layer: "technology".to_string(),
-                    kind: "node".to_string(),
                     fill: None,
                     stroke: None,
                 },
@@ -558,58 +604,43 @@ mod tests {
                 direction: None,
                 style: None,
             }],
-            warnings: Vec::new(),
+            warnings: vec![],
         }
     }
 
     #[test]
-    fn archimate_artifact_scene_node_count_matches_element_count() {
-        let doc = make_doc();
-        let artifact = render_archimate_artifact(&doc);
-
-        // SVG must be present and non-empty.
-        assert!(
-            artifact.svg.contains("<svg"),
-            "artifact must contain SVG markup"
-        );
-
-        // The scene must have exactly as many nodes as there are unique elements
-        // in the document.  Aliases map to the same box so the canonical name is
-        // the one inserted; we therefore expect one node per element.
-        let scene = artifact
-            .typed_scene()
-            .expect("archimate artifact must carry a typed RenderScene");
-        assert_eq!(
-            scene.nodes.len(),
-            doc.elements.len(),
-            "scene node count must equal element count (got {} nodes for {} elements)",
-            scene.nodes.len(),
-            doc.elements.len()
-        );
-    }
-
-    #[test]
     fn archimate_artifact_scene_has_no_geometry_issues() {
-        let doc = make_doc();
+        let doc = make_doc_with_alias_relation();
         let artifact = render_archimate_artifact(&doc);
-        let scene = artifact
-            .typed_scene()
-            .expect("archimate artifact must carry a typed RenderScene");
+        let scene = artifact.scene.expect("archimate scene must be present");
+
+        // Two elements → two nodes keyed by display name
+        assert_eq!(scene.nodes.len(), 2, "expected 2 nodes");
+        assert!(
+            scene.nodes.contains_key("Order Service"),
+            "node 'Order Service' must be present"
+        );
+        assert!(
+            scene.nodes.contains_key("Customer"),
+            "node 'Customer' must be present"
+        );
+
+        // One relation → one edge
+        assert_eq!(scene.edges.len(), 1, "expected 1 edge");
+        let edge = scene.edges.values().next().unwrap();
+        assert_eq!(
+            edge.from, "Order Service",
+            "edge.from must resolve alias 'svc' → 'Order Service'"
+        );
+        assert_eq!(
+            edge.to, "Customer",
+            "edge.to must resolve alias 'cust' → 'Customer'"
+        );
+
         let issues = scene.validate_geometry();
         assert!(
             issues.is_empty(),
-            "scene geometry validation must pass, got issues: {issues:?}"
-        );
-    }
-
-    #[test]
-    fn archimate_artifact_svg_is_byte_identical_to_render_archimate_svg() {
-        let doc = make_doc();
-        let svg_direct = render_archimate_svg(&doc);
-        let artifact = render_archimate_artifact(&doc);
-        assert_eq!(
-            artifact.svg, svg_direct,
-            "render_archimate_svg must be byte-identical to render_archimate_artifact(...).svg"
+            "archimate scene must have no geometry issues: {issues:?}"
         );
     }
 }

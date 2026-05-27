@@ -454,11 +454,7 @@ mod tests {
         let artifact = render_board_artifact(&doc);
         let scene = artifact.scene.expect("scene should be present");
         let issues = scene.validate_geometry();
-        assert!(
-            issues.is_empty(),
-            "scene geometry issues: {:?}",
-            issues
-        );
+        assert!(issues.is_empty(), "scene geometry issues: {:?}", issues);
     }
 
     #[test]
@@ -486,10 +482,6 @@ mod tests {
         let artifact = render_files_artifact(&doc);
         let scene = artifact.scene.expect("scene should be present");
         let issues = scene.validate_geometry();
-        assert!(
-            issues.is_empty(),
-            "scene geometry issues: {:?}",
-            issues
-        );
+        assert!(issues.is_empty(), "scene geometry issues: {:?}", issues);
     }
 }

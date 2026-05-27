@@ -16,7 +16,10 @@ pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
 /// geometry contract is satisfied without duplicating the internal grid math.
 /// SVG output is byte-identical to the legacy `render_ditaa_svg` path.
 pub fn render_ditaa_artifact(document: &DitaaDocument) -> RenderArtifact {
-    let svg = match crate::specialized::render_ditaa_from_parts(&document.body, document.title.as_deref()) {
+    let svg = match crate::specialized::render_ditaa_from_parts(
+        &document.body,
+        document.title.as_deref(),
+    ) {
         Ok(svg) => svg,
         Err(_) => render_ditaa_fallback(document),
     };
@@ -155,10 +158,7 @@ mod tests {
 
     #[test]
     fn ditaa_artifact_scene_bounds_non_empty() {
-        let doc = make_document(
-            "+---+\n|   |\n+---+\n",
-            None,
-        );
+        let doc = make_document("+---+\n|   |\n+---+\n", None);
         let artifact = render_ditaa_artifact(&doc);
         assert!(artifact.scene.is_some(), "scene must be attached");
         let scene = artifact.scene.unwrap();
@@ -166,7 +166,10 @@ mod tests {
             !scene.nodes.is_empty(),
             "scene must contain at least one node"
         );
-        let node = scene.nodes.get("ditaa::canvas").expect("canvas node must exist");
+        let node = scene
+            .nodes
+            .get("ditaa::canvas")
+            .expect("canvas node must exist");
         assert!(
             node.node_box.bounds.size.width > 0.0,
             "canvas width must be positive"
@@ -179,10 +182,7 @@ mod tests {
 
     #[test]
     fn ditaa_artifact_scene_validate_geometry_clean() {
-        let doc = make_document(
-            "+------+\n|Box A |\n+------+\n",
-            Some("Test"),
-        );
+        let doc = make_document("+------+\n|Box A |\n+------+\n", Some("Test"));
         let artifact = render_ditaa_artifact(&doc);
         let scene = artifact.scene.expect("scene must be attached");
         let issues = scene.validate_geometry();
@@ -194,10 +194,7 @@ mod tests {
 
     #[test]
     fn ditaa_artifact_svg_byte_identical_to_render_ditaa_svg() {
-        let doc = make_document(
-            "+--+--+\n|A |B |\n+--+--+\n",
-            None,
-        );
+        let doc = make_document("+--+--+\n|A |B |\n+--+--+\n", None);
         let svg_direct = render_ditaa_svg(&doc);
         let artifact = render_ditaa_artifact(&doc);
         assert_eq!(

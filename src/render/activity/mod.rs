@@ -545,9 +545,7 @@ fn build_activity_scene(
         }
         // Walk back to find the real visible predecessor (same logic as nodes.rs)
         let mut prev_idx = i - 1;
-        while prev_idx > 0
-            && layout::is_activity_flow_neutral_node(doc, metas, prev_idx)
-        {
+        while prev_idx > 0 && layout::is_activity_flow_neutral_node(doc, metas, prev_idx) {
             prev_idx -= 1;
         }
         if matches!(
@@ -596,9 +594,7 @@ fn build_activity_scene(
             .nodes
             .iter()
             .zip(node_layouts.iter())
-            .position(|(_, layout)| {
-                layout.cx == route.x2 && layout.slot_y == route.y2
-            });
+            .position(|(_, layout)| layout.cx == route.x2 && layout.slot_y == route.y2);
         let to_node_id = to_idx
             .map(|i| format!("activity-node-{i}"))
             .unwrap_or_else(|| format!("activity-extra-dst-{k}"));
@@ -645,7 +641,12 @@ fn build_activity_scene(
             };
             let body_y = span_top + lane_header_h;
             let body_h = (span_bottom - body_y).max(24);
-            let header_rect = Rect::new(lx as f64, span_top as f64, lane_w as f64, lane_header_h as f64);
+            let header_rect = Rect::new(
+                lx as f64,
+                span_top as f64,
+                lane_w as f64,
+                lane_header_h as f64,
+            );
             let body_rect = Rect::new(lx as f64, body_y as f64, lane_w as f64, body_h as f64);
             let lane_bounds = header_rect.union(body_rect);
             let lane_id = format!("activity-lane-{idx}");
@@ -666,9 +667,18 @@ fn build_activity_scene(
         } else if lane_name != "default" {
             let body_y = header_h + lane_header_h;
             let body_h = height - header_h - lane_header_h - 20;
-            let header_rect =
-                Rect::new(lx as f64, header_h as f64, lane_w as f64, lane_header_h as f64);
-            let body_rect = Rect::new(lx as f64, body_y as f64, lane_w as f64, body_h.max(0) as f64);
+            let header_rect = Rect::new(
+                lx as f64,
+                header_h as f64,
+                lane_w as f64,
+                lane_header_h as f64,
+            );
+            let body_rect = Rect::new(
+                lx as f64,
+                body_y as f64,
+                lane_w as f64,
+                body_h.max(0) as f64,
+            );
             let lane_bounds = header_rect.union(body_rect);
             let lane_id = format!("activity-lane-{idx}");
             let label = LabelBox {

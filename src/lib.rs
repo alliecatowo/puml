@@ -39,8 +39,7 @@ pub use api::{
     render_source_to_artifacts_for_family, render_source_to_svg, render_source_to_svg_for_family,
     render_source_to_svgs, render_source_to_svgs_for_family, render_source_to_text,
     render_source_to_texts, render_svg_pages_from_model, CompatMode, DiagramFamily, DiagramInput,
-    FrontendSelection, ParsePipelineOptions, ParsePipelineResult,
-    PreprocessPipelineResult,
+    FrontendSelection, ParsePipelineOptions, ParsePipelineResult, PreprocessPipelineResult,
 };
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticCategory, DiagnosticJson};
