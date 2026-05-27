@@ -72,15 +72,17 @@ fn bbox_blocks_vert(bbox: &NodeBbox, x: i32, y_min: i32, y_max: i32) -> bool {
 /// Check if any node bbox blocks a vertical segment at `x` between `y1` and
 /// `y2`, excluding bboxes that the arrow STARTS from (i.e., y1 is inside the
 /// bbox — that is the legitimate exit point of the source node).
+///
+/// After choosing `side_x`, the function iteratively checks that the vertical
+/// at `side_x` is itself free of obstacles (secondary collisions), pushing
+/// further right until a clear lane is found.
 fn choose_vert_bypass_x(x: i32, y1: i32, y2: i32, bboxes: &[NodeBbox]) -> Option<i32> {
     let y_lo = y1.min(y2);
     let y_hi = y1.max(y2);
-    let blocking: Vec<&NodeBbox> = bboxes
+
+    let real_obstacles: Vec<&NodeBbox> = bboxes
         .iter()
         .filter(|b| {
-            if !bbox_blocks_vert(b, x, y_lo, y_hi) {
-                return false;
-            }
             // Exclude the source node: if y1 is inside this bbox, the arrow
             // legitimately exits from it — not an obstacle.
             let y_start_inside = y1 >= b.top && y1 <= b.bottom;
@@ -90,11 +92,31 @@ fn choose_vert_bypass_x(x: i32, y1: i32, y2: i32, bboxes: &[NodeBbox]) -> Option
             !y_start_inside && !y_end_inside
         })
         .collect();
-    if blocking.is_empty() {
+
+    let blocking_at = |check_x: i32| -> Vec<&NodeBbox> {
+        real_obstacles
+            .iter()
+            .copied()
+            .filter(|b| bbox_blocks_vert(b, check_x, y_lo, y_hi))
+            .collect()
+    };
+
+    // Check if the original x is blocked.
+    let initial_blocking = blocking_at(x);
+    if initial_blocking.is_empty() {
         return None;
     }
-    // Route to the right of all blocking bboxes.
-    let side_x = blocking.iter().map(|b| b.right).max().unwrap() + 12;
+
+    // Iteratively push the bypass x to the right until no secondary collisions.
+    // Cap at 8 iterations to guarantee termination on degenerate inputs.
+    let mut side_x = initial_blocking.iter().map(|b| b.right).max().unwrap() + 12;
+    for _ in 0..8 {
+        let secondary = blocking_at(side_x);
+        if secondary.is_empty() {
+            break;
+        }
+        side_x = secondary.iter().map(|b| b.right).max().unwrap() + 12;
+    }
     Some(side_x)
 }
 

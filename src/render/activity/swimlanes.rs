@@ -6,14 +6,21 @@ use crate::theme::ActivityStyle;
 /// When `sequential_partition_lanes` is true the lane boxes are drawn only over
 /// the span of nodes that belong to that lane (for sequential partition style).
 /// Otherwise the boxes stretch the full diagram height.
+///
+/// `min_node_cx` holds the leftmost actual node cx for each lane (when
+/// `sequential_partition_lanes` is true).  When fork branches place a lane's
+/// nodes in an adjacent column, the lane background is extended leftward to
+/// include those nodes so the frame visually contains its children.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_lanes(
     out: &mut String,
     lanes: &[String],
     lane_spans: &[Option<(i32, i32)>],
+    min_node_cx: &[Option<i32>],
     sequential_partition_lanes: bool,
     lane_area_x: i32,
     lane_w: i32,
+    box_w: i32,
     stacked_partition_blocks: bool,
     header_h: i32,
     lane_header_h: i32,
@@ -46,19 +53,31 @@ pub(super) fn emit_lanes(
             let Some((span_top, span_bottom)) = lane_spans[idx] else {
                 continue;
             };
+            // Extend the lane background leftward when fork branches have placed
+            // this lane's nodes in an adjacent (left) column.  The extension
+            // uses the leftmost observed node cx minus half the box width and a
+            // small margin, capped at the diagram left edge.
+            let node_half_w = box_w / 2;
+            let effective_lx = if let Some(min_cx) = min_node_cx.get(idx).copied().flatten() {
+                let node_left = min_cx - node_half_w - 16; // 16px margin
+                lx.min(node_left).max(0)
+            } else {
+                lx
+            };
+            let effective_w = (lx + lane_w) - effective_lx;
             let body_y = span_top + lane_header_h;
             let body_h = (span_bottom - body_y).max(24);
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-                lx, body_y, lane_w, body_h, bg
+                effective_lx, body_y, effective_w, body_h, bg
             ));
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
-                lx, span_top, lane_w, lane_header_h, header_fill
+                effective_lx, span_top, effective_w, lane_header_h, header_fill
             ));
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
-                lx + lane_w / 2,
+                effective_lx + effective_w / 2,
                 span_top + lane_header_h / 2 + 4,
                 escape_text(&act_style.font_color),
                 escape_text(lane)
@@ -97,7 +116,14 @@ pub(super) fn emit_lanes(
     }
 }
 
-/// Compute sequential lane spans (the y-range each lane actually occupies).
+/// Per-lane y-span: `(span_top, span_bottom)`.
+type LaneSpan = Option<(i32, i32)>;
+
+/// Compute sequential lane spans (the y-range each lane actually occupies),
+/// plus the minimum actual node cx observed for each lane.
+///
+/// The min-cx value is used by `emit_lanes` to extend a lane's background
+/// leftward when fork branches place that lane's nodes in an adjacent column.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute_lane_spans(
     doc: &crate::model::FamilyDocument,
@@ -108,9 +134,11 @@ pub(super) fn compute_lane_spans(
     lane_header_h: i32,
     header_h: i32,
     height: i32,
-) -> Vec<Option<(i32, i32)>> {
+) -> (Vec<LaneSpan>, Vec<Option<i32>>) {
     use crate::model::FamilyNodeKind;
-    let mut lane_spans: Vec<Option<(i32, i32)>> = vec![None; lanes.len()];
+    let mut lane_spans: Vec<LaneSpan> = vec![None; lanes.len()];
+    // min_node_cx[i] = minimum cx seen for lane i (None if no node yet)
+    let mut min_node_cx: Vec<Option<i32>> = vec![None; lanes.len()];
 
     for ((node, meta), layout) in doc.nodes.iter().zip(metas.iter()).zip(node_layouts.iter()) {
         let is_invisible_merge = matches!(node.kind, FamilyNodeKind::ActivityMerge)
@@ -134,7 +162,14 @@ pub(super) fn compute_lane_spans(
             }
             None => lane_spans[lane_idx] = Some((span_top, span_bottom)),
         }
+        // Track the leftmost node cx for this lane so we can extend the lane
+        // background leftward when nodes are in an adjacent fork column.
+        let cx = layout.cx;
+        match &mut min_node_cx[lane_idx] {
+            Some(prev) => *prev = (*prev).min(cx),
+            None => min_node_cx[lane_idx] = Some(cx),
+        }
     }
 
-    lane_spans
+    (lane_spans, min_node_cx)
 }

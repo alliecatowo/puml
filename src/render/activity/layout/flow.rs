@@ -61,14 +61,16 @@ pub(in crate::render::activity) fn compute_layout(
         fork_col_w,
         lane_w,
         lane_center_x,
+        min_fork_col_w,
     } = params;
-    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w) = (
+    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w, min_fork_col_w) = (
         *header_h,
         *lane_header_h,
         *step_h,
         *branch_x_offset,
         *fork_col_w,
         *lane_w,
+        *min_fork_col_w,
     );
     const ARROW_OUT: i32 = ACTIVITY_ARROW_OUT_OFFSET;
 
@@ -332,7 +334,11 @@ pub(in crate::render::activity) fn compute_layout(
                     next_slot_y,
                 });
 
-                let effective_col_w = (lane_w / n_branches as i32).max(120).min(fork_col_w);
+                // effective_col_w: wide enough that node boxes never overlap,
+                // but no wider than fork_col_w (the pre-allocated column budget).
+                let effective_col_w = (lane_w / n_branches as i32)
+                    .max(min_fork_col_w)
+                    .min(fork_col_w.max(min_fork_col_w));
                 let live_branch_indices = frame
                     .branches
                     .iter()
@@ -488,8 +494,18 @@ pub(in crate::render::activity) fn compute_layout(
                     let slot_y = current_slot_y;
                     let reserves_partition_space = has_partition_blocks
                         && (meta.step_kind == "PartitionStart" || meta.step_kind == "PartitionEnd");
+                    // PartitionStart adds `lane_header_h` for the visible header band
+                    // PLUS an extra 8 px so that the incoming arrow from the previous
+                    // section clears the header before reaching the first node.
+                    const PARTITION_ENTRY_CLEARANCE: i32 = 8;
                     let next_slot_y = if reserves_partition_space {
-                        slot_y + lane_header_h
+                        slot_y
+                            + lane_header_h
+                            + if meta.step_kind == "PartitionStart" {
+                                PARTITION_ENTRY_CLEARANCE
+                            } else {
+                                0
+                            }
                     } else {
                         slot_y
                     };
