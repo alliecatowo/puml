@@ -458,7 +458,12 @@ A --> B
 }
 
 #[test]
-fn unmigrated_common_command_svg_bridge_is_explicit() {
+fn activity_mainframe_uses_svg_compatibility_bridge_with_typed_scene() {
+    // Activity has a typed RenderScene (migrated) but mainframe is still applied
+    // via the SVG compatibility bridge in render_family_document_artifact because
+    // the activity renderer itself does not emit mainframe SVG.  The validation
+    // state is TypedScene (scene present) while the common-command path is still
+    // SvgCompatibilityBridge — these two properties are independent.
     let source = r#"
 @startuml
 mainframe Workflow
@@ -478,13 +483,13 @@ stop
     assert_eq!(
         artifact.common_command_path(puml::CommonCommandKind::Mainframe),
         Some(puml::CommonCommandPath::SvgCompatibilityBridge),
-        "unmigrated renderers should expose the temporary SVG bridge"
+        "activity mainframe is still applied via the SVG bridge (renderer does not emit it)"
     );
     assert!(artifact.svg.contains("class=\"uml-mainframe\""));
     assert_eq!(
         artifact.validation_state(),
-        RenderValidationState::SvgBackstop,
-        "unmigrated common-command rendering still relies on the SVG backstop"
+        RenderValidationState::TypedScene,
+        "activity now emits a typed RenderScene; validation state reflects the scene presence"
     );
 }
 

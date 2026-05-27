@@ -13,7 +13,7 @@ mod style;
 mod tree;
 mod wbs;
 
-pub use wbs::render_wbs_svg;
+pub use wbs::{render_wbs_artifact, render_wbs_svg};
 
 use labels::{multiline_char_width, prepare_mindmap_label, render_mindmap_node_label};
 use nodes::{draw_mindmap_subtree, mindmap_empty_svg};

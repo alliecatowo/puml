@@ -126,89 +126,56 @@ pub fn render_artifact_pages_from_model(model: &NormalizedDocument) -> Vec<Rende
         NormalizedDocument::FamilyPages(pages) => {
             pages.iter().map(render_family_document_artifact).collect()
         }
-        NormalizedDocument::Timeline(timeline) => vec![artifact_with_diagnostics(
-            render::render_timeline_svg(timeline),
-            &timeline.warnings,
-        )],
-        NormalizedDocument::State(state) => vec![artifact_with_diagnostics(
-            render::render_state_svg(state),
-            &state.warnings,
-        )],
+        NormalizedDocument::Timeline(timeline) => {
+            vec![render::render_timeline_artifact(timeline)
+                .with_diagnostics(timeline.warnings.clone())]
+        }
+        NormalizedDocument::State(state) => {
+            vec![render::render_state_artifact(state).with_diagnostics(state.warnings.clone())]
+        }
         NormalizedDocument::Json(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_json_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_json_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Yaml(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_yaml_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_yaml_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Nwdiag(doc) => {
             vec![render::render_nwdiag_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
-        NormalizedDocument::Archimate(doc) => vec![artifact_with_diagnostics(
-            render::render_archimate_svg(doc),
-            &doc.warnings,
-        )],
+        NormalizedDocument::Archimate(doc) => {
+            vec![render::render_archimate_artifact(doc).with_diagnostics(doc.warnings.clone())]
+        }
         NormalizedDocument::Regex(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_regex_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_regex_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Ebnf(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_ebnf_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_ebnf_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Math(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_math_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_math_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Sdl(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_sdl_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_sdl_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Ditaa(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_ditaa_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_ditaa_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Chart(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_chart_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_chart_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
-        NormalizedDocument::Stdlib(doc) => vec![artifact_with_diagnostics(
-            render::render_stdlib_svg(doc),
-            &doc.warnings,
-        )],
+        NormalizedDocument::Stdlib(doc) => {
+            vec![render::render_stdlib_artifact(doc).with_diagnostics(doc.warnings.clone())]
+        }
         NormalizedDocument::Chen(doc) => {
             // Chen emits a typed RenderScene built from its actual drawn geometry.
             // SVG output is unchanged; the scene is attached for the typed path.
             vec![render::render_chen_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Board(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_board_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_board_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Files(doc) => {
-            vec![artifact_with_diagnostics(
-                render::render_files_svg(doc),
-                &doc.warnings,
-            )]
+            vec![render::render_files_artifact(doc).with_diagnostics(doc.warnings.clone())]
         }
         NormalizedDocument::Wire(doc) => {
             vec![render::render_wire_artifact(doc).with_diagnostics(doc.warnings.clone())]
@@ -221,10 +188,6 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         .into_iter()
         .map(|artifact| artifact.svg)
         .collect()
-}
-
-fn artifact_with_diagnostics(svg: String, diagnostics: &[Diagnostic]) -> RenderArtifact {
-    RenderArtifact::svg_only(svg).with_diagnostics(diagnostics.to_vec())
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {
@@ -240,23 +203,13 @@ pub fn render_family_document_artifact(family: &FamilyDocument) -> RenderArtifac
             .map(|spec| spec.render_kind)
             .unwrap_or(registry::FamilyRenderKind::Unsupported);
         let mut artifact = match render_kind {
-            registry::FamilyRenderKind::Salt => {
-                RenderArtifact::svg_only(render::render_salt_svg(family))
-            }
+            registry::FamilyRenderKind::Salt => render::render_salt_artifact(family),
             registry::FamilyRenderKind::Component => render::render_component_artifact(family),
             registry::FamilyRenderKind::Deployment => render::render_deployment_artifact(family),
-            registry::FamilyRenderKind::Activity => {
-                RenderArtifact::svg_only(render::render_activity_svg(family))
-            }
-            registry::FamilyRenderKind::Timing => {
-                RenderArtifact::svg_only(render::render_timing_svg(family))
-            }
-            registry::FamilyRenderKind::MindMap => {
-                RenderArtifact::svg_only(render::render_mindmap_svg(family))
-            }
-            registry::FamilyRenderKind::Wbs => {
-                RenderArtifact::svg_only(render::render_wbs_svg(family))
-            }
+            registry::FamilyRenderKind::Activity => render::render_activity_artifact(family),
+            registry::FamilyRenderKind::Timing => render::render_timing_artifact(family),
+            registry::FamilyRenderKind::MindMap => render::render_mindmap_artifact(family),
+            registry::FamilyRenderKind::Wbs => render::render_wbs_artifact(family),
             _ => render::render_family_stub_artifact(family),
         };
         require_migrated_family_scene_contract(&mut artifact, render_kind);
