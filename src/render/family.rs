@@ -17,6 +17,7 @@ mod group_frames;
 mod node_shapes;
 mod projections;
 mod tree;
+mod tree_scene;
 
 pub use self::box_grid::{
     render_component_artifact, render_component_svg, render_deployment_artifact,

@@ -1,6 +1,7 @@
 use super::*;
 
 mod archimate;
+mod archimate_scene;
 mod chart;
 mod ditaa;
 mod ebnf;
@@ -8,6 +9,7 @@ mod math;
 mod nwdiag;
 mod regex;
 mod sdl;
+mod sdl_scene;
 
 pub use archimate::{render_archimate_artifact, render_archimate_svg};
 pub use chart::{render_chart_artifact, render_chart_svg};

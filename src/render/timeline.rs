@@ -6,6 +6,7 @@ mod chronology;
 mod dates;
 mod details;
 mod gantt;
+mod gantt_scene;
 mod rows;
 mod scale;
 mod util;

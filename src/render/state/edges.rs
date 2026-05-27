@@ -80,7 +80,7 @@ pub(super) fn state_orthogonal_label_segment(
     }
 }
 
-pub(super) fn state_upward_elbow_x(x1: i32, x2: i32) -> i32 {
+pub(crate) fn state_upward_elbow_x(x1: i32, x2: i32) -> i32 {
     let dx = x2 - x1;
     if dx.abs() <= 24 {
         x1 + dx / 2

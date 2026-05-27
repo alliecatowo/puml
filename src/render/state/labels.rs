@@ -248,7 +248,7 @@ pub(super) fn render_state_transition_label(
     out.push_str("</text>");
 }
 
-pub(super) fn edge_anchors_for_kinds(
+pub(crate) fn edge_anchors_for_kinds(
     from_kind: Option<&StateNodeKind>,
     from: &PlacedNode,
     to_kind: Option<&StateNodeKind>,

@@ -17,7 +17,7 @@ pub(super) fn resource_lane_label(task: &TimelineTask) -> String {
     }
 }
 
-pub(super) fn gantt_task_key(task: &TimelineTask) -> String {
+pub(in crate::render::timeline) fn gantt_task_key(task: &TimelineTask) -> String {
     task.alias.clone().unwrap_or_else(|| task.name.clone())
 }
 

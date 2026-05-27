@@ -229,7 +229,7 @@ pub(super) fn render_node(
     }
 }
 
-pub(super) fn activity_note_card_height(label: &str) -> i32 {
+pub(in crate::render::activity) fn activity_note_card_height(label: &str) -> i32 {
     let line_count = label.lines().count().max(1) as i32;
     (28 + line_count * 15).max(44)
 }
