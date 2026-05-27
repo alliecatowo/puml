@@ -42,7 +42,6 @@ fn pragma_directives_with_arguments_are_preserved_as_statements() {
     assert!(matches!(doc.statements[3].kind, StatementKind::Message(_)));
 }
 
-
 #[test]
 fn conditional_if_elseif_else_selects_first_matching_branch() {
     let doc = parse_with_options(
@@ -245,8 +244,8 @@ fn preprocessor_unclosed_function_is_rejected() {
 
 #[test]
 fn unknown_preprocessor_directive_errors_deterministically() {
-    let err = parse_with_options("!totallynew thing\nA -> B\n", &ParseOptions::default())
-        .unwrap_err();
+    let err =
+        parse_with_options("!totallynew thing\nA -> B\n", &ParseOptions::default()).unwrap_err();
     assert!(err.message.contains("E_PREPROC_UNSUPPORTED"));
     assert!(err.message.contains("!totallynew"));
 }

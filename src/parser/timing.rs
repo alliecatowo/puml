@@ -1,4 +1,5 @@
-fn parse_timing_decl(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_timing_decl(line: &str) -> Option<StatementKind> {
     let mut trimmed = line.trim();
     let mut compact = false;
     if let Some(rest) = trimmed.strip_prefix("compact ") {
@@ -54,7 +55,7 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn parse_timing_analog_decl(rest: &str, compact: bool) -> Option<StatementKind> {
+pub(crate) fn parse_timing_analog_decl(rest: &str, compact: bool) -> Option<StatementKind> {
     let (label, remainder) = if rest.starts_with('"') {
         let stripped = rest.strip_prefix('"')?;
         let end = stripped.find('"')?;
@@ -108,7 +109,7 @@ fn parse_timing_analog_decl(rest: &str, compact: bool) -> Option<StatementKind> 
     })
 }
 
-fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
+pub(crate) fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
     let trimmed = input.trim();
     let lower = trimmed.to_ascii_lowercase();
     if let Some(idx) = lower.find(" with ") {
@@ -124,7 +125,7 @@ fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
     (trimmed.to_string(), Vec::new())
 }
 
-fn parse_timing_event(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_timing_event(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     match trimmed.to_ascii_lowercase().as_str() {
         "mode compact" => {
@@ -153,7 +154,10 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
         }
         _ => {}
     }
-    if let Some(body) = trimmed.strip_prefix("scale ").filter(|body| body.contains(" as ")) {
+    if let Some(body) = trimmed
+        .strip_prefix("scale ")
+        .filter(|body| body.contains(" as "))
+    {
         return Some(StatementKind::TimingEvent {
             time: String::new(),
             signal: None,
@@ -251,7 +255,7 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn parse_timing_anchor(after_time: &str) -> Option<String> {
+pub(crate) fn parse_timing_anchor(after_time: &str) -> Option<String> {
     let anchor = after_time.trim().strip_prefix("as ")?.trim();
     let anchor = anchor.strip_prefix(':').unwrap_or(anchor).trim();
     if anchor.is_empty() {
@@ -261,17 +265,12 @@ fn parse_timing_anchor(after_time: &str) -> Option<String> {
     }
 }
 
-fn parse_timing_relation(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_timing_relation(line: &str) -> Option<StatementKind> {
     for arrow in ["<->", "-->", "<--", "->", "<-"] {
         if let Some((from, to_and_label)) = line.trim().split_once(arrow) {
             let (to, label) = to_and_label
                 .rsplit_once(" : ")
-                .map(|(to, label)| {
-                    (
-                        to.trim(),
-                        Some(label.trim().trim_matches('"').to_string()),
-                    )
-                })
+                .map(|(to, label)| (to.trim(), Some(label.trim().trim_matches('"').to_string())))
                 .unwrap_or((to_and_label.trim(), None));
             let from = from.trim();
             let to = to.trim();
@@ -301,7 +300,7 @@ fn parse_timing_relation(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
+pub(crate) fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
     let (time, state) = split_is(line)?;
     if time.trim().is_empty()
         || !time
@@ -315,7 +314,7 @@ fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
     Some((time.trim().to_string(), state.trim().to_string()))
 }
 
-fn normalize_timing_state_literal(state: &str) -> String {
+pub(crate) fn normalize_timing_state_literal(state: &str) -> String {
     let trimmed = state.trim();
     // §10.29: strip trailing `: comment` annotation (outside of braces/quotes).
     // The annotation is freeform text after the first bare colon that follows the
@@ -342,7 +341,7 @@ fn normalize_timing_state_literal(state: &str) -> String {
 /// Strip a trailing `: annotation` from a state literal (§10.29).
 /// Only strips the colon-separated suffix when it appears outside braces and quotes
 /// and is not part of a colour spec (`#color;line:...`).
-fn strip_timing_state_annotation(state: &str) -> &str {
+pub(crate) fn strip_timing_state_annotation(state: &str) -> &str {
     let mut depth = 0usize;
     let mut in_quote = false;
     let mut in_color = false;
@@ -361,7 +360,7 @@ fn strip_timing_state_annotation(state: &str) -> &str {
     state
 }
 
-fn split_timing_state_style(state: &str) -> (&str, Option<String>) {
+pub(crate) fn split_timing_state_style(state: &str) -> (&str, Option<String>) {
     let mut in_quote = false;
     for (idx, ch) in state.char_indices() {
         if ch == '"' {
@@ -369,13 +368,16 @@ fn split_timing_state_style(state: &str) -> (&str, Option<String>) {
             continue;
         }
         if !in_quote && ch == '#' && idx > 0 && state[..idx].ends_with(char::is_whitespace) {
-            return (state[..idx].trim_end(), Some(state[idx..].trim().to_string()));
+            return (
+                state[..idx].trim_end(),
+                Some(state[idx..].trim().to_string()),
+            );
         }
     }
     (state, None)
 }
 
-fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
+pub(crate) fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
     let rest = after.trim().strip_prefix("<->")?.trim();
     let rest = rest.strip_prefix('@').unwrap_or(rest).trim();
     let (end, label) = rest
@@ -388,7 +390,7 @@ fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
     Some((end.to_string(), label.trim_matches('"').to_string()))
 }
 
-fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
+pub(crate) fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
     let rest = line.strip_prefix("highlight ")?.trim();
     let lower = rest.to_ascii_lowercase();
     let idx = lower.find(" to ")?;
@@ -400,10 +402,7 @@ fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
     let (end_part, label) = split_highlight_end_label(after);
     // Extract optional colour from end_part: `450 #Gold;line:DimGrey` → end="450", color="#Gold;line:DimGrey"
     let mut end_tokens = end_part.split_whitespace();
-    let end = end_tokens
-        .next()
-        .unwrap_or("")
-        .trim_start_matches('@');
+    let end = end_tokens.next().unwrap_or("").trim_start_matches('@');
     let color_spec = end_tokens.next().filter(|s| s.starts_with('#'));
     if start.is_empty() || end.is_empty() {
         return None;
@@ -424,7 +423,7 @@ fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
 
 /// Split `highlight … to <end_part> : label` by finding the separator colon that is
 /// NOT part of a `line:Color` or `line.style` colour spec. Returns (end_part, label).
-fn split_highlight_end_label(after: &str) -> (&str, &str) {
+pub(crate) fn split_highlight_end_label(after: &str) -> (&str, &str) {
     // Find a ` : ` separator — but only when the colon is outside a colour spec.
     // A colour spec starts with `#` and continues until whitespace or end.
     // Simple approach: locate ` : ` or `: ` that appears after any colour tokens.
@@ -449,7 +448,7 @@ fn split_highlight_end_label(after: &str) -> (&str, &str) {
     (after, "")
 }
 
-fn split_is(s: &str) -> Option<(String, String)> {
+pub(crate) fn split_is(s: &str) -> Option<(String, String)> {
     let needle = " is ";
     let idx = s.find(needle)?;
     let lhs = s[..idx].trim();
@@ -462,7 +461,7 @@ fn split_is(s: &str) -> Option<(String, String)> {
 
 /// §10.27: parse `<signal> has <val1>,<val2>,...` and optionally `<val> as <alias>`.
 /// Returns a TimingEvent with note `__timing:order:<signal>:<val1>,<val2>,...`.
-fn parse_timing_has(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_timing_has(line: &str) -> Option<StatementKind> {
     let (signal, rest) = line.split_once(" has ")?;
     let signal = signal.trim();
     let rest = rest.trim();

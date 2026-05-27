@@ -141,6 +141,67 @@ pub(super) enum RawSyntaxContext {
     Family(DiagramKind),
 }
 
+/// Returns a non-fatal feature-loss WARNING for `Unsupported` and `LegacyUnknown`
+/// raw syntax categories. The caller should push this onto the normalizer's
+/// `warnings` vec and skip (continue) the current statement rather than returning
+/// `Err`. This enables PlantUML-style graceful degradation: the valid remainder
+/// of the diagram still renders.
+///
+/// Do NOT use this for `Deferred` or `BenignPassthrough` — those are parser-bug
+/// signals that must remain hard errors.
+pub(super) fn raw_syntax_feature_loss_warning(
+    raw: RawSyntax<'_>,
+    span: crate::source::Span,
+    context: RawSyntaxContext,
+) -> Diagnostic {
+    // If the line already carries a diagnostic code (e.g. E_GANTT_UNSUPPORTED),
+    // preserve it verbatim but downgrade to a warning.
+    if matches!(
+        raw.category,
+        RawSyntaxCategory::Unsupported | RawSyntaxCategory::Malformed
+    ) && diagnostic_code(raw.line).is_some()
+    {
+        return Diagnostic::warning(raw.line).with_span(span);
+    }
+
+    let diagnostic = match raw.category {
+        RawSyntaxCategory::LegacyUnknown => Diagnostic::warning(format!(
+            "[W_PARSE_UNKNOWN] unsupported syntax: `{}`",
+            raw.line
+        )),
+        RawSyntaxCategory::Unsupported => match context {
+            RawSyntaxContext::Sequence => Diagnostic::warning(format!(
+                "[W_SEQUENCE_UNSUPPORTED_SYNTAX] unsupported sequence diagram syntax: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::State => Diagnostic::warning(format!(
+                "[W_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
+                raw.line
+            )),
+            RawSyntaxContext::Timeline(kind) => Diagnostic::warning(format!(
+                "[W_TIMELINE_UNSUPPORTED_SYNTAX] unsupported {} syntax: `{}`",
+                family_kind_name(kind),
+                raw.line
+            )),
+            RawSyntaxContext::Family(kind) => Diagnostic::warning(format!(
+                "[W_FAMILY_{}_UNSUPPORTED_SYNTAX] unsupported {} syntax: `{}`",
+                family_kind_name(kind).to_uppercase(),
+                family_kind_name(kind),
+                raw.line
+            )),
+        },
+        // Deferred and BenignPassthrough are NOT downgraded — they signal parser
+        // bugs and must remain hard errors. Provide a fallback that mirrors what
+        // raw_syntax_diagnostic would emit (should never be reached for these
+        // categories via this function, but guard anyway).
+        _ => Diagnostic::warning(format!(
+            "[W_PARSE_FEATURE_LOSS] skipped unsupported syntax: `{}`",
+            raw.line
+        )),
+    };
+    diagnostic.with_span(span)
+}
+
 pub(super) fn raw_syntax_diagnostic(
     raw: RawSyntax<'_>,
     span: crate::source::Span,

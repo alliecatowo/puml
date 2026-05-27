@@ -1,4 +1,8 @@
-fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Vec<StatementKind>> {
+use super::*;
+pub(crate) fn parse_family_relation(
+    line: &str,
+    family: Option<DiagramKind>,
+) -> Option<Vec<StatementKind>> {
     // When family is still unknown, only C4 legacy relation macros are accepted.
     // This supports valid C4 inputs where relations appear before declarations.
     if family.is_none() {
@@ -81,7 +85,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Vec<
     })])
 }
 
-fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     let after_open = trimmed.strip_prefix('(')?;
     let close = after_open.find(')')?;
@@ -108,7 +112,7 @@ fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
     })
 }
 
-fn association_class_family_relations(
+pub(crate) fn association_class_family_relations(
     left: String,
     right: String,
     association: String,
@@ -172,7 +176,7 @@ fn association_class_family_relations(
     ]
 }
 
-fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
+pub(crate) fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
     let trimmed = side.trim();
     if let Some(rest) = trimmed.strip_prefix("()") {
         return (rest.trim_start().to_string(), true);
@@ -183,7 +187,9 @@ fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
     (trimmed.to_string(), false)
 }
 
-fn split_relation_label_stereotype(label: Option<String>) -> (Option<String>, Option<String>) {
+pub(crate) fn split_relation_label_stereotype(
+    label: Option<String>,
+) -> (Option<String>, Option<String>) {
     let Some(label) = label else {
         return (None, None);
     };
@@ -198,7 +204,7 @@ fn split_relation_label_stereotype(label: Option<String>) -> (Option<String>, Op
     (Some(label), None)
 }
 
-fn split_relation_trailing_stereotype(side: &str) -> (&str, Option<String>) {
+pub(crate) fn split_relation_trailing_stereotype(side: &str) -> (&str, Option<String>) {
     let trimmed = side.trim();
     let Some(open) = trimmed.rfind("<<") else {
         return (side, None);
@@ -216,7 +222,7 @@ fn split_relation_trailing_stereotype(side: &str) -> (&str, Option<String>) {
     (side, None)
 }
 
-fn parse_leading_stereotype(s: &str) -> Option<(String, &str)> {
+pub(crate) fn parse_leading_stereotype(s: &str) -> Option<(String, &str)> {
     let rest = s.trim_start().strip_prefix("<<")?;
     let close = rest.find(">>")?;
     let value = rest[..close].trim();
@@ -226,7 +232,10 @@ fn parse_leading_stereotype(s: &str) -> Option<(String, &str)> {
     Some((value.to_string(), &rest[close + 2..]))
 }
 
-fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+pub(crate) fn parse_family_member_row(
+    line: &str,
+    family: Option<DiagramKind>,
+) -> Option<StatementKind> {
     let family = match family {
         Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase) => family?,
         _ => return None,
@@ -264,7 +273,7 @@ fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<St
     })
 }
 
-fn parse_family_visibility_control(
+pub(crate) fn parse_family_visibility_control(
     line: &str,
     family: Option<DiagramKind>,
 ) -> Option<StatementKind> {
@@ -287,9 +296,7 @@ fn parse_family_visibility_control(
         }
     }
     if lower == "hide empty description" && matches!(family, None | Some(DiagramKind::State)) {
-        return Some(StatementKind::HideOption(
-            "empty description".to_string(),
-        ));
+        return Some(StatementKind::HideOption("empty description".to_string()));
     }
     if family.is_none() {
         for keyword in ["hide", "remove", "restore"] {
@@ -349,7 +356,7 @@ fn parse_family_visibility_control(
     None
 }
 
-fn parse_relation_side_annotations(
+pub(crate) fn parse_relation_side_annotations(
     side: &str,
     is_left: bool,
 ) -> (String, Option<String>, Option<String>) {

@@ -14,7 +14,7 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
     let mut inheritances = Vec::new();
     let mut common = CommonDirectives::default();
     let mut orientation = FamilyOrientation::TopToBottom;
-    let warnings = Vec::new();
+    let mut warnings: Vec<crate::diagnostic::Diagnostic> = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -78,11 +78,24 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
                         continue;
                     }
                 }
-                return Err(common::raw_syntax_diagnostic(
-                    raw,
-                    stmt.span,
-                    RawSyntaxContext::Family(DiagramKind::Chen),
-                ));
+                match raw.category {
+                    RawSyntaxCategory::Unsupported | RawSyntaxCategory::LegacyUnknown => {
+                        // Graceful degradation: skip the unsupported line and emit a
+                        // non-fatal feature-loss warning so the valid remainder renders.
+                        warnings.push(common::raw_syntax_feature_loss_warning(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(DiagramKind::Chen),
+                        ));
+                    }
+                    _ => {
+                        return Err(common::raw_syntax_diagnostic(
+                            raw,
+                            stmt.span,
+                            RawSyntaxContext::Family(DiagramKind::Chen),
+                        ));
+                    }
+                }
             }
             _ => {
                 return Err(Diagnostic::error(

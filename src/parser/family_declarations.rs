@@ -1,23 +1,24 @@
+use super::*;
 #[derive(Debug, Clone)]
-struct FamilyDeclParts {
-    name: String,
-    alias: Option<String>,
-    has_block: bool,
-    stereotypes: Vec<String>,
-    tags: Vec<String>,
-    fill_color: Option<String>,
-    style_members: Vec<String>,
-    business: bool,
-    heritage: Vec<FamilyHeritage>,
+pub(crate) struct FamilyDeclParts {
+    pub(crate) name: String,
+    pub(crate) alias: Option<String>,
+    pub(crate) has_block: bool,
+    pub(crate) stereotypes: Vec<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) fill_color: Option<String>,
+    pub(crate) style_members: Vec<String>,
+    pub(crate) business: bool,
+    pub(crate) heritage: Vec<FamilyHeritage>,
 }
 
 #[derive(Debug, Clone)]
-struct FamilyHeritage {
-    arrow: String,
-    target: String,
+pub(crate) struct FamilyHeritage {
+    pub(crate) arrow: String,
+    pub(crate) target: String,
 }
 
-fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
+pub(crate) fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
     if !line.starts_with(keyword) {
         return None;
     }
@@ -41,9 +42,7 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         rest
     };
     let (trimmed, inline_style) = split_declaration_inline_style(trimmed);
-    let supports_business = keyword
-        .trim_end_matches('/')
-        .eq_ignore_ascii_case("actor")
+    let supports_business = keyword.trim_end_matches('/').eq_ignore_ascii_case("actor")
         || keyword
             .trim_end_matches('/')
             .eq_ignore_ascii_case("usecase");
@@ -88,7 +87,7 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
     })
 }
 
-fn strip_class_declaration_visibility(line: &str) -> (Option<char>, &str) {
+pub(crate) fn strip_class_declaration_visibility(line: &str) -> (Option<char>, &str) {
     let mut chars = line.chars();
     let Some(symbol @ ('+' | '-' | '#' | '~')) = chars.next() else {
         return (None, line);
@@ -119,7 +118,7 @@ fn strip_class_declaration_visibility(line: &str) -> (Option<char>, &str) {
     }
 }
 
-fn split_family_decl_trailing_tags(input: &str) -> (String, Vec<String>) {
+pub(crate) fn split_family_decl_trailing_tags(input: &str) -> (String, Vec<String>) {
     let mut rest = input.trim_end();
     let mut tags = Vec::new();
     while let Some((start, token)) = last_family_decl_token(rest) {
@@ -138,7 +137,7 @@ fn split_family_decl_trailing_tags(input: &str) -> (String, Vec<String>) {
     (rest.trim().to_string(), tags)
 }
 
-fn last_family_decl_token(input: &str) -> Option<(usize, &str)> {
+pub(crate) fn last_family_decl_token(input: &str) -> Option<(usize, &str)> {
     let trimmed = input.trim_end();
     if trimmed.is_empty() {
         return None;
@@ -151,7 +150,7 @@ fn last_family_decl_token(input: &str) -> Option<(usize, &str)> {
     Some((start, &trimmed[start..]))
 }
 
-fn is_family_tag_token(token: &str) -> bool {
+pub(crate) fn is_family_tag_token(token: &str) -> bool {
     let Some(rest) = token.strip_prefix('$') else {
         return false;
     };
@@ -161,7 +160,10 @@ fn is_family_tag_token(token: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
-fn append_class_visibility_member(members: &mut Vec<ClassMember>, visibility: Option<char>) {
+pub(crate) fn append_class_visibility_member(
+    members: &mut Vec<ClassMember>,
+    visibility: Option<char>,
+) {
     if let Some(visibility) = visibility {
         members.push(ClassMember {
             text: format!("\x1fclass:visibility:{visibility}"),
@@ -170,7 +172,7 @@ fn append_class_visibility_member(members: &mut Vec<ClassMember>, visibility: Op
     }
 }
 
-fn append_family_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
+pub(crate) fn append_family_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
     for tag in tags {
         members.push(ClassMember {
             text: format!("\x1ffamily:tag:{tag}"),
@@ -179,7 +181,10 @@ fn append_family_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) 
     }
 }
 
-fn append_heritage_members(members: &mut Vec<ClassMember>, heritage: Vec<FamilyHeritage>) {
+pub(crate) fn append_heritage_members(
+    members: &mut Vec<ClassMember>,
+    heritage: Vec<FamilyHeritage>,
+) {
     for item in heritage {
         members.push(ClassMember {
             text: format!("\x1fheritage:{}:{}", item.arrow, item.target),
@@ -188,7 +193,7 @@ fn append_heritage_members(members: &mut Vec<ClassMember>, heritage: Vec<FamilyH
     }
 }
 
-fn split_declaration_heritage(input: &str) -> (String, Vec<FamilyHeritage>) {
+pub(crate) fn split_declaration_heritage(input: &str) -> (String, Vec<FamilyHeritage>) {
     let trimmed = input.trim();
     let Some((base, clause)) = split_at_first_top_level_heritage_keyword(trimmed) else {
         return (trimmed.to_string(), Vec::new());
@@ -229,7 +234,7 @@ fn split_declaration_heritage(input: &str) -> (String, Vec<FamilyHeritage>) {
     (base.trim().to_string(), heritage)
 }
 
-fn split_at_first_top_level_heritage_keyword(input: &str) -> Option<(&str, &str)> {
+pub(crate) fn split_at_first_top_level_heritage_keyword(input: &str) -> Option<(&str, &str)> {
     let extends = find_top_level_keyword(input, " extends ");
     let implements = find_top_level_keyword(input, " implements ");
     let idx = match (extends, implements) {
@@ -240,7 +245,7 @@ fn split_at_first_top_level_heritage_keyword(input: &str) -> Option<(&str, &str)
     Some((&input[..idx], input[idx + 1..].trim_start()))
 }
 
-fn take_heritage_targets(input: &str) -> (&str, &str) {
+pub(crate) fn take_heritage_targets(input: &str) -> (&str, &str) {
     let extends = find_top_level_keyword(input, " extends ");
     let implements = find_top_level_keyword(input, " implements ");
     let idx = match (extends, implements) {
@@ -251,7 +256,7 @@ fn take_heritage_targets(input: &str) -> (&str, &str) {
     (&input[..idx], input[idx + 1..].trim_start())
 }
 
-fn split_heritage_targets(input: &str) -> Vec<String> {
+pub(crate) fn split_heritage_targets(input: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut start = 0usize;
     let mut angle_depth = 0i32;
@@ -278,7 +283,7 @@ fn split_heritage_targets(input: &str) -> Vec<String> {
     out
 }
 
-fn find_top_level_keyword(input: &str, keyword: &str) -> Option<usize> {
+pub(crate) fn find_top_level_keyword(input: &str, keyword: &str) -> Option<usize> {
     let lower = input.to_ascii_lowercase();
     let needle = keyword.to_ascii_lowercase();
     let mut search_from = 0usize;
@@ -292,7 +297,7 @@ fn find_top_level_keyword(input: &str, keyword: &str) -> Option<usize> {
     None
 }
 
-fn is_top_level_span(input: &str, byte_idx: usize) -> bool {
+pub(crate) fn is_top_level_span(input: &str, byte_idx: usize) -> bool {
     let mut angle_depth = 0i32;
     let mut in_quote = false;
     for (idx, ch) in input.char_indices() {
@@ -309,7 +314,10 @@ fn is_top_level_span(input: &str, byte_idx: usize) -> bool {
     !in_quote && angle_depth == 0
 }
 
-fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<String>) {
+pub(crate) fn append_inline_fill_member(
+    members: &mut Vec<ClassMember>,
+    fill_color: Option<String>,
+) {
     if let Some(color) = fill_color {
         members.push(ClassMember {
             text: format!("\x1fstyle:fill:{color}"),
@@ -318,14 +326,17 @@ fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<
     }
 }
 
-fn append_inline_style_members(members: &mut Vec<ClassMember>, style_members: Vec<String>) {
+pub(crate) fn append_inline_style_members(
+    members: &mut Vec<ClassMember>,
+    style_members: Vec<String>,
+) {
     members.extend(style_members.into_iter().map(|text| ClassMember {
         text,
         modifier: None,
     }));
 }
 
-fn append_business_member(members: &mut Vec<ClassMember>, business: bool) {
+pub(crate) fn append_business_member(members: &mut Vec<ClassMember>, business: bool) {
     if business {
         members.push(ClassMember {
             text: "<<business>>".to_string(),
@@ -334,7 +345,7 @@ fn append_business_member(members: &mut Vec<ClassMember>, business: bool) {
     }
 }
 
-fn strip_business_suffix(input: &str) -> (String, bool) {
+pub(crate) fn strip_business_suffix(input: &str) -> (String, bool) {
     let trimmed = input.trim();
     if let Some(rest) = trimmed.strip_suffix('/') {
         (rest.trim_end().to_string(), true)
@@ -343,7 +354,7 @@ fn strip_business_suffix(input: &str) -> (String, bool) {
     }
 }
 
-fn clean_family_decl_ident(input: &str) -> String {
+pub(crate) fn clean_family_decl_ident(input: &str) -> String {
     let cleaned = clean_ident(input);
     cleaned
         .strip_prefix(':')
@@ -354,18 +365,18 @@ fn clean_family_decl_ident(input: &str) -> String {
         .unwrap_or(cleaned)
 }
 
-fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
+pub(crate) fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
     let (cleaned, style) = split_declaration_inline_style(input);
     (cleaned, style.fill_color)
 }
 
 #[derive(Debug, Clone, Default)]
-struct FamilyInlineStyle {
-    fill_color: Option<String>,
-    members: Vec<String>,
+pub(crate) struct FamilyInlineStyle {
+    pub(crate) fill_color: Option<String>,
+    pub(crate) members: Vec<String>,
 }
 
-fn split_declaration_inline_style(input: &str) -> (String, FamilyInlineStyle) {
+pub(crate) fn split_declaration_inline_style(input: &str) -> (String, FamilyInlineStyle) {
     let trimmed = input.trim();
     let mut in_quote = false;
     let mut last_hash: Option<usize> = None;
@@ -417,7 +428,7 @@ fn split_declaration_inline_style(input: &str) -> (String, FamilyInlineStyle) {
     (cleaned, style)
 }
 
-fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle> {
+pub(crate) fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle> {
     let mut style = FamilyInlineStyle::default();
     for (idx, raw_part) in token.trim_start_matches('#').split(';').enumerate() {
         let part = raw_part.trim();
@@ -440,13 +451,22 @@ fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle
             .and_then(crate::theme::color::parse_relation_color_token)
         {
             style.members.push(format!("\x1fstyle:text:{color}"));
-        } else if matches!(lower.as_str(), "line.dashed" | "line.dotted" | "dashed" | "dotted")
-        {
+        } else if matches!(
+            lower.as_str(),
+            "line.dashed" | "line.dotted" | "dashed" | "dotted"
+        ) {
             style.members.push("\x1fstyle:border-dashed".to_string());
-        } else if matches!(lower.as_str(), "line.bold" | "line.thick" | "bold" | "thick") {
-            style.members.push("\x1fstyle:border-thickness:3".to_string());
+        } else if matches!(
+            lower.as_str(),
+            "line.bold" | "line.thick" | "bold" | "thick"
+        ) {
+            style
+                .members
+                .push("\x1fstyle:border-thickness:3".to_string());
         } else if matches!(lower.as_str(), "line.thin" | "thin") {
-            style.members.push("\x1fstyle:border-thickness:1".to_string());
+            style
+                .members
+                .push("\x1fstyle:border-thickness:1".to_string());
         } else if idx == 0 {
             let hex_prefixed = format!("#{part}");
             if let Some(color) = crate::theme::color::parse_relation_color_token(part)
@@ -459,7 +479,10 @@ fn parse_family_decl_inline_style_token(token: &str) -> Option<FamilyInlineStyle
     (style.fill_color.is_some() || !style.members.is_empty()).then_some(style)
 }
 
-fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) -> Vec<ClassMember> {
+pub(crate) fn declaration_marker_members(
+    marker: Option<&str>,
+    stereotypes: Vec<String>,
+) -> Vec<ClassMember> {
     let mut members = Vec::new();
     if let Some(marker) = marker {
         members.push(ClassMember {
@@ -476,7 +499,7 @@ fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) ->
     members
 }
 
-fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
+pub(crate) fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
     let mut remaining = input.trim().to_string();
     let mut stereotypes = Vec::new();
     while let Some(start) = remaining.find("<<") {
@@ -493,7 +516,7 @@ fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
     (remaining.trim().to_string(), stereotypes)
 }
 
-fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
+pub(crate) fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     let trimmed = line.trim();
     let (trimmed, keyword_business) = if let Some(rest) = trimmed.strip_prefix("usecase/") {
         (rest.trim(), true)
@@ -546,7 +569,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     })
 }
 
-fn parse_colon_actor_decl(line: &str) -> Option<FamilyDeclParts> {
+pub(crate) fn parse_colon_actor_decl(line: &str) -> Option<FamilyDeclParts> {
     let trimmed = line.trim();
     let rest = trimmed.strip_prefix(':')?;
     let close = rest.find(':')?;

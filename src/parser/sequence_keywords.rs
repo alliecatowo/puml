@@ -1,4 +1,5 @@
-fn parse_keyword(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_keyword(line: &str) -> Option<StatementKind> {
     let lower = line.to_ascii_lowercase();
 
     if let Some(statement) = parse_aligned_header_footer_keyword(line, &lower) {
@@ -58,9 +59,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::AllowMixing);
     }
     if lower == "hide empty description" {
-        return Some(StatementKind::HideOption(
-            "empty description".to_string(),
-        ));
+        return Some(StatementKind::HideOption("empty description".to_string()));
     }
 
     // `mainframe <title>` — UML mainframe border around the whole diagram (feature 1.43).
@@ -319,7 +318,10 @@ pub(crate) fn pack_aligned_metadata(align: &str, text: &str) -> String {
     format!("METADATA_ALIGN:{}\n{}", align, text)
 }
 
-fn parse_aligned_header_footer_keyword(line: &str, lower: &str) -> Option<StatementKind> {
+pub(crate) fn parse_aligned_header_footer_keyword(
+    line: &str,
+    lower: &str,
+) -> Option<StatementKind> {
     for align in ["left", "center", "right"] {
         let Some(rest) = lower.strip_prefix(&(align.to_string() + " ")) else {
             continue;
@@ -339,7 +341,7 @@ fn parse_aligned_header_footer_keyword(line: &str, lower: &str) -> Option<Statem
     None
 }
 
-fn parse_note_on_link_head(head: &str) -> Option<String> {
+pub(crate) fn parse_note_on_link_head(head: &str) -> Option<String> {
     let lower = head.trim().to_ascii_lowercase();
     if lower == "on link" {
         return Some("over".to_string());
@@ -352,7 +354,7 @@ fn parse_note_on_link_head(head: &str) -> Option<String> {
     None
 }
 
-fn split_note_head_text(tail: &str) -> (&str, &str) {
+pub(crate) fn split_note_head_text(tail: &str) -> (&str, &str) {
     let mut prev = '\0';
     for (idx, ch) in tail.char_indices() {
         if ch == ':' {
@@ -366,7 +368,7 @@ fn split_note_head_text(tail: &str) -> (&str, &str) {
     (tail, "")
 }
 
-fn parse_note_head(head: &str) -> (String, Option<String>) {
+pub(crate) fn parse_note_head(head: &str) -> (String, Option<String>) {
     let mut bits = head.split_whitespace();
     let position = bits.next().unwrap_or("over").to_string();
     let rest = bits.collect::<Vec<_>>();
@@ -387,7 +389,7 @@ fn parse_note_head(head: &str) -> (String, Option<String>) {
     )
 }
 
-fn note_kind_from_keyword(keyword: &str) -> crate::ast::NoteKind {
+pub(crate) fn note_kind_from_keyword(keyword: &str) -> crate::ast::NoteKind {
     match keyword.to_ascii_lowercase().as_str() {
         "hnote" => crate::ast::NoteKind::Hexagonal,
         "rnote" => crate::ast::NoteKind::Rectangle,
@@ -395,20 +397,20 @@ fn note_kind_from_keyword(keyword: &str) -> crate::ast::NoteKind {
     }
 }
 
-fn note_end_matches(line: &str, note_keyword: &str) -> bool {
+pub(crate) fn note_end_matches(line: &str, note_keyword: &str) -> bool {
     line.eq_ignore_ascii_case("end note")
         || (note_keyword.eq_ignore_ascii_case("hnote") && line.eq_ignore_ascii_case("endhnote"))
         || (note_keyword.eq_ignore_ascii_case("rnote") && line.eq_ignore_ascii_case("endrnote"))
 }
 
-fn is_valid_note_position(position: &str) -> bool {
+pub(crate) fn is_valid_note_position(position: &str) -> bool {
     matches!(
         position.to_ascii_lowercase().as_str(),
         "left" | "right" | "top" | "bottom" | "over" | "across"
     )
 }
 
-fn is_sequence_keyword(kind: &StatementKind) -> bool {
+pub(crate) fn is_sequence_keyword(kind: &StatementKind) -> bool {
     matches!(
         kind,
         StatementKind::Group(_)
@@ -428,7 +430,7 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
     )
 }
 
-fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
+pub(crate) fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
     // Strip leading `/ ` prefix for aligned note form (feature 1.18).
     let stripped = if line.trim_start().starts_with("/ ") {
         line.trim_start().trim_start_matches('/').trim_start()
@@ -458,7 +460,7 @@ fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool 
     !line.contains(':')
 }
 
-fn text_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
+pub(crate) fn text_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
     let lower = line.trim().to_ascii_lowercase();
     let keyword = ["title", "header", "footer", "caption", "legend"]
         .into_iter()
@@ -482,7 +484,7 @@ fn text_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool 
     false
 }
 
-fn is_family_common_keyword(kind: &StatementKind) -> bool {
+pub(crate) fn is_family_common_keyword(kind: &StatementKind) -> bool {
     matches!(
         kind,
         StatementKind::Note(_)
@@ -505,7 +507,7 @@ fn is_family_common_keyword(kind: &StatementKind) -> bool {
     )
 }
 
-fn is_family_common_keyword_before_detection(kind: &StatementKind) -> bool {
+pub(crate) fn is_family_common_keyword_before_detection(kind: &StatementKind) -> bool {
     matches!(
         kind,
         StatementKind::Title(_)

@@ -1,4 +1,5 @@
-fn parse_raw_body_block_line(
+use super::*;
+pub(crate) fn parse_raw_body_block_line(
     statements: &mut Vec<Statement>,
     raw_line: &str,
     span: Span,
@@ -35,7 +36,7 @@ fn parse_raw_body_block_line(
     Ok(true)
 }
 
-fn parse_block_boundary_line(
+pub(crate) fn parse_block_boundary_line(
     statements: &mut Vec<Statement>,
     line: &str,
     span: Span,
@@ -57,7 +58,9 @@ fn parse_block_boundary_line(
         if let Some(candidate) = start_block_family(start_kind) {
             *detected_kind = Some(select_diagram_kind(*detected_kind, candidate, span)?);
         }
-        if !qualifier.is_empty() && (is_raw_body_block(start_kind) || block_kind_is_raw_body(start_kind)) {
+        if !qualifier.is_empty()
+            && (is_raw_body_block(start_kind) || block_kind_is_raw_body(start_kind))
+        {
             statements.push(Statement {
                 span,
                 kind: StatementKind::RawBody(qualifier.to_string()),

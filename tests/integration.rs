@@ -1210,6 +1210,10 @@ fn gantt_and_chronology_dump_model_is_stable() {
 
 #[test]
 fn gantt_and_chronology_unsupported_baseline_syntax_is_deterministic() {
+    // Unsupported baseline syntax now degrades gracefully: the diagram renders
+    // successfully (exit 0) and the coded diagnostic is emitted as a warning
+    // rather than a fatal error. The warning message still contains the original
+    // coded prefix (e.g. E_GANTT_UNSUPPORTED) so tooling can still filter it.
     for (case, code) in [
         (
             "errors/invalid_gantt_unsupported_baseline.puml",
@@ -1224,7 +1228,7 @@ fn gantt_and_chronology_unsupported_baseline_syntax_is_deterministic() {
             .expect("binary")
             .args(["--check", &fixture(case)])
             .assert()
-            .code(1)
+            .success()
             .stderr(predicate::str::contains(code));
     }
 }
@@ -1390,12 +1394,10 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "arrows/invalid_malformed_arrows.puml",
         "arrows/invalid_endpoint_variants.puml",
         "errors/invalid_malformed_note_ref.puml",
-        "structure/invalid_malformed_divider_delay.puml",
         "groups/invalid_else_without_open_group.puml",
         "groups/invalid_end_without_open_group.puml",
         "groups/invalid_else_inside_ref.puml",
         "groups/invalid_ref_block_missing_body.puml",
-        "errors/invalid_separator_unbalanced_equals.puml",
         "errors/invalid_participant_queue_alias_collision.puml",
         "errors/invalid_arrow_variant_tokenization.puml",
         "errors/invalid_arrow_slash_tokenization.puml",
@@ -4838,20 +4840,21 @@ fn check_fixture_with_json_diagnostics_emits_warning_payload() {
 
 #[test]
 fn cli_json_distinguishes_state_unsupported_and_deferred_raw() {
+    // Unsupported syntax now degrades gracefully: exit 0, warning in JSON stderr.
     let unsupported = "@startuml\nstate Idle\nunknown state syntax\n@enduml\n";
     let out = Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", "--diagnostics", "json", "-"])
         .write_stdin(unsupported)
         .assert()
-        .code(1)
-        .stdout(predicate::str::is_empty())
+        .success()
         .get_output()
         .stderr
         .clone();
     let json: Value = serde_json::from_slice(&out).expect("valid json diagnostics");
     let first = &json["diagnostics"][0];
-    assert_eq!(first["code"], "E_STATE_UNSUPPORTED_SYNTAX");
+    assert_eq!(first["code"], "W_STATE_UNSUPPORTED_SYNTAX");
+    assert_eq!(first["severity"], "warning");
     assert_eq!(first["line"], 3);
     assert_eq!(first["column"], 1);
     assert_eq!(first["snippet"], "unknown state syntax");
@@ -7838,7 +7841,7 @@ fn self_host_architecture_diagrams_accept_issue_537_constructs() {
             diagnostics.iter().all(|message| {
                 !message.contains("W_SKINPARAM_UNSUPPORTED")
                     && !message.contains("E_STATE_MIXED")
-                    && !message.contains("E_STATE_UNSUPPORTED_SYNTAX")
+                    && !message.contains("W_STATE_UNSUPPORTED_SYNTAX")
             }),
             "{path} should not need self-host workarounds; diagnostics: {diagnostics:?}"
         );

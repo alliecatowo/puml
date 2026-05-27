@@ -1,4 +1,5 @@
-fn strip_inline_plantuml_comment(line: &str) -> &str {
+use super::*;
+pub(crate) fn strip_inline_plantuml_comment(line: &str) -> &str {
     let mut in_quotes = false;
     for (idx, ch) in line.char_indices() {
         if ch == '"' {
@@ -19,7 +20,7 @@ fn strip_inline_plantuml_comment(line: &str) -> &str {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BlockKind {
+pub(crate) enum BlockKind {
     Uml,
     Salt,
     MindMap,
@@ -45,7 +46,7 @@ enum BlockKind {
 /// Like `parse_block_marker_kind`, but also returns the trimmed text that
 /// follows the `@startXxx` keyword on the same line (the "qualifier").
 /// For example, `@startchart area` returns `(Chart, "area")`.
-fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)> {
+pub(crate) fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)> {
     let lower = line.to_ascii_lowercase();
     let markers: &[(&str, BlockKind)] = &[
         ("@startmindmap", BlockKind::MindMap),
@@ -81,11 +82,11 @@ fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)
     None
 }
 
-fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
+pub(crate) fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
     parse_block_marker_kind(line, false)
 }
 
-fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
+pub(crate) fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
     // NOTE: longer markers must come before shorter prefixes that they share.
     let markers: &[(&str, BlockKind)] = if start {
@@ -148,7 +149,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     None
 }
 
-fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
+pub(crate) fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
     match kind {
         BlockKind::Uml => None,
         BlockKind::Salt => Some(DiagramKind::Salt),
@@ -173,7 +174,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
     }
 }
 
-fn block_kind_name(kind: BlockKind) -> &'static str {
+pub(crate) fn block_kind_name(kind: BlockKind) -> &'static str {
     match kind {
         BlockKind::Uml => "uml",
         BlockKind::Salt => "salt",
@@ -198,14 +199,14 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
     }
 }
 
-fn is_raw_body_block(kind: BlockKind) -> bool {
+pub(crate) fn is_raw_body_block(kind: BlockKind) -> bool {
     matches!(
         kind,
         BlockKind::Json | BlockKind::Yaml | BlockKind::Nwdiag | BlockKind::Archimate
     )
 }
 
-fn block_kind_is_raw_body(kind: BlockKind) -> bool {
+pub(crate) fn block_kind_is_raw_body(kind: BlockKind) -> bool {
     matches!(
         kind,
         BlockKind::Regex
@@ -220,7 +221,7 @@ fn block_kind_is_raw_body(kind: BlockKind) -> bool {
     )
 }
 
-fn select_diagram_kind(
+pub(crate) fn select_diagram_kind(
     current: Option<DiagramKind>,
     candidate: DiagramKind,
     span: Span,
@@ -242,7 +243,7 @@ fn select_diagram_kind(
     .with_span(span))
 }
 
-fn select_diagram_kind_with_mixing(
+pub(crate) fn select_diagram_kind_with_mixing(
     current: Option<DiagramKind>,
     candidate: DiagramKind,
     span: Span,
@@ -258,7 +259,7 @@ fn select_diagram_kind_with_mixing(
     select_diagram_kind(current, candidate, span)
 }
 
-fn looks_like_unsupported_family_syntax(line: &str) -> bool {
+pub(crate) fn looks_like_unsupported_family_syntax(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
     lower.starts_with("state ")
         || lower.starts_with("component ")
@@ -274,7 +275,7 @@ fn looks_like_unsupported_family_syntax(line: &str) -> bool {
         || lower.starts_with("concise ")
 }
 
-fn diagram_kind_name(kind: DiagramKind) -> &'static str {
+pub(crate) fn diagram_kind_name(kind: DiagramKind) -> &'static str {
     match kind {
         DiagramKind::Sequence => "sequence",
         DiagramKind::Class => "class",
@@ -309,7 +310,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
     }
 }
 
-fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
+pub(crate) fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
     match kind {
         StatementKind::ClassDecl(_) => DiagramKind::Class,
         StatementKind::AssociationClass { .. } => DiagramKind::Class,

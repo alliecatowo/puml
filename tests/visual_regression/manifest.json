@@ -316,8 +316,26 @@
       "expected_text": ["Customer", "Warehouse", "Finance", "Logistics", "Submit order", "Charge payment", "Assign courier", "Update inventory"],
       "min_text_elements": 15,
       "png_baseline_required": false,
-      "png_baseline_issue": 1113,
-      "png_baseline_deferred_reason": "Current nested lane ownership has visible misalignment; tracked as expected visual debt."
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "activity layout/routing change; re-bless on Linux"
+    },
+    {
+      "path": "docs/examples/activity/17_switch_case_with_detach.puml",
+      "family": "activity",
+      "expected_text": ["Read event type", "Parse headers", "Route to handler", "Dispatch message", "Flush queues", "Flush state", "Graceful shutdown", "Reset event buffer"],
+      "min_text_elements": 8,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "activity layout/routing change; re-bless on Linux"
+    },
+    {
+      "path": "docs/examples/activity/18_repeat_while_nested_partition.puml",
+      "family": "activity",
+      "expected_text": ["Open data source", "Fetch batch", "Validate schema", "Normalize timestamps", "Deduplicate records", "Write primary table", "Update search index", "Publish CDC events", "Commit transaction"],
+      "min_text_elements": 9,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "activity layout/routing change; re-bless on Linux"
     },
     {
       "path": "docs/examples/activity_new/08_notes_split_partitions.puml",
@@ -336,6 +354,15 @@
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
       "png_baseline_deferred_reason": "Promoted for nested-frame and transition-label invariants before PNG blessing."
+    },
+    {
+      "path": "docs/examples/state/10_parallel_regions_shared_events.puml",
+      "family": "state",
+      "expected_text": ["Parallel regions with shared events", "MediaPlayer", "Playing", "Paused", "Stopped", "Normal", "Muted", "EQOff", "EQOn", "pause", "mute", "enableEQ", "powerOff"],
+      "min_text_elements": 13,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "state layout change; re-bless on Linux"
     },
     {
       "path": "docs/examples/timing/05_concurrent_timelines_message_arrows.puml",

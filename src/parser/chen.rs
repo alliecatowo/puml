@@ -1,4 +1,5 @@
-fn parse_chen_declaration(
+use super::*;
+pub(crate) fn parse_chen_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -40,7 +41,7 @@ fn parse_chen_declaration(
     Ok(None)
 }
 
-fn parse_chen_decl_head(
+pub(crate) fn parse_chen_decl_head(
     line: &str,
     keyword: &str,
 ) -> Option<(String, Option<String>, Vec<String>, bool)> {
@@ -76,7 +77,7 @@ fn parse_chen_decl_head(
     Some((name, alias, stereotypes, has_block))
 }
 
-fn split_chen_alias(input: &str) -> (&str, Option<&str>) {
+pub(crate) fn split_chen_alias(input: &str) -> (&str, Option<&str>) {
     if let Some(idx) = find_top_level_keyword(input, " as ") {
         let lhs = input[..idx].trim();
         let rhs = input[idx + 4..].trim();
@@ -85,7 +86,7 @@ fn split_chen_alias(input: &str) -> (&str, Option<&str>) {
     (input.trim(), None)
 }
 
-fn find_chen_block_end(lines: &[(&str, Span)], start: usize) -> Option<usize> {
+pub(crate) fn find_chen_block_end(lines: &[(&str, Span)], start: usize) -> Option<usize> {
     let mut depth = 0i32;
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start) {
         let line = strip_inline_plantuml_comment(raw);
@@ -98,7 +99,9 @@ fn find_chen_block_end(lines: &[(&str, Span)], start: usize) -> Option<usize> {
     None
 }
 
-fn parse_chen_attributes(lines: &[(&str, Span)]) -> Result<Vec<ChenAttribute>, Diagnostic> {
+pub(crate) fn parse_chen_attributes(
+    lines: &[(&str, Span)],
+) -> Result<Vec<ChenAttribute>, Diagnostic> {
     let mut attrs = Vec::new();
     let mut idx = 0usize;
     while idx < lines.len() {
@@ -109,8 +112,10 @@ fn parse_chen_attributes(lines: &[(&str, Span)]) -> Result<Vec<ChenAttribute>, D
             continue;
         }
         if line == "}" {
-            return Err(Diagnostic::error("[E_CHEN_ATTR_BLOCK_UNMATCHED] unmatched `}` in Chen attributes")
-                .with_span(span));
+            return Err(Diagnostic::error(
+                "[E_CHEN_ATTR_BLOCK_UNMATCHED] unmatched `}` in Chen attributes",
+            )
+            .with_span(span));
         }
         let has_children = line.ends_with('{');
         let head = if has_children {
@@ -143,7 +148,7 @@ fn parse_chen_attributes(lines: &[(&str, Span)]) -> Result<Vec<ChenAttribute>, D
     Ok(attrs)
 }
 
-fn find_chen_attribute_child_end(lines: &[(&str, Span)], start: usize) -> Option<usize> {
+pub(crate) fn find_chen_attribute_child_end(lines: &[(&str, Span)], start: usize) -> Option<usize> {
     let mut depth = 0i32;
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start) {
         let line = strip_inline_plantuml_comment(raw);
@@ -156,7 +161,7 @@ fn find_chen_attribute_child_end(lines: &[(&str, Span)], start: usize) -> Option
     None
 }
 
-fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
+pub(crate) fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
     let (without_stereotypes, stereotypes) = strip_declaration_stereotypes(input);
     let (name_part, data_type) = without_stereotypes
         .split_once(':')
@@ -172,12 +177,14 @@ fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
     }
 }
 
-fn parse_chen_relation(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_chen_relation(line: &str) -> Option<StatementKind> {
     let parts = line.split_whitespace().collect::<Vec<_>>();
     if parts.len() < 3 {
         return None;
     }
-    let arrow_idx = parts.iter().position(|part| is_chen_cardinality_token(part))?;
+    let arrow_idx = parts
+        .iter()
+        .position(|part| is_chen_cardinality_token(part))?;
     if arrow_idx == 0 || arrow_idx + 1 >= parts.len() {
         return None;
     }
@@ -188,11 +195,7 @@ fn parse_chen_relation(line: &str) -> Option<StatementKind> {
     }
     let token = parts[arrow_idx];
     let total_participation = token.starts_with('=') && token.ends_with('=');
-    let cardinality = token
-        .trim_matches('-')
-        .trim_matches('=')
-        .trim()
-        .to_string();
+    let cardinality = token.trim_matches('-').trim_matches('=').trim().to_string();
     if cardinality.is_empty() {
         return None;
     }
@@ -204,25 +207,38 @@ fn parse_chen_relation(line: &str) -> Option<StatementKind> {
     }))
 }
 
-fn is_chen_cardinality_token(token: &str) -> bool {
+pub(crate) fn is_chen_cardinality_token(token: &str) -> bool {
     if token.len() < 3 {
         return false;
     }
     let first = token.as_bytes().first().copied();
     let last = token.as_bytes().last().copied();
-    matches!((first, last), (Some(b'-'), Some(b'-')) | (Some(b'='), Some(b'=')))
-        && !matches!(token, "->-" | "-<-" | "=>=")
+    matches!(
+        (first, last),
+        (Some(b'-'), Some(b'-')) | (Some(b'='), Some(b'='))
+    ) && !matches!(token, "->-" | "-<-" | "=>=")
 }
 
-fn parse_chen_inheritance(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_chen_inheritance(line: &str) -> Option<StatementKind> {
     let (parent, connector, discriminator, children) =
         if let Some((lhs, rhs)) = line.split_once("=>=") {
             parse_chen_set_connector(lhs, "=>=", rhs)?
         } else if let Some((lhs, rhs)) = line.split_once("->-") {
-            parse_chen_set_connector(lhs, "->-", rhs)
-                .or_else(|| Some((clean_ident(rhs), "->-".to_string(), None, vec![clean_ident(lhs)])))?
+            parse_chen_set_connector(lhs, "->-", rhs).or_else(|| {
+                Some((
+                    clean_ident(rhs),
+                    "->-".to_string(),
+                    None,
+                    vec![clean_ident(lhs)],
+                ))
+            })?
         } else if let Some((lhs, rhs)) = line.split_once("-<-") {
-            Some((clean_ident(lhs), "-<-".to_string(), None, vec![clean_ident(rhs)]))?
+            Some((
+                clean_ident(lhs),
+                "-<-".to_string(),
+                None,
+                vec![clean_ident(rhs)],
+            ))?
         } else {
             return None;
         };
@@ -237,7 +253,7 @@ fn parse_chen_inheritance(line: &str) -> Option<StatementKind> {
     }))
 }
 
-fn parse_chen_set_connector(
+pub(crate) fn parse_chen_set_connector(
     lhs: &str,
     connector: &str,
     rhs: &str,

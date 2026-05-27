@@ -506,10 +506,22 @@ fn normalize_family_accepts_gantt_and_chronology_timelines() {
 
 #[test]
 fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
+    // Coded unsupported syntax (E_GANTT_UNSUPPORTED) now degrades gracefully:
+    // the render succeeds and each unsupported line emits a feature-loss warning.
     let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
     let doc = parse(src).expect("parse should succeed");
-    let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
-    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
+    let model = normalize_family(doc).expect("mixed timeline/sequence syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert!(
+        !warnings.is_empty(),
+        "expected feature-loss warnings for unsupported gantt syntax"
+    );
+    assert!(
+        warnings
+            .iter()
+            .all(|w| w.message.contains("E_GANTT_UNSUPPORTED")),
+        "all warnings should contain E_GANTT_UNSUPPORTED, got: {warnings:?}",
+    );
 }
 
 #[test]
@@ -644,6 +656,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
 
 #[test]
 fn normalize_family_reports_parse_unknown_inside_stub_slice() {
+    // LegacyUnknown now degrades gracefully: success with a feature-loss warning.
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Class,
         statements: vec![puml::ast::Statement {
@@ -651,8 +664,18 @@ fn normalize_family_reports_parse_unknown_inside_stub_slice() {
             kind: puml::ast::StatementKind::Unknown("class ???".to_string()),
         }],
     };
-    let err = normalize_family(doc).expect_err("unknown stub syntax should fail");
-    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+    let model = normalize_family(doc).expect("unknown stub syntax should degrade gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected exactly one feature-loss warning"
+    );
+    assert!(
+        warnings[0].message.contains("W_PARSE_UNKNOWN"),
+        "expected W_PARSE_UNKNOWN, got: {}",
+        warnings[0].message
+    );
 }
 
 #[test]
@@ -1479,6 +1502,7 @@ fn normalize_sequence_preserves_malformed_syntax_diagnostic_code() {
 
 #[test]
 fn normalize_sequence_reports_typed_unsupported_syntax() {
+    // Unsupported syntax now degrades gracefully: success with a feature-loss warning.
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Sequence,
         statements: vec![puml::ast::Statement {
@@ -1487,18 +1511,62 @@ fn normalize_sequence_reports_typed_unsupported_syntax() {
         }],
     };
 
-    let err = normalize::normalize(doc).expect_err("unsupported syntax should fail");
-    assert!(err.message.contains("E_SEQUENCE_UNSUPPORTED_SYNTAX"));
-    assert!(!err.message.contains("E_PARSE_UNKNOWN"));
+    let seq_doc = normalize::normalize(doc).expect("unsupported syntax should degrade gracefully");
+    let warnings = &seq_doc.warnings;
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected exactly one feature-loss warning"
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("W_SEQUENCE_UNSUPPORTED_SYNTAX"),
+        "expected W_SEQUENCE_UNSUPPORTED_SYNTAX, got: {}",
+        warnings[0].message
+    );
+    assert!(!warnings[0].message.contains("W_PARSE_UNKNOWN"));
 }
 
 #[test]
 fn normalize_sequence_distinguishes_raw_syntax_categories() {
-    for (kind, expected_code) in [
+    // Unsupported and LegacyUnknown now degrade gracefully (warning, not error).
+    // Malformed, Deferred, BenignPassthrough, and CommentLowered remain hard errors.
+    for (kind, expected_warning_code) in [
         (
             puml::ast::StatementKind::UnsupportedSyntax("box over A".to_string()),
-            "E_SEQUENCE_UNSUPPORTED_SYNTAX",
+            "W_SEQUENCE_UNSUPPORTED_SYNTAX",
         ),
+        (
+            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
+            "W_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::Sequence,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(2, 12),
+                kind,
+            }],
+        };
+        let seq_doc = normalize::normalize(doc)
+            .expect("unsupported/unknown sequence syntax should degrade gracefully");
+        let warnings = &seq_doc.warnings;
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one warning for {expected_warning_code}"
+        );
+        assert!(
+            warnings[0].message.contains(expected_warning_code),
+            "expected {expected_warning_code}, got {}",
+            warnings[0].message
+        );
+        assert_eq!(warnings[0].span, Some(Span::new(2, 12)));
+    }
+
+    // These categories remain hard errors (parser-bug signals).
+    for (kind, expected_error_code) in [
         (
             puml::ast::StatementKind::MalformedSyntax("Alice ->".to_string()),
             "E_SEQUENCE_MALFORMED_SYNTAX",
@@ -1515,10 +1583,6 @@ fn normalize_sequence_distinguishes_raw_syntax_categories() {
             puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
             "E_SEQUENCE_COMMENT_LOWERED",
         ),
-        (
-            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
-            "E_PARSE_UNKNOWN",
-        ),
     ] {
         let doc = puml::ast::Document {
             kind: puml::ast::DiagramKind::Sequence,
@@ -1528,10 +1592,11 @@ fn normalize_sequence_distinguishes_raw_syntax_categories() {
             }],
         };
 
-        let err = normalize::normalize(doc).expect_err("raw sequence syntax should fail");
+        let err =
+            normalize::normalize(doc).expect_err("raw sequence parser-bug syntax should fail");
         assert!(
-            err.message.contains(expected_code),
-            "expected {expected_code}, got {}",
+            err.message.contains(expected_error_code),
+            "expected {expected_error_code}, got {}",
             err.message
         );
         assert_eq!(err.span, Some(Span::new(2, 12)));
@@ -1540,11 +1605,43 @@ fn normalize_sequence_distinguishes_raw_syntax_categories() {
 
 #[test]
 fn normalize_state_distinguishes_raw_syntax_categories() {
-    for (kind, expected_code) in [
+    // Unsupported and LegacyUnknown now degrade gracefully (warning, not error).
+    // Malformed, Deferred, BenignPassthrough, and CommentLowered remain hard errors.
+    for (kind, expected_warning_code) in [
         (
             puml::ast::StatementKind::UnsupportedSyntax("fork again".to_string()),
-            "E_STATE_UNSUPPORTED_SYNTAX",
+            "W_STATE_UNSUPPORTED_SYNTAX",
         ),
+        (
+            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
+            "W_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::State,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(2, 12),
+                kind,
+            }],
+        };
+        let model = normalize_family(doc)
+            .expect("unsupported/unknown state syntax should degrade gracefully");
+        let warnings = puml::diagnostic::normalized_warnings(&model);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one warning for {expected_warning_code}"
+        );
+        assert!(
+            warnings[0].message.contains(expected_warning_code),
+            "expected {expected_warning_code}, got {}",
+            warnings[0].message
+        );
+        assert_eq!(warnings[0].span, Some(Span::new(2, 12)));
+    }
+
+    // These categories remain hard errors (parser-bug signals).
+    for (kind, expected_error_code) in [
         (
             puml::ast::StatementKind::MalformedSyntax("state ???".to_string()),
             "E_STATE_MALFORMED_SYNTAX",
@@ -1561,10 +1658,6 @@ fn normalize_state_distinguishes_raw_syntax_categories() {
             puml::ast::StatementKind::CommentLowered("' ignored".to_string()),
             "E_STATE_COMMENT_LOWERED",
         ),
-        (
-            puml::ast::StatementKind::Unknown("legacy ???".to_string()),
-            "E_PARSE_UNKNOWN",
-        ),
     ] {
         let doc = puml::ast::Document {
             kind: puml::ast::DiagramKind::State,
@@ -1574,10 +1667,10 @@ fn normalize_state_distinguishes_raw_syntax_categories() {
             }],
         };
 
-        let err = normalize_family(doc).expect_err("raw state syntax should fail");
+        let err = normalize_family(doc).expect_err("raw state parser-bug syntax should fail");
         assert!(
-            err.message.contains(expected_code),
-            "expected {expected_code}, got {}",
+            err.message.contains(expected_error_code),
+            "expected {expected_error_code}, got {}",
             err.message
         );
         assert_eq!(err.span, Some(Span::new(2, 12)));
@@ -1586,6 +1679,8 @@ fn normalize_state_distinguishes_raw_syntax_categories() {
 
 #[test]
 fn normalize_timeline_preserves_coded_unsupported_and_marks_deferred() {
+    // Coded unsupported syntax (e.g. E_GANTT_UNSUPPORTED) now degrades gracefully:
+    // the render succeeds and the coded message is preserved as a warning.
     let coded = puml::ast::Document {
         kind: puml::ast::DiagramKind::Gantt,
         statements: vec![puml::ast::Statement {
@@ -1596,11 +1691,20 @@ fn normalize_timeline_preserves_coded_unsupported_and_marks_deferred() {
             ),
         }],
     };
-    let err = normalize_family(coded).expect_err("coded unsupported should fail");
-    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
-    assert!(!err.message.contains("E_TIMELINE_UNSUPPORTED_SYNTAX"));
-    assert_eq!(err.span, Some(Span::new(0, 12)));
+    let model = normalize_family(coded).expect("coded unsupported should degrade gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(warnings.len(), 1, "expected one feature-loss warning");
+    assert!(
+        warnings[0].message.contains("E_GANTT_UNSUPPORTED"),
+        "coded message preserved in warning, got: {}",
+        warnings[0].message
+    );
+    assert!(!warnings[0]
+        .message
+        .contains("E_TIMELINE_UNSUPPORTED_SYNTAX"));
+    assert_eq!(warnings[0].span, Some(Span::new(0, 12)));
 
+    // Deferred syntax is a parser-bug signal and remains a hard error.
     let deferred = puml::ast::Document {
         kind: puml::ast::DiagramKind::Chronology,
         statements: vec![puml::ast::Statement {
@@ -1646,6 +1750,7 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
     let err = normalize_family(salt_deferred).expect_err("salt deferred raw should fail");
     assert!(err.message.contains("E_FAMILY_SALT_DEFERRED_RAW"));
 
+    // Unsupported salt syntax now degrades gracefully: success with a warning.
     let salt_unsupported = puml::ast::Document {
         kind: puml::ast::DiagramKind::Salt,
         statements: vec![puml::ast::Statement {
@@ -1653,9 +1758,21 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
             kind: puml::ast::StatementKind::UnsupportedSyntax("plain label".to_string()),
         }],
     };
-    let err = normalize_family(salt_unsupported)
-        .expect_err("unsupported salt syntax must no longer be a label row");
-    assert!(err.message.contains("E_FAMILY_SALT_UNSUPPORTED_SYNTAX"));
+    let model =
+        normalize_family(salt_unsupported).expect("unsupported salt syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected one feature-loss warning for salt unsupported"
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("W_FAMILY_SALT_UNSUPPORTED_SYNTAX"),
+        "expected W_FAMILY_SALT_UNSUPPORTED_SYNTAX, got: {}",
+        warnings[0].message
+    );
 
     let salt_passthrough = puml::ast::Document {
         kind: puml::ast::DiagramKind::Salt,
@@ -1673,6 +1790,7 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
         other => panic!("expected salt family model, got {other:?}"),
     }
 
+    // LegacyUnknown salt syntax now degrades gracefully: success with a warning.
     let salt_legacy = puml::ast::Document {
         kind: puml::ast::DiagramKind::Salt,
         statements: vec![puml::ast::Statement {
@@ -1680,38 +1798,90 @@ fn normalize_family_raw_syntax_errors_are_typed_but_passthrough_remains() {
             kind: puml::ast::StatementKind::Unknown("plain label".to_string()),
         }],
     };
-    let err =
-        normalize_family(salt_legacy).expect_err("legacy unknown salt rows must not pass through");
-    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+    let model =
+        normalize_family(salt_legacy).expect("legacy unknown salt syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected one feature-loss warning for salt legacy unknown"
+    );
+    assert!(
+        warnings[0].message.contains("W_PARSE_UNKNOWN"),
+        "expected W_PARSE_UNKNOWN, got: {}",
+        warnings[0].message
+    );
 }
 
 #[test]
 fn normalize_new_family_paths_distinguish_raw_syntax_categories() {
-    for (family, kind, expected_code) in [
+    // Unsupported and LegacyUnknown now degrade gracefully for all normalizers.
+    for (family, kind, expected_warning_code) in [
         (
             DiagramKind::Chen,
             puml::ast::StatementKind::UnsupportedSyntax("nonsense chen".to_string()),
-            "E_FAMILY_CHEN_UNSUPPORTED_SYNTAX",
+            "W_FAMILY_CHEN_UNSUPPORTED_SYNTAX",
         ),
+        (
+            DiagramKind::Chen,
+            puml::ast::StatementKind::Unknown("legacy chen".to_string()),
+            "W_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: family,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(7, 19),
+                kind,
+            }],
+        };
+        let model =
+            normalize_family(doc).expect("unsupported/unknown syntax should degrade gracefully");
+        let warnings = puml::diagnostic::normalized_warnings(&model);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected one warning for {expected_warning_code}"
+        );
+        assert!(
+            warnings[0].message.contains(expected_warning_code),
+            "expected {expected_warning_code}, got {}",
+            warnings[0].message
+        );
+        assert_eq!(warnings[0].span, Some(Span::new(7, 19)));
+    }
+
+    // Stdlib LegacyUnknown: the unknown line is now skipped (warning), but the
+    // Stdlib normalizer still requires a `stdlib` catalog statement, so it fails
+    // with E_STDLIB_EMPTY — not E_PARSE_UNKNOWN.
+    {
+        let doc = puml::ast::Document {
+            kind: DiagramKind::Stdlib,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(7, 19),
+                kind: puml::ast::StatementKind::Unknown("legacy stdlib".to_string()),
+            }],
+        };
+        let err = normalize_family(doc).expect_err("stdlib still requires catalog statement");
+        assert!(
+            err.message.contains("E_STDLIB_EMPTY"),
+            "expected E_STDLIB_EMPTY (not E_PARSE_UNKNOWN), got: {}",
+            err.message
+        );
+        assert!(!err.message.contains("E_PARSE_UNKNOWN"));
+    }
+
+    // Malformed and Deferred remain hard errors (parser-bug signals).
+    for (family, kind, expected_error_code) in [
         (
             DiagramKind::Chen,
             puml::ast::StatementKind::MalformedSyntax("entity {".to_string()),
             "E_FAMILY_CHEN_MALFORMED_SYNTAX",
         ),
         (
-            DiagramKind::Chen,
-            puml::ast::StatementKind::Unknown("legacy chen".to_string()),
-            "E_PARSE_UNKNOWN",
-        ),
-        (
             DiagramKind::Stdlib,
             puml::ast::StatementKind::DeferredRaw("<style>".to_string()),
             "E_FAMILY_STDLIB_DEFERRED_RAW",
-        ),
-        (
-            DiagramKind::Stdlib,
-            puml::ast::StatementKind::Unknown("legacy stdlib".to_string()),
-            "E_PARSE_UNKNOWN",
         ),
     ] {
         let doc = puml::ast::Document {
@@ -1722,10 +1892,10 @@ fn normalize_new_family_paths_distinguish_raw_syntax_categories() {
             }],
         };
 
-        let err = normalize_family(doc).expect_err("raw syntax should fail");
+        let err = normalize_family(doc).expect_err("parser-bug raw syntax should fail");
         assert!(
-            err.message.contains(expected_code),
-            "expected {expected_code}, got {}",
+            err.message.contains(expected_error_code),
+            "expected {expected_error_code}, got {}",
             err.message
         );
         assert_eq!(err.span, Some(Span::new(7, 19)));
@@ -1750,11 +1920,41 @@ fn normalize_extended_family_distinguishes_raw_syntax_categories() {
         other => panic!("expected family document, got {other:?}"),
     }
 
-    let unsupported_code = [
+    // Unsupported and LegacyUnknown now degrade gracefully (warning, not error).
+    for (kind, expected_warning_code) in [
         (
             puml::ast::StatementKind::UnsupportedSyntax("wat".to_string()),
-            "E_FAMILY_COMPONENT_UNSUPPORTED_SYNTAX",
+            "W_FAMILY_COMPONENT_UNSUPPORTED_SYNTAX",
         ),
+        (
+            puml::ast::StatementKind::Unknown("legacy".to_string()),
+            "W_PARSE_UNKNOWN",
+        ),
+    ] {
+        let doc = puml::ast::Document {
+            kind: puml::ast::DiagramKind::Component,
+            statements: vec![puml::ast::Statement {
+                span: Span::new(10, 17),
+                kind,
+            }],
+        };
+        let model = normalize_family(doc).expect("unsupported/unknown syntax degrades gracefully");
+        let warnings = puml::diagnostic::normalized_warnings(&model);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected one warning for {expected_warning_code}"
+        );
+        assert!(
+            warnings[0].message.contains(expected_warning_code),
+            "expected {expected_warning_code}, got {}",
+            warnings[0].message
+        );
+        assert_eq!(warnings[0].span, Some(Span::new(10, 17)));
+    }
+
+    // Malformed, Deferred, and CommentLowered remain hard errors (parser-bug signals).
+    for (kind, expected_error_code) in [
         (
             puml::ast::StatementKind::MalformedSyntax("component ???".to_string()),
             "E_FAMILY_COMPONENT_MALFORMED_SYNTAX",
@@ -1767,12 +1967,7 @@ fn normalize_extended_family_distinguishes_raw_syntax_categories() {
             puml::ast::StatementKind::CommentLowered("' note".to_string()),
             "E_FAMILY_COMPONENT_COMMENT_LOWERED",
         ),
-        (
-            puml::ast::StatementKind::Unknown("legacy".to_string()),
-            "E_PARSE_UNKNOWN",
-        ),
-    ];
-    for (kind, expected_code) in unsupported_code {
+    ] {
         let doc = puml::ast::Document {
             kind: puml::ast::DiagramKind::Component,
             statements: vec![puml::ast::Statement {
@@ -1780,10 +1975,10 @@ fn normalize_extended_family_distinguishes_raw_syntax_categories() {
                 kind,
             }],
         };
-        let err = normalize_family(doc).expect_err("unsupported raw syntax should fail");
+        let err = normalize_family(doc).expect_err("parser-bug raw syntax should fail");
         assert!(
-            err.message.contains(expected_code),
-            "expected {expected_code}, got {}",
+            err.message.contains(expected_error_code),
+            "expected {expected_error_code}, got {}",
             err.message
         );
         assert_eq!(err.span, Some(Span::new(10, 17)));
@@ -1830,6 +2025,7 @@ fn normalize_tree_family_distinguishes_raw_syntax_categories() {
     assert!(err.message.contains("E_FAMILY_MINDMAP_DEFERRED_RAW"));
     assert_eq!(err.span, Some(Span::new(4, 18)));
 
+    // Unsupported syntax now degrades gracefully (warning, not error).
     let unsupported = puml::ast::Document {
         kind: puml::ast::DiagramKind::MindMap,
         statements: vec![puml::ast::Statement {
@@ -1837,10 +2033,19 @@ fn normalize_tree_family_distinguishes_raw_syntax_categories() {
             kind: puml::ast::StatementKind::UnsupportedSyntax(":::".to_string()),
         }],
     };
-    let err = normalize_family(unsupported).expect_err("raw unsupported syntax should fail");
-    assert!(err.message.contains("E_FAMILY_MINDMAP_UNSUPPORTED_SYNTAX"));
-    assert_eq!(err.span, Some(Span::new(4, 18)));
+    let model = normalize_family(unsupported).expect("raw unsupported syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(warnings.len(), 1, "expected one feature-loss warning");
+    assert!(
+        warnings[0]
+            .message
+            .contains("W_FAMILY_MINDMAP_UNSUPPORTED_SYNTAX"),
+        "expected W_FAMILY_MINDMAP_UNSUPPORTED_SYNTAX, got: {}",
+        warnings[0].message
+    );
+    assert_eq!(warnings[0].span, Some(Span::new(4, 18)));
 
+    // CommentLowered is a parser-bug signal: remains a hard error.
     let comment = puml::ast::Document {
         kind: puml::ast::DiagramKind::MindMap,
         statements: vec![puml::ast::Statement {
@@ -1852,6 +2057,7 @@ fn normalize_tree_family_distinguishes_raw_syntax_categories() {
     assert!(err.message.contains("E_FAMILY_MINDMAP_COMMENT_LOWERED"));
     assert_eq!(err.span, Some(Span::new(4, 18)));
 
+    // LegacyUnknown now degrades gracefully (warning, not error).
     let legacy = puml::ast::Document {
         kind: puml::ast::DiagramKind::MindMap,
         statements: vec![puml::ast::Statement {
@@ -1859,9 +2065,15 @@ fn normalize_tree_family_distinguishes_raw_syntax_categories() {
             kind: puml::ast::StatementKind::Unknown("legacy".to_string()),
         }],
     };
-    let err = normalize_family(legacy).expect_err("legacy unknown syntax should fail");
-    assert!(err.message.contains("E_PARSE_UNKNOWN"));
-    assert_eq!(err.span, Some(Span::new(4, 18)));
+    let model = normalize_family(legacy).expect("legacy unknown syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(warnings.len(), 1, "expected one feature-loss warning");
+    assert!(
+        warnings[0].message.contains("W_PARSE_UNKNOWN"),
+        "expected W_PARSE_UNKNOWN, got: {}",
+        warnings[0].message
+    );
+    assert_eq!(warnings[0].span, Some(Span::new(4, 18)));
 }
 
 #[test]
@@ -1895,6 +2107,7 @@ fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown(
         other => panic!("expected Chen document, got {other:?}"),
     }
 
+    // LegacyUnknown now degrades gracefully (warning, not error).
     let legacy = puml::ast::Document {
         kind: DiagramKind::Chen,
         statements: vec![puml::ast::Statement {
@@ -1902,8 +2115,14 @@ fn normalize_chen_direction_line_remains_parser_deferred_but_not_legacy_unknown(
             kind: puml::ast::StatementKind::Unknown("left to right direction".to_string()),
         }],
     };
-    let err = normalize_family(legacy).expect_err("legacy unknown direction must not pass through");
-    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+    let model = normalize_family(legacy).expect("legacy unknown degrades gracefully in Chen");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(warnings.len(), 1, "expected one feature-loss warning");
+    assert!(
+        warnings[0].message.contains("W_PARSE_UNKNOWN"),
+        "expected W_PARSE_UNKNOWN, got: {}",
+        warnings[0].message
+    );
 }
 
 #[test]
@@ -1925,6 +2144,7 @@ fn normalize_usecase_direction_line_remains_parser_deferred_but_supported() {
         other => panic!("expected family document, got {other:?}"),
     }
 
+    // Unsupported UseCase syntax now degrades gracefully (warning, not error).
     let unsupported = puml::ast::Document {
         kind: DiagramKind::UseCase,
         statements: vec![puml::ast::Statement {
@@ -1932,8 +2152,73 @@ fn normalize_usecase_direction_line_remains_parser_deferred_but_supported() {
             kind: puml::ast::StatementKind::UnsupportedSyntax("wat".to_string()),
         }],
     };
-    let err = normalize_family(unsupported).expect_err("other unsupported usecase syntax fails");
-    assert!(err.message.contains("E_FAMILY_USECASE_UNSUPPORTED_SYNTAX"));
+    let model =
+        normalize_family(unsupported).expect("unsupported usecase syntax degrades gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(warnings.len(), 1, "expected one feature-loss warning");
+    assert!(
+        warnings[0]
+            .message
+            .contains("W_FAMILY_USECASE_UNSUPPORTED_SYNTAX"),
+        "expected W_FAMILY_USECASE_UNSUPPORTED_SYNTAX, got: {}",
+        warnings[0].message
+    );
+}
+
+#[test]
+fn graceful_degradation_renders_valid_elements_and_emits_one_feature_loss_warning() {
+    // A diagram with valid lines PLUS one unsupported/gibberish line should:
+    //   1. Render successfully (non-empty SVG containing the valid elements)
+    //   2. Emit exactly one feature-loss warning naming the bad line
+    //   3. NOT abort the entire diagram
+    //
+    // This is the PlantUML-style graceful degradation behaviour introduced in
+    // the feat(normalize) refactor.
+    let src = "@startuml\nAlice -> Bob: hello\ngibberish_unsupported_line_xyz\nBob -> Alice: ok\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let seq_doc = normalize::normalize(doc)
+        .expect("diagram with one unsupported line should succeed — the valid part renders");
+
+    // The valid elements are preserved.
+    let event_count = seq_doc.events.len();
+    assert!(
+        event_count >= 2,
+        "expected at least 2 messages, got {event_count}"
+    );
+
+    // Exactly one feature-loss warning is emitted, naming the bad line.
+    let warnings = &seq_doc.warnings;
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected exactly one feature-loss warning, got: {warnings:?}",
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("W_SEQUENCE_UNSUPPORTED_SYNTAX"),
+        "expected W_SEQUENCE_UNSUPPORTED_SYNTAX, got: {}",
+        warnings[0].message
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("gibberish_unsupported_line_xyz"),
+        "warning should name the bad line, got: {}",
+        warnings[0].message
+    );
+
+    // End-to-end: the SVG output is non-empty and contains the valid participant names.
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("<svg"),
+        "expected SVG output, got: {}",
+        &svg[..svg.len().min(200)]
+    );
+    assert!(
+        svg.contains("Alice") || svg.contains("Bob"),
+        "expected participant names in SVG output"
+    );
 }
 
 #[test]
@@ -2192,6 +2477,7 @@ fn normalize_reports_destroyed_sender_message_error() {
 
 #[test]
 fn normalize_rejects_family_document_with_unknown_syntax_statement() {
+    // LegacyUnknown now degrades gracefully: success with a feature-loss warning.
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Class,
         statements: vec![puml::ast::Statement {
@@ -2199,8 +2485,18 @@ fn normalize_rejects_family_document_with_unknown_syntax_statement() {
             kind: puml::ast::StatementKind::Unknown("???".to_string()),
         }],
     };
-    let err = normalize_family(doc).expect_err("expected parse unknown error for family");
-    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+    let model = normalize_family(doc).expect("LegacyUnknown should degrade gracefully");
+    let warnings = puml::diagnostic::normalized_warnings(&model);
+    assert_eq!(
+        warnings.len(),
+        1,
+        "expected exactly one feature-loss warning"
+    );
+    assert!(
+        warnings[0].message.contains("W_PARSE_UNKNOWN"),
+        "expected W_PARSE_UNKNOWN, got: {}",
+        warnings[0].message
+    );
 }
 
 #[test]

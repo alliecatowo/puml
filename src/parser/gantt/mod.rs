@@ -1,4 +1,13 @@
-fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
+// parser/gantt: Gantt chart statement parser.
+use super::*;
+
+pub(crate) mod calendar;
+pub(crate) mod tasks;
+
+pub(crate) use calendar::*;
+pub(crate) use tasks::*;
+
+pub(crate) fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     if let Some(kind) = parse_keyword(trimmed) {
         if matches!(&kind, StatementKind::Note(note) if note.text.is_empty()) {
@@ -9,10 +18,16 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let lower_trimmed = trimmed.to_ascii_lowercase();
     if matches!(
         lower_trimmed.as_str(),
-        "hide resources names" | "hide resource names" | "hide resources footbox" | "hide resource footbox"
+        "hide resources names"
+            | "hide resource names"
+            | "hide resources footbox"
+            | "hide resource footbox"
     ) {
         return Some(StatementKind::HideOption(
-            lower_trimmed.strip_prefix("hide ").unwrap_or("").to_string(),
+            lower_trimmed
+                .strip_prefix("hide ")
+                .unwrap_or("")
+                .to_string(),
         ));
     }
 

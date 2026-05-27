@@ -1,4 +1,5 @@
-fn parse_gantt_alias(subject: String, rest: &str) -> (String, Option<String>, &str) {
+use super::*;
+pub(crate) fn parse_gantt_alias(subject: String, rest: &str) -> (String, Option<String>, &str) {
     let rest = rest.trim();
     let Some(after_as) = rest.strip_prefix("as ") else {
         return (subject, None, rest);
@@ -9,7 +10,7 @@ fn parse_gantt_alias(subject: String, rest: &str) -> (String, Option<String>, &s
     (subject, Some(alias), remaining.trim())
 }
 
-fn parse_gantt_then_statement(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_gantt_then_statement(line: &str) -> Option<StatementKind> {
     let rest = line
         .strip_prefix("then ")
         .or_else(|| line.strip_prefix("Then "))?
@@ -26,7 +27,7 @@ fn parse_gantt_then_statement(line: &str) -> Option<StatementKind> {
     })
 }
 
-fn parse_gantt_arrow_dependency(line: &str) -> Option<(String, String, Option<String>)> {
+pub(crate) fn parse_gantt_arrow_dependency(line: &str) -> Option<(String, String, Option<String>)> {
     let (from, rest) = parse_bracket_subject(line)?;
     let rest = rest.trim();
     let arrow_idx = rest.find("->").or_else(|| rest.find("-->"))?;
@@ -44,7 +45,7 @@ fn parse_gantt_arrow_dependency(line: &str) -> Option<(String, String, Option<St
     Some((from, to, style))
 }
 
-fn is_gantt_compound_clause(rest: &str) -> bool {
+pub(crate) fn is_gantt_compound_clause(rest: &str) -> bool {
     let lower = rest.to_ascii_lowercase();
     lower.contains(" and ")
         || lower.starts_with("is colored in ")
@@ -53,7 +54,7 @@ fn is_gantt_compound_clause(rest: &str) -> bool {
         || lower.contains("% completed")
         || lower == "is deleted"
 }
-fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
+pub(crate) fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     let lower = rest.to_ascii_lowercase();
     let (idx, marker_len) = lower
         .find(" and lasts ")
@@ -69,7 +70,7 @@ fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     Some((start_date, parse_gantt_duration_clause(duration_clause)?))
 }
 
-fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
+pub(crate) fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
     // Strip the mandatory "starts " prefix (returns None if absent).
     let after_starts = rest.trim().strip_prefix("starts ")?.trim();
     // Accept both "starts at <date>" and "starts <date>" forms.
@@ -80,7 +81,7 @@ fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
     parse_gantt_date_literal(start_date).or_else(|| parse_gantt_relative_day(start_date))
 }
 
-fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
+pub(crate) fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
     let trimmed = rest.trim();
     let clause = trimmed
         .strip_prefix("lasts ")
@@ -111,7 +112,7 @@ fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
     }
 }
 
-fn parse_gantt_task_color(rest: &str) -> Option<String> {
+pub(crate) fn parse_gantt_task_color(rest: &str) -> Option<String> {
     let lower = rest.to_ascii_lowercase();
     lower
         .strip_prefix("is colored in ")
@@ -121,7 +122,7 @@ fn parse_gantt_task_color(rest: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn parse_gantt_completion(rest: &str) -> Option<u32> {
+pub(crate) fn parse_gantt_completion(rest: &str) -> Option<u32> {
     let lower = rest.to_ascii_lowercase();
     let percent_idx = lower.find('%')?;
     let value = lower[..percent_idx].split_whitespace().last()?;
@@ -132,7 +133,7 @@ fn parse_gantt_completion(rest: &str) -> Option<u32> {
     None
 }
 
-fn parse_gantt_pause_target(rest: &str) -> Option<String> {
+pub(crate) fn parse_gantt_pause_target(rest: &str) -> Option<String> {
     let trimmed = rest.trim();
     let lower = trimmed.to_ascii_lowercase();
     let target = lower
@@ -157,7 +158,7 @@ fn parse_gantt_pause_target(rest: &str) -> Option<String> {
     parse_gantt_weekday_name(target).map(str::to_string)
 }
 
-fn parse_gantt_weekday_name(raw: &str) -> Option<&'static str> {
+pub(crate) fn parse_gantt_weekday_name(raw: &str) -> Option<&'static str> {
     let lower = raw.trim().to_ascii_lowercase();
     match lower.trim_end_matches('s') {
         "monday" => Some("monday"),
@@ -171,7 +172,7 @@ fn parse_gantt_weekday_name(raw: &str) -> Option<&'static str> {
     }
 }
 
-fn parse_gantt_link_target(rest: &str) -> Option<String> {
+pub(crate) fn parse_gantt_link_target(rest: &str) -> Option<String> {
     let trimmed = rest.trim();
     let lower = trimmed.to_ascii_lowercase();
     let target = lower
@@ -182,7 +183,7 @@ fn parse_gantt_link_target(rest: &str) -> Option<String> {
     let url = inner.split_whitespace().next().unwrap_or(inner).trim();
     (!url.is_empty()).then(|| url.to_string())
 }
-fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
+pub(crate) fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
     let lower = rest.to_ascii_lowercase();
     let Some(on_idx) = lower
         .find(" on {")
@@ -235,7 +236,7 @@ fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
     (cleaned, resources)
 }
 
-fn parse_gantt_happens_target(rest: &str) -> Option<String> {
+pub(crate) fn parse_gantt_happens_target(rest: &str) -> Option<String> {
     let lower = rest.to_ascii_lowercase();
     let target = lower
         .strip_prefix("happens on ")

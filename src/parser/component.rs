@@ -1,4 +1,5 @@
-fn parse_component_decl(line: &str) -> Option<StatementKind> {
+use super::*;
+pub(crate) fn parse_component_decl(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
 
     if let Some(kind) = parse_parenthesized_c4_decl(trimmed) {
@@ -119,11 +120,12 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
     None
 }
 
-fn component_decl_keywords() -> impl Iterator<Item = (&'static str, ComponentNodeKind)> + Clone {
+pub(crate) fn component_decl_keywords(
+) -> impl Iterator<Item = (&'static str, ComponentNodeKind)> + Clone {
     crate::registry::component_declaration_keywords()
 }
 
-fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind)> {
+pub(crate) fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind)> {
     let trimmed = line.trim_start();
     let lowered = trimmed.to_ascii_lowercase();
     component_decl_keywords().find(|(kw, _)| {
@@ -136,7 +138,7 @@ fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind
     })
 }
 
-fn parse_parenthesized_c4_decl(trimmed: &str) -> Option<StatementKind> {
+pub(crate) fn parse_parenthesized_c4_decl(trimmed: &str) -> Option<StatementKind> {
     let open = trimmed.find('(')?;
     let keyword_raw = trimmed[..open].trim();
     let keyword_raw = strip_c4_macro_prefix(keyword_raw);
@@ -192,7 +194,7 @@ fn parse_parenthesized_c4_decl(trimmed: &str) -> Option<StatementKind> {
     }))
 }
 
-fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
+pub(crate) fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
     match normalize_c4_keyword(keyword).as_str() {
         "person" => Some("person"),
         "person_ext" | "personext" | "person-ext" | "external_person" | "external-person" => {
@@ -205,15 +207,13 @@ fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
         "system_db" | "systemdb" | "system-db" => Some("system-db"),
         "system_queue" | "systemqueue" | "system-queue" => Some("system-queue"),
         "container" => Some("container"),
-        "container_ext" | "containerext" | "container-ext" | "external_container" | "external-container" => {
-            Some("external-container")
-        }
+        "container_ext" | "containerext" | "container-ext" | "external_container"
+        | "external-container" => Some("external-container"),
         "container_db" | "containerdb" | "container-db" => Some("container-db"),
         "container_queue" | "containerqueue" | "container-queue" => Some("container-queue"),
         "component" => Some("component"),
-        "component_ext" | "componentext" | "component-ext" | "external_component" | "external-component" => {
-            Some("external-component")
-        }
+        "component_ext" | "componentext" | "component-ext" | "external_component"
+        | "external-component" => Some("external-component"),
         "component_db" | "componentdb" | "component-db" => Some("component-db"),
         "component_queue" | "componentqueue" | "component-queue" => Some("component-queue"),
         "boundary"
@@ -229,7 +229,7 @@ fn c4_stereotype_for_function_keyword(keyword: &str) -> Option<&'static str> {
     }
 }
 
-fn normalize_c4_keyword(keyword: &str) -> String {
+pub(crate) fn normalize_c4_keyword(keyword: &str) -> String {
     strip_c4_macro_prefix(keyword)
         .trim()
         .to_ascii_lowercase()
@@ -237,7 +237,7 @@ fn normalize_c4_keyword(keyword: &str) -> String {
         .replace('-', "_")
 }
 
-fn split_parenthesized_args(input: &str) -> Vec<String> {
+pub(crate) fn split_parenthesized_args(input: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
@@ -261,7 +261,7 @@ fn split_parenthesized_args(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn unquote_if_quoted(value: &str) -> &str {
+pub(crate) fn unquote_if_quoted(value: &str) -> &str {
     if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
         &value[1..value.len() - 1]
     } else {
@@ -269,7 +269,7 @@ fn unquote_if_quoted(value: &str) -> &str {
     }
 }
 
-fn split_component_trailing_tags(input: &str) -> (String, Vec<String>) {
+pub(crate) fn split_component_trailing_tags(input: &str) -> (String, Vec<String>) {
     let mut rest = input.trim_end();
     let mut tags = Vec::new();
     while let Some((start, token)) = last_component_token(rest) {
@@ -283,7 +283,7 @@ fn split_component_trailing_tags(input: &str) -> (String, Vec<String>) {
     (rest.trim().to_string(), tags)
 }
 
-fn last_component_token(input: &str) -> Option<(usize, &str)> {
+pub(crate) fn last_component_token(input: &str) -> Option<(usize, &str)> {
     let trimmed = input.trim_end();
     if trimmed.is_empty() {
         return None;
@@ -296,7 +296,7 @@ fn last_component_token(input: &str) -> Option<(usize, &str)> {
     Some((start, &trimmed[start..]))
 }
 
-fn is_component_tag_token(token: &str) -> bool {
+pub(crate) fn is_component_tag_token(token: &str) -> bool {
     let Some(rest) = token.strip_prefix('$') else {
         return false;
     };
@@ -306,7 +306,7 @@ fn is_component_tag_token(token: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
-fn append_component_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
+pub(crate) fn append_component_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
     for tag in tags {
         members.push(ClassMember {
             text: format!("\x1fcomponent:tag:{tag}"),
@@ -315,7 +315,7 @@ fn append_component_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String
     }
 }
 
-fn is_component_container_keyword(keyword: &str) -> bool {
+pub(crate) fn is_component_container_keyword(keyword: &str) -> bool {
     matches!(
         keyword,
         "action"
@@ -339,18 +339,18 @@ fn is_component_container_keyword(keyword: &str) -> bool {
     )
 }
 
-fn is_ambiguous_sequence_participant_keyword(keyword: &str) -> bool {
+pub(crate) fn is_ambiguous_sequence_participant_keyword(keyword: &str) -> bool {
     matches!(
         keyword,
         "actor" | "boundary" | "control" | "entity" | "collections" | "queue"
     )
 }
 
-fn is_ambiguous_activity_keyword(keyword: &str) -> bool {
+pub(crate) fn is_ambiguous_activity_keyword(keyword: &str) -> bool {
     matches!(keyword, "action" | "label")
 }
 
-fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
+pub(crate) fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
     let rest = trimmed.strip_prefix('[')?;
     let end = rest.find(']')?;
     let inner = rest[..end].trim();
@@ -362,8 +362,7 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
         return None;
     }
     let bracketed_inner = format!("[{inner}]");
-    if normalize_virtual_endpoint(&bracketed_inner).is_some() || matches!(inner, "*" | "H" | "H*")
-    {
+    if normalize_virtual_endpoint(&bracketed_inner).is_some() || matches!(inner, "*" | "H" | "H*") {
         return None;
     }
     let alias = suffix
@@ -391,7 +390,7 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
     None
 }
 
-fn parse_actor_colon_shorthand(trimmed: &str) -> Option<StatementKind> {
+pub(crate) fn parse_actor_colon_shorthand(trimmed: &str) -> Option<StatementKind> {
     let inner = trimmed.strip_prefix(':')?.strip_suffix(':')?.trim();
     if inner.is_empty() || inner.contains(':') {
         return None;
@@ -405,7 +404,9 @@ fn parse_actor_colon_shorthand(trimmed: &str) -> Option<StatementKind> {
     })
 }
 
-fn parse_component_parenthesized_usecase_shorthand(trimmed: &str) -> Option<StatementKind> {
+pub(crate) fn parse_component_parenthesized_usecase_shorthand(
+    trimmed: &str,
+) -> Option<StatementKind> {
     let rest = trimmed.strip_prefix('(')?;
     let end = rest.find(')')?;
     let inner = rest[..end].trim();
@@ -430,7 +431,7 @@ fn parse_component_parenthesized_usecase_shorthand(trimmed: &str) -> Option<Stat
     })
 }
 
-fn parse_component_interface_shorthand(trimmed: &str) -> Option<StatementKind> {
+pub(crate) fn parse_component_interface_shorthand(trimmed: &str) -> Option<StatementKind> {
     let rest = trimmed.strip_prefix("()")?.trim();
     if rest.is_empty() {
         return None;
@@ -471,7 +472,7 @@ fn parse_component_interface_shorthand(trimmed: &str) -> Option<StatementKind> {
     })
 }
 
-fn parse_deployment_usecase_decl(line: &str) -> Option<StatementKind> {
+pub(crate) fn parse_deployment_usecase_decl(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     let rest = trimmed.strip_prefix("usecase ")?.trim();
     if rest.is_empty() || rest.ends_with('{') || looks_like_family_relation_tail(rest) {
@@ -525,7 +526,7 @@ fn parse_deployment_usecase_decl(line: &str) -> Option<StatementKind> {
     })
 }
 
-fn parse_component_multiline_decl(
+pub(crate) fn parse_component_multiline_decl(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
@@ -564,7 +565,7 @@ fn parse_component_multiline_decl(
     .with_span(lines[start].1))
 }
 
-fn looks_like_family_relation_tail(rest: &str) -> bool {
+pub(crate) fn looks_like_family_relation_tail(rest: &str) -> bool {
     rest.contains("--")
         || rest.contains("..")
         || rest.contains("->")

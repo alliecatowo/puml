@@ -1,4 +1,5 @@
-fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
+use super::*;
+pub(crate) fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     let mut statements = Vec::new();
     let mut lines = Vec::new();
     let mut offset = 0usize;
@@ -343,7 +344,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if matches!(
             detected_kind,
-            Some(DiagramKind::Component) | Some(DiagramKind::Deployment) | Some(DiagramKind::Unknown)
+            Some(DiagramKind::Component)
+                | Some(DiagramKind::Deployment)
+                | Some(DiagramKind::Unknown)
         ) {
             let family_for_relation = match detected_kind {
                 Some(DiagramKind::Unknown) => None,
