@@ -4,6 +4,7 @@ mod color;
 mod constructors;
 mod datetime;
 mod dispatch;
+mod dispatch_strings;
 mod json;
 mod regex;
 mod scanner;

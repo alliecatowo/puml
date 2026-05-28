@@ -1,5 +1,6 @@
 use crate::diagnostic::Diagnostic;
 
+use super::dispatch_strings::dispatch_string_builtin;
 use super::{
     boolval, deterministic_preproc_now_seconds, dispatch_color_builtin, execute_function_call,
     format_preprocessor_date, format_preprocessor_time, get_json_attribute, json_contains_key,
@@ -260,108 +261,22 @@ pub(in crate::preproc) fn dispatch_builtin(
         ),
         "str2json" => Some(preprocessor_str2json(&arg(0))),
         "json_add" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
-        "strpos" => {
-            let s = arg(0);
-            let sub = arg(1);
-            Some(match s.find(sub.as_str()) {
-                Some(byte_idx) => {
-                    // Return char index (PlantUML semantics).
-                    let char_idx = s[..byte_idx].chars().count();
-                    char_idx.to_string()
-                }
-                None => "-1".to_string(),
-            })
-        }
-        "substr" => {
-            let s = arg(0);
-            let start = parse_int_lenient(&arg(1)).max(0) as usize;
-            let chars: Vec<char> = s.chars().collect();
-            let start = start.min(chars.len());
-            let end = if argc >= 3 {
-                let len = parse_int_lenient(&arg(2));
-                if len < 0 {
-                    chars.len()
-                } else {
-                    (start + len as usize).min(chars.len())
-                }
-            } else {
-                chars.len()
-            };
-            Some(chars[start..end].iter().collect())
-        }
         "intval" => Some(parse_int_lenient(&arg(0)).to_string()),
         "str" | "string" | "stringify" | "json_stringify" => Some(arg(0)),
-        "quote" => Some(format!("\"{}\"", arg(0).replace('"', "\\\""))),
-        "unquote" => Some(strip_quotes(&arg(0))),
         "trim" => Some(arg(0).trim().to_string()),
         "ltrim" => Some(arg(0).trim_start().to_string()),
         "rtrim" => Some(arg(0).trim_end().to_string()),
         "replace" => Some(arg(0).replace(&arg(1), &arg(2))),
-        "equals" | "eq" | "strcmp" => Some((arg(0) == arg(1)).to_string()),
-        "equals_ignore_case" | "eq_ignore_case" | "strcmp_ignore_case" => {
-            Some(arg(0).eq_ignore_ascii_case(&arg(1)).to_string())
-        }
-        "startswith" | "starts_with" => Some(arg(0).starts_with(&arg(1)).to_string()),
-        "startswith_ignore_case" | "starts_with_ignore_case" => Some(
-            arg(0)
-                .to_ascii_lowercase()
-                .starts_with(&arg(1).to_ascii_lowercase())
-                .to_string(),
-        ),
-        "endswith" | "ends_with" => Some(arg(0).ends_with(&arg(1)).to_string()),
-        "endswith_ignore_case" | "ends_with_ignore_case" => Some(
-            arg(0)
-                .to_ascii_lowercase()
-                .ends_with(&arg(1).to_ascii_lowercase())
-                .to_string(),
-        ),
-        "contains" => Some(arg(0).contains(&arg(1)).to_string()),
-        "contains_ignore_case" => Some(
-            arg(0)
-                .to_ascii_lowercase()
-                .contains(&arg(1).to_ascii_lowercase())
-                .to_string(),
-        ),
         "boolval" => Some(boolval(&arg(0)).to_string()),
         "true" => Some("true".to_string()),
         "false" => Some("false".to_string()),
         "not" => Some((!boolval(&arg(0))).to_string()),
         "lower" => Some(arg(0).to_lowercase()),
         "upper" => Some(arg(0).to_uppercase()),
-        "chr" => {
-            let n = parse_int_lenient(&arg(0));
-            if n < 0 {
-                Some(String::new())
-            } else if let Some(c) = u32::try_from(n).ok().and_then(char::from_u32) {
-                Some(c.to_string())
-            } else {
-                Some(String::new())
-            }
+        // String/char ops with multi-line logic — delegated to dispatch_strings.
+        name if dispatch_string_builtin(name, &arg(0), &arg(1), &arg(2), argc).is_some() => {
+            dispatch_string_builtin(name, &arg(0), &arg(1), &arg(2), argc)
         }
-        "dec2hex" => {
-            let n = parse_int_lenient(&arg(0));
-            if n < 0 {
-                Some(String::new())
-            } else {
-                Some(format!("{:x}", n))
-            }
-        }
-        "hex2dec" => {
-            let s = arg(0);
-            let cleaned = s.trim().trim_start_matches("0x").trim_start_matches("0X");
-            Some(
-                i64::from_str_radix(cleaned, 16)
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|_| "0".to_string()),
-            )
-        }
-        "ord" => Some(
-            arg(0)
-                .chars()
-                .next()
-                .map(|c| (c as u32).to_string())
-                .unwrap_or_else(|| "0".to_string()),
-        ),
         "now" | "timestamp" => Some(deterministic_preproc_now_seconds(state).to_string()),
         "date" => Some(format_preprocessor_date(
             expanded_args.first().map(String::as_str),
