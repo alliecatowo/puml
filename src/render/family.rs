@@ -7,6 +7,7 @@ mod box_grid_ports;
 mod c4_nodes;
 mod class_layout;
 mod class_members;
+mod class_metadata;
 mod class_node_render;
 mod class_relation_labels;
 mod class_relations;

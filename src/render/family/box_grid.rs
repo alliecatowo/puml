@@ -86,7 +86,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
     // Extra space for `header` text above the title (if any).
-    let header_block_h = super::class_render::family_metadata_label_height(doc.header.as_deref());
+    let header_block_h = super::class_metadata::family_metadata_label_height(doc.header.as_deref());
     let header_h = if title_lines > 0 {
         16 + title_lines * 22 + header_block_h
     } else {
@@ -456,7 +456,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
 
     // Header — rendered at the top before title and nodes.
     if let Some(header_text) = &doc.header {
-        super::class_render::render_family_metadata_label(
+        super::class_metadata::render_family_metadata_label(
             &mut out,
             header_text,
             "header",
@@ -541,7 +541,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     }
 
     if let Some(text) = &doc.legend {
-        super::class_render::render_family_legend_box(
+        super::class_metadata::render_family_legend_box(
             &mut out,
             text,
             svg_width,
@@ -557,7 +557,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         + projection_extra_height;
     let caption_y = base_bottom + 14;
     if let Some(caption_text) = &doc.caption {
-        super::class_render::render_family_metadata_label(
+        super::class_metadata::render_family_metadata_label(
             &mut out,
             caption_text,
             "caption",
@@ -570,7 +570,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // Footer — rendered at the very bottom of the SVG.
     let footer_y = caption_y + caption_block_h + 14;
     if let Some(footer_text) = &doc.footer {
-        super::class_render::render_family_metadata_label(
+        super::class_metadata::render_family_metadata_label(
             &mut out,
             footer_text,
             "footer",
