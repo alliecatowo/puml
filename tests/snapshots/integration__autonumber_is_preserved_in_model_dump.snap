@@ -1,98 +1,98 @@
 ---
 source: tests/integration.rs
-assertion_line: 3038
+assertion_line: 3683
 expression: json
 ---
 {
-  "caption": null,
-  "events": [
-    {
-      "kind": {
-        "Autonumber": "100"
-      },
-      "span": {
-        "end": 24,
-        "start": 10
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "A",
-          "label": "init",
-          "to": "B"
-        }
-      },
-      "span": {
-        "end": 37,
-        "start": 25
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "B",
-          "label": "fanout",
-          "to": "C"
-        }
-      },
-      "span": {
-        "end": 52,
-        "start": 38
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "-->",
-          "from": "C",
-          "label": "done",
-          "to": "A"
-        }
-      },
-      "span": {
-        "end": 66,
-        "start": 53
-      }
-    }
-  ],
-  "footbox_visible": true,
-  "footer": null,
-  "header": null,
-  "legend": null,
   "participants": [
     {
-      "display": "A",
-      "explicit": false,
       "id": "A",
-      "role": "Participant"
+      "display": "A",
+      "role": "Participant",
+      "explicit": false
     },
     {
-      "display": "B",
-      "explicit": false,
       "id": "B",
-      "role": "Participant"
+      "display": "B",
+      "role": "Participant",
+      "explicit": false
     },
     {
-      "display": "C",
-      "explicit": false,
       "id": "C",
-      "role": "Participant"
+      "display": "C",
+      "role": "Participant",
+      "explicit": false
     }
   ],
+  "events": [
+    {
+      "span": {
+        "start": 10,
+        "end": 24
+      },
+      "kind": {
+        "Autonumber": "100"
+      }
+    },
+    {
+      "span": {
+        "start": 25,
+        "end": 37
+      },
+      "kind": {
+        "Message": {
+          "from": "A",
+          "to": "B",
+          "arrow": "->",
+          "label": "init"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 38,
+        "end": 52
+      },
+      "kind": {
+        "Message": {
+          "from": "B",
+          "to": "C",
+          "arrow": "->",
+          "label": "fanout"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 53,
+        "end": 66
+      },
+      "kind": {
+        "Message": {
+          "from": "C",
+          "to": "A",
+          "arrow": "-->",
+          "label": "done"
+        }
+      }
+    }
+  ],
+  "teoz": false,
+  "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "skinparams": [],
   "style": {
     "arrow_color": "#111",
-    "group_background_color": "#fafafa",
-    "group_border_color": "#666",
     "lifeline_border_color": "#555",
+    "participant_background_color": "#f6f6f6",
+    "participant_border_color": "#111",
     "note_background_color": "#fff8c4",
     "note_border_color": "#111",
-    "participant_background_color": "#f6f6f6",
-    "participant_border_color": "#111"
+    "group_background_color": "#fafafa",
+    "group_border_color": "#666"
   },
-  "teoz": false,
-  "title": null
+  "footbox_visible": true
 }

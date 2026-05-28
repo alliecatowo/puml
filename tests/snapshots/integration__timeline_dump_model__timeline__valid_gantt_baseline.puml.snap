@@ -1,62 +1,62 @@
 ---
 source: tests/integration.rs
-assertion_line: 1141
+assertion_line: 1204
 expression: json
 ---
 {
-  "caption": null,
-  "chronology_events": [],
-  "closed_ranges": [],
-  "closed_weekdays": [],
+  "kind": "Gantt",
+  "tasks": [
+    {
+      "name": "Design",
+      "start_day": 20574,
+      "workload_days": 14,
+      "duration_days": 14,
+      "resources": [],
+      "resource_allocations": []
+    },
+    {
+      "name": "Build",
+      "start_day": 20588,
+      "workload_days": 14,
+      "duration_days": 14,
+      "resources": [],
+      "resource_allocations": []
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Kickoff",
+      "happens_on": "2026-05-01"
+    }
+  ],
+  "separators": [],
   "constraints": [
     {
-      "kind": "happens",
       "subject": "Kickoff",
+      "kind": "happens",
       "target": "2026-05-01"
     },
     {
-      "kind": "requires",
       "subject": "Build",
+      "kind": "requires",
       "target": "[Design]"
     }
   ],
-  "footer": null,
-  "header": null,
-  "kind": "Gantt",
-  "legend": null,
-  "milestones": [
-    {
-      "happens_on": "2026-05-01",
-      "name": "Kickoff"
-    }
-  ],
-  "named_dates": [],
+  "closed_weekdays": [],
+  "closed_ranges": [],
   "open_ranges": [],
-  "print_end": null,
-  "print_end_day": null,
-  "print_start": null,
-  "print_start_day": null,
+  "named_dates": [],
+  "chronology_events": [],
   "project_start": null,
   "project_start_day": null,
-  "separators": [],
-  "tasks": [
-    {
-      "duration_days": 14,
-      "name": "Design",
-      "resource_allocations": [],
-      "resources": [],
-      "start_day": 20574,
-      "workload_days": 14
-    },
-    {
-      "duration_days": 14,
-      "name": "Build",
-      "resource_allocations": [],
-      "resources": [],
-      "start_day": 20588,
-      "workload_days": 14
-    }
-  ],
+  "print_start": null,
+  "print_end": null,
+  "print_start_day": null,
+  "print_end_day": null,
   "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "warnings": []
 }

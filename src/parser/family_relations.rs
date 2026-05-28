@@ -1,4 +1,5 @@
 use super::*;
+
 pub(crate) fn parse_family_relation(
     line: &str,
     family: Option<DiagramKind>,
@@ -25,11 +26,35 @@ pub(crate) fn parse_family_relation(
         return Some(kinds);
     }
 
+    // Pre-strip tail-form inline relation style before label splitting.
+    // PlantUML 3.36: `A --> B #line:red;line.bold : label`
+    // Without this pre-pass, the `:` inside `#line:color` confuses the label splitter.
+    let (preprocessed_line, pre_style) = pre_strip_inline_relation_style(line);
+    let line = preprocessed_line.as_str();
+
     let (core, raw_label) = split_family_relation_label(line);
-    let (lhs, arrow, relation_style, rhs) = split_family_arrow_styled(core)?;
+    let (lhs, arrow, mut relation_style, rhs) = split_family_arrow_styled(core)?;
     if !arrow.contains('-') && !arrow.contains('.') {
         return None;
     }
+    // Merge pre-stripped style into relation_style
+    if let Some(pre) = pre_style {
+        if pre.line_color.is_some() {
+            relation_style.line_color = pre.line_color;
+        }
+        if pre.dashed {
+            relation_style.dashed = pre.dashed;
+        }
+        if pre.hidden {
+            relation_style.hidden = pre.hidden;
+        }
+        if pre.thickness.is_some() {
+            relation_style.thickness = pre.thickness;
+        }
+    }
+    // Strip any remaining tail-form inline relation style from the RHS.
+    let rhs = parse_rhs_inline_relation_style(rhs, &mut relation_style);
+    let rhs = rhs.as_str();
     let (rhs, trailing_stereotype) = split_relation_trailing_stereotype(rhs);
     let (label, label_stereotype) = split_relation_label_stereotype(raw_label);
     // Strip surrounding double-quotes from labels produced by preprocessor macro

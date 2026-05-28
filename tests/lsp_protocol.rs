@@ -259,18 +259,18 @@ fn workspace_command_json_shapes_are_deterministic() {
             .cloned()
             .collect::<Vec<_>>(),
         vec![
-            "artifact",
-            "content",
-            "contentBase64",
-            "diagnostics",
-            "encoding",
+            "schema",
+            "schemaVersion",
             "format",
             "mediaType",
-            "model",
+            "encoding",
+            "content",
+            "contentBase64",
             "pages",
+            "artifact",
+            "model",
             "scene",
-            "schema",
-            "schemaVersion"
+            "diagnostics"
         ]
     );
 }

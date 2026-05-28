@@ -1,96 +1,96 @@
 ---
 source: tests/integration.rs
-assertion_line: 180
+assertion_line: 2279
 expression: first_json
 ---
 {
+  "size": {
+    "width": 620,
+    "height": 280
+  },
   "lanes": [
     {
-      "display": "A",
       "id": "A",
+      "display": "A",
       "role": "Participant",
       "x": 100
     },
     {
-      "display": "B",
       "id": "B",
+      "display": "B",
       "role": "Participant",
       "x": 240
     },
     {
-      "display": "C",
       "id": "C",
+      "display": "C",
       "role": "Participant",
       "x": 380
     }
   ],
   "rows": [
     {
+      "y": 120,
       "event": {
+        "span": {
+          "start": 10,
+          "end": 24
+        },
         "kind": {
           "Autonumber": "100"
-        },
-        "span": {
-          "end": 24,
-          "start": 10
         }
-      },
-      "y": 120
+      }
     },
     {
+      "y": 160,
       "event": {
+        "span": {
+          "start": 25,
+          "end": 37
+        },
         "kind": {
           "Message": {
-            "arrow": "->",
             "from": "A",
-            "label": "init",
-            "to": "B"
-          }
-        },
-        "span": {
-          "end": 37,
-          "start": 25
-        }
-      },
-      "y": 160
-    },
-    {
-      "event": {
-        "kind": {
-          "Message": {
+            "to": "B",
             "arrow": "->",
-            "from": "B",
-            "label": "fanout",
-            "to": "C"
+            "label": "init"
           }
-        },
-        "span": {
-          "end": 52,
-          "start": 38
         }
-      },
-      "y": 200
+      }
     },
     {
+      "y": 200,
       "event": {
+        "span": {
+          "start": 38,
+          "end": 52
+        },
         "kind": {
           "Message": {
-            "arrow": "-->",
-            "from": "C",
-            "label": "done",
-            "to": "A"
+            "from": "B",
+            "to": "C",
+            "arrow": "->",
+            "label": "fanout"
           }
-        },
-        "span": {
-          "end": 66,
-          "start": 53
         }
-      },
-      "y": 240
+      }
+    },
+    {
+      "y": 240,
+      "event": {
+        "span": {
+          "start": 53,
+          "end": 66
+        },
+        "kind": {
+          "Message": {
+            "from": "C",
+            "to": "A",
+            "arrow": "-->",
+            "label": "done"
+          }
+        }
+      }
     }
-  ],
-  "size": {
-    "height": 280,
-    "width": 620
-  }
+  ]
 }

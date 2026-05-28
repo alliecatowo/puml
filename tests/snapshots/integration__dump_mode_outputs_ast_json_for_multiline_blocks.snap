@@ -1,81 +1,81 @@
 ---
 source: tests/integration.rs
-assertion_line: 85
+assertion_line: 1377
 expression: json
 ---
 {
   "kind": "Sequence",
   "statements": [
     {
+      "span": {
+        "start": 10,
+        "end": 54
+      },
       "kind": {
         "Title": "System overview\nwith details"
-      },
-      "span": {
-        "end": 54,
-        "start": 10
       }
     },
     {
+      "span": {
+        "start": 55,
+        "end": 94
+      },
       "kind": {
         "Header": "Release train\n2026.05"
-      },
-      "span": {
-        "end": 94,
-        "start": 55
       }
     },
     {
+      "span": {
+        "start": 95,
+        "end": 143
+      },
       "kind": {
         "Footer": "Confidential\ninternal use only"
-      },
-      "span": {
-        "end": 143,
-        "start": 95
       }
     },
     {
+      "span": {
+        "start": 144,
+        "end": 186
+      },
       "kind": {
         "Caption": "Flow summary\nall green"
-      },
-      "span": {
-        "end": 186,
-        "start": 144
       }
     },
     {
+      "span": {
+        "start": 187,
+        "end": 215
+      },
       "kind": {
         "Legend": "Alpha\nBeta"
-      },
-      "span": {
-        "end": 215,
-        "start": 187
       }
     },
     {
+      "span": {
+        "start": 216,
+        "end": 234
+      },
       "kind": {
         "Message": {
-          "arrow": "->",
           "from": "Alice",
-          "label": "ping",
-          "to": "Bob"
+          "to": "Bob",
+          "arrow": "->",
+          "label": "ping"
         }
-      },
-      "span": {
-        "end": 234,
-        "start": 216
       }
     },
     {
+      "span": {
+        "start": 235,
+        "end": 275
+      },
       "kind": {
         "Note": {
           "position": "right",
           "target": "Bob",
           "text": "line 1\nline 2"
         }
-      },
-      "span": {
-        "end": 275,
-        "start": 235
       }
     }
   ]

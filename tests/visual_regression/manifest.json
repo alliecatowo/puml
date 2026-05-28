@@ -191,7 +191,10 @@
       "path": "docs/examples/json/01_object.puml",
       "family": "json",
       "expected_text": ["JSON", "active", "true", "age", "30", "name", "\"Alice\""],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "json/yaml document-order keys (P12); re-bless on Linux"
     },
     {
       "path": "docs/examples/archimate/01_layered.puml",

@@ -1,68 +1,68 @@
 ---
 source: tests/integration.rs
-assertion_line: 3213
+assertion_line: 3858
 expression: json
 ---
 {
-  "caption": null,
-  "events": [
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "A",
-          "label": "call",
-          "to": "B"
-        }
-      },
-      "span": {
-        "end": 22,
-        "start": 10
-      }
-    },
-    {
-      "kind": {
-        "Return": {
-          "from": "B",
-          "label": "done",
-          "to": "A"
-        }
-      },
-      "span": {
-        "end": 34,
-        "start": 23
-      }
-    }
-  ],
-  "footbox_visible": true,
-  "footer": null,
-  "header": null,
-  "legend": null,
   "participants": [
     {
-      "display": "A",
-      "explicit": false,
       "id": "A",
-      "role": "Participant"
+      "display": "A",
+      "role": "Participant",
+      "explicit": false
     },
     {
-      "display": "B",
-      "explicit": false,
       "id": "B",
-      "role": "Participant"
+      "display": "B",
+      "role": "Participant",
+      "explicit": false
     }
   ],
+  "events": [
+    {
+      "span": {
+        "start": 10,
+        "end": 22
+      },
+      "kind": {
+        "Message": {
+          "from": "A",
+          "to": "B",
+          "arrow": "->",
+          "label": "call"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 23,
+        "end": 34
+      },
+      "kind": {
+        "Return": {
+          "label": "done",
+          "from": "B",
+          "to": "A"
+        }
+      }
+    }
+  ],
+  "teoz": false,
+  "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "skinparams": [],
   "style": {
     "arrow_color": "#111",
-    "group_background_color": "#fafafa",
-    "group_border_color": "#666",
     "lifeline_border_color": "#555",
+    "participant_background_color": "#f6f6f6",
+    "participant_border_color": "#111",
     "note_background_color": "#fff8c4",
     "note_border_color": "#111",
-    "participant_background_color": "#f6f6f6",
-    "participant_border_color": "#111"
+    "group_background_color": "#fafafa",
+    "group_border_color": "#666"
   },
-  "teoz": false,
-  "title": null
+  "footbox_visible": true
 }

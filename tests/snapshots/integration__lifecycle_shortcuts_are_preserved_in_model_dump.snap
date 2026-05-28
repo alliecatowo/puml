@@ -1,148 +1,148 @@
 ---
 source: tests/integration.rs
-assertion_line: 3172
+assertion_line: 3817
 expression: json
 ---
 {
-  "caption": null,
-  "events": [
-    {
-      "kind": {
-        "Create": "A"
-      },
-      "span": {
-        "end": 18,
-        "start": 10
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "A",
-          "label": "call",
-          "to": "B"
-        }
-      },
-      "span": {
-        "end": 33,
-        "start": 19
-      }
-    },
-    {
-      "kind": {
-        "Activate": "B"
-      },
-      "span": {
-        "end": 33,
-        "start": 19
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "B",
-          "label": "done",
-          "to": "A"
-        }
-      },
-      "span": {
-        "end": 48,
-        "start": 34
-      }
-    },
-    {
-      "kind": {
-        "Deactivate": "B"
-      },
-      "span": {
-        "end": 48,
-        "start": 34
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "A",
-          "label": "spawn",
-          "to": "C"
-        }
-      },
-      "span": {
-        "end": 64,
-        "start": 49
-      }
-    },
-    {
-      "kind": {
-        "Create": "C"
-      },
-      "span": {
-        "end": 64,
-        "start": 49
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "A",
-          "label": "finish",
-          "to": "C"
-        }
-      },
-      "span": {
-        "end": 81,
-        "start": 65
-      }
-    },
-    {
-      "kind": {
-        "Destroy": "C"
-      },
-      "span": {
-        "end": 81,
-        "start": 65
-      }
-    }
-  ],
-  "footbox_visible": true,
-  "footer": null,
-  "header": null,
-  "legend": null,
   "participants": [
     {
-      "display": "A",
-      "explicit": false,
       "id": "A",
-      "role": "Participant"
+      "display": "A",
+      "role": "Participant",
+      "explicit": false
     },
     {
-      "display": "B",
-      "explicit": false,
       "id": "B",
-      "role": "Participant"
+      "display": "B",
+      "role": "Participant",
+      "explicit": false
     },
     {
-      "display": "C",
-      "explicit": false,
       "id": "C",
-      "role": "Participant"
+      "display": "C",
+      "role": "Participant",
+      "explicit": false
     }
   ],
+  "events": [
+    {
+      "span": {
+        "start": 10,
+        "end": 18
+      },
+      "kind": {
+        "Create": "A"
+      }
+    },
+    {
+      "span": {
+        "start": 19,
+        "end": 33
+      },
+      "kind": {
+        "Message": {
+          "from": "A",
+          "to": "B",
+          "arrow": "->",
+          "label": "call"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 19,
+        "end": 33
+      },
+      "kind": {
+        "Activate": "B"
+      }
+    },
+    {
+      "span": {
+        "start": 34,
+        "end": 48
+      },
+      "kind": {
+        "Message": {
+          "from": "B",
+          "to": "A",
+          "arrow": "->",
+          "label": "done"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 34,
+        "end": 48
+      },
+      "kind": {
+        "Deactivate": "B"
+      }
+    },
+    {
+      "span": {
+        "start": 49,
+        "end": 64
+      },
+      "kind": {
+        "Message": {
+          "from": "A",
+          "to": "C",
+          "arrow": "->",
+          "label": "spawn"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 49,
+        "end": 64
+      },
+      "kind": {
+        "Create": "C"
+      }
+    },
+    {
+      "span": {
+        "start": 65,
+        "end": 81
+      },
+      "kind": {
+        "Message": {
+          "from": "A",
+          "to": "C",
+          "arrow": "->",
+          "label": "finish"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 65,
+        "end": 81
+      },
+      "kind": {
+        "Destroy": "C"
+      }
+    }
+  ],
+  "teoz": false,
+  "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "skinparams": [],
   "style": {
     "arrow_color": "#111",
-    "group_background_color": "#fafafa",
-    "group_border_color": "#666",
     "lifeline_border_color": "#555",
+    "participant_background_color": "#f6f6f6",
+    "participant_border_color": "#111",
     "note_background_color": "#fff8c4",
     "note_border_color": "#111",
-    "participant_background_color": "#f6f6f6",
-    "participant_border_color": "#111"
+    "group_background_color": "#fafafa",
+    "group_border_color": "#666"
   },
-  "teoz": false,
-  "title": null
+  "footbox_visible": true
 }

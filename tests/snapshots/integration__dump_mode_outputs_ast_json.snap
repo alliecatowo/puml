@@ -1,23 +1,23 @@
 ---
 source: tests/integration.rs
-assertion_line: 107
+assertion_line: 2229
 expression: json
 ---
 {
   "kind": "Sequence",
   "statements": [
     {
+      "span": {
+        "start": 10,
+        "end": 26
+      },
       "kind": {
         "Message": {
-          "arrow": "->",
           "from": "Alice",
-          "label": "hi",
-          "to": "Bob"
+          "to": "Bob",
+          "arrow": "->",
+          "label": "hi"
         }
-      },
-      "span": {
-        "end": 26,
-        "start": 10
       }
     }
   ]

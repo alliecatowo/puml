@@ -3,22 +3,22 @@ source: tests/integration.rs
 expression: json
 ---
 {
+  "schema": "puml.diagnostics",
+  "schema_version": 1,
   "diagnostics": [
     {
-      "caret": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-      "category": "unsupported-syntax",
       "code": "W_SKINPARAM_UNSUPPORTED",
-      "column": 1,
-      "line": 2,
-      "message": "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `TotallyUnknownColor`",
       "severity": "warning",
-      "snippet": "skinparam TotallyUnknownColor red",
+      "category": "unsupported-syntax",
+      "message": "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `TotallyUnknownColor`",
       "span": {
-        "end": 43,
-        "start": 10
-      }
+        "start": 10,
+        "end": 43
+      },
+      "line": 2,
+      "column": 1,
+      "snippet": "skinparam TotallyUnknownColor red",
+      "caret": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
     }
-  ],
-  "schema": "puml.diagnostics",
-  "schema_version": 1
+  ]
 }

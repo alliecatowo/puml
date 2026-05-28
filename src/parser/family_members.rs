@@ -139,7 +139,7 @@ pub(crate) fn try_strip_trailing_stereotype_modifier(s: &str) -> Option<(&str, M
 pub(crate) fn is_member_modifier_word(word: &str) -> bool {
     matches!(
         word.to_ascii_lowercase().as_str(),
-        "field" | "method" | "abstract" | "static" | "class"
+        "field" | "method" | "abstract" | "static" | "class" | "classifier"
     )
 }
 
@@ -148,7 +148,8 @@ pub(crate) fn parse_brace_modifier_word(word: &str) -> Option<MemberModifier> {
         "field" => Some(MemberModifier::Field),
         "method" => Some(MemberModifier::Method),
         "abstract" => Some(MemberModifier::Abstract),
-        "static" | "class" => Some(MemberModifier::Static),
+        // `{classifier}` is an alias for `{static}` per PlantUML 3.7
+        "static" | "class" | "classifier" => Some(MemberModifier::Static),
         _ => None,
     }
 }
