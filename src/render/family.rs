@@ -1,4 +1,5 @@
 mod box_grid;
+mod box_grid_canvas;
 mod box_grid_edges;
 mod box_grid_frames;
 mod box_grid_labels;

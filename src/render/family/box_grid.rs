@@ -13,7 +13,7 @@ use super::box_grid_edges::render_box_grid_relations_and_labels;
 use super::box_grid_frames::{render_box_grid_package_frames, BoxGridPackageFrameInputs};
 use super::box_grid_ports::apply_boundary_port_positions;
 use super::node_shapes::{render_family_node_shape_styled, DeploymentShapeBounds};
-use super::projections::{family_projection_extra_height, render_family_projection_boxes};
+use super::projections::render_family_projection_boxes;
 
 pub(super) struct PackageLayout {
     #[allow(dead_code)]
@@ -397,96 +397,35 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Compute SVG canvas size from hierarchical layout result
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // 3D cube offset: Node and Frame kinds render a back-right face that extends
-    // `cube_offset` pixels to the right (and up) of the layout bounding box.
-    // We must add this to all right-edge estimates so the cube clears the canvas
-    // right margin (fix #565 #569).
-    const CUBE_OFFSET: i32 = 12;
-    let has_3d_node = doc
-        .nodes
-        .iter()
-        .any(|n| matches!(n.kind, FamilyNodeKind::Node | FamilyNodeKind::Frame));
-    let shape_right_extra = if has_3d_node { CUBE_OFFSET } else { 0 };
-
-    let all_pkg_right = pkg_layouts
-        .iter()
-        .enumerate()
-        .map(|(i, pkg)| pkg.abs_x + pkg_frame_widths[i])
-        .max()
-        .unwrap_or(canvas_margin);
-    let all_pkg_bottom = pkg_layouts
-        .iter()
-        .enumerate()
-        .map(|(i, pkg)| pkg.abs_y + pkg_frame_heights[i])
-        .max()
-        .unwrap_or(canvas_margin + header_h);
-
-    // Rightmost drawn position across all placed nodes, including any 3D cube
-    // back-face extension.  This is the source-of-truth for the right canvas edge
-    // when the graph-layout estimate (gl_canvas_right) falls short.
-    let max_node_drawn_right = positions
-        .values()
-        .map(|&(nx, _, nw, _)| nx + nw + shape_right_extra)
-        .max()
-        .unwrap_or(canvas_margin);
-
-    // Ungrouped nodes are placed by a fallback grid that is independent of the
-    // graph-layout pass; their rightmost column must also contribute to svg_width.
-    let ungrouped_right = if ungrouped.is_empty() {
-        0
-    } else {
-        // The last occupied column index among all ungrouped rows.
-        let last_col = ((ungrouped.len() as i32) - 1) % inner_cols;
-        canvas_margin + last_col * (cell_w + inner_gap) + cell_w + shape_right_extra
-    };
-    let ungrouped_bottom = if ungrouped.is_empty() {
-        0
-    } else {
-        let ungrouped_rows = (ungrouped.len() as i32 + inner_cols - 1) / inner_cols;
-        pkg_bottom + ungrouped_rows * (cell_h + inner_gap)
-    };
-
-    // Also use gl_result canvas size as a floor
-    let gl_canvas_right = gl_result.canvas_width as i32;
-    let gl_canvas_bottom = gl_result.canvas_height as i32;
-
-    let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let relation_label_half_width = doc
-        .relations
-        .iter()
-        .filter_map(|rel| rel.label.as_ref())
-        .map(|label| (crate::render::text_metrics::monospace_width(label, 7) + 12) / 2)
-        .max()
-        .unwrap_or(0);
-    let right_gutter = if family == "deployment" {
-        canvas_margin.max(12 + relation_label_half_width)
-    } else {
-        canvas_margin
-    };
-    // svg_width: the dominant right-edge estimate is max_node_drawn_right (which
-    // already includes shape_right_extra); we also floor on gl_canvas_right and
-    // all_pkg_right for backwards compatibility.  Deployment diagrams reserve an
-    // extra right gutter for relation labels so rightmost nodes and labels do not
-    // clip at the canvas boundary (#569).
-    let svg_width = all_pkg_right
-        .max(gl_canvas_right)
-        .max(max_node_drawn_right)
-        .max(ungrouped_right)
-        .max(canvas_margin)
-        + right_gutter;
-    let svg_width = svg_width.max(400);
-    // Reserve height for caption and footer rendered below the diagram.
-    let caption_block_h = super::class_render::family_metadata_label_height(doc.caption.as_deref());
-    let footer_block_h = super::class_render::family_metadata_label_height(doc.footer.as_deref());
-    let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
-        + canvas_margin
-        + projection_extra_height
-        + caption_block_h
-        + footer_block_h;
+    let canvas =
+        super::box_grid_canvas::compute_canvas_bounds(super::box_grid_canvas::CanvasBoundsInput {
+            doc,
+            family,
+            pkg_layouts: &pkg_layouts,
+            pkg_frame_widths: &pkg_frame_widths,
+            pkg_frame_heights: &pkg_frame_heights,
+            positions: &positions,
+            ungrouped_len: ungrouped.len(),
+            gl_canvas_width: gl_result.canvas_width,
+            gl_canvas_height: gl_result.canvas_height,
+            inner_cols,
+            cell_w,
+            cell_h,
+            inner_gap,
+            canvas_margin,
+            pkg_bottom,
+            header_h,
+        });
+    let super::box_grid_canvas::BoxGridCanvasBounds {
+        svg_width,
+        svg_height,
+        all_pkg_bottom,
+        gl_canvas_bottom,
+        projection_extra_height,
+        caption_block_h,
+        ungrouped_bottom,
+        ..
+    } = canvas;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Start SVG output

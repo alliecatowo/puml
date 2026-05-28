@@ -186,6 +186,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Install cargo-llvm-cov
+        if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: rust file-size guardrail

@@ -8,7 +8,7 @@ use super::*;
 /// - `|#color|Lane|`              — color + name combo
 /// - `|= Lane|`                   — **bold** header (display only, `=` stripped from name)
 /// - `|<<role>>Lane|`             — stereotype; `<<role>>` stripped from identifier,
-///                                  stored as `lane_stereotype=role` metadata in the label
+///   stored as `lane_stereotype=role` metadata in the label
 ///
 /// The returned label encodes both the clean lane identifier (used for node
 /// routing) and any display modifiers, using `\x1f`-delimited fields.
@@ -156,6 +156,7 @@ pub(crate) fn parse_activity_partition_like(line: &str) -> Option<(String, Optio
 /// Returns `(clean_name, bold, stereotype)` where `clean_name` has all `\x1f`
 /// swim markers stripped, `bold` is true when `|= Name|` was parsed, and
 /// `stereotype` carries the `<<role>>` text if present.
+#[allow(dead_code)]
 pub(crate) fn extract_swimlane_display_meta(label: &str) -> (&str, bool, Option<&str>) {
     let mut rest = label;
     let mut bold = false;

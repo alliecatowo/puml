@@ -27,6 +27,11 @@ pub(in crate::render::activity) struct ActivityRoute {
     pub x2: i32,
     pub y2: i32,
     pub style: ActivityArrowStyle,
+    /// When `true` this arrow is a loop back-edge that is rendered in SVG via a
+    /// multi-segment detoured path (bypassing node bboxes). The typed scene
+    /// builder skips back-edge routes so that straight-line approximations do
+    /// not produce spurious `EdgeCrossesNode` geometry violations.
+    pub skip_in_scene: bool,
 }
 
 impl ActivityRoute {
@@ -37,11 +42,17 @@ impl ActivityRoute {
             x2,
             y2,
             style: ActivityArrowStyle::default(),
+            skip_in_scene: false,
         }
     }
 
     pub(in crate::render::activity) fn with_label(mut self, label: Option<String>) -> Self {
         self.style.label = label.filter(|label| !label.trim().is_empty());
+        self
+    }
+
+    pub(in crate::render::activity) fn skip_in_scene(mut self) -> Self {
+        self.skip_in_scene = true;
         self
     }
 }
