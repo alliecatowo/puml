@@ -42,6 +42,10 @@ pub(super) fn handle_destroy_event(
 /// For participants not in `created_participants` (i.e., the `create`
 /// keyword was used for a participant that already appears in the header),
 /// only the lifecycle marker is emitted.
+// Layout helper threads multiple independent state collections (centers, created participants,
+// display lines, participant boxes, lifecycle markers) that cannot be aggregated into a struct
+// without breaking encapsulation of caller's layout loop state management.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn handle_create_event(
     id: &str,
     created_participants: &std::collections::BTreeSet<String>,

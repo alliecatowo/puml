@@ -10,6 +10,11 @@ use super::text::row_units_for_height;
 ///
 /// Delay, Divider, and Separator each consume one row.  Spacer consumes as
 /// many rows as needed to satisfy the requested pixel height.
+// Layout helper coordinates sequence event geometry (row position, vertical bounds)
+// and centers collection across caller's event-processing loop; parameters reflect
+// the distinct state threads and cannot be meaningfully grouped without breaking
+// the caller's mutable-borrow patterns.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn push_structure_line(
     kind: StructureKind,
     label: Option<String>,
