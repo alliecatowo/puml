@@ -11,6 +11,7 @@ use super::class_members::{
     parse_visibility_member, render_map_rows, uml_visibility_name, MapRenderCtx,
 };
 use super::class_types::ClassNodeGeometry;
+use super::cloud_icons::{find_cloud_stereotype, render_cloud_icon_box};
 use super::family_node_shapes::{
     render_actor_awesome_figure, render_actor_hollow_figure, render_note_card,
 };
@@ -40,6 +41,20 @@ pub(super) fn render_class_node(
     if node.kind == FamilyNodeKind::Note {
         render_note_card(out, x, y, w, h, node.label.as_deref().unwrap_or(&node.name));
         return;
+    }
+
+    // ── Cloud icon node rendering (AWS / Azure / GCP / tupadr3) ───────────────
+    // Object nodes produced by cloud-library stubs carry stereotypes like
+    // <<aws-EC2>>, <<azure-vm>>, <<gcp-BigQuery>>, <<fa-cloud>>.  Render them
+    // as visually distinct, provider-coloured icon boxes instead of identical
+    // generic stub boxes (P10 initiative — Refs #1258).
+    if node.kind == FamilyNodeKind::Object {
+        if let Some(cloud_icon) = find_cloud_stereotype(&node.members) {
+            let display = node.label.clone().unwrap_or_else(|| node.name.clone());
+            let node_id = node.alias.as_deref().unwrap_or(&node.name);
+            render_cloud_icon_box(out, &cloud_icon, &display, x, y, w, h, header_h, node_id);
+            return;
+        }
     }
 
     let effective_style = effective_class_node_style(class_style, node);

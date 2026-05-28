@@ -90,8 +90,18 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 relations.extend(heritage_relations);
             }
             StatementKind::ObjectDecl(decl) => {
-                let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
+                let (clean_alias, c4_kind, extra_stereotype) =
+                    sequence::extract_c4_stereotype(decl.alias);
                 let mut members = decl.members;
+                if let Some(stereo) = extra_stereotype {
+                    members.insert(
+                        0,
+                        crate::ast::ClassMember {
+                            text: stereo,
+                            modifier: None,
+                        },
+                    );
+                }
                 let resolved_kind = if members.first().is_some_and(|m| m.text.trim() == "<<map>>") {
                     let _ = members.remove(0);
                     FamilyNodeKind::Map

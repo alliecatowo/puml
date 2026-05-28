@@ -12,6 +12,7 @@ mod class_relations;
 mod class_render;
 mod class_routing;
 mod class_types;
+pub(crate) mod cloud_icons;
 mod family_node_shapes;
 mod group_frames;
 mod node_shapes;
