@@ -38,6 +38,32 @@ pub(super) fn member_modifier_name(modifier: Option<&MemberModifier>) -> Option<
     }
 }
 
+/// Detect if a member text is a compartment divider (PlantUML 3.8).
+///
+/// Bare dividers: `--`, `..`, `==`, `__` → `Some(None)` (divider with no title).
+/// Titled dividers: `-- Section Name --`, `== Title ==`, `__ sub __`, `.. note ..`
+///   → `Some(Some(&str))` where the inner str is the title.
+///
+/// Returns `None` if the text is not a divider.
+pub(super) fn parse_member_divider(text: &str) -> Option<Option<&str>> {
+    let t = text.trim();
+    for delim in ["--", "..", "==", "__"] {
+        if t == delim {
+            return Some(None);
+        }
+        if t.starts_with(delim) && t.ends_with(delim) && t.len() > delim.len() * 2 {
+            let inner = &t[delim.len()..t.len() - delim.len()];
+            let title = inner.trim();
+            if !title.is_empty() {
+                return Some(Some(title));
+            }
+            // only delimiters, e.g. `----` or `====`
+            return Some(None);
+        }
+    }
+    None
+}
+
 /// Parse {abstract} / {static} modifiers from member text.
 /// Returns (SVG style attrs string, cleaned text without modifiers).
 pub(super) fn parse_member_modifiers(text: &str) -> (&'static str, &str) {

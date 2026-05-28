@@ -111,6 +111,11 @@ pub(crate) fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelati
                 "hidden" => style.hidden = true,
                 "bold" | "thick" => style.thickness = Some(style.thickness.unwrap_or(3).max(3)),
                 "thin" => style.thickness = Some(1),
+                // `[plain]` explicitly resets to a normal solid line (PlantUML 3.35)
+                "plain" => {
+                    style.dashed = false;
+                    style.thickness = None;
+                }
                 _ => {
                     if let Some(value) = lower
                         .strip_prefix("thickness=")

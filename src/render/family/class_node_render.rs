@@ -7,8 +7,9 @@ use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
 use super::class_members::{
     builtin_type_stereotype_label, class_node_visibility_symbol, count_header_stereotype_members,
-    is_family_style_member, is_user_stereotype, member_modifier_name, parse_member_modifiers,
-    parse_visibility_member, render_map_rows, uml_visibility_name, MapRenderCtx,
+    is_family_style_member, is_user_stereotype, member_modifier_name, parse_member_divider,
+    parse_member_modifiers, parse_visibility_member, render_map_rows, uml_visibility_name,
+    MapRenderCtx,
 };
 use super::class_types::ClassNodeGeometry;
 use super::cloud_icons::{find_cloud_stereotype, render_cloud_icon_box};
@@ -360,14 +361,14 @@ pub(super) fn render_class_node(
     // so we know to auto-insert a divider at the transition boundary.
     let has_explicit_divider = display_members
         .iter()
-        .any(|m| m.text.trim() == "--" || m.text.trim() == "..");
+        .any(|m| parse_member_divider(m.text.trim()).is_some());
     let auto_divider = if !has_explicit_divider {
         // Determine the index of the first operation (text containing '(') after at least one attribute.
         let mut first_op_idx: Option<usize> = None;
         let mut seen_attr = false;
         for (i, m) in display_members.iter().enumerate() {
             let t = m.text.trim();
-            if t == "--" || t == ".." || t.is_empty() {
+            if parse_member_divider(t).is_some() || t.is_empty() {
                 continue;
             }
             // Strip visibility prefix before checking for '('
@@ -403,13 +404,25 @@ pub(super) fn render_class_node(
             section_started = false;
         }
         // Detect explicit divider tokens (`--` or `..` compartment separator)
-        if raw_text == "--" || raw_text == ".." {
+        // PlantUML 3.8: titled separators `-- Section --`, `== Title ==`, `__ sub __`, `.. note ..`
+        if let Some(div_title) = parse_member_divider(raw_text) {
             // Draw a horizontal divider line (fix #468)
             let div_y = my - 8;
             out.push_str(&format!(
                 "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                 x2 = x + w
             ));
+            // If the separator has a title, render it centered above the divider
+            if let Some(title) = div_title {
+                let title_escaped = crate::render::svg::escape_text(title);
+                let cx = x + w / 2;
+                let title_y = my - 10;
+                out.push_str(&format!(
+                    "<text x=\"{cx}\" y=\"{title_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" fill=\"{stroke}\" font-style=\"italic\">{title_escaped}</text>",
+                    ff = escape_text(font_family),
+                ));
+                my += 4; // extra vertical space for the title
+            }
             section_started = false;
             continue;
         }
