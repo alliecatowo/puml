@@ -124,6 +124,7 @@ fn state_model_to_json(model: &StateDocument) -> Value {
             },
             "style": {
                 "fill_color": n.style.fill_color,
+                "fill_gradient": n.style.fill_gradient.as_ref().map(|(c1, c2)| format!("{c1}-{c2}")),
                 "border_color": n.style.border_color,
                 "border_dashed": n.style.border_dashed,
                 "border_thickness": n.style.border_thickness,
