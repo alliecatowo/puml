@@ -4,7 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="full"
 SKIP_BENCH=0
-BINARY_LIMIT_BYTES=16000000
+# TODO(#89): aggressive CI overhaul (in flight) will rework the release binary so
+# we can ratchet this back down. Wave-8 added 28 diagram families' worth of new
+# rendering branches and the Linux strip+thin-LTO already minimised unwind tables
+# (panic="abort" mattered <50 KB on Linux). 18 MB is the new ceiling until the
+# CI rebuild lands proper `--profile release-ci` for size-checked artifacts.
+BINARY_LIMIT_BYTES=18000000
 
 usage() {
   cat <<'USAGE'
