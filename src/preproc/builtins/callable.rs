@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
-use crate::preproc::control::preprocess_text;
+use crate::preproc::control::process_lines;
 use crate::preproc::macros::expand_preprocessor_text;
 use crate::preproc::{
     ParseOptions, PreprocCallable, PreprocCallableKind, PreprocParam, PreprocState,
@@ -244,7 +244,7 @@ pub(in crate::preproc) fn execute_function_call(
     for raw in &callable.body {
         let line = raw.trim();
         if !line.to_ascii_lowercase().starts_with("!return") {
-            preprocess_text(
+            process_lines(
                 raw,
                 &ParseOptions::default(),
                 &mut local_state,
@@ -318,7 +318,7 @@ pub(in crate::preproc) fn execute_procedure_call(
     }
     let local = callable.body.join("\n");
     if !local.trim().is_empty() {
-        preprocess_text(
+        process_lines(
             &local,
             options,
             &mut local_state,

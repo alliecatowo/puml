@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
-use crate::preproc::control::preprocess_text;
+use crate::preproc::control::process_lines;
 use crate::preproc::{ParseOptions, PreprocState};
 use crate::source::MappedSpan;
 
@@ -131,7 +131,7 @@ pub(in crate::preproc) fn process_stdlib_angle_include(
     }
 
     include_stack.push(resolved);
-    preprocess_text(
+    process_lines(
         &content,
         options,
         state,
@@ -185,7 +185,7 @@ pub(in crate::preproc) fn process_builtin_stdlib_include(
     }
 
     include_stack.push(include_key);
-    preprocess_text(
+    process_lines(
         &builtin.content,
         options,
         state,

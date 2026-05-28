@@ -5,7 +5,7 @@ use crate::diagnostic::Diagnostic;
 use crate::source::MappedSpan;
 
 use super::super::{ParseOptions, PreprocState};
-use super::preprocess_text;
+use super::process_lines;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn process_include_url(
@@ -33,7 +33,7 @@ pub(super) fn process_include_url(
 
         let url = extract_url(raw_target);
         let content = fetch_url_include(url)?;
-        preprocess_text(
+        process_lines(
             &content,
             options,
             state,

@@ -2,20 +2,25 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
-use crate::source::{line_spans, MappedSpan, SourceMap, Span};
+use crate::source::{line_spans, MappedSpan, Span};
 
 #[path = "control/callables.rs"]
 mod callables;
+#[path = "control/entrypoint.rs"]
+mod entrypoint;
 #[path = "control/flow.rs"]
 mod flow;
 #[path = "control/source_map.rs"]
 mod source_map;
 #[path = "control/url.rs"]
 mod url;
+
+pub(crate) use entrypoint::{preprocess, preprocess_with_map};
+
 use callables::define_callable_block;
 use flow::{
     check_include_depth, ensure_conditionals_closed, is_active, looks_like_iso_date_value,
-    preprocess_foreach_directive, preprocess_while_directive, strip_block_comments,
+    preprocess_foreach_directive, preprocess_while_directive,
 };
 use source_map::{annotate_preproc_diagnostic, preproc_source, push_mapped_line};
 use url::process_include_url;
@@ -31,49 +36,11 @@ use super::macros::{
 };
 use super::{
     ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, PreprocessResult,
+    PreprocVariableScope, PreprocessDirective,
 };
 
-pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
-    preprocess_with_map(source, options).map(|result| result.source)
-}
-
-pub(crate) fn preprocess_with_map(
-    source: &str,
-    options: &ParseOptions,
-) -> Result<PreprocessResult, Diagnostic> {
-    let mut state = PreprocState::default();
-    state.vars.extend(options.inject_vars.clone());
-    let mut include_stack = Vec::new();
-    let mut include_once_seen = BTreeSet::new();
-    let mut expanded = String::new();
-    let mut mappings = Vec::new();
-
-    // Strip PlantUML block comments (`/' ... '/`) before line-by-line processing.
-    // Block comments can span multiple lines; we replace consumed content with
-    // spaces/newlines to preserve line numbers for span/diagnostic accuracy.
-    let stripped = strip_block_comments(source);
-
-    preprocess_text(
-        &stripped,
-        options,
-        &mut state,
-        &mut include_stack,
-        &mut include_once_seen,
-        0,
-        0,
-        &mut expanded,
-        &mut mappings,
-    )?;
-
-    Ok(PreprocessResult {
-        source: expanded,
-        source_map: SourceMap::new(mappings),
-    })
-}
-
 #[allow(clippy::too_many_arguments)]
-pub(super) fn preprocess_text(
+pub(super) fn process_lines(
     source: &str,
     options: &ParseOptions,
     state: &mut PreprocState,
