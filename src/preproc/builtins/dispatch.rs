@@ -402,6 +402,28 @@ pub(in crate::preproc) fn dispatch_builtin(
                 ),
             ));
         }
+        // %ifempty(s, default) — return default if s is empty, else s.
+        // PlantUML parity: commonly used in stdlib macros to supply fallback
+        // values for optional arguments.
+        "ifempty" | "if_empty" | "default_value" => {
+            let s = arg(0);
+            Some(if s.trim().is_empty() { arg(1) } else { s })
+        }
+        // %datetime([format[, epoch_seconds]]) — like %date but defaults to
+        // "yyyy-MM-dd HH:mm:ss" format so it includes the time portion.
+        "datetime" => Some(format_preprocessor_date(
+            expanded_args
+                .first()
+                .filter(|s| !s.trim().is_empty())
+                .map(String::as_str)
+                .or(Some("yyyy-MM-dd HH:mm:ss")),
+            expanded_args.get(1).map(String::as_str),
+            state,
+        )),
+        // %lineno — current source line number. Deterministic offline execution
+        // has no meaningful line counter at expression-evaluation time, so we
+        // always return 0 for byte-identical output.
+        "lineno" => Some("0".to_string()),
         "dirpath" => {
             let p = arg(0);
             Some(

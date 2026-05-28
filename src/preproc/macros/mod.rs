@@ -533,6 +533,43 @@ pub(super) fn expand_function_invocations(
     let mut out = String::with_capacity(line.len());
     let mut i = 0usize;
     while i < chars.len() {
+        // ── `$name(args)` — user-defined function call in expression context ──
+        // PlantUML allows calling `!function $name(…)` declarations as
+        // `$name(args)` anywhere an expression value is expected (e.g. the
+        // RHS of `!$var = $fn(x)` or inside `!if $fn(x) > 0`).
+        //
+        // Note: PlantUML convention names callables with a `$` prefix, so
+        // `!function $double($x)` registers the key `"$double"` in the
+        // callables map.  We must include the leading `$` when looking up.
+        if chars[i] == '$'
+            && i + 1 < chars.len()
+            && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
+        {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            // Only treat as a function call when immediately followed by `(`.
+            if j < chars.len() && chars[j] == '(' {
+                // Include the leading `$` in the lookup key because callables
+                // are registered under the full name (e.g. `"$double"`).
+                let call_name: String = chars[i..j].iter().collect();
+                if let Some(callable) = state.callables.get(&call_name) {
+                    if callable.kind == PreprocCallableKind::Function {
+                        let (args_raw, next_idx) = extract_parenthesized_args(&chars, j)?;
+                        let ret =
+                            execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
+                        out.push_str(&ret);
+                        i = next_idx;
+                        continue;
+                    }
+                    // Procedures cannot return a value — fall through so the
+                    // `$name(…)` token is preserved and potentially used as a
+                    // line-level procedure invocation by the caller.
+                }
+            }
+        }
+        // ── `%name(args)` — builtin or user-defined function call ─────────────
         if chars[i] == '%'
             && i + 1 < chars.len()
             && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
