@@ -95,11 +95,21 @@ pub(super) fn finish_sequence_scene(
     };
     let mut lifelines = participants
         .iter()
-        .map(|p| Lifeline {
-            participant_id: p.id.clone(),
-            x: p.x + p.width / 2,
-            y1: lifeline_start,
-            y2: lifeline_end,
+        .map(|p| {
+            // For mid-flow created participants the box is rendered at creation time
+            // (p.y > participant_top), so the lifeline starts from the bottom of that
+            // inline box rather than from the standard top header band.
+            let y1 = if p.y > participant_top {
+                p.y + p.height
+            } else {
+                lifeline_start
+            };
+            Lifeline {
+                participant_id: p.id.clone(),
+                x: p.x + p.width / 2,
+                y1,
+                y2: lifeline_end,
+            }
         })
         .collect::<Vec<_>>();
 

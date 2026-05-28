@@ -2,6 +2,6 @@
 source: tests/integration.rs
 expression: stderr
 ---
-<fixture>:2:1: error[E_AUTONUMBER_FORMAT_UNSUPPORTED]: autonumber format does not support HTML tags in this deterministic subset
-autonumber 10 2 "<b>[000]"
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+<fixture>:2:1: error[E_AUTONUMBER_FORMAT_UNSUPPORTED]: unsupported autonumber syntax; expected `autonumber [start] [increment] [format]` or `autonumber resume [increment] [format]`
+autonumber 10 2 extra1 extra2
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

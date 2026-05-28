@@ -5,7 +5,7 @@ mod finalize;
 mod geometry;
 mod text;
 
-use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
+use crate::model::{ParticipantRole, SequenceDocument, SequenceEventKind, SequencePage};
 use crate::normalize;
 use crate::scene::{
     ActivationBox, GroupBox, GroupSeparator, Label, LayoutOptions, LifecycleMarker,
@@ -75,12 +75,24 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let participant_height = (max_participant_line_count * 16) + 12;
     let participant_height = participant_height.max(options.participant_height);
 
+    // Compute x positions for ALL participants (including mid-flow `create`d ones)
+    // so that center/bounds maps are available for message routing.  However, only
+    // create the top-header `ParticipantBox` for participants that are NOT mid-flow
+    // created — those will get their box rendered at the `create` event row.
     for (idx, participant) in document.participants.iter().enumerate() {
         let x = options.margin + (idx as i32 * options.participant_spacing);
         let center_x = x + options.participant_width / 2;
         max_participant_right = max_participant_right.max(x + options.participant_width);
         centers_by_id.insert(participant.id.clone(), center_x);
         bounds_by_id.insert(participant.id.clone(), (x, x + options.participant_width));
+
+        // Skip the header box for participants created mid-flow — their box will
+        // be added when the `Create` event is processed below.
+        if document.created_participants.contains(&participant.id) {
+            // Still consume the display_lines entry to avoid leaking memory.
+            participant_lines_by_id.remove(&participant.id);
+            continue;
+        }
 
         participants.push(ParticipantBox {
             id: participant.id.clone(),
@@ -123,6 +135,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     }
 
     let events_top = participant_top + participant_height + 24;
+
+    // Pre-build display-lines for mid-flow created participants so they can be
+    // used when the Create event is processed in the event loop below.
+    let mut created_display_lines: BTreeMap<String, (Vec<String>, ParticipantRole)> =
+        BTreeMap::new();
+    for participant in &document.participants {
+        if document.created_participants.contains(&participant.id) {
+            let lines = normalize_label_lines(
+                &participant.display,
+                participant_max_chars,
+                options.text_overflow_policy,
+            );
+            created_display_lines.insert(participant.id.clone(), (lines, participant.role));
+        }
+    }
+
     let mut messages: Vec<MessageLine> = Vec::new();
     let mut activations = Vec::new();
     let mut lifecycle_markers = Vec::new();
@@ -360,12 +388,35 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     .get(id)
                     .copied()
                     .unwrap_or_else(|| default_center(&options));
-                lifecycle_markers.push(LifecycleMarker {
-                    participant_id: id.clone(),
-                    x,
-                    y,
-                    kind: LifecycleMarkerKind::Create,
-                });
+                // For mid-flow created participants, render their header box at the
+                // creation row instead of at the top of the diagram.
+                if document.created_participants.contains(id.as_str()) {
+                    let participant_x = x - options.participant_width / 2;
+                    let (display_lines, role) = created_display_lines
+                        .get(id.as_str())
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            (vec![id.clone()], crate::model::ParticipantRole::Participant)
+                        });
+                    participants.push(ParticipantBox {
+                        id: id.clone(),
+                        display_lines,
+                        role,
+                        x: participant_x,
+                        y,
+                        width: options.participant_width,
+                        height: participant_height,
+                    });
+                    event_rows +=
+                        row_units_for_height(participant_height, options.message_row_height);
+                } else {
+                    lifecycle_markers.push(LifecycleMarker {
+                        participant_id: id.clone(),
+                        x,
+                        y,
+                        kind: LifecycleMarkerKind::Create,
+                    });
+                }
             }
             SequenceEventKind::Destroy(id) => {
                 let y = events_top + (event_rows * options.message_row_height);

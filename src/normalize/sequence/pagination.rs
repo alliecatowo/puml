@@ -48,6 +48,7 @@ fn page_from(
         sprites: document.sprites.clone(),
         list_sprites: document.list_sprites,
         mainframe: document.mainframe.clone(),
+        created_participants: document.created_participants.clone(),
     }
 }
 

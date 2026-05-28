@@ -1,4 +1,4 @@
 @startuml
-autonumber 10 2 "<b>[000]"
+autonumber 10 2 extra1 extra2
 A -> B : bad
 @enduml
