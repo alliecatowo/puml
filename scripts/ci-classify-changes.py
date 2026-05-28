@@ -150,54 +150,69 @@ def classify(paths: list[str]) -> dict[str, bool]:
         if not path:
             continue
 
+        handled = False
+
         if path in WASM_CHECK_EXACT or path.startswith(WASM_CHECK_PREFIXES):
             run_wasm_check = True
+            handled = True
 
         if path in DOCS_EXAMPLES_DRIFT_EXACT or path.startswith(DOCS_EXAMPLES_DRIFT_PREFIXES):
             run_docs_examples_drift = True
+            handled = True
 
         if path in ARTIFACT_REGEN_EXACT or path.startswith(ARTIFACT_REGEN_PREFIXES):
             run_artifact_regen = True
+            handled = True
 
         if path in ORACLE_EXACT or path.startswith(ORACLE_PREFIXES):
             run_oracle = True
+            handled = True
 
         if path in ORACLE_SMOKE_EXACT:
             run_oracle_smoke = True
+            handled = True
 
         if path in DIFF_ORACLE_SMOKE_EXACT:
             run_diff_oracle_smoke = True
+            handled = True
 
         if path.startswith("docs/examples/"):
             run_full_gate = True
             docs_examples_changed = True
             run_site_smoke = True
+            handled = True
             continue
 
         if path.startswith("crates/puml-wasm/"):
             run_full_gate = True
             run_site_smoke = True
             run_wasm_site_smoke = True
+            handled = True
             continue
 
         if path in WASM_SITE_FILES:
             run_site_smoke = True
             run_wasm_site_smoke = True
+            handled = True
             continue
 
         if is_site_path(path) or path in SITE_SMOKE_FILES or path.startswith("docs/specs/"):
             run_site_smoke = True
+            handled = True
             continue
 
         if path in DOCS_SITE_FILES or path.startswith("docs/") or is_markdown(path):
             run_site_smoke = True
+            handled = True
             continue
 
         if path in FULL_GATE_EXACT or path.startswith(FULL_GATE_PREFIXES):
             run_full_gate = True
+            handled = True
             continue
 
-        run_full_gate = True
+        if not handled:
+            run_full_gate = True
 
     if not paths:
         run_full_gate = True

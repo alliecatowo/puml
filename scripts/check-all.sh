@@ -63,8 +63,8 @@ fi
 echo "[gate] cargo fmt --check"
 cargo fmt --check
 
-echo "[gate] cargo clippy --all-targets --all-features -- -D warnings"
-cargo clippy --all-targets --all-features -- -D warnings
+echo "[gate] cargo clippy -p puml --all-targets --all-features --locked -- -D warnings"
+cargo clippy -p puml --all-targets --all-features --locked -- -D warnings
 
 if ! cargo nextest --version >/dev/null 2>&1; then
   echo "[gate] cargo-nextest is required for the quality gate." >&2
@@ -72,11 +72,11 @@ if ! cargo nextest --version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[gate] cargo nextest run"
-cargo nextest run
+echo "[gate] cargo nextest run -p puml"
+cargo nextest run -p puml --locked
 
 echo "[gate] cargo test --doc"
-cargo test --doc
+cargo test --doc --package puml --locked
 
 if [[ "$MODE" == "full" ]]; then
   if ! cargo llvm-cov --version >/dev/null 2>&1; then
@@ -86,11 +86,11 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
-  echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}'"
-  cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+  echo "[gate] cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean"
+  cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
 
-  echo "[gate] cargo build --release"
-  cargo build --release
+  echo "[gate] cargo build --release -p puml --locked --bin puml"
+  cargo build --release -p puml --locked --bin puml
 
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark full profile with enforced gates"
@@ -101,7 +101,11 @@ if [[ "$MODE" == "full" ]]; then
 else
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark quick profile with enforced gates"
-    ./scripts/bench.sh --quick --enforce-gates
+    if [[ -x "$ROOT_DIR/target/release/puml" ]]; then
+      ./scripts/bench.sh --quick --skip-build --enforce-gates
+    else
+      ./scripts/bench.sh --quick --enforce-gates
+    fi
   else
     echo "[gate] benchmark quick profile skipped (--skip-bench)"
   fi

@@ -49,10 +49,7 @@ jobs:
         run: ./scripts/check-all.sh
 
       - name: wasm check
-        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
-
-      - name: Build puml CLI binary for diagram regen
-        run: cargo build --release
+        run: cargo check --target wasm32-unknown-unknown -p puml-wasm --locked
 
       - name: Regenerate diagram artifacts
         run: ./scripts/regen-artifacts.sh --force

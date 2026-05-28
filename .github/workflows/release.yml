@@ -30,7 +30,7 @@ jobs:
           shared-key: release-ubuntu-stable
 
       - name: Build release binary
-        run: cargo build --release --locked
+        run: cargo build --release --locked -p puml --bin puml
 
       - name: Stage artifact
         run: cp target/release/puml puml-linux-x86_64
@@ -65,7 +65,7 @@ jobs:
           shared-key: release-macos-stable
 
       - name: Build release binary
-        run: cargo build --release --locked --target x86_64-apple-darwin
+        run: cargo build --release --locked --target x86_64-apple-darwin -p puml --bin puml
 
       - name: Stage artifact
         run: cp target/x86_64-apple-darwin/release/puml puml-macos-x86_64

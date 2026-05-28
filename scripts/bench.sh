@@ -134,13 +134,13 @@ fi
 if [[ "$SKIP_BUILD" -eq 1 ]]; then
   if [[ ! -x "$BIN" ]]; then
     echo "[bench] --skip-build requires an existing executable release binary: $BIN" >&2
-    echo "[bench] run: cargo build --release --manifest-path \"$ROOT_DIR/Cargo.toml\"" >&2
+    echo "[bench] run: cargo build --release --manifest-path \"$ROOT_DIR/Cargo.toml\" -p puml --locked --bin puml" >&2
     exit 1
   fi
   echo "[bench] reusing existing release binary (--skip-build): $BIN"
 else
   echo "[bench] building release binary"
-  cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
+  cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" -p puml --locked --bin puml >/dev/null
 fi
 
 if command -v hyperfine >/dev/null 2>&1; then

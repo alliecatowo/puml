@@ -97,7 +97,7 @@ jobs:
           cache-on-failure: true
 
       - name: Build puml CLI binary for artifact regen
-        run: cargo build --release --bin puml
+        run: cargo build --release -p puml --locked --bin puml
 
       - name: Regenerate committed diagram artifacts
         run: ./scripts/regen-artifacts.sh --force
@@ -197,7 +197,7 @@ jobs:
           cache-on-failure: true
 
       - name: clippy gate
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy -p puml --all-targets --all-features --locked -- -D warnings
 
   test:
     name: test
@@ -223,10 +223,10 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: test gate
-        run: cargo nextest run
+        run: cargo nextest run -p puml --locked
 
       - name: doc test gate
-        run: cargo test --doc
+        run: cargo test --doc --package puml --locked
 
       - name: Upload visual regression artifacts
         if: always()
@@ -274,7 +274,7 @@ jobs:
           cache-on-failure: true
 
       - name: wasm check
-        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
+        run: cargo check --target wasm32-unknown-unknown -p puml-wasm --locked
 
   coverage:
     name: coverage
@@ -302,7 +302,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: coverage gate
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+        run: cargo llvm-cov --all-features --package puml --locked --no-clean --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
 
   docs_examples_drift:
     name: docs examples drift

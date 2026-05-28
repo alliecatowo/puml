@@ -79,7 +79,7 @@ jobs:
           zola --version
 
       - name: Build puml CLI binary
-        run: cargo build --release
+        run: cargo build --release -p puml --locked --bin puml
 
       - name: Regenerate diagram artifacts
         run: |
