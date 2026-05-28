@@ -178,14 +178,18 @@ pub(crate) fn parse_multiline_note_block(
     if tail.is_empty() {
         return None;
     }
-    let (head, inline) = tail.split_once(':').unwrap_or((tail, ""));
-    let (position, target) = parse_state_note_head(head.trim());
+    // Use split_note_head_text to correctly handle `::` member-qualified targets
+    // (e.g. `note right of Foo::counter : text`) — it splits only on a single `:`
+    // that is not part of a `::` double-colon sequence.
+    let (head, inline) = split_note_head_text(tail);
+    let (position, raw_target) = parse_state_note_head(head.trim());
     if position.eq_ignore_ascii_case("of") || !is_valid_note_position(&position) {
         return None;
     }
-    if matches!(position.to_ascii_lowercase().as_str(), "left" | "right") && target.is_none() {
+    if matches!(position.to_ascii_lowercase().as_str(), "left" | "right") && raw_target.is_none() {
         return None;
     }
+    let (target, target_member) = split_note_target_member(raw_target);
     let mut body = Vec::new();
     if !inline.trim().is_empty() {
         body.push(inline.trim().to_string());
@@ -199,6 +203,7 @@ pub(crate) fn parse_multiline_note_block(
                     kind: note_kind_from_keyword(note_kw),
                     position,
                     target,
+                    target_member,
                     text: body.join("\n"),
                     aligned,
                 }),
@@ -211,6 +216,7 @@ pub(crate) fn parse_multiline_note_block(
                     kind: note_kind_from_keyword(note_kw),
                     position,
                     target,
+                    target_member,
                     text: body.join("\n"),
                     aligned,
                 }),
@@ -223,6 +229,7 @@ pub(crate) fn parse_multiline_note_block(
                     kind: note_kind_from_keyword(note_kw),
                     position,
                     target,
+                    target_member,
                     text: body.join("\n"),
                     aligned,
                 }),
@@ -233,6 +240,22 @@ pub(crate) fn parse_multiline_note_block(
     }
 
     None
+}
+
+/// Splits a note target like `"Foo::counter"` into `(Some("Foo"), Some("counter"))`.
+/// For plain targets without `::`, returns `(Some(target), None)`.
+fn split_note_target_member(target: Option<String>) -> (Option<String>, Option<String>) {
+    let Some(t) = target else {
+        return (None, None);
+    };
+    if let Some((class, member)) = t.split_once("::") {
+        let class = class.trim().to_string();
+        let member = member.trim().to_string();
+        if !class.is_empty() && !member.is_empty() {
+            return (Some(class), Some(member));
+        }
+    }
+    (Some(t), None)
 }
 
 pub(crate) fn is_inline_note_boundary(line: &str) -> bool {

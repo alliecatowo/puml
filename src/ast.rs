@@ -587,6 +587,11 @@ pub struct Note {
     pub kind: NoteKind,
     pub position: String,
     pub target: Option<String>,
+    /// When `target` is a member-qualified identifier like `Foo::counter`,
+    /// this holds the member name (`"counter"`) and `target` is reduced to
+    /// the class name (`"Foo"`). Used to anchor the note connector at the
+    /// correct member-row Y-position in class diagrams.
+    pub target_member: Option<String>,
     pub text: String,
     /// When `true`, the note is rendered aligned with the previous note at the
     /// same vertical level (PlantUML `/ note` syntax — feature 1.18).

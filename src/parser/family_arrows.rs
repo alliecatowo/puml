@@ -30,6 +30,7 @@ pub(crate) fn split_family_arrow_styled(
                 | '<'
                 | '*'
                 | 'o'
+                | 'x'
                 | '+'
                 | '|'
                 | '{'
@@ -184,6 +185,7 @@ pub(crate) fn family_arrow_token_len(s: &str) -> Option<usize> {
                     | '|'
                     | '*'
                     | 'o'
+                    | 'x'
                     | '+'
                     | '{'
                     | '}'
@@ -310,8 +312,9 @@ pub(crate) fn normalize_family_arrow_token(token: &str) -> String {
             continue;
         }
         // 'o' is a valid arrow-head marker char (aggregation / hollow diamond).
+        // 'x' is a valid arrow-head marker char (crossed/dead-end arrowhead).
         // All other alphabetic runs are direction/color keywords — strip them.
-        if ch.is_ascii_alphabetic() && ch != 'o' {
+        if ch.is_ascii_alphabetic() && ch != 'o' && ch != 'x' {
             continue;
         }
         out.push(ch);
