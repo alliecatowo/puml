@@ -1,8 +1,8 @@
-/// Wave-9 batch D: timing diagram parity tests for
-/// - analog participant with `between MIN and MAX` range
-/// - per-event inline color (`@T SIG is VAL #color`)
-/// - `mode compact` reducing row height
-/// - initial-state events before the first `@T` block
+//! Wave-9 batch D: timing diagram parity tests for
+//! - analog participant with `between MIN and MAX` range
+//! - per-event inline color (`@T SIG is VAL #color`)
+//! - `mode compact` reducing row height
+//! - initial-state events before the first `@T` block
 
 fn svg_attr(tag: &str, key: &str) -> Option<String> {
     let needle = format!("{key}=\"");
