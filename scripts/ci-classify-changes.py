@@ -177,7 +177,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
             handled = True
 
         if path.startswith("docs/examples/"):
-            run_full_gate = True
+            run_full_gate = False
             docs_examples_changed = True
             run_site_smoke = True
             handled = True

@@ -42,26 +42,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set up Rust (stable + wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pages-ubuntu-stable
+          cache-on-failure: true
+
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
           node-version: '20'
-
-      - name: Set up Rust (stable + wasm32 target)
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup target add wasm32-unknown-unknown
-
-      - name: Cache cargo build
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pages-
 
       - name: Install wasm-pack
         uses: ./.github/actions/install-wasm-pack
