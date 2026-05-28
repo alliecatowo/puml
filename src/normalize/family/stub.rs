@@ -2,6 +2,9 @@ use super::*;
 use crate::ast::RawSyntaxCategory;
 use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
+mod salt_cells;
+use self::salt_cells::{encode_salt_cells, StyleParamRecord};
+
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
     let node_kind = match family_kind {
@@ -395,25 +398,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     )
                     .with_span(stmt.span));
                 }
-                // Encode the cells into the name field using a special separator
-                // so the renderer can reconstruct the grid row.
-                use crate::ast::SaltCell as SC;
-                let cell_strs: Vec<String> = cells
-                    .into_iter()
-                    .map(|c| match c {
-                        SC::Label(t) => format!("L:{t}"),
-                        SC::Input(t) => format!("I:{t}"),
-                        SC::Button(t) => format!("B:{t}"),
-                        SC::Combo(t) => format!("C:{t}"),
-                        SC::CheckboxChecked(t) => format!("CX:{t}"),
-                        SC::CheckboxUnchecked(t) => format!("CU:{t}"),
-                        SC::RadioOn(t) => format!("RO:{t}"),
-                        SC::RadioOff(t) => format!("RF:{t}"),
-                    })
-                    .collect();
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::Salt,
-                    name: format!("SALT_ROW\x1f{}", cell_strs.join("\x1e")),
+                    name: encode_salt_cells(cells),
                     alias: None,
                     members: Vec::new(),
                     depth: 0,
@@ -604,12 +591,4 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         list_sprites,
         warnings,
     })
-}
-
-struct StyleParamRecord {
-    selector: Option<String>,
-    property: String,
-    key: Option<String>,
-    value: String,
-    span: crate::source::Span,
 }
