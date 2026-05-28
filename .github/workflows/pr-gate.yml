@@ -87,16 +87,20 @@ jobs:
       - name: docs examples drift gate
         run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
 
-  # Test shards: each shard runs llvm-cov nextest for its partition.
-  # One compile pass per shard does BOTH test execution AND coverage instrumentation.
-  # Each shard asserts --fail-under-lines independently — no profdata merge needed.
-  # Critical path: lint ∥ shard-1 ∥ shard-2 ∥ binary_size → required_check ~2:30.
-  test-shard-1:
-    name: test (shard 1/2)
+  # Test + coverage: single job runs the full suite under llvm-cov instrumentation.
+  # One compile pass does BOTH test execution AND coverage measurement — the R10
+  # win. We dropped per-shard partition (broken: each shard saw only ~half the
+  # codebase exercised, naturally underreporting coverage vs the full-codebase
+  # threshold). Single job keeps the win without the false-fail.
+  #
+  # Wall-time estimate: ~4:30-5:00 warm cache (instrumented compile + ~2000 tests).
+  # Critical path: lint ∥ test ∥ binary_size → required_check ~5:00.
+  test:
+    name: test (full suite + coverage)
     needs: changes
     if: needs.changes.outputs.run_full_gate == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
       - run: df -h
@@ -110,19 +114,26 @@ jobs:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: test + coverage (shard 1/2)
+      - name: test + coverage gate
+        # Skip the coverage threshold check for bot dependency updaters; their PRs
+        # don't change logic and tend to fluctuate coverage by accidental amounts.
         run: |
           set -euo pipefail
           COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+          ACTOR="${{ github.actor }}"
+          if [[ "${ACTOR}" == "dependabot[bot]" || "${ACTOR}" == "renovate[bot]" ]]; then
+            FAIL_UNDER_FLAG=""
+          else
+            FAIL_UNDER_FLAG="--fail-under-lines 87"
+          fi
           cargo llvm-cov nextest \
-            --profile ci-shard \
-            --partition count:1/2 \
+            --profile ci \
             --all-features --package puml \
-            --fail-under-lines 87 \
+            ${FAIL_UNDER_FLAG} \
             --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
       - name: doc test gate
         run: cargo test --doc
-      - name: Upload visual diff artifacts (shard 1)
+      - name: Upload visual diff artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -130,39 +141,6 @@ jobs:
           path: target/visual-diff
           if-no-files-found: ignore
           retention-days: 14
-
-  test-shard-2:
-    name: test (shard 2/2)
-    needs: changes
-    # Skipped for bot dependency updaters — they don't change logic; coverage is noise.
-    if: >
-      needs.changes.outputs.run_full_gate == 'true'
-      && github.actor != 'dependabot[bot]'
-      && github.actor != 'renovate[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v6
-      - run: df -h
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-coverage
-          cache-on-failure: true
-      - uses: taiki-e/install-action@nextest
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: test + coverage (shard 2/2)
-        run: |
-          set -euo pipefail
-          COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
-          cargo llvm-cov nextest \
-            --profile ci-shard \
-            --partition count:2/2 \
-            --all-features --package puml \
-            --fail-under-lines 87 \
-            --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
   # Binary size: release-ci profile (opt-level=1, lto=false) — saves ~60-90s vs full release.
   # Runs in parallel with test shards.
@@ -267,7 +245,7 @@ jobs:
   # Branch protection requires this exact check name — do not rename without updating the rule.
   required_check:
     name: fmt-clippy-test-coverage-quick
-    needs: [changes, lint, test-shard-1, test-shard-2, binary_size, wasm, site_smoke]
+    needs: [changes, lint, test, binary_size, wasm, site_smoke]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -280,11 +258,9 @@ jobs:
       RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
-      IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
       LINT_RESULT: ${{ needs.lint.result }}
-      TEST_SHARD_1_RESULT: ${{ needs.test-shard-1.result }}
-      TEST_SHARD_2_RESULT: ${{ needs.test-shard-2.result }}
+      TEST_RESULT: ${{ needs.test.result }}
       BINARY_SIZE_RESULT: ${{ needs.binary_size.result }}
       WASM_RESULT: ${{ needs.wasm.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
@@ -303,12 +279,8 @@ jobs:
           require_success "changes" "${CHANGES_RESULT}"
           if [[ "${RUN_FULL_GATE}" == "true" ]]; then
             require_success "lint" "${LINT_RESULT}"
-            require_success "test shard 1" "${TEST_SHARD_1_RESULT}"
+            require_success "test" "${TEST_RESULT}"
             require_success "binary size" "${BINARY_SIZE_RESULT}"
-            # Shard 2 is skipped for bot dep-updaters; skipped counts as OK.
-            if [[ "${IS_BOT_DEP_UPDATER}" != "true" ]]; then
-              require_success "test shard 2" "${TEST_SHARD_2_RESULT}"
-            fi
           fi
           [[ "${RUN_WASM_CHECK}" == "true" ]] && require_success "wasm" "${WASM_RESULT}"
           [[ "${RUN_SITE_SMOKE}" == "true" ]] && require_success "site smoke" "${SITE_SMOKE_RESULT}"
