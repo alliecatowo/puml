@@ -1,8 +1,8 @@
-/// Standalone helper utilities for the inline creole parser.
-///
-/// These functions handle link syntax parsing, character classification, and
-/// tag pattern matching. Extracted from `inline.rs` to keep that file under
-/// the 600-line guardrail.
+//! Standalone helper utilities for the inline creole parser.
+//!
+//! These functions handle link syntax parsing, character classification, and
+//! tag pattern matching. Extracted from `inline.rs` to keep that file under
+//! the 600-line guardrail.
 
 /// Parse the interior of a `[[...]]` link token into `(url, tooltip, label)`.
 pub(super) fn parse_link_inner(inner: &str) -> (String, Option<String>, String) {
