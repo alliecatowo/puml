@@ -332,8 +332,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 }
             }
             StatementKind::Title(v) => common.title(v),
-            StatementKind::Header(v) => common.raw_header(v),
-            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Header(v) => common.header(v),
+            StatementKind::Footer(v) => common.footer(v),
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => {
                 common.legend(v, LegendTextMode::ParsePackedPosition);
@@ -490,7 +490,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         relations,
         title: common.title,
         header: common.header,
+        header_align: common.header_align,
         footer: common.footer,
+        footer_align: common.footer_align,
         caption: common.caption,
         legend: common.legend,
         legend_halign: common.legend_halign,

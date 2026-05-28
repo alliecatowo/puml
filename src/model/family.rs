@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
-use crate::model::ScaleSpec;
+use crate::model::{MetadataHAlign, ScaleSpec};
 use crate::scene::TextOverflowPolicy;
 use crate::sprites::SpriteRegistry;
 use crate::theme::{
@@ -42,7 +42,11 @@ pub struct FamilyDocument {
     pub namespace_separator: Option<String>,
     pub title: Option<String>,
     pub header: Option<String>,
+    /// Horizontal alignment for the `header` text (`left header ...` / `center header ...`).
+    pub header_align: MetadataHAlign,
     pub footer: Option<String>,
+    /// Horizontal alignment for the `footer` text (`right footer ...` etc.).
+    pub footer_align: MetadataHAlign,
     pub caption: Option<String>,
     pub legend: Option<String>,
     /// Horizontal alignment of the legend block (`legend left|center|right`).

@@ -106,6 +106,10 @@ pub(crate) fn parse_multiline_keyword_block(
 /// of those families. Handles both forms:
 ///   - `legend left` / `legend right top` / ... (position qualifier suffix)
 ///   - bare `legend` / `title` / `header` / `footer` / `caption`
+///
+/// Also runs when `family` is `None` (pre-detection) so that `header`/`footer`/
+/// `caption` blocks placed before any class/component declaration are correctly
+/// captured instead of falling through to the sequence parser.
 pub(crate) fn try_graph_family_text_block(
     lines: &[(&str, Span)],
     i: usize,
@@ -114,17 +118,31 @@ pub(crate) fn try_graph_family_text_block(
     family: Option<DiagramKind>,
     statements: &mut Vec<Statement>,
 ) -> Option<usize> {
-    if !matches!(
-        family,
-        Some(
-            DiagramKind::Class
-                | DiagramKind::Object
-                | DiagramKind::UseCase
-                | DiagramKind::Component
-                | DiagramKind::Deployment
-        )
-    ) {
+    let family_ok = family.is_none()
+        || matches!(
+            family,
+            Some(
+                DiagramKind::Class
+                    | DiagramKind::Object
+                    | DiagramKind::UseCase
+                    | DiagramKind::Component
+                    | DiagramKind::Deployment
+                    | DiagramKind::MindMap
+                    | DiagramKind::Wbs
+            )
+        );
+    if !family_ok {
         return None;
+    }
+    // When family is None (pre-detection) we only handle the bare keyword forms
+    // (`header`, `footer`, `caption`, `title`) that are unambiguous metadata
+    // blocks, not `legend` (which could still be a sequence legend).
+    if family.is_none() {
+        let lower = line.trim().to_ascii_lowercase();
+        let is_bare_metadata = matches!(lower.as_str(), "header" | "footer" | "caption" | "title");
+        if !is_bare_metadata {
+            return None;
+        }
     }
     let (kind, end_idx) = parse_multiline_keyword_block(lines, i, line)?;
     statements.push(Statement {

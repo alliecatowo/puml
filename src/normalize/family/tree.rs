@@ -31,8 +31,8 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 list_sprites = true;
             }
             StatementKind::Title(v) => common.title(v),
-            StatementKind::Header(v) => common.raw_header(v),
-            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Header(v) => common.header(v),
+            StatementKind::Footer(v) => common.footer(v),
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::Mainframe(v) => common.mainframe(v),
@@ -447,7 +447,9 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         relations,
         title: common.title,
         header: common.header,
+        header_align: common.header_align,
         footer: common.footer,
+        footer_align: common.footer_align,
         caption: common.caption,
         legend: common.legend,
         legend_halign: common.legend_halign,

@@ -1,4 +1,4 @@
-use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
+use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, PKG_INNER_GAP, PKG_PADDING,
     PKG_TAB_HEIGHT,
@@ -83,10 +83,12 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .as_deref()
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
+    // Extra space for `header` text above the title (if any).
+    let header_block_h = super::class_render::family_metadata_label_height(doc.header.as_deref());
     let header_h = if title_lines > 0 {
-        16 + title_lines * 22
+        16 + title_lines * 22 + header_block_h
     } else {
-        0
+        header_block_h
     };
 
     let group_scope_by_idx: Vec<String> = {
@@ -477,9 +479,14 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .max(canvas_margin)
         + right_gutter;
     let svg_width = svg_width.max(400);
+    // Reserve height for caption and footer rendered below the diagram.
+    let caption_block_h = super::class_render::family_metadata_label_height(doc.caption.as_deref());
+    let footer_block_h = super::class_render::family_metadata_label_height(doc.footer.as_deref());
     let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + canvas_margin
-        + projection_extra_height;
+        + projection_extra_height
+        + caption_block_h
+        + footer_block_h;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Start SVG output
@@ -505,8 +512,22 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         out.push_str("<defs><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\"><feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/></filter></defs>");
     }
 
+    // Header — rendered at the top before title and nodes.
+    if let Some(header_text) = &doc.header {
+        super::class_render::render_family_metadata_label(
+            &mut out,
+            header_text,
+            "header",
+            doc.header_align,
+            16,
+            svg_width,
+            "fill=\"#333333\"",
+        );
+    }
+
     // Title
     if let Some(title) = &doc.title {
+        // Title sits below the header block.
         let mut ty = canvas_margin;
         for line in title.lines() {
             out.push_str(&format!(
@@ -585,6 +606,36 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             svg_height,
             doc.legend_halign,
             doc.legend_valign,
+        );
+    }
+
+    // Caption — rendered in italic below the diagram, before footer.
+    let base_bottom = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
+        + canvas_margin
+        + projection_extra_height;
+    let caption_y = base_bottom + 14;
+    if let Some(caption_text) = &doc.caption {
+        super::class_render::render_family_metadata_label(
+            &mut out,
+            caption_text,
+            "caption",
+            MetadataHAlign::Left,
+            caption_y,
+            svg_width,
+            "fill=\"#555555\" font-style=\"italic\"",
+        );
+    }
+    // Footer — rendered at the very bottom of the SVG.
+    let footer_y = caption_y + caption_block_h + 14;
+    if let Some(footer_text) = &doc.footer {
+        super::class_render::render_family_metadata_label(
+            &mut out,
+            footer_text,
+            "footer",
+            doc.footer_align,
+            footer_y,
+            svg_width,
+            "fill=\"#333333\"",
         );
     }
 
