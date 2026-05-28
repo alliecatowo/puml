@@ -186,10 +186,7 @@ FooDashed --> Critical
         Some("blue"),
         "FooDashed border should be blue"
     );
-    assert!(
-        foo.style.border_dashed,
-        "FooDashed border should be dashed"
-    );
+    assert!(foo.style.border_dashed, "FooDashed border should be dashed");
 
     let critical = model
         .nodes
@@ -295,8 +292,7 @@ A --> B
 
     // Arrow color should be propagated from the style block
     assert_eq!(
-        model.state_style.arrow_color,
-        "blue",
+        model.state_style.arrow_color, "blue",
         "arrow color should be blue from style block"
     );
 

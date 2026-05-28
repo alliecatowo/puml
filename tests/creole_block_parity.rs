@@ -97,7 +97,10 @@ fn creole_heading_increases_font_size() {
     assert!(svg.contains("Heading One"));
     assert!(svg.contains("Heading Two"));
     assert!(svg.contains("Heading Three"));
-    assert!(svg.contains("font-weight=\"bold\""), "headings must be bold in SVG");
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "headings must be bold in SVG"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -177,8 +180,7 @@ fn creole_tilde_escapes_metacharacter() {
 /// that are wider than their shallower counterparts.
 #[test]
 fn creole_nested_bullet_increases_indent() {
-    let lines =
-        tokenize_creole("* depth one\n** depth two\n*** depth three");
+    let lines = tokenize_creole("* depth one\n** depth two\n*** depth three");
 
     assert_eq!(lines.len(), 3);
 
@@ -204,10 +206,7 @@ fn creole_nested_bullet_increases_indent() {
     // No text span should be bold (the `*` markers must not leak into content).
     for line in &lines {
         for span in line.iter().skip(1) {
-            assert!(
-                !span.bold,
-                "item text must not be bold; got: {span:?}"
-            );
+            assert!(!span.bold, "item text must not be bold; got: {span:?}");
         }
     }
 }

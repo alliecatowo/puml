@@ -155,7 +155,7 @@ S is High
 
     let max_row_h_normal = rects_normal
         .iter()
-        .filter(|r| r.class.is_none())  // row bg rects have no class
+        .filter(|r| r.class.is_none()) // row bg rects have no class
         .map(|r| r.height)
         .max()
         .unwrap_or(0);

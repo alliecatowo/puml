@@ -81,7 +81,13 @@ pub(super) fn state_node_gradient_def(node: &StateNode) -> String {
 /// non-alphanumeric characters with underscores (deterministic, no HashMap).
 fn escape_gradient_id(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

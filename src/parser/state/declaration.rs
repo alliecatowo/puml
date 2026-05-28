@@ -237,11 +237,7 @@ pub(crate) fn parse_gradient_fill(token: &str) -> Option<(String, String)> {
         // Find the first occurrence of the separator that isn't part of a hex run.
         // Walk char-by-char: once we see a non-hex non-alpha character that is our
         // separator, split there.
-        if let Some(idx) = raw
-            .char_indices()
-            .find(|(_, c)| *c == sep)
-            .map(|(i, _)| i)
-        {
+        if let Some(idx) = raw.char_indices().find(|(_, c)| *c == sep).map(|(i, _)| i) {
             let left = raw[..idx].trim().trim_start_matches('#');
             let right = raw[idx + 1..].trim().trim_start_matches('#');
             if !left.is_empty() && !right.is_empty() {
@@ -259,8 +255,7 @@ pub(crate) fn parse_gradient_fill(token: &str) -> Option<(String, String)> {
 /// Normalize a single color part (without leading `#`) — re-attach `#` for hex.
 fn normalize_color_part(part: &str) -> String {
     let part = part.trim().trim_start_matches('#');
-    let is_hex =
-        matches!(part.len(), 3 | 4 | 6 | 8) && part.chars().all(|c| c.is_ascii_hexdigit());
+    let is_hex = matches!(part.len(), 3 | 4 | 6 | 8) && part.chars().all(|c| c.is_ascii_hexdigit());
     if is_hex {
         format!("#{part}")
     } else {
