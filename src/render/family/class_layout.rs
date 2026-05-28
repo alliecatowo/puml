@@ -332,6 +332,7 @@ pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
     }
 
     document.nodes.iter().all(|node| {
+        let only_uc_internals = node.members.iter().all(|m| m.text.starts_with("\x1fuc:"));
         matches!(
             node.kind,
             FamilyNodeKind::UseCase
@@ -340,6 +341,6 @@ pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
                 | FamilyNodeKind::BusinessActor
                 | FamilyNodeKind::Person
                 | FamilyNodeKind::Note
-        ) && node.members.is_empty()
+        ) && (node.members.is_empty() || only_uc_internals)
     })
 }

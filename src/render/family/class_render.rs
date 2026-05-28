@@ -132,7 +132,21 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         .map(|node| {
             let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
             let header_stereotype_count = count_header_stereotype_members(&node.members);
-            let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
+            // For UseCase/BusinessUseCase nodes, exclude internal `\x1fuc:` members from the
+            // regular display-member count — they are rendered inside the oval and should not
+            // inflate the class-box height calculation the same way.
+            let is_usecase_node = matches!(
+                node.kind,
+                FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
+            );
+            let display_member_count = if is_usecase_node {
+                node.members[header_stereotype_count..]
+                    .iter()
+                    .filter(|m| !m.text.starts_with("\x1fuc:"))
+                    .count()
+            } else {
+                node.members.len().saturating_sub(header_stereotype_count)
+            };
             let stereotype_extra_h = (header_stereotype_count as i32) * 14;
             let body_h = if node.kind == FamilyNodeKind::Note {
                 let lines = node
@@ -153,6 +167,22 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
                     empty_member_pad
                 } else {
                     rows * 18
+                }
+            } else if is_usecase_node {
+                // UseCase/BusinessUseCase: count ext-point names to size the oval taller.
+                let ext_point_count = node
+                    .members
+                    .iter()
+                    .filter(|m| m.text.starts_with("\x1fuc:ext-point:"))
+                    .count() as i32;
+                // Base height for the oval (fits the name label).
+                // With extension points: add divider (≈14px) + 12px per point name.
+                if ext_point_count > 0 {
+                    (14 + ext_point_count * 12).max(empty_member_pad)
+                } else if display_member_count == 0 {
+                    empty_member_pad
+                } else {
+                    display_member_count as i32 * member_line_height + 2 * member_padding
                 }
             } else if display_member_count == 0 {
                 empty_member_pad

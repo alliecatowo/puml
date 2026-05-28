@@ -305,6 +305,7 @@ pub(super) fn is_family_style_member(text: &str) -> bool {
     text.starts_with("\x1fstyle:")
         || text.starts_with("\x1fclass:")
         || text.starts_with("\x1ffamily:tag:")
+        || text.starts_with("\x1fuc:")
 }
 
 pub(super) fn class_node_visibility_symbol(

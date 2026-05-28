@@ -24,15 +24,18 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
                     &mut nodes,
                     ChenNode {
                         kind: match decl.kind {
-                            AstChenDeclKind::Entity => ChenNodeKind::Entity,
+                            AstChenDeclKind::Entity | AstChenDeclKind::WeakEntity => {
+                                ChenNodeKind::Entity
+                            }
                             AstChenDeclKind::Relationship => ChenNodeKind::Relationship,
                         },
                         id,
                         label: decl.name,
-                        weak: decl
-                            .stereotypes
-                            .iter()
-                            .any(|value| value.eq_ignore_ascii_case("weak")),
+                        weak: decl.kind == AstChenDeclKind::WeakEntity
+                            || decl
+                                .stereotypes
+                                .iter()
+                                .any(|value| value.eq_ignore_ascii_case("weak")),
                         identifying: decl
                             .stereotypes
                             .iter()
@@ -126,18 +129,18 @@ fn normalize_chen_attribute(attr: crate::ast::ChenAttribute) -> ModelChenAttribu
         id,
         label: attr.name,
         data_type: attr.data_type,
-        key: attr
-            .stereotypes
-            .iter()
-            .any(|value| value.eq_ignore_ascii_case("key")),
+        key: attr.stereotypes.iter().any(|value| {
+            value.eq_ignore_ascii_case("key")
+                || value.eq_ignore_ascii_case("pk")
+                || value.eq_ignore_ascii_case("pk-partial")
+        }),
         derived: attr
             .stereotypes
             .iter()
             .any(|value| value.eq_ignore_ascii_case("derived")),
-        multivalued: attr
-            .stereotypes
-            .iter()
-            .any(|value| value.eq_ignore_ascii_case("multi")),
+        multivalued: attr.stereotypes.iter().any(|value| {
+            value.eq_ignore_ascii_case("multi") || value.eq_ignore_ascii_case("multivalued")
+        }),
         children: attr
             .children
             .into_iter()
