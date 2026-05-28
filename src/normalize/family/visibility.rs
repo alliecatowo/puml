@@ -15,6 +15,8 @@ pub(super) fn apply_class_visibility_controls(
 
     let mut removed = collect_filtered_node_names(nodes, relations, hide_options);
     apply_family_tag_visibility_controls(nodes, &node_tags, hide_options, &mut removed);
+    // Stereotype-based whole-node removal: `hide <<Foo>>` / `remove <<Foo>>`.
+    apply_stereotype_node_removal(nodes, hide_options, &mut removed);
     if !removed.is_empty() {
         nodes.retain(|node| !node_matches_any_filter(node, &removed));
         relations.retain(|rel| {
@@ -34,8 +36,11 @@ pub(super) fn apply_class_visibility_controls(
             .as_deref()
             .unwrap_or(&node.name)
             .to_ascii_lowercase();
-        node.members
-            .retain(|member| class_member_visible_for_node(member, &node_key, hide_options));
+        // Collect this node's stereotypes for per-stereotype member filtering.
+        let node_stereotypes = node_stereotype_labels(node);
+        node.members.retain(|member| {
+            class_member_visible_for_node(member, &node_key, &node_stereotypes, hide_options)
+        });
     }
 }
 
@@ -103,6 +108,59 @@ pub(super) fn family_node_match_keys(node: &FamilyNode) -> std::collections::BTr
     keys
 }
 
+/// Returns all `<<stereotype>>` labels carried by a node as lowercase strings
+/// without the angle brackets (e.g. `"service"` for `<<Service>>`).
+pub(super) fn node_stereotype_labels(node: &FamilyNode) -> Vec<String> {
+    node.members
+        .iter()
+        .filter_map(|m| {
+            let t = m.text.trim();
+            if t.starts_with("<<") && t.ends_with(">>") {
+                Some(t[2..t.len() - 2].trim().to_ascii_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Detect `hide node <<Foo>>` and `remove node <<Foo>>` options (no member suffix)
+/// and add matching nodes to `removed`.
+pub(super) fn apply_stereotype_node_removal(
+    nodes: &[FamilyNode],
+    hide_options: &std::collections::BTreeSet<String>,
+    removed: &mut std::collections::BTreeSet<String>,
+) {
+    // Collect all stereotype-only hide/remove options: "hide node <<Foo>>" or "remove node <<Foo>>"
+    let stereotype_hides: Vec<String> = hide_options
+        .iter()
+        .filter_map(|opt| {
+            let rest = opt
+                .strip_prefix("hide node ")
+                .or_else(|| opt.strip_prefix("remove node "))?;
+            let rest = rest.trim();
+            // Must be purely a stereotype token with no trailing qualifier
+            if rest.starts_with("<<") && rest.ends_with(">>") {
+                Some(rest[2..rest.len() - 2].trim().to_ascii_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if stereotype_hides.is_empty() {
+        return;
+    }
+
+    for node in nodes {
+        let node_stereos = node_stereotype_labels(node);
+        let should_remove = node_stereos.iter().any(|s| stereotype_hides.contains(s));
+        if should_remove {
+            removed.extend(family_node_match_keys(node));
+        }
+    }
+}
+
 pub(super) fn collect_filtered_node_names(
     nodes: &[FamilyNode],
     relations: &[ModelFamilyRelation],
@@ -115,6 +173,12 @@ pub(super) fn collect_filtered_node_names(
             .or_else(|| opt.strip_prefix("remove node "))
         {
             if name == "*" || name.starts_with('$') {
+                continue;
+            }
+            // Skip stereotype-based hide options — handled by apply_stereotype_node_removal
+            // and apply_stereotype_member_controls instead.
+            let name_trimmed = name.trim();
+            if name_trimmed.starts_with("<<") {
                 continue;
             }
             removed.insert(clean_filter_name(name));
@@ -145,9 +209,80 @@ pub(super) fn collect_filtered_node_names(
     removed
 }
 
+/// Check if any of this node's stereotypes triggers a per-stereotype member hide rule.
+///
+/// Handles:
+/// - `hide <<Foo>> members` / `hide node <<Foo>> members`
+/// - `hide <<Foo>> methods` / `hide node <<Foo>> methods`
+/// - `hide <<Foo>> fields`  / `hide node <<Foo>> fields`
+/// - `hide <<Foo>> circle`  / `hide node <<Foo>> circle`
+/// - `show <<Foo>> members` / `show <<Foo>> methods` / `show <<Foo>> fields` (override)
+fn stereotype_member_hidden(
+    member: &ClassMember,
+    node_stereotypes: &[String],
+    hide_options: &std::collections::BTreeSet<String>,
+) -> bool {
+    if node_stereotypes.is_empty() {
+        return false;
+    }
+    let text = member.text.trim();
+    let kind = member_kind(member);
+    let is_circle = text == "()";
+    let is_stereotype_text = text.starts_with("<<") && text.ends_with(">>");
+
+    for stereo in node_stereotypes {
+        let stereo_token = format!("<<{stereo}>>");
+        // `show <<Foo>> members` overrides any hide for normal members.
+        let show_members_key = format!("show {stereo_token} members");
+        let show_kind_key = format!("show {stereo_token} {kind}");
+        if hide_options.contains(&show_members_key) || hide_options.contains(&show_kind_key) {
+            return false;
+        }
+        // `hide <<Foo>> circle` hides the `()` circle marker.
+        let hide_circle_key1 = format!("hide {stereo_token} circle");
+        let hide_circle_key2 = format!("hide node {stereo_token} circle");
+        if is_circle
+            && (hide_options.contains(&hide_circle_key1)
+                || hide_options.contains(&hide_circle_key2))
+        {
+            return true;
+        }
+        // Don't hide stereotype text members via the members/methods/fields rules.
+        if is_stereotype_text {
+            continue;
+        }
+        // `hide <<Foo>> members` / `hide node <<Foo>> members`
+        let hide_members_key1 = format!("hide {stereo_token} members");
+        let hide_members_key2 = format!("hide node {stereo_token} members");
+        if hide_options.contains(&hide_members_key1) || hide_options.contains(&hide_members_key2) {
+            return true;
+        }
+        // `hide <<Foo>> methods` / `hide node <<Foo>> methods`
+        let hide_methods_key1 = format!("hide {stereo_token} methods");
+        let hide_methods_key2 = format!("hide node {stereo_token} methods");
+        if kind == "methods"
+            && (hide_options.contains(&hide_methods_key1)
+                || hide_options.contains(&hide_methods_key2))
+        {
+            return true;
+        }
+        // `hide <<Foo>> fields` / `hide node <<Foo>> fields`
+        let hide_fields_key1 = format!("hide {stereo_token} fields");
+        let hide_fields_key2 = format!("hide node {stereo_token} fields");
+        if kind == "fields"
+            && (hide_options.contains(&hide_fields_key1)
+                || hide_options.contains(&hide_fields_key2))
+        {
+            return true;
+        }
+    }
+    false
+}
+
 pub(super) fn class_member_visible_for_node(
     member: &ClassMember,
     node_key: &str,
+    node_stereotypes: &[String],
     hide_options: &std::collections::BTreeSet<String>,
 ) -> bool {
     let text = member.text.trim();
@@ -168,6 +303,10 @@ pub(super) fn class_member_visible_for_node(
         return false;
     }
     if hide_options.contains(kind) || hide_options.contains(&format!("{visibility} {kind}")) {
+        return false;
+    }
+    // Per-stereotype member visibility (e.g. `hide <<Service>> members`).
+    if stereotype_member_hidden(member, node_stereotypes, hide_options) {
         return false;
     }
     true
