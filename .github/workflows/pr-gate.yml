@@ -345,7 +345,7 @@ jobs:
             site/public
 
   required_check:
-    name: quality-summary
+    name: fmt-clippy-test-coverage-quick
     needs:
       - changes
       - artifact_regen
