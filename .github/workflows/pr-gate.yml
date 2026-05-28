@@ -22,10 +22,10 @@ env:
   # on cold-cache runs.  Safe on stable Rust 1.68+ (enabled unconditionally here
   # because our rust-version = "1.88").
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-  # sccache: compiler-output cache shared across jobs via GHA cache backend.
-  # Documented savings: 30-120s per job depending on changed file count.
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
+  # NOTE: sccache via GHA cache backend was removed because the Azure backend
+  # has been unreliable (HTML 503 responses break sccache startup, which then
+  # breaks RUSTC_WRAPPER and fails every cargo invocation in the job). Future
+  # work: switch to an S3 backend or a more reliable cache. See ci-overhaul-plan.md.
 
 jobs:
   changes:
@@ -101,10 +101,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -157,7 +153,7 @@ jobs:
   # Lint: fmt + clippy merged into one job.
   # Saves one full runner checkout + cache-restore vs two separate jobs (~45s).
   # Wall-time estimate: ~1:45 (fmt is instant after cache hits; clippy
-  # compiles all targets once with the cached incremental store + sccache).
+  # compiles all targets once with the cached incremental store).
   # ---------------------------------------------------------------------------
   lint:
     name: lint (fmt + clippy)
@@ -174,10 +170,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -214,10 +206,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -252,10 +240,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -301,10 +285,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -354,10 +334,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -400,10 +376,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -426,10 +398,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -460,10 +428,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Setup sccache
-        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
-        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
