@@ -24,6 +24,8 @@ pub(super) struct SequenceNormalizeState {
     pub(super) hide_unlinked: bool,
     pub(super) sprites: crate::sprites::SpriteRegistry,
     pub(super) list_sprites: bool,
+    /// Participant IDs created mid-flow via `create X` (not pre-declared at the top).
+    pub(super) created_participants: std::collections::BTreeSet<String>,
 }
 
 impl Default for SequenceNormalizeState {
@@ -50,6 +52,7 @@ impl Default for SequenceNormalizeState {
             hide_unlinked: false,
             sprites: crate::sprites::SpriteRegistry::new(),
             list_sprites: false,
+            created_participants: std::collections::BTreeSet::new(),
         }
     }
 }
@@ -224,6 +227,7 @@ impl SequenceNormalizeState {
             sprites: self.sprites,
             list_sprites: self.list_sprites,
             mainframe: self.common.mainframe,
+            created_participants: self.created_participants,
         })
     }
 

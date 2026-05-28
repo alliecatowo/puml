@@ -1,14 +1,14 @@
 use crate::diagnostic::Diagnostic;
 
 use super::{
-    adjust_color, boolval, deterministic_preproc_now_seconds, execute_function_call,
-    format_preprocessor_date, format_preprocessor_time, get_json_attribute, is_dark_color,
-    json_contains_key, json_contains_value, parse_hex_rgb, parse_int_lenient, preprocessor_get_opt,
-    preprocessor_json_keys, preprocessor_json_merge, preprocessor_json_type,
-    preprocessor_json_values, preprocessor_list_items, preprocessor_list_literal,
-    preprocessor_list_slice, preprocessor_map_entries, preprocessor_map_literal,
-    preprocessor_range, preprocessor_remove, preprocessor_set, preprocessor_size,
-    preprocessor_str2json, split_args, split_preprocessor_regex, strip_quotes,
+    boolval, deterministic_preproc_now_seconds, dispatch_color_builtin, execute_function_call,
+    format_preprocessor_date, format_preprocessor_time, get_json_attribute, json_contains_key,
+    json_contains_value, parse_int_lenient, preprocessor_get_opt, preprocessor_json_keys,
+    preprocessor_json_merge, preprocessor_json_type, preprocessor_json_values,
+    preprocessor_list_items, preprocessor_list_literal, preprocessor_list_slice,
+    preprocessor_map_entries, preprocessor_map_literal, preprocessor_range, preprocessor_remove,
+    preprocessor_set, preprocessor_size, preprocessor_str2json, split_args,
+    split_preprocessor_regex, strip_quotes,
 };
 use crate::preproc::includes;
 use crate::preproc::macros::expand_preprocessor_text;
@@ -570,14 +570,23 @@ pub(in crate::preproc) fn dispatch_builtin(
                 .unwrap_or(0)
                 .to_string(),
         ),
-        "is_dark" => Some(is_dark_color(&arg(0)).to_string()),
-        "reverse_color" => Some(
-            parse_hex_rgb(&arg(0))
-                .map(|(r, g, b)| format!("#{:02x}{:02x}{:02x}", 255 - r, 255 - g, 255 - b))
-                .unwrap_or_default(),
-        ),
-        "lighten" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), true)),
-        "darken" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), false)),
+        // %mod(a, b) — integer modulo.  PlantUML semantics: remainder after
+        // Euclidean division (result sign matches the divisor, same as Java
+        // `Math.floorMod`).  When `b` is zero we return 0 rather than panic.
+        "mod" => {
+            let a = parse_int_lenient(&arg(0));
+            let b = parse_int_lenient(&arg(1));
+            Some(if b == 0 { 0 } else { a.rem_euclid(b) }.to_string())
+        }
+        // Color builtins: is_dark, is_light, reverse_color, reverse_hsluv_color,
+        // lighten, darken, hsl_color — delegated to color.rs dispatcher.
+        name if dispatch_color_builtin(name, &arg(0), &arg(1), &arg(2), &arg(3), argc)
+            .is_some() =>
+        {
+            dispatch_color_builtin(name, &arg(0), &arg(1), &arg(2), &arg(3), argc)
+        }
+        // %version — deterministic version string matching the PUML crate version.
+        "version" => Some(env!("CARGO_PKG_VERSION").to_string()),
         _ => None,
     };
     Ok(result)

@@ -393,6 +393,9 @@ impl SequenceNormalizeState {
             .with_span(span));
         }
         self.alive_by_id.insert(id.clone(), true);
+        // Mark this participant as mid-flow created so the layout can suppress
+        // the header box at the top and render it at the creation row instead.
+        self.created_participants.insert(id.clone());
         self.events.push(SequenceEvent {
             span,
             kind: SequenceEventKind::Create(id),

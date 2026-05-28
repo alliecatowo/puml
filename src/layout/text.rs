@@ -251,15 +251,23 @@ pub(super) fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i
     let mut height = GROUP_HEADER_BASELINE_Y + GROUP_BOTTOM_PADDING;
 
     if kind.eq_ignore_ascii_case("ref") {
-        // For ref boxes all label lines (including the first "over ..." line)
-        // appear in the body.  Count the header line too.
-        let mut body_lines = 1; // the first line already consumed above
+        // The first line of the ref label is the participant spec (`over A, B`);
+        // it is NOT rendered as body text (PlantUML parity — only body lines
+        // after the `over ...` line appear inside the ref box).  Height and
+        // width are computed from body-text lines only.
+        let mut body_lines = 0i32;
         for line in lines {
+            let lower = line.trim().to_ascii_lowercase();
+            if lower.starts_with("over ") || lower == "over" {
+                continue;
+            }
             max_width = max_width.max(estimate_text_px_width(line));
             body_lines += 1;
         }
+        // GROUP_REF_BODY_BASELINE_Y reserves space for the header notch + one line.
+        // Each additional body line adds TEXT_LINE_HEIGHT.
         height = GROUP_REF_BODY_BASELINE_Y
-            + ((body_lines - 1) * TEXT_LINE_HEIGHT)
+            + (body_lines.saturating_sub(1).max(0) * TEXT_LINE_HEIGHT)
             + GROUP_BOTTOM_PADDING;
     }
 

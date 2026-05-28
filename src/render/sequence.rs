@@ -240,6 +240,14 @@ pub fn render_svg(scene: &Scene) -> String {
                 if let Some(label) = &g.label {
                     let mut y = g.y + REF_BODY_BASELINE_Y;
                     for line in label.lines() {
+                        // The first line of a `ref over A, B : body` label is
+                        // the participant spec (`over A, B`).  PlantUML renders
+                        // only the body inside the ref box — the participant
+                        // names are never shown as text content.
+                        let line_lower = line.trim().to_ascii_lowercase();
+                        if line_lower.starts_with("over ") || line_lower == "over" {
+                            continue;
+                        }
                         out.push_str(&creole_text(
                             g.x + 8,
                             y,

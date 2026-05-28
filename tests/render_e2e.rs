@@ -689,7 +689,13 @@ fn render_sequence_ref_fragment_uses_header_row_without_participant_text() {
     let svg = render::render_svg(&scene);
     assert!(svg.contains("<polygon points=\"24,120 56,120 56,134 50,140 24,140\""));
     assert!(svg.contains(">ref</text>"));
-    assert!(svg.contains(">over Alice, Bob</text>"));
+    // "over Alice, Bob" is the placement spec and must NOT appear as rendered text —
+    // it was a rendering bug (commit 5feb5d9a fixed it). Only the body content
+    // (Authentication Flow, See diagram AUTH-01) should be present.
+    assert!(
+        !svg.contains(">over Alice, Bob</text>"),
+        "ref placement spec 'over Alice, Bob' must not leak into rendered SVG text"
+    );
     assert!(svg.contains(">Authentication Flow</text>"));
     assert!(svg.contains(">See diagram AUTH-01</text>"));
 }

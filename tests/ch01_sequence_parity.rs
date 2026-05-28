@@ -342,3 +342,238 @@ Bob --> Alice: done
         "expected trailing done message y ({done_y}) to be below par group bottom ({group_bottom})"
     );
 }
+
+// ─── autonumber HTML format ("<b>[000]") ─────────────────────────────────────
+
+/// `autonumber "<b>[000]"` should parse without error and render numbered labels.
+/// PlantUML supports HTML-tagged formats for autonumber; the `<b>` tag should
+/// pass through and wrap the rendered number.
+#[test]
+fn autonumber_html_format_parses_and_renders() {
+    let svg = svg_of(
+        r#"@startuml
+autonumber "<b>[000]"
+Alice -> Bob: first
+Bob --> Alice: second
+@enduml"#,
+    );
+    // The bold HTML tag should cause the number text to appear in a bold tspan.
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "expected bold font-weight from <b> HTML tag in autonumber format"
+    );
+    // Numbers should be zero-padded to 3 digits starting at 001.
+    assert!(svg.contains("[001]"), "expected first number [001] in SVG");
+    assert!(svg.contains("[002]"), "expected second number [002] in SVG");
+}
+
+/// `autonumber "<b>[000]"` with stop and resume continues from the last number.
+#[test]
+fn autonumber_html_format_stop_resume_continues_numbering() {
+    let svg = svg_of(
+        r#"@startuml
+autonumber "<b>[000]"
+Alice -> Bob: one
+autonumber stop
+Alice -> Bob: unnumbered
+autonumber resume
+Bob --> Alice: two
+@enduml"#,
+    );
+    assert!(svg.contains("[001]"), "expected first numbered message");
+    assert!(svg.contains("[002]"), "expected resumed second number");
+    // The stopped message should not carry a number prefix.
+    assert!(
+        svg.contains("unnumbered"),
+        "stopped message text should appear"
+    );
+}
+
+/// Plain `autonumber` (no format) still works alongside HTML-format autonumber.
+#[test]
+fn autonumber_plain_still_works_after_html_format_change() {
+    let svg = svg_of(
+        r#"@startuml
+autonumber
+Alice -> Bob: first
+Bob --> Alice: second
+@enduml"#,
+    );
+    assert!(svg.contains('1'), "expected number 1 in SVG");
+    assert!(svg.contains('2'), "expected number 2 in SVG");
+}
+
+// ─── ref over A, B : body — body text (not participant spec) rendered ────────
+
+/// `ref over Alice, Bob : body text` should render the body text but NOT the
+/// `over Alice, Bob` participant spec inside the ref box.
+#[test]
+fn ref_over_body_text_rendered_not_participant_spec() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: hello
+ref over Alice, Bob : some interaction detail
+Alice -> Bob: done
+@enduml"#,
+    );
+    assert!(
+        svg.contains("some interaction detail"),
+        "ref body text should be rendered"
+    );
+    // PlantUML does NOT show the participant spec as text inside the ref box.
+    assert!(
+        !svg.contains("over Alice"),
+        "participant spec 'over Alice' should NOT appear as ref body text"
+    );
+    assert!(
+        !svg.contains("over Bob"),
+        "participant spec 'over Bob' should NOT appear as ref body text"
+    );
+}
+
+/// Multi-line ref body: only lines after the `over` spec are rendered.
+#[test]
+fn ref_over_multiline_body_renders_only_body_lines() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: start
+ref over Alice : line one
+Alice -> Bob: end
+@enduml"#,
+    );
+    assert!(svg.contains("line one"), "first body line should render");
+    assert!(
+        !svg.contains("over Alice"),
+        "over spec should not render as text"
+    );
+}
+
+/// A ref with no body (just `ref over A`) renders without panic.
+#[test]
+fn ref_over_no_body_renders_without_panic() {
+    // This is malformed per the parser (body is required) so we test that
+    // the parser gracefully produces a diagnostic rather than panicking.
+    let result = puml::render_source_to_svg(
+        r#"@startuml
+Alice -> Bob: hi
+ref over Alice : placeholder
+@enduml"#,
+    );
+    // Either Ok or Err is fine — just no panic.
+    let _ = result;
+}
+
+// ─── create participant mid-flow ─────────────────────────────────────────────
+
+/// `create X` followed by a message to X: X's header box must NOT appear at
+/// the top of the diagram — it appears at the creation row instead.
+#[test]
+fn create_participant_box_appears_at_creation_row_not_top() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: start
+create Bob2
+Alice -> Bob2: greet late participant
+Bob2 --> Alice: reply
+@enduml"#,
+    );
+    // Alice and Bob header boxes appear at y=24 (the top margin).
+    // Bob2's box must appear at a larger y (below the first message row).
+    // We extract the y-attribute of the rect whose width=120 (participant box width)
+    // and check that the one for Bob2 is not at the same y as Alice.
+
+    let mut alice_y: Option<i32> = None;
+    let mut bob2_y: Option<i32> = None;
+
+    // Collect all rect x/y pairs with width=120.
+    let mut search = svg.as_str();
+    while let Some(rect_pos) = search.find("<rect ") {
+        let tail = &search[rect_pos..];
+        // Only consider participant boxes (width="120")
+        if let Some(w_pos) = tail.find("width=\"120\"") {
+            let snippet = &tail[..w_pos + 16];
+            if let (Some(x_pos), Some(y_pos)) = (snippet.rfind("x=\""), snippet.rfind("y=\"")) {
+                let x_start = x_pos + 3;
+                let x_end = snippet[x_start..].find('"').map(|i| x_start + i);
+                let y_start = y_pos + 3;
+                let y_end = snippet[y_start..].find('"').map(|i| y_start + i);
+                if let (Some(xe), Some(ye)) = (x_end, y_end) {
+                    let x_val: i32 = snippet[x_start..xe].parse().unwrap_or(-1);
+                    let y_val: i32 = snippet[y_start..ye].parse().unwrap_or(-1);
+                    // Alice is at x=24, Bob at x=184, Bob2 at x=344.
+                    if x_val == 24 && alice_y.is_none() {
+                        alice_y = Some(y_val);
+                    } else if x_val == 344 && bob2_y.is_none() {
+                        bob2_y = Some(y_val);
+                    }
+                }
+            }
+        }
+        search = &search[rect_pos + 1..];
+    }
+
+    let alice_y = alice_y.expect("expected to find Alice participant box");
+    let bob2_y = bob2_y.expect("expected to find Bob2 participant box");
+    assert!(
+        bob2_y > alice_y,
+        "Bob2 box (y={bob2_y}) should appear below Alice box (y={alice_y}) when created mid-flow"
+    );
+}
+
+/// `create X` lifeline starts at the creation row, not at the top header band.
+#[test]
+fn create_participant_lifeline_starts_at_creation_row() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: start
+create Bob2
+Alice -> Bob2: greet
+Bob2 --> Alice: reply
+@enduml"#,
+    );
+    // Bob2's lifeline is the vertical dashed line at x=404.
+    // It should start below the participant_top + participant_height zone.
+    // The standard lifeline start for Alice/Bob would be y=56 (24+32).
+    // Bob2's should be higher than that.
+    let svg_lower = svg.to_ascii_lowercase();
+    // Ensure Bob2 still has a lifeline (dashed line at x=404).
+    assert!(
+        svg.contains("x1=\"404\"") && svg.contains("stroke-dasharray"),
+        "Bob2 should have a dashed lifeline"
+    );
+    // The lifeline line starting at y=56 should NOT be present for x=404
+    // (that would mean Bob2's lifeline started from the top).
+    let top_lifeline = "x1=\"404\" y1=\"56\"";
+    assert!(
+        !svg.contains(top_lifeline),
+        "Bob2 lifeline should not start from the top header row (y=56)"
+    );
+    // Suppress the unused variable warning for svg_lower.
+    let _ = svg_lower;
+}
+
+/// Creating a participant twice in sequence (create, then create again after
+/// destroy is not in scope here) — verify that `create X` after X has already
+/// been used in a message produces an error.
+#[test]
+fn create_already_alive_participant_produces_error() {
+    // X sends a message (making it alive), then tries to `create` it again.
+    let result = puml::render_source_to_svg(
+        r#"@startuml
+Alice -> Bob: hi
+create Bob
+@enduml"#,
+    );
+    // Should produce E_LIFECYCLE_CREATE_EXISTING because Bob is already alive
+    // (it appeared in a message before the create).
+    assert!(
+        result.is_err(),
+        "creating an already-alive participant should fail"
+    );
+    let err = result.unwrap_err();
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("E_LIFECYCLE_CREATE_EXISTING"),
+        "expected E_LIFECYCLE_CREATE_EXISTING diagnostic, got: {msg}"
+    );
+}

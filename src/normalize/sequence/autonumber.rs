@@ -169,11 +169,9 @@ fn validate_autonumber_format(format: &str) -> Result<(), String> {
     if fmt.is_empty() {
         return Err("autonumber format must not be empty".to_string());
     }
-    if fmt.contains('<') || fmt.contains('>') {
-        return Err(
-            "autonumber format does not support HTML tags in this deterministic subset".to_string(),
-        );
-    }
+    // HTML-tagged formats like `<b>[000]</b>` are valid in PlantUML and we
+    // support them: the numeric placeholder (`0+` or `#+`) is found inside the
+    // template and replaced while HTML tags pass through unchanged.
     if fmt.contains('"') {
         return Err("autonumber format must not contain an embedded quote".to_string());
     }

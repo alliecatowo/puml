@@ -4,6 +4,7 @@ use crate::model::{LegendHAlign, LegendVAlign, MetadataHAlign, ScaleSpec};
 use crate::source::Span;
 use crate::sprites::SpriteRegistry;
 use crate::theme::SequenceStyle;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone)]
 pub struct SequenceDocument {
@@ -33,6 +34,10 @@ pub struct SequenceDocument {
     pub list_sprites: bool,
     /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
     pub mainframe: Option<String>,
+    /// Set of participant IDs that were created mid-flow with `create X`.
+    /// These participants should not have a header box at the top of the diagram;
+    /// their box is rendered at the creation event row instead.
+    pub created_participants: BTreeSet<String>,
 }
 
 impl Default for SequenceDocument {
@@ -61,6 +66,7 @@ impl Default for SequenceDocument {
             sprites: SpriteRegistry::new(),
             list_sprites: false,
             mainframe: None,
+            created_participants: BTreeSet::new(),
         }
     }
 }
@@ -93,6 +99,8 @@ pub struct SequencePage {
     pub list_sprites: bool,
     /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
     pub mainframe: Option<String>,
+    /// Set of participant IDs that were created mid-flow with `create X`.
+    pub created_participants: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone)]
