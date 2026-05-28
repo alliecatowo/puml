@@ -23,8 +23,9 @@
 //!
 //! # Migration status — TODO(#1184)
 //!
-//! - [x] Class family  — `effective_class_node_style` wired through this module
-//! - [ ] Component family  — still uses `effective_component_node_style` directly
+//! - [x] Class family      — `effective_class_node_style` wired through this module
+//! - [x] Component family  — `component_node_effective_style` wired through this module
+//! - [x] Deployment family — shares `ComponentStyle`; covered by the component wiring above
 //! - [ ] Activity family   — `ActivityStyle` not yet wired
 //! - [ ] State family      — `StateStyle` not yet wired
 //! - [ ] Timing family     — `TimingStyle` not yet wired
@@ -287,169 +288,183 @@ pub fn class_node_effective_style(
     }
 }
 
-// ─── Unit tests ──────────────────────────────────────────────────────────────
+// ─── Component/Deployment-family integration ─────────────────────────────────
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::theme::values::StyleSource as Src;
+use super::effective::EffectiveComponentNodeStyle;
+use super::skinparam::{ComponentNodeStyle, ComponentStyle};
 
-    // ── resolve_color precedence tests ───────────────────────────────────────
+/// Build a [`CascadeInput`] for a single colour property of a component or
+/// deployment node.
+///
+/// The component family has one extra layer compared to class: target-specific
+/// skinparam directives (e.g. `skinparam NodeBackgroundColor`) are more
+/// specific than the diagram-level `skinparam BackgroundColor` and therefore
+/// win over it.  We model this by placing the target-specific value at the
+/// `skinparam` tier and falling through to the diagram-level color (with its
+/// recorded source tier) only when no target override exists.
+///
+/// Precedence enforced (lowest → highest):
+///   default < theme < skinparam/target-skinparam < stereotype < inline
+///
+/// Arguments:
+/// * `diagram_color`    — The colour in the diagram-level `ComponentStyle`
+///   field (may have been sourced from default, theme, or skinparam).
+/// * `diagram_source`   — The [`StyleSource`] that produced `diagram_color`.
+/// * `target_color`     — Per-element-kind skinparam override (e.g.
+///   `skinparam NodeBackgroundColor`), if set for this node kind.
+/// * `target_source`    — Source tier for the target override.
+/// * `stereotype_color` — Stereotype-scoped override from
+///   `skinparam Foo<<Bar>>`, if any.
+/// * `inline_color`     — Inline `#color` token on the element, if any.
+fn component_node_cascade(
+    diagram_color: &str,
+    diagram_source: Src,
+    target_color: Option<(&str, Src)>,
+    stereotype_color: Option<&str>,
+    inline_color: Option<&str>,
+) -> EffectiveStyleValue<StyleColor> {
+    // Split the diagram-level source into theme / skinparam tiers.
+    // If a target-specific skinparam override is present it takes the skinparam
+    // slot (it is more specific than the diagram-level generic skinparam).
+    let (theme_color, skinparam_color) = match target_color {
+        Some((tc, _)) => {
+            // Target override exists: use it at the skinparam tier regardless
+            // of what the diagram-level source was.
+            (None, Some(tc.to_string()))
+        }
+        None => match diagram_source {
+            Src::ThemePreset => (Some(diagram_color.to_string()), None),
+            Src::SkinParam | Src::StyleBlock => (None, Some(diagram_color.to_string())),
+            Src::Default | Src::Stereotype | Src::Inline => (None, None),
+        },
+    };
 
-    /// Baseline: only default, no overrides — should return the default.
-    #[test]
-    fn cascade_default_only() {
-        let input = CascadeInput::with_default("#ffffff");
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#ffffff");
-        assert_eq!(result.source(), Src::Default);
-    }
-
-    /// Theme overrides default.
-    #[test]
-    fn cascade_theme_beats_default() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.theme = CascadeTier::value("#aabbcc", Src::ThemePreset);
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#aabbcc");
-        assert_eq!(result.source(), Src::ThemePreset);
-    }
-
-    /// Skinparam overrides theme and default.
-    #[test]
-    fn cascade_skinparam_beats_theme() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.theme = CascadeTier::value("#aabbcc", Src::ThemePreset);
-        input.skinparam = CascadeTier::value("#112233", Src::SkinParam);
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#112233");
-        assert_eq!(result.source(), Src::SkinParam);
-    }
-
-    /// Stereotype overrides skinparam.
-    #[test]
-    fn cascade_stereotype_beats_skinparam() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.skinparam = CascadeTier::value("#112233", Src::SkinParam);
-        input.stereotype = CascadeTier::value("#334455", Src::Stereotype);
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#334455");
-        assert_eq!(result.source(), Src::Stereotype);
-    }
-
-    /// `<style>` block overrides stereotype.
-    #[test]
-    fn cascade_style_block_beats_stereotype() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.stereotype = CascadeTier::value("#334455", Src::Stereotype);
-        input.style_block = CascadeTier::value("#556677", Src::StyleBlock);
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#556677");
-        assert_eq!(result.source(), Src::StyleBlock);
-    }
-
-    /// Inline overrides everything.
-    #[test]
-    fn cascade_inline_beats_all() {
-        let input = CascadeInput {
-            default: CascadeTier::value("#aaaaaa", Src::Default),
-            theme: CascadeTier::value("#bbbbbb", Src::ThemePreset),
-            skinparam: CascadeTier::value("#cccccc", Src::SkinParam),
-            stereotype: CascadeTier::value("#dddddd", Src::Stereotype),
-            style_block: CascadeTier::value("#eeeeee", Src::StyleBlock),
-            inline: CascadeTier::value("#ff0000", Src::Inline),
+    // The default tier carries the raw diagram default so there is always a
+    // fallback, even when all other tiers are absent.
+    let effective_default =
+        if matches!(diagram_source, Src::Default | Src::Stereotype | Src::Inline) {
+            diagram_color.to_string()
+        } else {
+            // diagram_color came from a higher tier; still store it as a safety net.
+            diagram_color.to_string()
         };
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#ff0000");
-        assert_eq!(result.source(), Src::Inline);
-    }
 
-    /// Full all-absent-except-default (no inline/style/stereotype/skinparam/theme).
-    #[test]
-    fn cascade_all_absent_falls_back_to_default() {
-        let input = CascadeInput {
-            default: CascadeTier::value("#123456", Src::Default),
-            theme: CascadeTier::absent(Src::ThemePreset),
-            skinparam: CascadeTier::absent(Src::SkinParam),
-            stereotype: CascadeTier::absent(Src::Stereotype),
-            style_block: CascadeTier::absent(Src::StyleBlock),
-            inline: CascadeTier::absent(Src::Inline),
-        };
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#123456");
-        assert_eq!(result.source(), Src::Default);
-    }
+    let input = CascadeInput {
+        default: CascadeTier {
+            color: Some(effective_default),
+            source: Src::Default,
+        },
+        theme: CascadeTier {
+            color: theme_color,
+            source: Src::ThemePreset,
+        },
+        skinparam: CascadeTier {
+            color: skinparam_color,
+            source: Src::SkinParam,
+        },
+        stereotype: CascadeTier {
+            color: stereotype_color.map(str::to_string),
+            source: Src::Stereotype,
+        },
+        // No `<style>` block support for component/deployment yet.
+        style_block: CascadeTier::absent(Src::StyleBlock),
+        inline: CascadeTier {
+            color: inline_color.map(str::to_string),
+            source: Src::Inline,
+        },
+    };
+    resolve_color(&input)
+}
 
-    /// Verify that intermediate absent tiers don't block lower-precedence values.
-    #[test]
-    fn cascade_absent_tiers_transparent() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.theme = CascadeTier::value("#001122", Src::ThemePreset);
-        // skinparam absent, stereotype absent — theme should win over default.
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#001122");
-        assert_eq!(result.source(), Src::ThemePreset);
-    }
+/// Compute the fully-resolved per-node style for a component or deployment
+/// diagram element via the shared precedence cascade.
+///
+/// This replaces the hand-rolled chain in `effective.rs` and produces
+/// output-equivalent results while routing all lookups through the uniform
+/// cascade so precedence is tested in one place.
+///
+/// Precedence per property (lowest → highest):
+///   default < theme < skinparam < target-specific-skinparam < stereotype < inline
+///
+/// # Arguments
+///
+/// * `component_style` — Diagram-level style aggregating theme + skinparam.
+/// * `target_style`    — Per-element-kind skinparam overrides (e.g.
+///   `skinparam NodeBackgroundColor`), derived from
+///   [`ComponentStyle::target_styles`].
+/// * `stereotype_style`— Stereotype-scoped overrides for this element.
+/// * `inline_style`    — Member-encoded inline overrides.
+/// * `fill_inline`     — Node-level fill from the `#color` shorthand token
+///   (`FamilyNode::fill_color`).
+/// * `is_interface_or_port` — When true, use `interface_color` as the
+///   fallback fill rather than `background_color`.
+pub fn component_node_effective_style(
+    component_style: &ComponentStyle,
+    target_style: Option<&ComponentNodeStyle>,
+    stereotype_style: Option<&ComponentNodeStyle>,
+    inline_style: &FamilyNodeInlineStyle,
+    fill_inline: Option<&str>,
+    is_interface_or_port: bool,
+) -> EffectiveComponentNodeStyle {
+    // ── fill (background) ─────────────────────────────────────────────────────
+    let (base_fill, base_fill_source) = if is_interface_or_port {
+        (
+            component_style.interface_color.as_str(),
+            component_style.sources.interface_color,
+        )
+    } else {
+        (
+            component_style.background_color.as_str(),
+            component_style.sources.background_color,
+        )
+    };
+    let target_fill = target_style
+        .and_then(|s| s.background_color.as_deref())
+        .map(|c| (c, Src::SkinParam));
+    let fill = component_node_cascade(
+        base_fill,
+        base_fill_source,
+        target_fill,
+        stereotype_style.and_then(|s| s.background_color.as_deref()),
+        fill_inline,
+    );
 
-    /// Inline present but style_block absent — inline should win.
-    #[test]
-    fn cascade_inline_wins_without_style_block() {
-        let mut input = CascadeInput::with_default("#ffffff");
-        input.stereotype = CascadeTier::value("#334455", Src::Stereotype);
-        input.inline = CascadeTier::value("#ff0000", Src::Inline);
-        let result = resolve_color(&input);
-        assert_eq!(result.as_str(), "#ff0000");
-        assert_eq!(result.source(), Src::Inline);
-    }
+    // ── stroke (border) ───────────────────────────────────────────────────────
+    let target_stroke = target_style
+        .and_then(|s| s.border_color.as_deref())
+        .map(|c| (c, Src::SkinParam));
+    let stroke = component_node_cascade(
+        component_style.border_color.as_str(),
+        component_style.sources.border_color,
+        target_stroke,
+        stereotype_style.and_then(|s| s.border_color.as_deref()),
+        inline_style.border_color.as_deref(),
+    );
 
-    // ── class_node_cascade integration tests ─────────────────────────────────
+    // ── font_color ────────────────────────────────────────────────────────────
+    let target_font = target_style
+        .and_then(|s| s.font_color.as_deref())
+        .map(|c| (c, Src::SkinParam));
+    let font_color = component_node_cascade(
+        component_style.font_color.as_str(),
+        component_style.sources.font_color,
+        target_font,
+        stereotype_style.and_then(|s| s.font_color.as_deref()),
+        inline_style.text_color.as_deref(),
+    );
 
-    /// Default tier only — no overrides.
-    #[test]
-    fn class_cascade_default_only() {
-        let result = class_node_cascade("#ffffff", Src::Default, None, None);
-        assert_eq!(result.as_str(), "#ffffff");
-        assert_eq!(result.source(), Src::Default);
-    }
-
-    /// Theme-sourced diagram color wins over default.
-    #[test]
-    fn class_cascade_theme_sourced() {
-        let result = class_node_cascade("#aabbcc", Src::ThemePreset, None, None);
-        assert_eq!(result.as_str(), "#aabbcc");
-        assert_eq!(result.source(), Src::ThemePreset);
-    }
-
-    /// Skinparam-sourced diagram color wins over theme.
-    #[test]
-    fn class_cascade_skinparam_sourced() {
-        let result = class_node_cascade("#112233", Src::SkinParam, None, None);
-        assert_eq!(result.as_str(), "#112233");
-        assert_eq!(result.source(), Src::SkinParam);
-    }
-
-    /// Stereotype overrides skinparam-sourced diagram color.
-    #[test]
-    fn class_cascade_stereotype_beats_skinparam() {
-        let result = class_node_cascade("#112233", Src::SkinParam, Some("#334455"), None);
-        assert_eq!(result.as_str(), "#334455");
-        assert_eq!(result.source(), Src::Stereotype);
-    }
-
-    /// Inline overrides stereotype.
-    #[test]
-    fn class_cascade_inline_beats_stereotype() {
-        let result =
-            class_node_cascade("#112233", Src::SkinParam, Some("#334455"), Some("#ff0000"));
-        assert_eq!(result.as_str(), "#ff0000");
-        assert_eq!(result.source(), Src::Inline);
-    }
-
-    /// Inline overrides default with no other tiers set.
-    #[test]
-    fn class_cascade_inline_beats_default() {
-        let result = class_node_cascade("#ffffff", Src::Default, None, Some("#ff0000"));
-        assert_eq!(result.as_str(), "#ff0000");
-        assert_eq!(result.source(), Src::Inline);
+    EffectiveComponentNodeStyle {
+        fill,
+        stroke,
+        font_color,
+        border_dashed: inline_style.border_dashed,
+        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
     }
 }
+
+// ─── Unit tests ──────────────────────────────────────────────────────────────
+// Tests are in a separate file to stay within the 600-line file-size guardrail.
+
+#[cfg(test)]
+#[path = "shared_cascade_tests.rs"]
+mod tests;

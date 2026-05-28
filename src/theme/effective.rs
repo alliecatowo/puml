@@ -1,7 +1,10 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 
-use super::shared_cascade::class_node_effective_style as shared_class_effective;
-use super::{ClassStyle, ComponentStyle, ComponentStyleTarget, EffectiveStyleValue, StyleSource};
+use super::shared_cascade::{
+    class_node_effective_style as shared_class_effective,
+    component_node_effective_style as shared_component_effective,
+};
+use super::{ClassStyle, ComponentStyle, ComponentStyleTarget, EffectiveStyleValue};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FamilyNodeInlineStyle {
@@ -89,8 +92,16 @@ pub fn component_style_target_for_node(kind: FamilyNodeKind) -> Option<Component
     }
 }
 
-// TODO(#1184): migrate effective_component_node_style to use the shared cascade
-// (shared_cascade::class_node_effective_style equivalent for Component family).
+/// Compute the fully-resolved per-node style for a component or deployment
+/// diagram element.
+///
+/// Delegates to the shared cascade resolver
+/// ([`shared_cascade::component_node_effective_style`]) which enforces the
+/// documented precedence:
+///   default < theme < skinparam < target-specific-skinparam < stereotype < inline
+///
+/// The `node.fill_color` field (the `#color` shorthand on the declaration
+/// line) is the Inline-tier override for the fill/background property.
 pub fn effective_component_node_style(
     component_style: &ComponentStyle,
     node: &FamilyNode,
@@ -100,87 +111,17 @@ pub fn effective_component_node_style(
     let stereotype_style = family_node_stereotype_key(node)
         .and_then(|key| component_style.stereotype_styles.get(&key));
     let inline_style = family_node_inline_style(node);
-    let (default_fill, default_fill_source) =
-        if matches!(node.kind, FamilyNodeKind::Interface | FamilyNodeKind::Port) {
-            (
-                component_style.interface_color.as_str(),
-                component_style.sources.interface_color,
-            )
-        } else {
-            (
-                component_style.background_color.as_str(),
-                component_style.sources.background_color,
-            )
-        };
-
-    let fill = node
-        .fill_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| {
-            stereotype_style
-                .and_then(|style| style.background_color.as_deref())
-                .map(|value| (value, StyleSource::Stereotype))
-        })
-        .or_else(|| {
-            target_style.and_then(|style| {
-                style
-                    .background_color
-                    .as_deref()
-                    .map(|value| (value, style.sources.background_color))
-            })
-        })
-        .unwrap_or((default_fill, default_fill_source));
-    let stroke = inline_style
-        .border_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| {
-            stereotype_style
-                .and_then(|style| style.border_color.as_deref())
-                .map(|value| (value, StyleSource::Stereotype))
-        })
-        .or_else(|| {
-            target_style.and_then(|style| {
-                style
-                    .border_color
-                    .as_deref()
-                    .map(|value| (value, style.sources.border_color))
-            })
-        })
-        .unwrap_or((
-            component_style.border_color.as_str(),
-            component_style.sources.border_color,
-        ));
-    let font_color = inline_style
-        .text_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| {
-            stereotype_style
-                .and_then(|style| style.font_color.as_deref())
-                .map(|value| (value, StyleSource::Stereotype))
-        })
-        .or_else(|| {
-            target_style.and_then(|style| {
-                style
-                    .font_color
-                    .as_deref()
-                    .map(|value| (value, style.sources.font_color))
-            })
-        })
-        .unwrap_or((
-            component_style.font_color.as_str(),
-            component_style.sources.font_color,
-        ));
-
-    EffectiveComponentNodeStyle {
-        fill: EffectiveStyleValue::color(fill.0, fill.1),
-        stroke: EffectiveStyleValue::color(stroke.0, stroke.1),
-        font_color: EffectiveStyleValue::color(font_color.0, font_color.1),
-        border_dashed: inline_style.border_dashed,
-        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
-    }
+    let is_interface_or_port =
+        matches!(node.kind, FamilyNodeKind::Interface | FamilyNodeKind::Port);
+    let fill_inline = node.fill_color.as_deref();
+    shared_component_effective(
+        component_style,
+        target_style,
+        stereotype_style,
+        &inline_style,
+        fill_inline,
+        is_interface_or_port,
+    )
 }
 
 /// Compute the fully-resolved per-node style for a class-family element.
