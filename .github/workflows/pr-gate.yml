@@ -316,10 +316,12 @@ jobs:
         run: |
           set -euo pipefail
           COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+          # NOTE: do not pass `--profile ci` here. `ci` is a nextest profile, not a
+          # cargo profile; cargo llvm-cov wraps `cargo test` which would error
+          # with `profile 'ci' is not defined`. Default test profile is fine.
           cargo llvm-cov --all-features --package puml \
             --fail-under-lines 87 \
-            --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" \
-            --profile ci
+            --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
   # ---------------------------------------------------------------------------
   # Binary size: uses release-ci profile (opt-level=1, lto=false) which saves
