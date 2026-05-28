@@ -1,3 +1,5 @@
+mod definelong;
+
 use std::collections::BTreeMap;
 
 use crate::diagnostic::Diagnostic;
@@ -9,6 +11,8 @@ use super::{
     PreprocCallableKind, PreprocMacro, PreprocState, PreprocVariableScope, PreprocessDirective,
     MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_MACRO_EXPANSION_BYTES,
 };
+
+pub(super) use definelong::*;
 
 pub(super) fn parse_macro_define(body: &str) -> Result<Option<(String, PreprocMacro)>, Diagnostic> {
     let trimmed = body.trim();

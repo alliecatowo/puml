@@ -12,7 +12,7 @@ use super::super::{
     ConditionalFrame, ParseOptions, PreprocLoopSignal, PreprocState, MAX_INCLUDE_DEPTH,
     MAX_PREPROC_WHILE_ITERATIONS,
 };
-use super::preprocess_text;
+use super::process_lines;
 
 pub(super) fn check_include_depth(depth: usize) -> Result<(), Diagnostic> {
     if depth > MAX_INCLUDE_DEPTH {
@@ -113,7 +113,7 @@ pub(super) fn preprocess_loop_block(
     mappings: &mut Vec<MappedSpan>,
 ) -> Result<Option<PreprocLoopSignal>, Diagnostic> {
     state.loop_depth += 1;
-    let result = preprocess_text(
+    let result = process_lines(
         source,
         options,
         state,

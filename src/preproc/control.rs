@@ -2,20 +2,25 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
-use crate::source::{line_spans, MappedSpan, SourceMap, Span};
+use crate::source::{line_spans, MappedSpan, Span};
 
 #[path = "control/callables.rs"]
 mod callables;
+#[path = "control/entrypoint.rs"]
+mod entrypoint;
 #[path = "control/flow.rs"]
 mod flow;
 #[path = "control/source_map.rs"]
 mod source_map;
 #[path = "control/url.rs"]
 mod url;
+
+pub(crate) use entrypoint::{preprocess, preprocess_with_map};
+
 use callables::define_callable_block;
 use flow::{
     check_include_depth, ensure_conditionals_closed, is_active, looks_like_iso_date_value,
-    preprocess_foreach_directive, preprocess_while_directive, strip_block_comments,
+    preprocess_foreach_directive, preprocess_while_directive,
 };
 use source_map::{annotate_preproc_diagnostic, preproc_source, push_mapped_line};
 use url::process_include_url;
@@ -23,55 +28,19 @@ use url::process_include_url;
 use super::builtins::{execute_procedure_call, invoke_dynamic_procedure};
 use super::includes::{
     eval_simple_arithmetic, evaluate_assert_expression, evaluate_preprocess_expr,
-    parse_preprocess_directive, process_import_directive, process_include_directive,
-    process_include_many_directive, ImportDirectiveContext,
+    find_matching_enddefinelong, parse_preprocess_directive, process_import_directive,
+    process_include_directive, process_include_many_directive, ImportDirectiveContext,
 };
-use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
+use super::macros::{
+    expand_preprocessor_text, parse_macro_define, parse_macro_definelong, parse_named_call,
+};
 use super::{
     ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, PreprocessResult,
+    PreprocVariableScope, PreprocessDirective,
 };
 
-pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
-    preprocess_with_map(source, options).map(|result| result.source)
-}
-
-pub(crate) fn preprocess_with_map(
-    source: &str,
-    options: &ParseOptions,
-) -> Result<PreprocessResult, Diagnostic> {
-    let mut state = PreprocState::default();
-    state.vars.extend(options.inject_vars.clone());
-    let mut include_stack = Vec::new();
-    let mut include_once_seen = BTreeSet::new();
-    let mut expanded = String::new();
-    let mut mappings = Vec::new();
-
-    // Strip PlantUML block comments (`/' ... '/`) before line-by-line processing.
-    // Block comments can span multiple lines; we replace consumed content with
-    // spaces/newlines to preserve line numbers for span/diagnostic accuracy.
-    let stripped = strip_block_comments(source);
-
-    preprocess_text(
-        &stripped,
-        options,
-        &mut state,
-        &mut include_stack,
-        &mut include_once_seen,
-        0,
-        0,
-        &mut expanded,
-        &mut mappings,
-    )?;
-
-    Ok(PreprocessResult {
-        source: expanded,
-        source_map: SourceMap::new(mappings),
-    })
-}
-
 #[allow(clippy::too_many_arguments)]
-pub(super) fn preprocess_text(
+pub(super) fn process_lines(
     source: &str,
     options: &ParseOptions,
     state: &mut PreprocState,
@@ -329,6 +298,29 @@ pub(super) fn preprocess_text(
                                     .insert(name.to_string(), value.trim().to_string());
                             }
                         }
+                    }
+                }
+                PreprocessDirective::DefineLong(header) => {
+                    let end_idx = find_matching_enddefinelong(&lines, i)?;
+                    if active {
+                        // Collect body lines between the header and !enddefinelong.
+                        let body_lines = &lines[i + 1..end_idx];
+                        let (name, mac) =
+                            parse_macro_definelong(&header, body_lines).map_err(|d| {
+                                annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                            })?;
+                        state.defines.remove(&name);
+                        state.macros.insert(name, mac);
+                    }
+                    i = end_idx + 1;
+                    continue;
+                }
+                PreprocessDirective::EndDefineLong => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_ENDDEFINELONG_UNEXPECTED",
+                            "`!enddefinelong` without matching `!definelong`",
+                        ));
                     }
                 }
                 PreprocessDirective::Undef(name) => {

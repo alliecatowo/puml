@@ -87,6 +87,8 @@ enum PreprocessDirective {
     DumpMemory(String),
     DynamicInvocation(String),
     JsonPreproc(String),
+    DefineLong(String),
+    EndDefineLong,
     Passthrough(String),
     Unsupported(String),
     NoOp,

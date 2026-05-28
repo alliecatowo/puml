@@ -34,18 +34,23 @@ pub(super) fn normalize_with_options(
 }
 
 /// Extract `<<stereotype>>` from an alias string like `"myAlias <<person>>"`.
-/// Returns `(clean_alias, Option<FamilyNodeKind>)` where `clean_alias` has the
-/// stereotype stripped. When the stereotype is not a recognised C4 marker the
-/// kind is `None` and the caller keeps `FamilyNodeKind::Object`.
+///
+/// Returns `(clean_alias, Option<FamilyNodeKind>, Option<raw_stereotype>)` where:
+/// - `clean_alias` has the `<<…>>` suffix stripped.
+/// - The `FamilyNodeKind` is set when the stereotype is a recognised C4 marker.
+/// - `raw_stereotype` carries the full `<<…>>` token when the stereotype is NOT a
+///   C4 marker (e.g. `"<<aws-EC2>>"`) so callers can inject it as a member for
+///   downstream renderers (e.g. the cloud-icon renderer, Refs #1258).
 pub(crate) fn extract_c4_stereotype(
     alias: Option<String>,
-) -> (Option<String>, Option<FamilyNodeKind>) {
+) -> (Option<String>, Option<FamilyNodeKind>, Option<String>) {
     let Some(raw) = alias else {
-        return (None, None);
+        return (None, None, None);
     };
     if let Some(start) = raw.find("<<") {
         if let Some(end) = raw[start..].find(">>") {
             let stereotype = raw[start + 2..start + end].trim().to_ascii_lowercase();
+            let raw_stereotype_token = raw[start..start + end + 2].to_string();
             let clean_alias = raw[..start].trim().to_string();
             let kind = match stereotype.as_str() {
                 "person" => Some(FamilyNodeKind::C4Person),
@@ -74,8 +79,14 @@ pub(crate) fn extract_c4_stereotype(
             } else {
                 Some(clean_alias)
             };
-            return (clean, kind);
+            // For non-C4 stereotypes, return the raw token so callers can preserve it.
+            let extra = if kind.is_none() {
+                Some(raw_stereotype_token)
+            } else {
+                None
+            };
+            return (clean, kind, extra);
         }
     }
-    (Some(raw), None)
+    (Some(raw), None, None)
 }

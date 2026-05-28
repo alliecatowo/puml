@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostic::Diagnostic;
-use crate::preproc::control::preprocess_text;
+use crate::preproc::control::process_lines;
 use crate::preproc::{ParseOptions, PreprocState};
 use crate::source::MappedSpan;
 
@@ -49,7 +49,7 @@ pub(in crate::preproc) fn process_include_directive(
         let content = fetch_url_include(url)?;
         // Preprocess the fetched content recursively (without pushing to include_stack
         // since there's no local path — use the current stack as-is).
-        return preprocess_text(
+        return process_lines(
             &content,
             options,
             state,
@@ -138,7 +138,7 @@ pub(in crate::preproc) fn process_include_directive(
     }
 
     include_stack.push(resolved);
-    preprocess_text(
+    process_lines(
         &content,
         options,
         state,
@@ -182,7 +182,7 @@ pub(in crate::preproc) fn process_include_many_directive(
         }
         let url = extract_url(raw_target);
         let content = fetch_url_include(url)?;
-        return preprocess_text(
+        return process_lines(
             &content,
             options,
             state,
@@ -331,7 +331,7 @@ pub(in crate::preproc) fn process_include_many_directive(
             )
         })?;
         include_stack.push(resolved);
-        preprocess_text(
+        process_lines(
             &content,
             options,
             state,
@@ -373,7 +373,7 @@ pub(in crate::preproc) fn process_import_directive(
         }
         let url = extract_url(raw_target);
         let content = fetch_url_include(url)?;
-        return preprocess_text(
+        return process_lines(
             &content,
             ctx.options,
             ctx.state,
@@ -455,7 +455,7 @@ pub(in crate::preproc) fn process_import_directive(
         )
     })?;
     ctx.include_stack.push(resolved);
-    preprocess_text(
+    process_lines(
         &content,
         ctx.options,
         ctx.state,

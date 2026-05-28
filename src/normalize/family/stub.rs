@@ -124,8 +124,22 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 }
                 // Detect and strip C4 stereotypes embedded in the alias
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
-                let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
+                // Non-C4 stereotypes (e.g. `<<aws-EC2>>`) are returned as
+                // `extra_stereotype` and re-injected as a member so that
+                // downstream renderers (e.g. cloud-icon renderer, Refs #1258)
+                // can discover them via the node's member list.
+                let (clean_alias, c4_kind, extra_stereotype) =
+                    sequence::extract_c4_stereotype(decl.alias);
                 let mut members = decl.members;
+                if let Some(stereo) = extra_stereotype {
+                    members.insert(
+                        0,
+                        crate::ast::ClassMember {
+                            text: stereo,
+                            modifier: None,
+                        },
+                    );
+                }
                 let resolved_kind = if members.first().is_some_and(|m| m.text.trim() == "<<map>>") {
                     let _ = members.remove(0);
                     FamilyNodeKind::Map

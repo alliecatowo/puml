@@ -1,5 +1,6 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 
+use super::shared_cascade::class_node_effective_style as shared_class_effective;
 use super::{ClassStyle, ComponentStyle, ComponentStyleTarget, EffectiveStyleValue, StyleSource};
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -88,6 +89,8 @@ pub fn component_style_target_for_node(kind: FamilyNodeKind) -> Option<Component
     }
 }
 
+// TODO(#1184): migrate effective_component_node_style to use the shared cascade
+// (shared_cascade::class_node_effective_style equivalent for Component family).
 pub fn effective_component_node_style(
     component_style: &ComponentStyle,
     node: &FamilyNode,
@@ -180,6 +183,15 @@ pub fn effective_component_node_style(
     }
 }
 
+/// Compute the fully-resolved per-node style for a class-family element.
+///
+/// Delegates to the shared cascade resolver ([`shared_cascade::class_node_effective_style`])
+/// which enforces the documented precedence:
+///   default < theme < skinparam < stereotype < `<style>` < inline
+///
+/// The `node.fill_color` field (the `#color` shorthand on the declaration line)
+/// is the Inline-tier override for the fill/background property; it is threaded
+/// into the cascade separately from the member-encoded `inline_style`.
 pub fn effective_class_node_style(
     class_style: &ClassStyle,
     node: &FamilyNode,
@@ -187,78 +199,8 @@ pub fn effective_class_node_style(
     let scoped_style =
         family_node_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
     let inline_style = family_node_inline_style(node);
-    let scoped_font_color = scoped_style
-        .and_then(|style| style.font_color.as_deref())
-        .filter(|color| !color.is_empty());
-    let title_font_size = class_style.font_size.unwrap_or(13);
-
-    let fill = node
-        .fill_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| {
-            scoped_style
-                .and_then(|style| style.background_color.as_deref())
-                .map(|value| (value, StyleSource::Stereotype))
-        })
-        .unwrap_or((
-            class_style.background_color.as_str(),
-            class_style.sources.background_color,
-        ));
-    let stroke = inline_style
-        .border_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| {
-            scoped_style
-                .and_then(|style| style.border_color.as_deref())
-                .map(|value| (value, StyleSource::Stereotype))
-        })
-        .unwrap_or((
-            class_style.border_color.as_str(),
-            class_style.sources.border_color,
-        ));
-    let font_color = inline_style
-        .text_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| scoped_font_color.map(|value| (value, StyleSource::Stereotype)))
-        .unwrap_or((
-            class_style.font_color.as_str(),
-            class_style.sources.font_color,
-        ));
-    let member_color = inline_style
-        .text_color
-        .as_deref()
-        .map(|value| (value, StyleSource::Inline))
-        .or_else(|| scoped_font_color.map(|value| (value, StyleSource::Stereotype)))
-        .unwrap_or((
-            class_style.member_color.as_str(),
-            class_style.sources.member_color,
-        ));
-    let header_color = scoped_style
-        .and_then(|style| style.header_color.as_deref())
-        .map(|value| (value, StyleSource::Stereotype))
-        .unwrap_or((
-            class_style.header_color.as_str(),
-            class_style.sources.header_color,
-        ));
-
-    EffectiveClassNodeStyle {
-        fill: EffectiveStyleValue::color(fill.0, fill.1),
-        stroke: EffectiveStyleValue::color(stroke.0, stroke.1),
-        font_color: EffectiveStyleValue::color(font_color.0, font_color.1),
-        member_color: EffectiveStyleValue::color(member_color.0, member_color.1),
-        header_color: EffectiveStyleValue::color(header_color.0, header_color.1),
-        border_dashed: inline_style.border_dashed,
-        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
-        font_family: class_style
-            .font_name
-            .clone()
-            .unwrap_or_else(|| "monospace".to_string()),
-        title_font_size,
-        member_font_size: title_font_size.saturating_sub(2).max(9),
-    }
+    let fill_inline = node.fill_color.as_deref();
+    shared_class_effective(class_style, scoped_style, &inline_style, fill_inline)
 }
 
 fn is_user_stereotype_marker(text: &str) -> bool {
