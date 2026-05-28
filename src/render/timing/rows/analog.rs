@@ -83,7 +83,7 @@ pub(super) fn render_timing_analog_signal(out: &mut String, ctx: TimingAnalogRen
         let event_fill = timing_state_style(state).fill;
         let point_fill = event_fill
             .as_deref()
-            .unwrap_or_else(|| ctx.style.signal_border_color.as_str());
+            .unwrap_or(ctx.style.signal_border_color.as_str());
         out.push_str(&format!(
             "<circle class=\"timing-analog-point\" cx=\"{x}\" cy=\"{y}\" r=\"3\" fill=\"{}\"/>",
             escape_text(point_fill)

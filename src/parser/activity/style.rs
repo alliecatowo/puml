@@ -260,7 +260,7 @@ pub(crate) fn strip_activity_action_suffix_color(rest: &str) -> (&str, Option<St
         || !after_hash
             .chars()
             .next()
-            .map_or(false, |c| c.is_ascii_alphanumeric())
+            .is_some_and(|c| c.is_ascii_alphanumeric())
     {
         return (rest, None);
     }
