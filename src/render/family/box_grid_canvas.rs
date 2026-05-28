@@ -114,12 +114,12 @@ pub(super) fn compute_canvas_bounds(inp: CanvasBoundsInput<'_>) -> BoxGridCanvas
     let svg_width = svg_width.max(400);
 
     let caption_block_h =
-        super::class_render::family_metadata_label_height(inp.doc.caption.as_deref());
+        super::class_metadata::family_metadata_label_height(inp.doc.caption.as_deref());
     let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + inp.canvas_margin
         + projection_extra_height
         + caption_block_h
-        + super::class_render::family_metadata_label_height(inp.doc.footer.as_deref());
+        + super::class_metadata::family_metadata_label_height(inp.doc.footer.as_deref());
 
     BoxGridCanvasBounds {
         svg_width,

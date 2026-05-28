@@ -1,5 +1,14 @@
 use super::*;
 
+/// Holds a deferred `<style>` block param for post-loop application.
+pub(super) struct StyleParamRecord {
+    pub(super) selector: Option<String>,
+    pub(super) property: String,
+    pub(super) key: Option<String>,
+    pub(super) value: String,
+    pub(super) span: crate::source::Span,
+}
+
 pub(super) struct StyleParamInput<'a> {
     pub family_kind: DiagramKind,
     pub selector: Option<&'a str>,

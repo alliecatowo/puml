@@ -2266,7 +2266,14 @@ fn collect_legacy_unknown_constructors(path: &std::path::Path, offenders: &mut V
             .expect("source path should be under manifest dir")
             .display()
             .to_string();
-        if matches!(rel.as_str(), "src/ast.rs" | "src/cli_dump_ast.rs") {
+        // ast module (legacy `src/ast.rs`, now `src/ast/mod.rs` after the wave-12
+        // file-size split) and the AST dumper are the only places allowed to
+        // reference `StatementKind::Unknown(...)` — they're the AST definition
+        // site and the human-readable diagnostic dumper, respectively.
+        if matches!(
+            rel.as_str(),
+            "src/ast.rs" | "src/ast/mod.rs" | "src/cli_dump_ast.rs"
+        ) {
             continue;
         }
         let body = fs::read_to_string(&path).expect("source file should be readable");
