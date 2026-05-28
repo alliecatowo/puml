@@ -1,0 +1,24 @@
+# nextest configuration for puml
+# See: https://nexte.st/book/configuration.html
+
+[profile.default]
+# Local development: retry flaky tests once, show output on failure immediately.
+retries = 1
+failure-output = "immediate"
+success-output = "never"
+
+[profile.ci]
+# CI profile: no retries (true failures should surface fast), per-test timeout,
+# immediate output on failure for fast log triage.
+retries = 0
+failure-output = "immediate"
+success-output = "never"
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[profile.ci-shard]
+# Used when tests are partitioned across runners (--partition count:N/M).
+# Same as ci but with a slightly longer timeout to account for scheduling jitter.
+retries = 0
+failure-output = "immediate"
+success-output = "never"
+slow-timeout = { period = "60s", terminate-after = 2 }

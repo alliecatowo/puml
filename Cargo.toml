@@ -17,6 +17,20 @@ codegen-units = 1
 strip = "symbols"
 panic = "abort"
 
+[profile.release-ci]
+# Fast CI binary profile: same correctness as release but no LTO and parallel
+# codegen.  Used by artifact_regen and binary-size jobs where we need a working
+# binary but do NOT need peak throughput or the smallest possible binary.
+# Compared with [profile.release]:
+#   opt-level=1   → ~2× faster compile, ~5-10% slower runtime (irrelevant in CI)
+#   lto=false     → skips thin-LTO link phase (~40-60s savings per binary build)
+#   codegen-units=16 → maximises parallel LLVM codegen (~20-30s savings)
+# Inherits panic="abort" and strip="symbols" from release for comparable size.
+inherits = "release"
+opt-level = 1
+lto = false
+codegen-units = 16
+
 [package]
 name = "puml"
 version = "0.1.0"

@@ -19,7 +19,10 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PUML_BIN="${REPO_ROOT}/target/release/puml"
+# Allow callers (e.g. CI using the release-ci profile) to override the binary
+# path via the PUML_BIN environment variable.  Falls back to the standard
+# release binary when not set.
+PUML_BIN="${PUML_BIN:-${REPO_ROOT}/target/release/puml}"
 FORCE=0
 
 for arg in "$@"; do
@@ -73,8 +76,13 @@ fi
 # ---------------------------------------------------------------------------
 
 if [[ ! -x "${PUML_BIN}" ]]; then
-  echo "[regen-artifacts] Binary not found at ${PUML_BIN}; building…"
-  cargo build --release --manifest-path "${REPO_ROOT}/Cargo.toml"
+  echo "[regen-artifacts] Binary not found at ${PUML_BIN}; building with release-ci profile…"
+  cargo build --profile release-ci --manifest-path "${REPO_ROOT}/Cargo.toml"
+  # If PUML_BIN still points at the release path (default), redirect to where
+  # the release-ci build actually lands so the script can proceed.
+  if [[ "${PUML_BIN}" == "${REPO_ROOT}/target/release/puml" ]]; then
+    PUML_BIN="${REPO_ROOT}/target/release-ci/puml"
+  fi
 fi
 
 if [[ ! -x "${PUML_BIN}" ]]; then

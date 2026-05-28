@@ -4,20 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="full"
 SKIP_BENCH=0
-# TODO(#89): aggressive CI overhaul (in flight) will rework the release binary so
-# we can ratchet this back down. Wave-8 added 28 diagram families' worth of new
-# rendering branches and the Linux strip+thin-LTO already minimised unwind tables
-# (panic="abort" mattered <50 KB on Linux). 18 MB is the new ceiling until the
-# CI rebuild lands proper `--profile release-ci` for size-checked artifacts.
+SKIP_RELEASE_BUILD=0
+# Binary size limit for the release-ci profile (no LTO, so slightly larger than
+# a full-release binary). Main-gate uses --release (with LTO) and enforces 18 MB.
+# PR gate uses --profile release-ci via the binary_size job and allows 22 MB.
 BINARY_LIMIT_BYTES=18000000
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/check-all.sh [--quick] [--skip-bench]
+Usage: ./scripts/check-all.sh [--quick] [--skip-bench] [--no-release-build]
 
 Options:
-  --quick       run fast quality gate (skips coverage/release build, enforces quick perf/binary gates)
-  --skip-bench  skip benchmark gate execution (for deterministic CI validation runs)
+  --quick              run fast quality gate (skips coverage/release build, enforces quick perf/binary gates)
+  --skip-bench         skip benchmark gate execution (for deterministic CI validation runs)
+  --no-release-build   skip the cargo build --release step (use when a separate binary-size job handles it)
 USAGE
 }
 
@@ -29,6 +29,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-bench)
       SKIP_BENCH=1
+      shift
+      ;;
+    --no-release-build)
+      SKIP_RELEASE_BUILD=1
       shift
       ;;
     -h|--help)
@@ -105,26 +109,30 @@ if [[ "$MODE" == "full" ]]; then
   echo "[gate] cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean"
   cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
 
-  echo "[gate] cargo build --release -p puml --locked --bin puml"
-  if [[ "$(uname -s)" == "Linux" ]]; then
-    LTO_ARGS="-C link-arg=-Wl,--as-needed -C link-arg=-Wl,--gc-sections"
+  if [[ "$SKIP_RELEASE_BUILD" -eq 1 ]]; then
+    echo "[gate] --no-release-build: skipping cargo build --release (handled by binary_size job)"
   else
-    LTO_ARGS=""
-  fi
+    echo "[gate] cargo build --release -p puml --locked --bin puml"
+    if [[ "$(uname -s)" == "Linux" ]]; then
+      LTO_ARGS="-C link-arg=-Wl,--as-needed -C link-arg=-Wl,--gc-sections"
+    else
+      LTO_ARGS=""
+    fi
 
-  export RUSTFLAGS="${RUSTFLAGS:-} -C strip=symbols -C panic=abort ${LTO_ARGS}"
-  cargo build --release -p puml --locked --bin puml
+    export RUSTFLAGS="${RUSTFLAGS:-} -C strip=symbols -C panic=abort ${LTO_ARGS}"
+    cargo build --release -p puml --locked --bin puml
 
-  if command -v strip >/dev/null 2>&1; then
-    echo "[gate] stripping release binary"
-    strip --strip-unneeded target/release/puml
-  fi
+    if command -v strip >/dev/null 2>&1; then
+      echo "[gate] stripping release binary"
+      strip --strip-unneeded target/release/puml
+    fi
 
-  BINARY_BYTES="$(binary_size_bytes target/release/puml)"
-  echo "[gate] release binary size: ${BINARY_BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
-  if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
-    echo "[gate] release binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B" >&2
-    exit 1
+    BINARY_BYTES="$(binary_size_bytes target/release/puml)"
+    echo "[gate] release binary size: ${BINARY_BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
+    if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
+      echo "[gate] release binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B" >&2
+      exit 1
+    fi
   fi
 
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
