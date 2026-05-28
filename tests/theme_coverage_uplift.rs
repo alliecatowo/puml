@@ -104,7 +104,10 @@ fn message_align_variants_are_distinct() {
 
 #[test]
 fn group_header_font_style_default_is_normal() {
-    assert_eq!(GroupHeaderFontStyle::default(), GroupHeaderFontStyle::Normal);
+    assert_eq!(
+        GroupHeaderFontStyle::default(),
+        GroupHeaderFontStyle::Normal
+    );
 }
 
 #[test]
@@ -390,7 +393,11 @@ fn salt_apply_key_button_color_aliases() {
 
 #[test]
 fn salt_apply_key_menu_color_aliases() {
-    for key in ["saltmenucolor", "saltmenubackgroundcolor", "menubackgroundcolor"] {
+    for key in [
+        "saltmenucolor",
+        "saltmenubackgroundcolor",
+        "menubackgroundcolor",
+    ] {
         let mut s = SaltStyle::default();
         assert!(s.apply_key(key, "#99aabb"));
         assert_eq!(s.menu_fill, "#99aabb");
@@ -399,7 +406,11 @@ fn salt_apply_key_menu_color_aliases() {
 
 #[test]
 fn salt_apply_key_tab_color_aliases() {
-    for key in ["salttabcolor", "salttabbackgroundcolor", "tabbackgroundcolor"] {
+    for key in [
+        "salttabcolor",
+        "salttabbackgroundcolor",
+        "tabbackgroundcolor",
+    ] {
         let mut s = SaltStyle::default();
         assert!(s.apply_key(key, "#aabbcc"));
         assert_eq!(s.tab_fill, "#aabbcc");
@@ -408,7 +419,11 @@ fn salt_apply_key_tab_color_aliases() {
 
 #[test]
 fn salt_apply_key_scrollbar_color_aliases() {
-    for key in ["saltscrollbarcolor", "scrollbarcolor", "scrollbarbackgroundcolor"] {
+    for key in [
+        "saltscrollbarcolor",
+        "scrollbarcolor",
+        "scrollbarbackgroundcolor",
+    ] {
         let mut s = SaltStyle::default();
         assert!(s.apply_key(key, "#bbccdd"));
         assert_eq!(s.scroll_fill, "#bbccdd");
@@ -444,7 +459,12 @@ fn salt_apply_key_checkbox_radio_accent() {
 
 #[test]
 fn salt_apply_key_border_and_line_color() {
-    for key in ["bordercolor", "linecolor", "saltbordercolor", "saltlinecolor"] {
+    for key in [
+        "bordercolor",
+        "linecolor",
+        "saltbordercolor",
+        "saltlinecolor",
+    ] {
         let mut s = SaltStyle::default();
         assert!(s.apply_key(key, "#010203"));
         assert_eq!(s.border_color, "#010203");
