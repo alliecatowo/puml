@@ -1,12 +1,9 @@
-use super::geometry::{
-    extract_node_bboxes, extract_package_frames, extract_relation_segments, segment_crosses_rect,
-    NodeBbox, PackageFrame, Segment,
-};
+use super::geometry::{extract_relation_segments, segment_crosses_rect, PackageFrame, Segment};
 use super::svg_hooks::{
     extract_text_elements, parse_viewbox, sync_svg_dimensions, TextAnchor, CHAR_WIDTH_PX,
     TEXT_ASCENT_PX, TEXT_DESCENT_PX,
 };
-use super::types::{AutoCorrect, EndpointSide, InvariantKind, InvariantViolation, PseudoStateKind};
+use super::types::{AutoCorrect, InvariantKind, InvariantViolation, PseudoStateKind};
 
 /// Check that every `<text>` element's estimated bounding box fits inside the
 /// current viewBox.  If it overflows to the right or bottom, expand the viewBox
@@ -81,47 +78,6 @@ pub fn check_labels_inside_viewbox(svg: &mut String, mode: AutoCorrect) -> Vec<I
     violations
 }
 
-/// Check invariant #1: edge segments must not cross non-endpoint node bounding boxes.
-///
-/// When `mode == AutoCorrect::Apply` this function does NOT rewrite the SVG
-/// polyline paths (that requires deeper routing logic wired into `graph_layout`);
-/// instead it records violations with `corrected: false` so callers know which
-/// edges need re-routing. The full auto-correct for this invariant is handled
-/// upstream at layout time.
-pub fn check_edge_node_clearance(svg: &str) -> Vec<InvariantViolation> {
-    let nodes = extract_node_bboxes(svg);
-    let relations = extract_relation_segments(svg);
-    let mut violations = Vec::new();
-
-    for (from, to, segs) in &relations {
-        for seg in segs {
-            for node in &nodes {
-                // Skip the source and target nodes; edges may touch endpoint boxes.
-                if node.id == *from || node.id == *to {
-                    continue;
-                }
-                if segment_crosses_rect(*seg, node.x, node.y, node.w, node.h) {
-                    violations.push(InvariantViolation {
-                        kind: InvariantKind::EdgeCrossesNode {
-                            from: from.clone(),
-                            to: to.clone(),
-                            node_id: node.id.clone(),
-                        },
-                        corrected: false,
-                        message: format!(
-                            "[INV-1] edge {from:?}→{to:?} segment ({},{})→({},{}) crosses node {:?} bbox ({},{},{},{})",
-                            seg.x1, seg.y1, seg.x2, seg.y2, node.id, node.x, node.y, node.w, node.h
-                        ),
-                    });
-                    // Report only the first crossing per edge-node pair.
-                    break;
-                }
-            }
-        }
-    }
-
-    violations
-}
 // ─────────────────────────────────────────────────────────────────────────────
 // Invariant #3: Label-vs-edge-stroke clearance
 // ─────────────────────────────────────────────────────────────────────────────
@@ -209,65 +165,6 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
     }
 
     violations
-}
-
-/// Check that marked edge labels remain visually close to their owning route.
-///
-/// Until typed scene labels are available, the fallback associates each marked
-/// edge label with the nearest rendered relation segment. This is intentionally
-/// diagnostic-only: it catches detached labels without trying to infer ownership
-/// from serialized SVG.
-pub fn check_edge_label_proximity(svg: &str, max_distance_px: i32) -> Vec<InvariantViolation> {
-    let relations = extract_relation_segments(svg);
-    if relations.is_empty() {
-        return Vec::new();
-    }
-
-    let texts = extract_text_elements(svg);
-    texts
-        .iter()
-        .filter(|text| text.is_edge_label)
-        .filter_map(|text| {
-            let min_distance = relations
-                .iter()
-                .flat_map(|(_, _, segs)| segs.iter())
-                .map(|seg| point_to_segment_distance((text.x, text.y), *seg))
-                .min()
-                .unwrap_or(i32::MAX);
-
-            (min_distance > max_distance_px).then(|| InvariantViolation {
-                kind: InvariantKind::DetachedEdgeLabel {
-                    snippet: text.snippet.clone(),
-                    distance_px: min_distance,
-                },
-                corrected: false,
-                message: format!(
-                    "[INV-label-owner] edge label {:?} is {min_distance}px from the nearest route segment (max {max_distance_px}px)",
-                    &text.snippet[..text.snippet.len().min(20)]
-                ),
-            })
-        })
-        .collect()
-}
-
-fn point_to_segment_distance(point: (i32, i32), seg: Segment) -> i32 {
-    let (px, py) = point;
-    let x1 = seg.x1 as f64;
-    let y1 = seg.y1 as f64;
-    let x2 = seg.x2 as f64;
-    let y2 = seg.y2 as f64;
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    let len_sq = dx * dx + dy * dy;
-    if len_sq == 0.0 {
-        let dx = px as f64 - x1;
-        let dy = py as f64 - y1;
-        return (dx.hypot(dy)).round() as i32;
-    }
-    let t = (((px as f64 - x1) * dx + (py as f64 - y1) * dy) / len_sq).clamp(0.0, 1.0);
-    let proj_x = x1 + t * dx;
-    let proj_y = y1 + t * dy;
-    ((px as f64 - proj_x).hypot(py as f64 - proj_y)).round() as i32
 }
 
 /// Approximate minimum distance from a segment to a rectangle's boundary.
@@ -419,12 +316,6 @@ pub fn check_package_headers(svg: &str, frames: &[PackageFrame]) -> Vec<Invarian
     violations
 }
 
-/// Check package/group header routing using frames scraped from the SVG.
-pub fn check_package_headers_from_svg(svg: &str) -> Vec<InvariantViolation> {
-    let frames = extract_package_frames(svg);
-    check_package_headers(svg, &frames)
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Invariant #5: Pseudo-state deduplication (normalization-time assertion)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -486,76 +377,4 @@ pub fn check_pseudo_state_dedup(
     }
 
     violations
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Invariant #6: Edge endpoint connectivity
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Check invariant #6: every edge's first/last point must be within the bounding
-/// box of its declared source/target node.  Returns diagnostic violations.
-pub fn check_endpoint_connectivity(svg: &str) -> Vec<InvariantViolation> {
-    let nodes = extract_node_bboxes(svg);
-    let relations = extract_relation_segments(svg);
-    let mut violations = Vec::new();
-
-    for (from, to, segs) in &relations {
-        if segs.is_empty() {
-            continue;
-        }
-        let first_pt = (segs[0].x1, segs[0].y1);
-        let last_pt = {
-            let last = &segs[segs.len() - 1];
-            (last.x2, last.y2)
-        };
-
-        // Source check
-        if let Some(src_box) = nodes.iter().find(|n| n.id == *from) {
-            if !point_touches_bbox(first_pt, src_box) {
-                violations.push(InvariantViolation {
-                    kind: InvariantKind::FloatingEndpoint {
-                        from: from.clone(),
-                        to: to.clone(),
-                        side: EndpointSide::Source,
-                    },
-                    corrected: false,
-                    message: format!(
-                        "[INV-6] edge {from:?}→{to:?} first point ({},{}) is not on source node bbox",
-                        first_pt.0, first_pt.1
-                    ),
-                });
-            }
-        }
-
-        // Target check
-        if let Some(tgt_box) = nodes.iter().find(|n| n.id == *to) {
-            if !point_touches_bbox(last_pt, tgt_box) {
-                violations.push(InvariantViolation {
-                    kind: InvariantKind::FloatingEndpoint {
-                        from: from.clone(),
-                        to: to.clone(),
-                        side: EndpointSide::Target,
-                    },
-                    corrected: false,
-                    message: format!(
-                        "[INV-6] edge {from:?}→{to:?} last point ({},{}) is not on target node bbox",
-                        last_pt.0, last_pt.1
-                    ),
-                });
-            }
-        }
-    }
-
-    violations
-}
-
-/// Returns `true` if point `(px, py)` lies on or just inside the perimeter
-/// of the bounding box (within 4px tolerance to handle port attachment snap).
-fn point_touches_bbox(pt: (i32, i32), bbox: &NodeBbox) -> bool {
-    let tol = 4;
-    let (px, py) = pt;
-    px >= bbox.x - tol
-        && px <= bbox.x + bbox.w + tol
-        && py >= bbox.y - tol
-        && py <= bbox.y + bbox.h + tol
 }

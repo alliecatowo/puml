@@ -141,6 +141,36 @@ pub(super) fn class_nudge_label_y(
     (lx, adjusted_y)
 }
 
+/// Nudge a label's x-coordinate rightward when its centre falls inside a node
+/// box horizontally.
+///
+/// This is only appropriate for labels on **vertical** edge segments whose x
+/// coordinate coincides with the horizontal centre of the connected node boxes.
+/// It should NOT be called from the fan-out pre-pass (`class_build_label_overrides`)
+/// because those fans already spread labels apart in x; calling it there causes
+/// double-nudging and breaks adjacent-label clearance invariants.
+///
+/// After nudging, the label's left edge clears the rightmost overlapping box's
+/// right edge by 8 px.
+pub(super) fn class_nudge_label_x(
+    lx: i32,
+    label_half_w: i32,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) -> i32 {
+    // Only trigger when the label CENTRE is strictly inside a box in x.
+    // Labels placed between two side-by-side boxes (centre is in the gap) are
+    // left undisturbed even if their bounding box clips a neighbouring box.
+    let max_box_right = node_boxes
+        .values()
+        .filter(|bbox| lx > bbox.x && lx < bbox.x + bbox.w)
+        .map(|bbox| bbox.x + bbox.w)
+        .max();
+    match max_box_right {
+        Some(right) => right + 8 + label_half_w,
+        None => lx,
+    }
+}
+
 // Run the hierarchical layout engine and populate `node_boxes` for `render_class_svg`.
 // Builds `GlNodeSize` / `GlEdgeSpec` inputs for `layout_hierarchical`, runs the
 // layout, then converts the resulting `(f64, f64)` positions into `ClassNodeBox`.

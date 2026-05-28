@@ -280,7 +280,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
 
     // Build lateral-offset map for parallel edges and render all relations.
     // Delegate to helper to keep this orchestrator function concise.
-    const PARALLEL_EDGE_GAP: i32 = 12;
+    const PARALLEL_EDGE_GAP: i32 = 20;
     let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
         std::collections::BTreeMap::new();
     for (i, rel) in document.relations.iter().enumerate() {
@@ -300,6 +300,11 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
         }
     }
+    let is_object_diagram = !document.nodes.is_empty()
+        && document
+            .nodes
+            .iter()
+            .all(|node| matches!(node.kind, FamilyNodeKind::Object));
     render_class_relations(
         &mut out,
         &ClassRelationCtx {
@@ -316,6 +321,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             margin_x,
             margin_top,
             svg_width,
+            is_object_diagram,
         },
     );
 

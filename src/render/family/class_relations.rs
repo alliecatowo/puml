@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use crate::model::FamilyNodeKind;
 use crate::render::geometry::{compute_edge_anchors_for_direction, pick_port};
 use crate::render::relation::{
     arrow_style, normalize_relation_endpoints, render_lollipop_endpoint, usecase_dependency_label,
@@ -9,8 +8,8 @@ use crate::render::svg::escape_text;
 
 use super::class_relation_labels::{relation_label_svg, resolve_relation_endpoint_key};
 use super::class_routing::{
-    class_box_anchor_toward_point, class_nudge_label_y, class_port_side_from_box_anchor,
-    class_route_with_row_ports, qualified_row_anchor,
+    class_box_anchor_toward_point, class_nudge_label_x, class_nudge_label_y,
+    class_port_side_from_box_anchor, class_route_with_row_ports, qualified_row_anchor,
 };
 use super::class_types::{ClassEndpointAnchor, ClassNodeBox};
 
@@ -30,6 +29,10 @@ pub(super) struct ClassRelationCtx<'a> {
     pub(super) margin_x: i32,
     pub(super) margin_top: i32,
     pub(super) svg_width: i32,
+    /// True when every node is an `Object` (object diagram).  In object diagrams
+    /// relation labels are expected to stay near the edge midpoint (centred on
+    /// the vertical line), so the box-clearance x-nudge is suppressed.
+    pub(super) is_object_diagram: bool,
 }
 
 /// Render all edges (relations) for a class/object/usecase SVG diagram.
@@ -185,23 +188,22 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 relation_color, stroke_width,
                 stroke_dash, visibility, direction_attr, markers
             ));
-            let longest_horiz = pts
+            // Use the longest non-degenerate segment as the label anchor.
+            // We do NOT prefer the horizontal leg exclusively: in parallel-edge
+            // routes the horizontal bend is often very short and near a node
+            // boundary, so anchoring to it causes labels to land inside node
+            // boxes and get nudged far off course (#1258).
+            let longest_seg = pts
                 .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            let (lmx, lmy) = match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    let longest_seg = pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                    }
-                }
+                .filter(|seg| seg[0] != seg[1])
+                .max_by_key(|seg| {
+                    let (ax, ay) = seg[0];
+                    let (bx, by_) = seg[1];
+                    (bx - ax).pow(2) + (by_ - ay).pow(2)
+                });
+            let (lmx, lmy) = match longest_seg {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
             };
             label_mx = lmx;
             label_my = lmy;
@@ -271,23 +273,6 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             .copied()
             .unwrap_or(0);
         let combined_label_lane = pair_label_lane + source_label_lane;
-        let from_is_class = ctx
-            .nodes
-            .iter()
-            .find(|node| {
-                node.name == render_from_name
-                    || node.alias.as_deref() == Some(render_from_name.as_str())
-            })
-            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
-        let to_is_class = ctx
-            .nodes
-            .iter()
-            .find(|node| {
-                node.name == render_to_name
-                    || node.alias.as_deref() == Some(render_to_name.as_str())
-            })
-            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
-        let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
                 let (sx, base_sy) = ctx
@@ -334,22 +319,6 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 }
             };
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
-            let corridor_left = from.x.max(to.x);
-            let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if prefer_side_clearance
-                && edge_dy.abs() > edge_dx.abs()
-                && corridor_left < corridor_right
-                && lx > corridor_left - 8 - label_half_w
-                && lx < corridor_right + 8 + label_half_w
-            {
-                if x2 >= x1 {
-                    corridor_right + 8 + label_half_w
-                } else {
-                    corridor_left - 8 - label_half_w
-                }
-            } else {
-                lx
-            };
             let lx = lx.clamp(
                 ctx.margin_x + 8 + label_half_w,
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
@@ -364,60 +333,66 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 &ctx.class_style.member_color,
             ));
         } else if let Some(label) = relation.label.as_deref() {
-            let (lx, ly) = if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
-                (ox, oy)
-            } else if let Some(ref pts) = ortho_pts {
-                let has_horiz = pts.windows(2).any(|seg| seg[0].1 == seg[1].1);
-                if !has_horiz {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
-                } else {
-                    (label_mx, label_my - 14)
-                }
-            } else {
-                let dx = x2 - x1;
-                let dy = y2 - y1;
-                let dx_abs = dx.abs();
-                let dy_abs = dy.abs();
-                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
-                if edge_len <= 2 {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else {
-                    let clearance = 30i32;
-                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
-                    let raw_x = x1 + dx * t_num / edge_len;
-                    let raw_y = y1 + dy * t_num / edge_len;
-                    if dy_abs > dx_abs {
-                        (raw_x + 14, raw_y - 6)
+            // Regular relation label: place at edge midpoint.
+            // `label_override` provides de-collided positions when multiple
+            // labels would otherwise overlap (#1258, #1261).  Fall back to the
+            // edge-path midpoint (`label_mx/label_my`) for single-edge cases.
+            //
+            // `label_on_vertical_edge` tracks whether this specific placement
+            // came from a vertical segment (dy > dx).  In that case we apply an
+            // additional x-nudge after the y-nudge so the label clears the
+            // adjacent class boxes horizontally (#1258 clearance invariant).
+            let (lx, ly, label_on_vertical_edge) =
+                if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
+                    // De-collided override already accounts for box clearance.
+                    (ox, oy, false)
+                } else if ortho_pts.is_some() {
+                    // No override: use label_mx/label_my from the longest-segment
+                    // midpoint (already computed above from the actual edge path).
+                    if edge_dy.abs() > edge_dx.abs() {
+                        (label_mx + 14, label_my, true)
                     } else {
-                        (raw_x, raw_y - 14)
+                        (label_mx, label_my - 14, false)
                     }
-                }
-            };
-            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
-            let corridor_left = from.x.max(to.x);
-            let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if prefer_side_clearance
-                && edge_dy.abs() > edge_dx.abs()
-                && corridor_left < corridor_right
-                && lx > corridor_left - 8 - label_half_w
-                && lx < corridor_right + 8 + label_half_w
-            {
-                if x2 >= x1 {
-                    corridor_right + 8 + label_half_w
                 } else {
-                    corridor_left - 8 - label_half_w
-                }
-            } else {
-                lx
-            };
+                    let dx = x2 - x1;
+                    let dy = y2 - y1;
+                    let dx_abs = dx.abs();
+                    let dy_abs = dy.abs();
+                    let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                    if edge_len <= 2 {
+                        ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false)
+                    } else {
+                        let clearance = 30i32;
+                        let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                        let raw_x = x1 + dx * t_num / edge_len;
+                        let raw_y = y1 + dy * t_num / edge_len;
+                        if dy_abs > dx_abs {
+                            (raw_x + 14, raw_y - 6, true)
+                        } else {
+                            (raw_x, raw_y - 14, false)
+                        }
+                    }
+                };
+            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
             let lx = lx.clamp(
                 ctx.margin_x + 8 + label_half_w,
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // For vertical-edge labels only: push rightward out of any node box
+            // so the label clears adjacent class boxes (#1258 clearance invariant).
+            // This is intentionally NOT applied to fan-out overrides (those already
+            // spread labels apart) or to horizontal-edge labels (those clear boxes
+            // vertically via the y-nudge above).
+            // Suppressed for object diagrams where labels are expected to stay
+            // centred on the vertical edge, not pushed to the side.
+            let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
+                class_nudge_label_x(lx, label_half_w, ctx.node_boxes)
+            } else {
+                lx
+            };
             out.push_str(&relation_label_svg(
                 lx,
                 ly,

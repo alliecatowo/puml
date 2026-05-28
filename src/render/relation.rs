@@ -122,14 +122,15 @@ fn relation_marker_id(marker: crate::model::FamilyRelationEndpointMarker) -> &'s
 
 pub(super) fn usecase_dependency_label(label: Option<&str>) -> Option<&'static str> {
     let normalized = label?.trim().to_ascii_lowercase();
+    // Collect whitespace-collapsed form for matching exact stereotype tokens.
+    // Substring `.contains()` matching is intentionally NOT used here: labels
+    // like "inheritance (B extends A)" contain "extend" as a sub-word and must
+    // not be reclassified as `<<extend>>` dependency edges (#1261).
+    // Only the canonical UML stereotype spellings are recognised.
     let compact = normalized.split_whitespace().collect::<String>();
-    if matches!(compact.as_str(), "<<include>>" | "include" | "includes")
-        || compact.contains("include")
-    {
+    if matches!(compact.as_str(), "<<include>>" | "include" | "includes") {
         Some("<<include>>")
-    } else if matches!(compact.as_str(), "<<extend>>" | "extend" | "extends")
-        || compact.contains("extend")
-    {
+    } else if matches!(compact.as_str(), "<<extend>>" | "extend" | "extends") {
         Some("<<extend>>")
     } else {
         None

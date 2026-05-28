@@ -1,10 +1,11 @@
 //! Promoted visual-quality gates for high-risk corpus cases.
 //!
-//! These tests intentionally start as SVG fallback checks while typed geometry
-//! is still being introduced. Current known failures remain non-fatal only when
-//! the fixture records a linked issue.
+//! Geometry invariants are now checked exclusively through the typed RenderScene
+//! (validate_geometry / validate_scene). Known failures remain non-fatal only
+//! when the fixture records a linked issue.
 
 use puml::render::validate::{self, AutoCorrect};
+use puml::render_core::{GeometryIssue, SceneAvailability};
 
 #[derive(Clone, Copy)]
 struct PromotedFixture {
@@ -95,16 +96,18 @@ fn promoted_visual_cases_have_svg_invariant_coverage() {
     for fixture in PROMOTED_FIXTURES {
         let source = std::fs::read_to_string(fixture.path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", fixture.path));
-        let svg = puml::render_source_to_svg(&source)
-            .unwrap_or_else(|err| panic!("failed to render {}: {err:?}", fixture.path));
 
+        // Render to typed artifact; collect the SVG for SVG-level metrics.
+        let artifacts = puml::render_source_to_artifacts(&source)
+            .unwrap_or_else(|err| panic!("failed to render {}: {err:?}", fixture.path));
+        let artifact = &artifacts[0];
+        let svg = &artifact.svg;
+
+        // SVG-level quality metrics (viewBox, text count) — unchanged.
         let mut label_svg = svg.clone();
         let label_bounds =
             validate::check_labels_inside_viewbox(&mut label_svg, AutoCorrect::EmitDiagnostic);
-        let route_node = validate::check_edge_node_clearance(&svg);
-        let route_header = validate::check_package_headers_from_svg(&svg);
-        let detached_labels = validate::check_edge_label_proximity(&svg, 96);
-        let metrics = validate::collect_quality_metrics(&svg);
+        let metrics = validate::collect_quality_metrics(svg);
 
         assert!(
             metrics.viewbox_width > 0 && metrics.viewbox_height > 0,
@@ -123,23 +126,56 @@ fn promoted_visual_cases_have_svg_invariant_coverage() {
             ISSUE_VISUAL_GATES,
             format!("{} label bounds violations", label_bounds.len()),
         );
+
+        // ── Typed-scene geometry checks ───────────────────────────────────────
+        //
+        // When the artifact carries a typed RenderScene, derive the geometry
+        // issues from it (authoritative).  For non-migrated renderers the
+        // artifact still produces SVG, but validate_geometry is unavailable —
+        // those fixtures pass the geometry gates vacuously (no scene → no issues
+        // to report) and fall back on the SVG-level label check above.
+        let typed_issues: Vec<GeometryIssue> =
+            if artifact.scene_availability == SceneAvailability::TypedScene {
+                artifact
+                    .typed_scene()
+                    .map(|scene| scene.validate_geometry())
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+
+        // INV-1 / INV-4: edge-vs-node and edge-vs-group-header crossings.
+        let route_node_count = typed_issues
+            .iter()
+            .filter(|i| matches!(i, GeometryIssue::EdgeCrossesNode { .. }))
+            .count();
+        let route_header_count = typed_issues
+            .iter()
+            .filter(|i| matches!(i, GeometryIssue::EdgeCrossesGroupHeader { .. }))
+            .count();
+        // Detached edge labels (label far from owning route).
+        let detached_label_count = typed_issues
+            .iter()
+            .filter(|i| matches!(i, GeometryIssue::EdgeLabelDetached { .. }))
+            .count();
+
         assert_or_expected(
             fixture,
-            route_node.is_empty(),
+            route_node_count == 0,
             ISSUE_ROUTING,
-            format!("{} route/node crossings", route_node.len()),
+            format!("{route_node_count} route/node crossings (typed scene)"),
         );
         assert_or_expected(
             fixture,
-            route_header.is_empty(),
+            route_header_count == 0,
             ISSUE_VISUAL_GATES,
-            format!("{} route/header crossings", route_header.len()),
+            format!("{route_header_count} route/header crossings (typed scene)"),
         );
         assert_or_expected(
             fixture,
-            detached_labels.is_empty(),
+            detached_label_count == 0,
             ISSUE_VISUAL_GATES,
-            format!("{} detached edge labels", detached_labels.len()),
+            format!("{detached_label_count} detached edge labels (typed scene)"),
         );
 
         let compact = metrics.aspect_ratio <= 6.0
@@ -158,14 +194,17 @@ fn promoted_visual_cases_have_svg_invariant_coverage() {
         );
 
         summaries.push(format!(
-            "{}: nodes={}, rels={}, headers={}, aspect={:.2}, gutter={:.2}, route/node={:.1}",
+            "{}: nodes={}, rels={}, headers={}, aspect={:.2}, gutter={:.2}, route/node={:.1} | typed: node_crossings={}, header_crossings={}, detached_labels={}",
             fixture.path,
             metrics.node_count,
             metrics.relation_count,
             metrics.package_count,
             metrics.aspect_ratio,
             metrics.max_empty_gutter_ratio,
-            metrics.route_length_per_node_px
+            metrics.route_length_per_node_px,
+            route_node_count,
+            route_header_count,
+            detached_label_count,
         ));
     }
 

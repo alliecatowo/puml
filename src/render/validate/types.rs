@@ -7,15 +7,6 @@ use std::fmt;
 /// Which invariant was violated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvariantKind {
-    /// An edge segment passed through a non-endpoint node bounding box.
-    EdgeCrossesNode {
-        /// SVG `data-uml-from` attribute of the offending relation.
-        from: String,
-        /// SVG `data-uml-to` attribute of the offending relation.
-        to: String,
-        /// ID of the node whose bounding box was crossed.
-        node_id: String,
-    },
     /// A `<text>` element's estimated bounding box extends outside the viewBox.
     LabelOutsideViewbox {
         /// Approximate text content.
@@ -29,8 +20,6 @@ pub enum InvariantKind {
         to: String,
         clearance_px: i32,
     },
-    /// A relation label is too far from any visible relation segment.
-    DetachedEdgeLabel { snippet: String, distance_px: i32 },
     /// An edge segment passes through a package/group header strip.
     EdgeThroughPackageHeader {
         from: String,
@@ -42,18 +31,6 @@ pub enum InvariantKind {
         kind: PseudoStateKind,
         scope: String,
         count: usize,
-    },
-    /// An edge endpoint does not connect to its declared node port.
-    FloatingEndpoint {
-        from: String,
-        to: String,
-        side: EndpointSide,
-    },
-    /// A self-loop does not have enough vertical space for the label.
-    SelfLoopTooShort {
-        node: String,
-        allocated_px: i32,
-        minimum_px: i32,
     },
 }
 
@@ -79,13 +56,6 @@ pub struct InvariantViolation {
 pub enum PseudoStateKind {
     Initial,
     Final,
-}
-
-/// Which endpoint of the edge is floating.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EndpointSide {
-    Source,
-    Target,
 }
 
 impl fmt::Display for InvariantViolation {

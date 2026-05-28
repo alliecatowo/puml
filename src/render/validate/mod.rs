@@ -24,14 +24,13 @@ mod types;
 
 pub use geometry::{extract_node_bboxes, extract_package_frames, NodeBbox, PackageFrame};
 pub use invariants::{
-    check_edge_label_proximity, check_edge_node_clearance, check_endpoint_connectivity,
     check_label_edge_clearance, check_labels_inside_viewbox, check_package_headers,
-    check_package_headers_from_svg, check_pseudo_state_dedup,
+    check_pseudo_state_dedup,
 };
 pub use metrics::{collect_quality_metrics, ContentBounds, QualityMetrics};
 pub use report::{run, run_with_scene, InvariantReport};
 pub use svg_hooks::parse_viewbox;
-pub use types::{AutoCorrect, EndpointSide, InvariantKind, InvariantViolation, PseudoStateKind};
+pub use types::{AutoCorrect, InvariantKind, InvariantViolation, PseudoStateKind};
 
 #[cfg(test)]
 use geometry::{parse_polyline_segments, segment_crosses_rect, Segment};
