@@ -99,6 +99,41 @@ pub(crate) fn parse_multiline_keyword_block(
     None
 }
 
+/// Try to consume a multi-line `legend|title|header|footer|caption ... end X`
+/// block for non-sequence graph families (class/object/usecase/component/
+/// deployment). Pushes the resulting statement onto `statements` and returns
+/// the next `i` index, or `None` if the line is not a block opener for one
+/// of those families. Handles both forms:
+///   - `legend left` / `legend right top` / ... (position qualifier suffix)
+///   - bare `legend` / `title` / `header` / `footer` / `caption`
+pub(crate) fn try_graph_family_text_block(
+    lines: &[(&str, Span)],
+    i: usize,
+    line: &str,
+    span: Span,
+    family: Option<DiagramKind>,
+    statements: &mut Vec<Statement>,
+) -> Option<usize> {
+    if !matches!(
+        family,
+        Some(
+            DiagramKind::Class
+                | DiagramKind::Object
+                | DiagramKind::UseCase
+                | DiagramKind::Component
+                | DiagramKind::Deployment
+        )
+    ) {
+        return None;
+    }
+    let (kind, end_idx) = parse_multiline_keyword_block(lines, i, line)?;
+    statements.push(Statement {
+        span: Span::new(span.start, lines[end_idx].1.end),
+        kind,
+    });
+    Some(end_idx + 1)
+}
+
 pub(crate) fn parse_multiline_note_block(
     lines: &[(&str, Span)],
     start: usize,

@@ -336,7 +336,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             StatementKind::Footer(v) => common.raw_footer(v),
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => {
-                common.legend(v, LegendTextMode::StripPackedPosition);
+                common.legend(v, LegendTextMode::ParsePackedPosition);
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
@@ -382,12 +382,14 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             StatementKind::HideOption(opt) => {
                 hide_options.insert(opt.to_ascii_lowercase());
             }
+            StatementKind::LegendPos(pos) => {
+                common.legend_position(&pos);
+            }
             StatementKind::Pragma(_)
             | StatementKind::AllowMixing
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
-            | StatementKind::Undef(_)
-            | StatementKind::LegendPos(_) => {}
+            | StatementKind::Undef(_) => {}
             StatementKind::Scale(body) => {
                 common.scale(&body);
                 if family_kind == DiagramKind::Timing && body.contains(" as ") {
@@ -491,6 +493,8 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         footer: common.footer,
         caption: common.caption,
         legend: common.legend,
+        legend_halign: common.legend_halign,
+        legend_valign: common.legend_valign,
         mainframe: common.mainframe,
         scale: common.scale,
         orientation,

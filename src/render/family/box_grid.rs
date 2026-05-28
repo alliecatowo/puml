@@ -91,25 +91,19 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
 
     let group_scope_by_idx: Vec<String> = {
         let mut scopes: Vec<String> = Vec::new();
-        let mut seen: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
         for (g_idx, group) in pkg_groups.iter().enumerate() {
-            if seen.contains(&g_idx) {
-                continue;
-            }
-            seen.insert(g_idx);
             let raw_label = group.label.clone().unwrap_or_default();
             let scope = if raw_label.is_empty() {
                 group.kind.clone()
             } else {
-                raw_label.clone()
+                raw_label
             };
             // Ensure unique scope strings (append index if needed)
-            let unique_scope = if scopes.contains(&scope) {
+            scopes.push(if scopes.contains(&scope) {
                 format!("{scope}_{g_idx}")
             } else {
                 scope
-            };
-            scopes.push(unique_scope);
+            });
         }
         scopes
     };
@@ -142,26 +136,19 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         std::collections::BTreeMap::new();
     for node in &doc.nodes {
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-        gl_name_to_id
-            .entry(key.clone())
-            .or_insert_with(|| key.clone());
-        gl_name_to_id
-            .entry(node.name.clone())
-            .or_insert_with(|| key.clone());
+        let mut insert_alias = |name: String| {
+            gl_name_to_id.entry(name).or_insert_with(|| key.clone());
+        };
+        insert_alias(key.clone());
+        insert_alias(node.name.clone());
         if let Some(alias) = &node.alias {
-            gl_name_to_id
-                .entry(alias.clone())
-                .or_insert_with(|| key.clone());
+            insert_alias(alias.clone());
         }
         if let Some(unscoped) = node.name.rsplit("::").next() {
-            gl_name_to_id
-                .entry(unscoped.to_string())
-                .or_insert_with(|| key.clone());
+            insert_alias(unscoped.to_string());
         }
         if let Some(unscoped) = key.rsplit("::").next() {
-            gl_name_to_id
-                .entry(unscoped.to_string())
-                .or_insert_with(|| key.clone());
+            insert_alias(unscoped.to_string());
         }
     }
     let resolve_gl_endpoint = |endpoint: &str| -> String {
@@ -504,16 +491,19 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         ""
     };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia}>",
-        w = svg_width,
-        h = svg_height,
-        sepia = sepia_attr,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia_attr}>",
+        w = svg_width, h = svg_height,
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
         escape_text(&comp_style.background_color)
     ));
     render_relation_marker_defs(&mut out, &comp_style.arrow_color);
+    // `skinparam shadowing true` — drop-shadow filter referenced via
+    // filter="url(#shadow)" from component-node rects.
+    if comp_style.shadowing {
+        out.push_str("<defs><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\"><feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/></filter></defs>");
+    }
 
     // Title
     if let Some(title) = &doc.title {
@@ -585,6 +575,17 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     if !doc.json_projections.is_empty() {
         let proj_y = all_pkg_bottom.max(ungrouped_bottom) + 16;
         render_family_projection_boxes(&mut out, &doc.json_projections, canvas_margin, proj_y, 340);
+    }
+
+    if let Some(text) = &doc.legend {
+        super::class_render::render_family_legend_box(
+            &mut out,
+            text,
+            svg_width,
+            svg_height,
+            doc.legend_halign,
+            doc.legend_valign,
+        );
     }
 
     out.push_str("</svg>");

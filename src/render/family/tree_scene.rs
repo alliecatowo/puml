@@ -407,6 +407,8 @@ mod tests {
             footer: None,
             caption: None,
             legend: None,
+            legend_halign: Default::default(),
+            legend_valign: Default::default(),
             mainframe: None,
             scale: None,
             orientation: FamilyOrientation::TopToBottom,

@@ -181,6 +181,12 @@ impl GraphStyleCascade {
                 ClassSkinParamValue::AttributeIcons(enabled) => {
                     self.class_style.attribute_icons = enabled;
                 }
+                ClassSkinParamValue::RoundCorner(n) => {
+                    self.class_style.round_corner = Some(n);
+                }
+                ClassSkinParamValue::Shadowing(enabled) => {
+                    self.class_style.shadowing = enabled;
+                }
                 ClassSkinParamValue::Monochrome(mode) => self.class_monochrome_mode = Some(mode),
                 ClassSkinParamValue::StereotypeBackgroundColor(stereotype, c) => {
                     let style = self
@@ -308,6 +314,12 @@ impl GraphStyleCascade {
                     }
                     ComponentSkinParamValue::StyleMode(mode) => {
                         self.component_style.component_style_mode = mode;
+                    }
+                    ComponentSkinParamValue::RoundCorner(n) => {
+                        self.component_style.round_corner = Some(n);
+                    }
+                    ComponentSkinParamValue::Shadowing(enabled) => {
+                        self.component_style.shadowing = enabled;
                     }
                     ComponentSkinParamValue::TargetBackgroundColor(target, c) => {
                         let style = self

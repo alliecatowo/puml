@@ -1,4 +1,4 @@
-use super::helpers::split_stereotype_scope;
+use super::helpers::{parse_bool_value, split_stereotype_scope};
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
 use crate::theme::StyleSource;
@@ -29,6 +29,12 @@ pub struct ComponentStyle {
     pub arrow_color: String,
     /// Controls UML1 / UML2 / Rectangle rendering for component nodes.
     pub component_style_mode: ComponentStyleMode,
+    /// Corner radius for component node rectangles in px. `None` keeps the
+    /// renderer's built-in default. Set by `skinparam roundcorner <N>`.
+    pub round_corner: Option<i32>,
+    /// When true, component/deployment node rectangles render with a drop
+    /// shadow. Controlled by `skinparam shadowing true|false`.
+    pub shadowing: bool,
     pub target_styles: BTreeMap<ComponentStyleTarget, ComponentNodeStyle>,
     pub stereotype_styles: BTreeMap<String, ComponentNodeStyle>,
     pub sources: ComponentStyleSources,
@@ -52,6 +58,8 @@ impl Default for ComponentStyle {
             font_color: "#0f172a".to_string(),
             arrow_color: "#1e293b".to_string(),
             component_style_mode: ComponentStyleMode::Uml2,
+            round_corner: None,
+            shadowing: false,
             target_styles: BTreeMap::new(),
             stereotype_styles: BTreeMap::new(),
             sources: ComponentStyleSources::default(),
@@ -104,6 +112,10 @@ pub enum ComponentSkinParamValue {
     FontColor(String),
     ArrowColor(String),
     StyleMode(ComponentStyleMode),
+    /// `skinparam roundcorner <N>` — corner radius for component/deployment node rects.
+    RoundCorner(i32),
+    /// `skinparam shadowing true|false` — drop-shadow on component/deployment node rects.
+    Shadowing(bool),
     TargetBackgroundColor(ComponentStyleTarget, String),
     TargetBorderColor(ComponentStyleTarget, String),
     TargetFontColor(ComponentStyleTarget, String),
@@ -212,6 +224,23 @@ pub fn classify_component_skinparam(
             };
             SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::StyleMode(mode))
         }
+        "roundcorner" => {
+            if let Ok(n) = value.trim().parse::<i32>() {
+                if n >= 0 {
+                    SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::RoundCorner(n))
+                } else {
+                    SkinParamSupport::UnsupportedValue
+                }
+            } else {
+                SkinParamSupport::UnsupportedValue
+            }
+        }
+        "shadowing" => match parse_bool_value(value) {
+            Some(enabled) => {
+                SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::Shadowing(enabled))
+            }
+            None => SkinParamSupport::UnsupportedValue,
+        },
         "componentfontsize"
         | "deploymentfontsize"
         | "componentfontname"

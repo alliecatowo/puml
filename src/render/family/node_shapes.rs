@@ -181,18 +181,27 @@ pub(super) fn render_family_node_shape_styled(
             ));
         }
         FamilyNodeKind::Component => {
+            // `skinparam roundcorner <N>` overrides the historical 4px radius.
+            let rx = comp_style.round_corner.unwrap_or(4);
+            // `skinparam shadowing true` drops a soft shadow under the component
+            // rect via the `#shadow` filter emitted in the parent SVG defs.
+            let shadow_attr = if comp_style.shadowing {
+                " filter=\"url(#shadow)\""
+            } else {
+                ""
+            };
             match comp_style.component_style_mode {
                 ComponentStyleMode::Rectangle => {
                     // Rectangle style: plain rect, no component icon
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{shadow_attr}/>",
                         x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                 }
                 ComponentStyleMode::Uml1 => {
                     // UML1: rectangle with component icon badges in the top-right corner
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{shadow_attr}/>",
                         x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                     let bx = x + w - 18;
@@ -208,7 +217,7 @@ pub(super) fn render_family_node_shape_styled(
                 ComponentStyleMode::Uml2 => {
                     // UML2 (default): rectangle with badge rects on the left edge
                     out.push_str(&format!(
-                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{shadow_attr}/>",
                         x, y, w, h, fill, escape_text(stroke), stroke_width, stroke_dash
                     ));
                     out.push_str(&format!(

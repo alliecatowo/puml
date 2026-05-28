@@ -15,6 +15,8 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         font_name: style.default_font_name.clone(),
         actor_style: ActorStyle::Stick,
         attribute_icons: true,
+        round_corner: None,
+        shadowing: false,
         stereotype_styles: BTreeMap::new(),
         sources: ClassStyleSources {
             background_color: StyleSource::ThemePreset,
@@ -55,6 +57,8 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
         font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
         component_style_mode: ComponentStyleMode::Uml2,
+        round_corner: None,
+        shadowing: false,
         target_styles: BTreeMap::new(),
         stereotype_styles: BTreeMap::new(),
         sources: ComponentStyleSources {
