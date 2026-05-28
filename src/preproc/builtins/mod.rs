@@ -15,7 +15,10 @@ pub(super) use callable::{
 };
 use collections::preprocessor_list_slice;
 pub(super) use collections::{preprocessor_foreach_bindings, preprocessor_list_items};
-use color::{adjust_color, is_dark_color, parse_hex_rgb};
+use color::{
+    adjust_color, hsl_color_to_hex, is_dark_color, is_light_color, parse_hex_rgb,
+    reverse_hsluv_color,
+};
 use constructors::{
     preprocessor_get_opt, preprocessor_json_keys, preprocessor_json_merge, preprocessor_json_type,
     preprocessor_json_values, preprocessor_list_literal, preprocessor_map_entries,

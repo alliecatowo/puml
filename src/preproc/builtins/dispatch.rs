@@ -2,13 +2,14 @@ use crate::diagnostic::Diagnostic;
 
 use super::{
     adjust_color, boolval, deterministic_preproc_now_seconds, execute_function_call,
-    format_preprocessor_date, format_preprocessor_time, get_json_attribute, is_dark_color,
-    json_contains_key, json_contains_value, parse_hex_rgb, parse_int_lenient, preprocessor_get_opt,
-    preprocessor_json_keys, preprocessor_json_merge, preprocessor_json_type,
-    preprocessor_json_values, preprocessor_list_items, preprocessor_list_literal,
-    preprocessor_list_slice, preprocessor_map_entries, preprocessor_map_literal,
-    preprocessor_range, preprocessor_remove, preprocessor_set, preprocessor_size,
-    preprocessor_str2json, split_args, split_preprocessor_regex, strip_quotes,
+    format_preprocessor_date, format_preprocessor_time, get_json_attribute, hsl_color_to_hex,
+    is_dark_color, is_light_color, json_contains_key, json_contains_value, parse_hex_rgb,
+    parse_int_lenient, preprocessor_get_opt, preprocessor_json_keys, preprocessor_json_merge,
+    preprocessor_json_type, preprocessor_json_values, preprocessor_list_items,
+    preprocessor_list_literal, preprocessor_list_slice, preprocessor_map_entries,
+    preprocessor_map_literal, preprocessor_range, preprocessor_remove, preprocessor_set,
+    preprocessor_size, preprocessor_str2json, reverse_hsluv_color, split_args,
+    split_preprocessor_regex, strip_quotes,
 };
 use crate::preproc::includes;
 use crate::preproc::macros::expand_preprocessor_text;
@@ -570,14 +571,46 @@ pub(in crate::preproc) fn dispatch_builtin(
                 .unwrap_or(0)
                 .to_string(),
         ),
+        // %mod(a, b) — integer modulo.  PlantUML semantics: remainder after
+        // Euclidean division (result sign matches the divisor, same as Java
+        // `Math.floorMod`).  When `b` is zero we return 0 rather than panic.
+        "mod" => {
+            let a = parse_int_lenient(&arg(0));
+            let b = parse_int_lenient(&arg(1));
+            Some(if b == 0 { 0 } else { a.rem_euclid(b) }.to_string())
+        }
         "is_dark" => Some(is_dark_color(&arg(0)).to_string()),
+        // %is_light(color) — the complement of %is_dark.  Returns "true" when
+        // the perceived luminance of the hex colour is ≥ 128.
+        "is_light" => Some(is_light_color(&arg(0)).to_string()),
         "reverse_color" => Some(
             parse_hex_rgb(&arg(0))
                 .map(|(r, g, b)| format!("#{:02x}{:02x}{:02x}", 255 - r, 255 - g, 255 - b))
                 .unwrap_or_default(),
         ),
+        // %reverse_hsluv_color(color) — invert lightness in HSL space (a
+        // deterministic approximation of the HSLuv perceptual reversal used by
+        // PlantUML's real implementation).
+        "reverse_hsluv_color" => Some(reverse_hsluv_color(&arg(0))),
         "lighten" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), true)),
         "darken" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), false)),
+        // %hsl_color(h, s, l) / %hsl_color(h, s, l, alpha) — construct a hex
+        // colour from HSL components.  `h` ∈ [0, 360), `s` and `l` ∈ [0, 100],
+        // optional `alpha` ∈ [0, 255].  Matches PlantUML's CSS HSL-to-RGB
+        // algorithm.
+        "hsl_color" => {
+            let h = parse_int_lenient(&arg(0)) as f64;
+            let s = parse_int_lenient(&arg(1)) as f64;
+            let l = parse_int_lenient(&arg(2)) as f64;
+            let alpha = if argc >= 4 {
+                Some(parse_int_lenient(&arg(3)).clamp(0, 255) as u8)
+            } else {
+                None
+            };
+            Some(hsl_color_to_hex(h, s, l, alpha))
+        }
+        // %version — deterministic version string matching the PUML crate version.
+        "version" => Some(env!("CARGO_PKG_VERSION").to_string()),
         _ => None,
     };
     Ok(result)
