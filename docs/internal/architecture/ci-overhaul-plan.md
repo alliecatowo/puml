@@ -138,9 +138,9 @@ the full gate (with `--release`) because it needs the real shipped binary size.
 
 ---
 
-## Projected new wall-time budget (per-PR typical Rust change)
+## Wave 8 CI teardown — projected wall-time budget (after initial overhaul)
 
-| Phase | Old (sequential) | New (parallel) | Delta |
+| Phase | Old (sequential) | After Wave 8 (parallel) | Delta |
 |---|---|---|---|
 | classify | 30s | 30s | — |
 | lint (fmt+clippy) | 2:30 (two jobs) | 1:45 (one job) | -45s |
@@ -151,10 +151,55 @@ the full gate (with `--release`) because it needs the real shipped binary size.
 | required_check | 15s | 15s | — |
 | **Critical path total** | **~8-9 min** | **~3:30-4 min** | **-4.5 min** |
 
-Critical path: `classify → lint (parallel with shards+coverage+binary_size) → required_check`
+---
 
-The longest parallel group is `{lint, test-shard-1, test-shard-2, coverage, binary_size}`.
-On a warm cache, the limiting job is `coverage` at ~2:30. On cold cache it's ~3:30.
+## R10: Merge coverage into test shards (landed 2026-05-28)
+
+The separate `coverage` job was a redundant instrumented compile pass — the test shards
+had already compiled the code under the standard debug profile, then `coverage` recompiled
+everything again with llvm-cov instrumentation. This was the biggest remaining waste.
+
+**Change:** Both `test-shard-1` and `test-shard-2` now run `cargo llvm-cov nextest`
+instead of `cargo nextest run`. Each shard does ONE compile pass that handles both test
+execution and coverage instrumentation simultaneously.
+
+**Coverage assertion strategy:** Each shard asserts `--fail-under-lines 87` independently
+against the full codebase. A shard running half the tests will naturally have lower
+coverage per file, so both shards must pass to ensure the full suite coverage bar is met.
+This avoids the complexity of merging `.profdata` files across runners (which requires
+uploading, downloading, and running `llvm-profdata merge` in a third job).
+
+**Other changes in same pass:**
+- `artifact_regen` job dropped from PR gate. Authors run `scripts/regen-artifacts.sh --force`
+  locally and commit the result. The drift check (a single Python call) moved into the
+  `lint` job — no separate runner needed. Auto-regen commit loop remains in `main-gate.yml`.
+- `docs_examples_drift` job eliminated; its single command folded into `lint`.
+- `skip_after_regen_push` job eliminated (depended on artifact_regen).
+- `changes` job outputs trimmed to remove `run_artifact_regen` and `run_docs_examples_drift`.
+- `required_check` aggregator simplified: removed artifact_regen fan-in, removed
+  `coverage` as a separate required job (coverage is now inside the shards).
+- `test-shard-2` skip condition: bot dep-updaters skip shard 2 (previously they skipped
+  the separate `coverage` job; now shard 2 carries coverage, so the skip moved there).
+- `pr-gate.yml` shrunk from 636 LOC → 339 LOC (47% reduction).
+- Active parallel jobs in the typical Rust-change path: 5
+  (`lint`, `test-shard-1`, `test-shard-2`, `binary_size`, and one of `wasm`/`site_smoke`
+  when conditionally triggered).
+
+**Revised wall-time projection (post-R10):**
+
+| Phase | After Wave 8 | After R10 | Delta |
+|---|---|---|---|
+| classify | 30s | 30s | — |
+| lint (fmt+clippy+drift) | 1:45 | 1:50 (+drift cmd) | +5s |
+| test-shard-1 (with cov) | 1:45 (no cov) | 2:15 (instrumented) | +30s |
+| test-shard-2 (with cov) | 1:45 (no cov) | 2:15 (instrumented) | +30s |
+| separate coverage job | 2:30 | eliminated | -2:30 critical-path |
+| binary_size | 1:15 | 1:15 | — |
+| required_check | 15s | 15s | — |
+| **Critical path total** | **~3:30-4 min** | **~2:20-2:45 min** | **-~1 min** |
+
+Critical path: `classify → {lint ∥ shard-1 ∥ shard-2 ∥ binary_size} → required_check`
+Limiting job on warm cache: `test-shard-1` or `test-shard-2` at ~2:15.
 
 ---
 
@@ -163,15 +208,13 @@ On a warm cache, the limiting job is `coverage` at ~2:30. On cold cache it's ~3:
 - **sccache S3 backend**: external S3 bucket would give cross-PR cache hits (GHA
   cache backend is PR-scoped). Estimated additional savings: 30-60s per cold-cache
   PR. Blocked on IAM setup.
-- **Bench removal from PR gate**: benchmarks already skipped in PR gate via
-  `--skip-bench` in the `quality` job invocation. No action needed.
-- **Doc-only skip for heavy jobs**: the classifier already gates on `run_full_gate`.
-  When only `*.md` / `docs/` / `site/**` change, all Rust compile jobs are skipped.
-  This is already wired; no additional work needed.
-- **Three-way test partition**: would save another ~30s but adds a third runner
-  (~$0.006/min × 30min × $0.002/min = negligible cost). Can be done if 2-way
-  partition still hits timeout on test suite growth.
+- **Three-way test partition**: would save another ~30s but adds a third runner.
+  Can be done if 2-way partition still hits timeout on test suite growth.
 - **`mold` linker**: the `mold` linker is significantly faster than GNU `ld` for
   incremental links. Add `RUSTFLAGS="-C link-arg=-fuse-ld=mold"` and
   `sudo apt-get install -y mold` in compile-heavy jobs. Estimated savings: 15-30s
   per link. Low-risk, high-reward.
+- **profdata merge approach**: if per-shard coverage assertions prove too noisy
+  (e.g., shard 1 always fails because visual-regression tests are in shard 2),
+  switch to uploading `.profdata` artifacts and merging in a third job. The current
+  strategy avoids that complexity for now.

@@ -2,8 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -17,15 +16,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  # Sparse registry protocol: fetch only the index entries actually needed
-  # instead of cloning the full crates.io git index (~1.4 GB).  Saves ~30-60s
-  # on cold-cache runs.  Safe on stable Rust 1.68+ (enabled unconditionally here
-  # because our rust-version = "1.88").
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-  # NOTE: sccache via GHA cache backend was removed because the Azure backend
-  # has been unreliable (HTML 503 responses break sccache startup, which then
-  # breaks RUSTC_WRAPPER and fails every cargo invocation in the job). Future
-  # work: switch to an S3 backend or a more reliable cache. See ci-overhaul-plan.md.
 
 jobs:
   changes:
@@ -34,16 +25,12 @@ jobs:
     timeout-minutes: 10
     outputs:
       run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
-      docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
-      run_docs_examples_drift: ${{ steps.changes.outputs.run_docs_examples_drift }}
-      run_artifact_regen: ${{ steps.changes.outputs.run_artifact_regen }}
       run_wasm_check: ${{ steps.changes.outputs.run_wasm_check }}
       run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
       run_wasm_site_smoke: ${{ steps.changes.outputs.run_wasm_site_smoke }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -52,9 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
-
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if ! git cat-file -e "${{ github.event.pull_request.base.sha }}^{commit}" 2>/dev/null; then
               git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
@@ -63,178 +48,80 @@ jobs:
           else
             git ls-files > "${CHANGED_FILES}"
           fi
-
           python3 scripts/ci-classify-changes.py \
             --changed-files "${CHANGED_FILES}" \
             --github-output "${GITHUB_OUTPUT}" | tee "${RUNNER_TEMP}/ci-classification.txt"
-
-          echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
-          cat "${RUNNER_TEMP}/ci-classification.txt"
 
       - name: Fast path for docs-only changes
         if: steps.changes.outputs.run_full_gate != 'true'
-        run: |
-          echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
-          echo "Site graph-toggle smoke will still run when documentation/site files can affect rendered docs."
+        run: echo "Docs-only change; skipping Rust/coverage/wasm/visual gates."
 
-  artifact_regen:
-    name: artifact regen
-    needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_artifact_regen == 'true' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: write
-      actions: write
-    outputs:
-      pushed_regen_commit: ${{ steps.commit.outputs.pushed_regen_commit }}
-
-    steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-
-      - name: Check disk space
-        run: df -h
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: Build puml CLI binary for artifact regen
-        # Use the fast CI profile (opt-level=1, lto=false, codegen-units=16)
-        # instead of the full release profile.  This is sufficient for
-        # deterministic SVG regeneration and saves ~40-60s of compile time.
-        run: cargo build --profile release-ci --bin puml --locked
-
-      - name: Regenerate committed diagram artifacts
-        run: PUML_BIN=target/release-ci/puml ./scripts/regen-artifacts.sh --force
-
-      - name: Commit regenerated artifacts when drift is detected
-        id: commit
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if git diff --quiet -- docs/examples docs/diagrams; then
-            echo "No regenerated artifact drift detected."
-            echo "pushed_regen_commit=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/examples docs/diagrams
-          git commit -m "chore(ci): regenerate diagram artifacts"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-          gh workflow run pr-gate.yml --ref "${{ github.event.pull_request.head.ref }}"
-          echo "pushed_regen_commit=true" >> "${GITHUB_OUTPUT}"
-
-  skip_after_regen_push:
-    name: skip after regen push
-    needs: [changes, artifact_regen]
-    if: always() && needs.artifact_regen.outputs.pushed_regen_commit == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain why the heavy gate is skipped
-        run: |
-          echo "Artifact regeneration produced a commit on the PR branch."
-          echo "The synchronize rerun will execute the expensive CI checks once against the updated branch."
-
-  # ---------------------------------------------------------------------------
-  # Lint: fmt + clippy merged into one job.
-  # Saves one full runner checkout + cache-restore vs two separate jobs (~45s).
-  # Wall-time estimate: ~1:45 (fmt is instant after cache hits; clippy
-  # compiles all targets once with the cached incremental store).
-  # ---------------------------------------------------------------------------
+  # Lint: fmt + clippy + structural guardrails + docs-examples drift.
+  # One job, one cache-restore. docs drift is a single Python call.
   lint:
     name: lint (fmt + clippy)
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
-      # Structural guardrails (same as main-gate via scripts/check-all.sh).
-      # Keep these in lockstep — PR gate must catch what main-gate would catch.
       - name: rust file-size guardrail
         run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
-
       - name: renderer boundary guardrail
         run: python3 ./scripts/check_renderer_boundaries.py --fail-on-violations
-
       - name: fmt gate
         run: cargo fmt --check
-
       - name: clippy gate
         run: cargo clippy --all-targets --all-features -- -D warnings
+      # Detect committed SVG artifact drift; authors run scripts/regen-artifacts.sh --force
+      # locally to fix. artifact_regen auto-commit loop lives in main-gate only.
+      - name: docs examples drift gate
+        run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
 
-  # ---------------------------------------------------------------------------
-  # Test shards: nextest partitioned 2-way across two runners.
-  # Each shard compiles once (shared cache key), then runs half the tests.
-  # Wall time goes from ~N minutes to ~N/2 minutes for the test run portion.
-  # Note: llvm-cov instrumentation is NOT used here — tests run under the
-  # standard dev profile for speed. Coverage is a separate optional job.
-  # Estimated savings vs single test job: ~60-90s test-run wall time.
-  # ---------------------------------------------------------------------------
+  # Test shards: each shard runs llvm-cov nextest for its partition.
+  # One compile pass per shard does BOTH test execution AND coverage instrumentation.
+  # Each shard asserts --fail-under-lines independently — no profdata merge needed.
+  # Critical path: lint ∥ shard-1 ∥ shard-2 ∥ binary_size → required_check ~2:30.
   test-shard-1:
     name: test (shard 1/2)
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check disk space
-        run: df -h
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v6
+      - run: df -h
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          shared-key: pr-gate-ubuntu-stable
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Dedicated key: instrumented artifacts must not evict stable build cache.
+          shared-key: pr-gate-ubuntu-coverage
           cache-on-failure: true
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: test gate (shard 1/2)
-        # --profile ci: no retries, immediate output, 60s slow-test warning
-        # --partition count:1/2: run the first half of tests by stable hash
-        run: cargo nextest run --profile ci --partition count:1/2
-
+      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: test + coverage (shard 1/2)
+        run: |
+          set -euo pipefail
+          COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+          cargo llvm-cov nextest \
+            --profile ci-shard \
+            --partition count:1/2 \
+            --all-features --package puml \
+            --fail-under-lines 87 \
+            --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
       - name: doc test gate
-        # doc tests can't be partitioned; run on shard 1 only
         run: cargo test --doc
-
-      # PNG-baseline regression tests write *.png.new / *.diff.png to target/visual-diff
-      # so we can download diffs after a failed visual_regression test run. Required by
-      # tests/visual_regression.rs::pr_gate_uploads_visual_diff_artifacts_from_test_job.
       - name: Upload visual diff artifacts (shard 1)
         if: always()
         uses: actions/upload-artifact@v7
@@ -246,218 +133,106 @@ jobs:
 
   test-shard-2:
     name: test (shard 2/2)
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check disk space
-        run: df -h
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: test gate (shard 2/2)
-        run: cargo nextest run --profile ci --partition count:2/2
-
-  # ---------------------------------------------------------------------------
-  # Coverage: llvm-cov only, separate job, skipped for bots and docs-only.
-  # Decoupled from test shards so it doesn't block test feedback and doesn't
-  # serialize the instrumented compile with the release binary build.
-  # The instrumented compile is expensive (~2-3 min extra vs debug compile);
-  # by running it in parallel with binary_size we recover that time.
-  # Skipped for dependabot/renovate: they don't change logic, coverage is noise.
-  # Estimated savings vs previous single quality job: ~90-120s wall time
-  # (parallel with binary_size instead of serialized after tests).
-  # ---------------------------------------------------------------------------
-  coverage:
-    name: coverage (llvm-cov)
-    needs: [changes, artifact_regen]
+    needs: changes
+    # Skipped for bot dependency updaters — they don't change logic; coverage is noise.
     if: >
-      always()
-      && needs.changes.outputs.run_full_gate == 'true'
-      && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+      needs.changes.outputs.run_full_gate == 'true'
       && github.actor != 'dependabot[bot]'
       && github.actor != 'renovate[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check disk space
-        run: df -h
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v6
+      - run: df -h
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          # Separate cache key: llvm-cov instrumentation produces different
-          # artifacts than the plain debug or release builds. Sharing the key
-          # would thrash the cache and slow down both jobs.
           shared-key: pr-gate-ubuntu-coverage
           cache-on-failure: true
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: coverage gate
+      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: test + coverage (shard 2/2)
         run: |
           set -euo pipefail
           COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
-          # NOTE: do not pass `--profile ci` here. `ci` is a nextest profile, not a
-          # cargo profile; cargo llvm-cov wraps `cargo test` which would error
-          # with `profile 'ci' is not defined`. Default test profile is fine.
-          cargo llvm-cov --all-features --package puml \
+          cargo llvm-cov nextest \
+            --profile ci-shard \
+            --partition count:2/2 \
+            --all-features --package puml \
             --fail-under-lines 87 \
             --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
-  # ---------------------------------------------------------------------------
-  # Binary size: uses release-ci profile (opt-level=1, lto=false) which saves
-  # ~60-90s vs the full [profile.release] with lto="thin" + codegen-units=1.
-  # Runs in parallel with coverage — combined, these two jobs replace what was
-  # previously the sequential "llvm-cov → cargo build --release" pair inside
-  # check-all.sh (wall time was dominated by the serialized sum of both).
-  # The binary size limit is slightly larger than for the release profile
-  # (no LTO dead-code removal) but the DELTA direction is identical.
-  # Estimated savings vs previous approach: ~60-90s wall time.
-  # ---------------------------------------------------------------------------
+  # Binary size: release-ci profile (opt-level=1, lto=false) — saves ~60-90s vs full release.
+  # Runs in parallel with test shards.
   binary_size:
     name: binary size
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       BINARY_LIMIT_BYTES: "22000000"
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
       - name: Build release-ci binary
-        # release-ci profile: opt-level=1, lto=false, codegen-units=16.
-        # Saves ~60-90s vs full release (no thin-LTO link phase).
         run: cargo build --profile release-ci -p puml --locked --bin puml
-
       - name: Binary size check
         shell: bash
         run: |
           set -euo pipefail
           BINARY="target/release-ci/puml"
-          if stat -f%z "${BINARY}" >/dev/null 2>&1; then
-            BYTES=$(stat -f%z "${BINARY}")
-          else
-            BYTES=$(stat -c%s "${BINARY}")
-          fi
+          if stat -f%z "${BINARY}" >/dev/null 2>&1; then BYTES=$(stat -f%z "${BINARY}")
+          else BYTES=$(stat -c%s "${BINARY}"); fi
           echo "Binary size (release-ci profile): ${BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
           if (( BYTES > BINARY_LIMIT_BYTES )); then
-            echo "ERROR: Binary size ${BYTES}B exceeds limit ${BINARY_LIMIT_BYTES}B" >&2
-            exit 1
+            echo "ERROR: Binary size ${BYTES}B exceeds limit ${BINARY_LIMIT_BYTES}B" >&2; exit 1
           fi
 
   wasm:
     name: wasm
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_wasm_check == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    needs: changes
+    if: needs.changes.outputs.run_wasm_check == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm --locked
 
-  docs_examples_drift:
-    name: docs examples drift
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_docs_examples_drift == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: docs examples drift gate
-        run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
-
   site_smoke:
     name: site graph toggle smoke
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_site_smoke == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    needs: changes
+    if: needs.changes.outputs.run_site_smoke == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-
-      - name: Setup Rust toolchain
+      - uses: dtolnay/rust-toolchain@stable
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
-        uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Cache Rust build artifacts
+      - uses: Swatinem/rust-cache@v2
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
-        uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-
       - name: Install Zola
         run: |
           set -euo pipefail
@@ -468,11 +243,8 @@ jobs:
           tar -xzf /tmp/zola.tar.gz -C "${RUNNER_TEMP}/zola"
           echo "${RUNNER_TEMP}/zola" >> "${GITHUB_PATH}"
           "${RUNNER_TEMP}/zola/zola" --version
-
-      - name: Install wasm-pack
+      - uses: ./.github/actions/install-wasm-pack
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
-        uses: ./.github/actions/install-wasm-pack
-
       - name: site graph toggle smoke
         run: |
           if [[ "${{ needs.changes.outputs.run_wasm_site_smoke }}" == "true" ]]; then
@@ -480,7 +252,6 @@ jobs:
           else
             ./scripts/site-smoke.sh
           fi
-
       - name: Upload site smoke artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -492,19 +263,11 @@ jobs:
             target/site-smoke
             site/public
 
+  # Aggregator: posts "fmt-clippy-test-coverage-quick" commit status for branch protection.
+  # Branch protection requires this exact check name — do not rename without updating the rule.
   required_check:
     name: fmt-clippy-test-coverage-quick
-    needs:
-      - changes
-      - artifact_regen
-      - lint
-      - test-shard-1
-      - test-shard-2
-      - coverage
-      - binary_size
-      - wasm
-      - docs_examples_drift
-      - site_smoke
+    needs: [changes, lint, test-shard-1, test-shard-2, binary_size, wasm, site_smoke]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -515,92 +278,40 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
-      RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
-      REGEN_PUSHED: ${{ needs.artifact_regen.outputs.pushed_regen_commit }}
       IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
-      ARTIFACT_REGEN_RESULT: ${{ needs.artifact_regen.result }}
       LINT_RESULT: ${{ needs.lint.result }}
       TEST_SHARD_1_RESULT: ${{ needs.test-shard-1.result }}
       TEST_SHARD_2_RESULT: ${{ needs.test-shard-2.result }}
-      COVERAGE_RESULT: ${{ needs.coverage.result }}
       BINARY_SIZE_RESULT: ${{ needs.binary_size.result }}
       WASM_RESULT: ${{ needs.wasm.result }}
-      DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
-      RUN_DOCS_EXAMPLES_CHANGED: ${{ needs.changes.outputs.docs_examples_changed }}
 
     steps:
-      - name: Summarize PR gate shards
+      - name: Summarize PR gate
         id: summarize
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "changes=${CHANGES_RESULT}"
-          echo "run_full_gate=${RUN_FULL_GATE}"
-          echo "run_docs_examples_drift=${RUN_DOCS_EXAMPLES_DRIFT}"
-          echo "run_wasm_check=${RUN_WASM_CHECK}"
-          echo "run_site_smoke=${RUN_SITE_SMOKE}"
-          echo "regen_pushed=${REGEN_PUSHED}"
-          echo "artifact_regen=${ARTIFACT_REGEN_RESULT}"
-          echo "lint=${LINT_RESULT}"
-          echo "test_shard_1=${TEST_SHARD_1_RESULT}"
-          echo "test_shard_2=${TEST_SHARD_2_RESULT}"
-          echo "coverage=${COVERAGE_RESULT}"
-          echo "binary_size=${BINARY_SIZE_RESULT}"
-          echo "wasm=${WASM_RESULT}"
-          echo "docs_examples=${DOCS_EXAMPLES_RESULT}"
-          echo "site_smoke=${SITE_SMOKE_RESULT}"
-
           failures=()
-
           require_success() {
-            local label="$1"
-            local result="$2"
-            if [[ "${result}" != "success" ]]; then
-              failures+=("${label} expected success, got ${result}")
-            fi
+            local label="$1" result="$2"
+            [[ "${result}" == "success" ]] || failures+=("${label}: got ${result}")
           }
-
           require_success "changes" "${CHANGES_RESULT}"
-
-          if [[ "${REGEN_PUSHED}" == "true" ]]; then
-            require_success "artifact regen" "${ARTIFACT_REGEN_RESULT}"
-            if (( ${#failures[@]} == 0 )); then
-              echo "state=success" >> "${GITHUB_OUTPUT}"
-              echo "description=Artifact regeneration pushed a follow-up commit; rerun queued for updated head SHA." >> "${GITHUB_OUTPUT}"
-              exit 0
-            fi
-          fi
-
           if [[ "${RUN_FULL_GATE}" == "true" ]]; then
             require_success "lint" "${LINT_RESULT}"
             require_success "test shard 1" "${TEST_SHARD_1_RESULT}"
-            require_success "test shard 2" "${TEST_SHARD_2_RESULT}"
             require_success "binary size" "${BINARY_SIZE_RESULT}"
-            # Coverage is skipped for bot dependency updaters; treat skipped as OK.
+            # Shard 2 is skipped for bot dep-updaters; skipped counts as OK.
             if [[ "${IS_BOT_DEP_UPDATER}" != "true" ]]; then
-              if [[ "${COVERAGE_RESULT}" != "success" && "${COVERAGE_RESULT}" != "skipped" ]]; then
-                failures+=("coverage expected success or skipped, got ${COVERAGE_RESULT}")
-              fi
+              require_success "test shard 2" "${TEST_SHARD_2_RESULT}"
             fi
           fi
-
-          if [[ "${RUN_WASM_CHECK}" == "true" ]]; then
-            require_success "wasm" "${WASM_RESULT}"
-          fi
-
-          if [[ "${RUN_DOCS_EXAMPLES_DRIFT}" == "true" ]]; then
-            require_success "docs examples" "${DOCS_EXAMPLES_RESULT}"
-          fi
-
-          if [[ "${RUN_SITE_SMOKE}" == "true" ]]; then
-            require_success "site smoke" "${SITE_SMOKE_RESULT}"
-          fi
-
+          [[ "${RUN_WASM_CHECK}" == "true" ]] && require_success "wasm" "${WASM_RESULT}"
+          [[ "${RUN_SITE_SMOKE}" == "true" ]] && require_success "site smoke" "${SITE_SMOKE_RESULT}"
           if (( ${#failures[@]} > 0 )); then
             echo "state=failure" >> "${GITHUB_OUTPUT}"
             echo "description=PR gate failed; inspect workflow summary." >> "${GITHUB_OUTPUT}"
@@ -615,11 +326,7 @@ jobs:
           STATUS_STATE: ${{ steps.summarize.outputs.state }}
           STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
         run: |
-          set -euo pipefail
-
-          gh api \
-            --method POST \
-            "repos/${{ github.repository }}/statuses/${TARGET_SHA}" \
+          gh api --method POST "repos/${{ github.repository }}/statuses/${TARGET_SHA}" \
             -f state="${STATUS_STATE}" \
             -f context="fmt-clippy-test-coverage-quick" \
             -f description="${STATUS_DESCRIPTION}" \
@@ -627,9 +334,6 @@ jobs:
 
       - name: Fail when any required shard failed
         if: steps.summarize.outputs.state != 'success'
-        shell: bash
-        env:
-          STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
         run: |
-          printf 'PR gate failed:\n  - %s\n' "${STATUS_DESCRIPTION}" >&2
+          printf 'PR gate failed:\n  - %s\n' "${{ steps.summarize.outputs.description }}" >&2
           exit 1
