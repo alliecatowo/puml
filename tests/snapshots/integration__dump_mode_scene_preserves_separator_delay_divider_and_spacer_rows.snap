@@ -1,120 +1,121 @@
 ---
 source: tests/integration.rs
+assertion_line: 3930
 expression: json
 ---
 {
+  "size": {
+    "width": 480,
+    "height": 400
+  },
   "lanes": [
     {
-      "display": "A",
       "id": "A",
+      "display": "A",
       "role": "Participant",
       "x": 100
     },
     {
-      "display": "B",
       "id": "B",
+      "display": "B",
       "role": "Participant",
       "x": 240
     }
   ],
   "rows": [
     {
+      "y": 120,
       "event": {
+        "span": {
+          "start": 38,
+          "end": 52
+        },
         "kind": {
           "Message": {
-            "arrow": "->",
             "from": "A",
-            "label": "start",
-            "to": "B"
+            "to": "B",
+            "arrow": "->",
+            "label": "start"
           }
-        },
-        "span": {
-          "end": 52,
-          "start": 38
         }
-      },
-      "y": 120
+      }
     },
     {
+      "y": 160,
       "event": {
+        "span": {
+          "start": 53,
+          "end": 66
+        },
         "kind": {
           "Separator": "Stage 1"
-        },
-        "span": {
-          "end": 66,
-          "start": 53
         }
-      },
-      "y": 160
+      }
     },
     {
+      "y": 200,
       "event": {
+        "span": {
+          "start": 67,
+          "end": 70
+        },
         "kind": {
           "Spacer": null
-        },
-        "span": {
-          "end": 70,
-          "start": 67
         }
-      },
-      "y": 200
+      }
     },
     {
+      "y": 240,
       "event": {
+        "span": {
+          "start": 71,
+          "end": 87
+        },
         "kind": {
           "Divider": "Midpoint"
-        },
-        "span": {
-          "end": 87,
-          "start": 71
         }
-      },
-      "y": 240
+      }
     },
     {
+      "y": 280,
       "event": {
+        "span": {
+          "start": 88,
+          "end": 90
+        },
         "kind": {
           "Delay": null
-        },
-        "span": {
-          "end": 90,
-          "start": 88
         }
-      },
-      "y": 280
+      }
     },
     {
+      "y": 320,
       "event": {
+        "span": {
+          "start": 91,
+          "end": 101
+        },
         "kind": {
           "Delay": "wait"
-        },
-        "span": {
-          "end": 101,
-          "start": 91
         }
-      },
-      "y": 320
+      }
     },
     {
+      "y": 360,
       "event": {
+        "span": {
+          "start": 102,
+          "end": 117
+        },
         "kind": {
           "Message": {
-            "arrow": "->",
             "from": "B",
-            "label": "finish",
-            "to": "A"
+            "to": "A",
+            "arrow": "->",
+            "label": "finish"
           }
-        },
-        "span": {
-          "end": 117,
-          "start": 102
         }
-      },
-      "y": 360
+      }
     }
-  ],
-  "size": {
-    "height": 400,
-    "width": 480
-  }
+  ]
 }

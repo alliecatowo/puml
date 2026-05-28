@@ -1,52 +1,51 @@
 ---
 source: tests/integration.rs
-assertion_line: 1204
 expression: json
 ---
 {
-  "caption": null,
+  "kind": "Chronology",
+  "tasks": [],
+  "milestones": [],
+  "separators": [],
+  "constraints": [],
+  "closed_weekdays": [],
+  "closed_ranges": [],
+  "open_ranges": [],
+  "named_dates": [],
   "chronology_events": [
     {
-      "bracket": false,
-      "color": null,
-      "date_precision": "day",
-      "end": null,
-      "end_date_precision": null,
-      "end_day": null,
-      "start_day": 20583,
       "subject": "Phase 1",
-      "when": "2026-05-10"
+      "when": "2026-05-10",
+      "end": null,
+      "color": null,
+      "bracket": false,
+      "start_day": 20583,
+      "end_day": null,
+      "date_precision": "day",
+      "end_date_precision": null
     },
     {
-      "bracket": false,
-      "color": null,
-      "date_precision": "day",
-      "end": null,
-      "end_date_precision": null,
-      "end_day": null,
-      "start_day": 20605,
       "subject": "Phase 2",
-      "when": "2026-06-01"
+      "when": "2026-06-01",
+      "end": null,
+      "color": null,
+      "bracket": false,
+      "start_day": 20605,
+      "end_day": null,
+      "date_precision": "day",
+      "end_date_precision": null
     }
   ],
-  "closed_ranges": [],
-  "closed_weekdays": [],
-  "constraints": [],
-  "footer": null,
-  "header": null,
-  "kind": "Chronology",
-  "legend": null,
-  "milestones": [],
-  "named_dates": [],
-  "open_ranges": [],
-  "print_end": null,
-  "print_end_day": null,
-  "print_start": null,
-  "print_start_day": null,
   "project_start": null,
   "project_start_day": null,
-  "separators": [],
-  "tasks": [],
+  "print_start": null,
+  "print_end": null,
+  "print_start_day": null,
+  "print_end_day": null,
   "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "warnings": []
 }

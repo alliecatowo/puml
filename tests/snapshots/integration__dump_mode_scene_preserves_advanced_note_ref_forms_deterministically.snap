@@ -1,49 +1,58 @@
 ---
 source: tests/integration.rs
-assertion_line: 1690
+assertion_line: 2301
 expression: json
 ---
 {
+  "size": {
+    "width": 620,
+    "height": 360
+  },
   "lanes": [
     {
-      "display": "Frontend",
       "id": "FE",
+      "display": "Frontend",
       "role": "Participant",
       "x": 100
     },
     {
-      "display": "Gateway",
       "id": "GW",
+      "display": "Gateway",
       "role": "Participant",
       "x": 240
     },
     {
-      "display": "Worker",
       "id": "WK",
+      "display": "Worker",
       "role": "Participant",
       "x": 380
     }
   ],
   "rows": [
     {
+      "y": 120,
       "event": {
+        "span": {
+          "start": 89,
+          "end": 104
+        },
         "kind": {
           "Message": {
-            "arrow": "->",
             "from": "FE",
-            "label": "begin",
-            "to": "GW"
+            "to": "GW",
+            "arrow": "->",
+            "label": "begin"
           }
-        },
-        "span": {
-          "end": 104,
-          "start": 89
         }
-      },
-      "y": 120
+      }
     },
     {
+      "y": 160,
       "event": {
+        "span": {
+          "start": 106,
+          "end": 272
+        },
         "kind": {
           "Note": {
             "kind": "Folded",
@@ -51,31 +60,31 @@ expression: json
             "target": null,
             "text": "advanced_across_line_one_with_long_payload_context_for_layout_guardrails\nadvanced_across_line_two_with_long_payload_context_for_layout_guardrails"
           }
-        },
-        "span": {
-          "end": 272,
-          "start": 106
         }
-      },
-      "y": 160
+      }
     },
     {
+      "y": 200,
       "event": {
+        "span": {
+          "start": 274,
+          "end": 523
+        },
         "kind": {
           "GroupStart": {
             "kind": "ref",
             "label": "over FE, WK\nadvanced_ref_inline_header_with_long_payload_context_for_layout_guardrails\nadvanced_ref_body_line_one_with_long_payload_context_for_layout_guardrails\nadvanced_ref_body_line_two_with_long_payload_context_for_layout_guardrails"
           }
-        },
-        "span": {
-          "end": 523,
-          "start": 274
         }
-      },
-      "y": 200
+      }
     },
     {
+      "y": 240,
       "event": {
+        "span": {
+          "start": 525,
+          "end": 687
+        },
         "kind": {
           "Note": {
             "kind": "Hexagonal",
@@ -83,49 +92,40 @@ expression: json
             "target": "GW, WK",
             "text": "alias_note_line_one_with_long_payload_context_for_layout_guardrails\nalias_note_line_two_with_long_payload_context_for_layout_guardrails"
           }
-        },
-        "span": {
-          "end": 687,
-          "start": 525
         }
-      },
-      "y": 240
+      }
     },
     {
+      "y": 280,
       "event": {
+        "span": {
+          "start": 689,
+          "end": 854
+        },
         "kind": {
           "GroupStart": {
             "kind": "ref",
             "label": "over GW\nsingle_lane_ref_line_one_with_long_payload_context_for_layout_guardrails\nsingle_lane_ref_line_two_with_long_payload_context_for_layout_guardrails"
           }
-        },
-        "span": {
-          "end": 854,
-          "start": 689
         }
-      },
-      "y": 280
+      }
     },
     {
+      "y": 320,
       "event": {
+        "span": {
+          "start": 856,
+          "end": 870
+        },
         "kind": {
           "Message": {
-            "arrow": "->",
             "from": "GW",
-            "label": "done",
-            "to": "WK"
+            "to": "WK",
+            "arrow": "->",
+            "label": "done"
           }
-        },
-        "span": {
-          "end": 870,
-          "start": 856
         }
-      },
-      "y": 320
+      }
     }
-  ],
-  "size": {
-    "height": 360,
-    "width": 620
-  }
+  ]
 }

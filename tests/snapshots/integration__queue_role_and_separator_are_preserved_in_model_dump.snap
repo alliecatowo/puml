@@ -1,78 +1,78 @@
 ---
 source: tests/integration.rs
-assertion_line: 3248
+assertion_line: 3893
 expression: json
 ---
 {
-  "caption": null,
-  "events": [
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "Client",
-          "label": "enqueue",
-          "to": "Q"
-        }
-      },
-      "span": {
-        "end": 66,
-        "start": 45
-      }
-    },
-    {
-      "kind": {
-        "Separator": "Processing"
-      },
-      "span": {
-        "end": 83,
-        "start": 67
-      }
-    },
-    {
-      "kind": {
-        "Message": {
-          "arrow": "->",
-          "from": "Q",
-          "label": "done",
-          "to": "Client"
-        }
-      },
-      "span": {
-        "end": 102,
-        "start": 84
-      }
-    }
-  ],
-  "footbox_visible": true,
-  "footer": null,
-  "header": null,
-  "legend": null,
   "participants": [
     {
-      "display": "Client",
-      "explicit": true,
       "id": "Client",
-      "role": "Participant"
+      "display": "Client",
+      "role": "Participant",
+      "explicit": true
     },
     {
-      "display": "Jobs",
-      "explicit": true,
       "id": "Q",
-      "role": "Queue"
+      "display": "Jobs",
+      "role": "Queue",
+      "explicit": true
     }
   ],
+  "events": [
+    {
+      "span": {
+        "start": 45,
+        "end": 66
+      },
+      "kind": {
+        "Message": {
+          "from": "Client",
+          "to": "Q",
+          "arrow": "->",
+          "label": "enqueue"
+        }
+      }
+    },
+    {
+      "span": {
+        "start": 67,
+        "end": 83
+      },
+      "kind": {
+        "Separator": "Processing"
+      }
+    },
+    {
+      "span": {
+        "start": 84,
+        "end": 102
+      },
+      "kind": {
+        "Message": {
+          "from": "Q",
+          "to": "Client",
+          "arrow": "->",
+          "label": "done"
+        }
+      }
+    }
+  ],
+  "teoz": false,
+  "title": null,
+  "header": null,
+  "footer": null,
+  "caption": null,
+  "legend": null,
   "skinparams": [],
   "style": {
     "arrow_color": "#111",
-    "group_background_color": "#fafafa",
-    "group_border_color": "#666",
     "lifeline_border_color": "#555",
+    "participant_background_color": "#f6f6f6",
+    "participant_border_color": "#111",
     "note_background_color": "#fff8c4",
     "note_border_color": "#111",
-    "participant_background_color": "#f6f6f6",
-    "participant_border_color": "#111"
+    "group_background_color": "#fafafa",
+    "group_border_color": "#666"
   },
-  "teoz": false,
-  "title": null
+  "footbox_visible": true
 }
