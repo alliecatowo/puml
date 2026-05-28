@@ -43,6 +43,29 @@ struct RepeatFrame {
     body_start_idx: usize,
 }
 
+/// Tracks the state needed to wire a `while ... endwhile` back-edge.
+///
+/// PlantUML semantics:
+/// - The `while (cond) is (yes)` diamond is the loop-header.
+/// - Body nodes follow in the main flow column.
+/// - `endwhile` emits a back-edge from the last body node (arrow_out_y of the
+///   node just before EndWhile) back to the diamond's body_start_y.
+/// - The exit arrow from the diamond's side (the `is (no)` path) continues
+///   straight down, exiting the loop.  We add an extra_arrow for the exit side.
+struct WhileFrame {
+    /// Node index of the WhileStart diamond.
+    diamond_idx: usize,
+    /// cx of the diamond.
+    diamond_cx: i32,
+    /// arrow_out_y from the diamond bottom (the "is yes" path entry).
+    body_entry_y: i32,
+    /// "is (yes)" guard label to put on the back-loop arrow.
+    yes_guard: Option<String>,
+    /// Exit arrow guard label extracted from `endwhile (no)`.
+    /// Populated when the EndWhile is processed, used to label the exit path.
+    exit_guard: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 
 // Pass 1: compute layout positions for every node
@@ -84,6 +107,7 @@ pub(in crate::render::activity) fn compute_layout(
     let mut if_stack: Vec<IfFrame> = Vec::new();
     let mut fork_stack: Vec<ForkFrame> = Vec::new();
     let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
+    let mut while_stack: Vec<WhileFrame> = Vec::new();
     let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
 
     for (i, meta) in metas.iter().enumerate() {
@@ -443,6 +467,99 @@ pub(in crate::render::activity) fn compute_layout(
                     },
                 );
 
+                current_slot_y = next_slot_y;
+            }
+            "WhileStart" => {
+                // Render the while condition diamond.  Body actions flow straight
+                // down from the diamond on the "yes" (is) path.  On `endwhile` we
+                // emit a back-edge from the last body node back to the top of the
+                // diamond body and mark the exit path with the "no" guard label.
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                // Extract the "is (yes)" guard label for the back-loop arrow.
+                let yes_guard = doc.nodes[i]
+                    .label
+                    .as_deref()
+                    .and_then(activity_decision_guard);
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                while_stack.push(WhileFrame {
+                    diamond_idx: i,
+                    diamond_cx: cx,
+                    body_entry_y: arrow_out_y,
+                    yes_guard,
+                    exit_guard: None,
+                });
+                current_slot_y = next_slot_y;
+            }
+            "EndWhile" => {
+                // Pop the matching WhileFrame.
+                // Emit a back-edge arrow from the last body node's arrow_out_y
+                // back to the diamond's body_entry_y (which IS the slot_y of the
+                // first body node, since the diamond advances the slot by step_h).
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                // The EndWhile placeholder gets zero height (it's a control node).
+                suppress_prev_arrow.insert(i);
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+
+                if let Some(while_frame) = while_stack.pop() {
+                    // Back-edge: from the node before EndWhile back to the diamond.
+                    // The source is the arrow_out_y of the last body action (the
+                    // node just before EndWhile).
+                    let back_src_y = if i > 0 {
+                        node_layouts[i - 1].arrow_out_y
+                    } else {
+                        slot_y
+                    };
+                    let diamond_slot_y = node_layouts[while_frame.diamond_idx].slot_y;
+
+                    // The exit label from `endwhile (no)` goes on the exit arrow.
+                    let exit_guard = doc.nodes[i]
+                        .label
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+
+                    // Back-edge: last body node → while diamond (upward back-loop).
+                    // Destination is the diamond node's slot_y so that
+                    // emit_extra_arrows matches it when rendering the WhileStart node.
+                    extra_arrows.push(
+                        ActivityRoute::new(
+                            while_frame.diamond_cx,
+                            back_src_y,
+                            while_frame.diamond_cx,
+                            diamond_slot_y,
+                        )
+                        .with_label(while_frame.yes_guard),
+                    );
+                    // Exit path arrow from the diamond's right side, routing around
+                    // the loop body to land on the node below EndWhile.
+                    // Destination slot_y: we store the exit guard and diamond info
+                    // for the deferred arrow — the next node isn't laid out yet,
+                    // so we mark the destination as (cx, next_slot_y) which is the
+                    // EndWhile node's own next_slot_y; the successor node will
+                    // share that slot_y (suppress_prev_arrow ensures it lands there).
+                    let diamond_layout = &node_layouts[while_frame.diamond_idx];
+                    let exit_src_x = diamond_layout.cx + 100; // right side of diamond
+                    let exit_src_y = diamond_layout.slot_y + 24; // diamond mid-height
+                    extra_arrows.push(
+                        ActivityRoute::new(exit_src_x, exit_src_y, cx, next_slot_y)
+                            .with_label(exit_guard),
+                    );
+                }
                 current_slot_y = next_slot_y;
             }
             _ => {

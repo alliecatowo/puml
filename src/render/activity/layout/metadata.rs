@@ -14,6 +14,10 @@ pub(in crate::render::activity) struct NodeMeta {
     pub sdl_shape: Option<String>,
     pub note_side: Option<String>,
     pub note_floating: bool,
+    /// Whether the swimlane header should be rendered in bold (from `|= Name|`)
+    pub swim_bold: bool,
+    /// Stereotype text for the swimlane header (from `|<<role>>Name|`)
+    pub swim_stereotype: Option<String>,
 }
 
 pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
@@ -26,6 +30,8 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
             let mut sdl_shape: Option<String> = None;
             let mut note_side: Option<String> = None;
             let mut note_floating = false;
+            let mut swim_bold = false;
+            let mut swim_stereotype: Option<String> = None;
             if let Some(alias) = &node.alias {
                 if let Some(meta) = alias.strip_prefix("activity::") {
                     for (pi, part) in meta.split('|').enumerate() {
@@ -45,6 +51,10 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
                             note_side = Some(v.to_string());
                         } else if let Some(v) = part.strip_prefix("note_floating=") {
                             note_floating = v == "1" || v.eq_ignore_ascii_case("true");
+                        } else if part == "swim_bold=1" {
+                            swim_bold = true;
+                        } else if let Some(v) = part.strip_prefix("swim_stereotype=") {
+                            swim_stereotype = Some(v.to_string());
                         }
                     }
                 }
@@ -58,6 +68,8 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
                 sdl_shape,
                 note_side,
                 note_floating,
+                swim_bold,
+                swim_stereotype,
             }
         })
         .collect()

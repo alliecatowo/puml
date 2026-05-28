@@ -27,6 +27,8 @@ pub(super) fn emit_lanes(
     height: i32,
     act_style: &ActivityStyle,
     lane_fills: &std::collections::BTreeMap<String, String>,
+    lane_bold: &std::collections::BTreeSet<String>,
+    lane_stereotypes: &std::collections::BTreeMap<String, String>,
 ) {
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
@@ -75,13 +77,15 @@ pub(super) fn emit_lanes(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
                 effective_lx, span_top, effective_w, lane_header_h, header_fill
             ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+            emit_lane_header_text(
+                out,
+                lane,
                 effective_lx + effective_w / 2,
                 span_top + lane_header_h / 2 + 4,
-                escape_text(&act_style.font_color),
-                escape_text(lane)
-            ));
+                &act_style.font_color,
+                lane_bold.contains(lane),
+                lane_stereotypes.get(lane).map(String::as_str),
+            );
             continue;
         }
 
@@ -105,15 +109,52 @@ pub(super) fn emit_lanes(
                 header_fill
             ));
             // Lane name centered in the header box
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+            emit_lane_header_text(
+                out,
+                lane,
                 lx + lane_w / 2,
                 header_h + lane_header_h / 2 + 4,
-                escape_text(&act_style.font_color),
-                escape_text(lane)
-            ));
+                &act_style.font_color,
+                lane_bold.contains(lane),
+                lane_stereotypes.get(lane).map(String::as_str),
+            );
         }
     }
+}
+
+/// Emit SVG text for a swim-lane header, optionally with bold weight (from
+/// `|= Name|`) and a stereotype sub-label (from `|<<role>>Name|`).
+///
+/// When `bold` is true the font-weight becomes 800 (ultra-bold) for the lane
+/// name, matching PlantUML's treatment of the `|=` prefix.  When `stereotype`
+/// is `Some`, a second smaller text line is emitted below the name.
+#[allow(clippy::too_many_arguments)]
+fn emit_lane_header_text(
+    out: &mut String,
+    lane: &str,
+    cx: i32,
+    cy: i32,
+    font_color: &str,
+    bold: bool,
+    stereotype: Option<&str>,
+) {
+    let weight = if bold { "800" } else { "600" };
+    let (name_y, stereo_y_offset) = if stereotype.is_some() {
+        (cy - 5, 13)
+    } else {
+        (cy, 0)
+    };
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"{}\" fill=\"{}\">{}</text>",
+        cx, name_y, weight, escape_text(font_color), escape_text(lane)
+    ));
+    if let Some(stereo) = stereotype {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"9\" fill=\"{}\">«{}»</text>",
+            cx, name_y + stereo_y_offset, escape_text(font_color), escape_text(stereo)
+        ));
+    }
+    let _ = stereo_y_offset; // suppress unused warning when stereotype is None
 }
 
 /// Per-lane y-span: `(span_top, span_bottom)`.

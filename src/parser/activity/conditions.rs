@@ -1,3 +1,31 @@
+/// Parse an `endwhile` or `end while` line, optionally with an exit label.
+///
+/// Matches:
+/// - `endwhile`           → exit label: None
+/// - `endwhile (no)`      → exit label: Some("no")
+/// - `endwhile(no)`       → exit label: Some("no")
+/// - `end while`          → exit label: None
+/// - `end while (done)`   → exit label: Some("done")
+///
+/// Returns `None` if the line is not an endwhile token.
+pub(crate) fn parse_activity_endwhile(input: &str) -> Option<Option<String>> {
+    let lower = input.to_ascii_lowercase();
+    let rest = if lower.starts_with("endwhile") {
+        &input["endwhile".len()..]
+    } else if lower.starts_with("end while") {
+        &input["end while".len()..]
+    } else {
+        return None;
+    };
+    let rest = rest.trim();
+    let label = if rest.is_empty() {
+        None
+    } else {
+        extract_paren_label(rest).filter(|s| !s.is_empty())
+    };
+    Some(label)
+}
+
 pub(crate) fn parse_activity_if_label(input: &str) -> String {
     let lower = input.to_ascii_lowercase();
     if let Some(idx) = lower.find(" then ") {

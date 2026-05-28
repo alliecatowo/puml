@@ -147,6 +147,43 @@ pub(super) fn extract_activity_note_meta(label: &mut Option<String>) -> Option<(
     Some((side, floating))
 }
 
+/// Extract swimlane display metadata (`\x1fswim:bold\x1f` / `\x1fswim:stereotype=...\x1f`)
+/// from a PartitionStart label and return the clean lane identifier.
+///
+/// The swim markers carry display-only info (bold header, stereotype) and must
+/// be stripped before the label is used as a lane routing identifier.  The
+/// returned tuple is `(clean_name, bold, stereotype)`.
+pub(super) fn extract_activity_swim_display(label: &mut Option<String>) -> (bool, Option<String>) {
+    let Some(value) = label.take() else {
+        return (false, None);
+    };
+    let (clean, bold, stereotype) = puml_parser_activity_extract_swim(&value);
+    *label = (!clean.is_empty()).then(|| clean.to_string());
+    (bold, stereotype.map(str::to_string))
+}
+
+fn puml_parser_activity_extract_swim(value: &str) -> (&str, bool, Option<&str>) {
+    let mut rest: &str = value;
+    let mut bold = false;
+    let mut stereotype: Option<&str> = None;
+    loop {
+        if let Some(after) = rest.strip_prefix("\x1fswim:bold\x1f") {
+            bold = true;
+            rest = after;
+        } else if let Some(after) = rest.strip_prefix("\x1fswim:stereotype=") {
+            if let Some(end) = after.find('\x1f') {
+                stereotype = Some(&after[..end]);
+                rest = &after[end + 1..];
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    (rest, bold, stereotype)
+}
+
 pub(super) fn ensure_family_class_node(nodes: &mut Vec<FamilyNode>, name: &str) {
     if name.is_empty()
         || nodes

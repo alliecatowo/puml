@@ -58,12 +58,23 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         lanes.push("default".to_string());
     }
     let mut lane_fills = std::collections::BTreeMap::new();
+    // Collect per-lane bold and stereotype display metadata from swimlane markers.
+    let mut lane_bold: std::collections::BTreeSet<String> = Default::default();
+    let mut lane_stereotypes: std::collections::BTreeMap<String, String> = Default::default();
     for (node, meta) in doc.nodes.iter().zip(metas.iter()) {
         if meta.step_kind == "PartitionStart" && meta.lane_name != "default" {
             if let Some(fill) = &node.fill_color {
                 lane_fills
                     .entry(meta.lane_name.clone())
                     .or_insert(fill.clone());
+            }
+            if meta.swim_bold {
+                lane_bold.insert(meta.lane_name.clone());
+            }
+            if let Some(ref stereo) = meta.swim_stereotype {
+                lane_stereotypes
+                    .entry(meta.lane_name.clone())
+                    .or_insert(stereo.clone());
             }
         }
     }
@@ -347,6 +358,8 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         height,
         &act_style,
         &lane_fills,
+        &lane_bold,
+        &lane_stereotypes,
     );
 
     // Pass 2: nodes + arrows
