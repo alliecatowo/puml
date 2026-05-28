@@ -224,6 +224,18 @@ jobs:
         # doc tests can't be partitioned; run on shard 1 only
         run: cargo test --doc
 
+      # PNG-baseline regression tests write *.png.new / *.diff.png to target/visual-diff
+      # so we can download diffs after a failed visual_regression test run. Required by
+      # tests/visual_regression.rs::pr_gate_uploads_visual_diff_artifacts_from_test_job.
+      - name: Upload visual diff artifacts (shard 1)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-visual-smoke-${{ github.run_number }}
+          path: target/visual-diff
+          if-no-files-found: ignore
+          retention-days: 14
+
   test-shard-2:
     name: test (shard 2/2)
     needs: [changes, artifact_regen]
