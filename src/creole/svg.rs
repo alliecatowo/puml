@@ -49,6 +49,18 @@ pub fn render_creole_to_svg_tspans(
 }
 
 fn render_span(out: &mut String, span: &CreoleSpan, default_color: &str) {
+    // Horizontal-rule sentinel: emit an SVG <line> element instead of a
+    // <tspan>.  The line stretches 200 units (a reasonable label-width
+    // heuristic) and uses the default colour at reduced opacity.
+    if span.is_hr {
+        out.push_str(&format!(
+            "<line x1=\"0\" y1=\"0.6em\" x2=\"200\" y2=\"0.6em\" \
+             stroke=\"{}\" stroke-width=\"1\" stroke-opacity=\"0.5\"/>",
+            escape_attr(default_color)
+        ));
+        return;
+    }
+
     if let Some(url) = &span.link {
         out.push_str(&format!(
             "<a xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",

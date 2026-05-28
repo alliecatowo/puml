@@ -243,7 +243,8 @@ fn headings_become_bold_sized_lines() {
     assert_eq!(lines[0][0].text, "Main title");
     assert!(lines[0][0].bold);
     assert_eq!(lines[0][0].size, Some(24));
-    assert_eq!(lines[1][0].size, Some(16));
+    // h3 size is now 18 (≈1.15× base-16 rounding)
+    assert_eq!(lines[1][0].size, Some(18));
 }
 
 #[test]
@@ -260,9 +261,11 @@ fn list_lines_add_indented_prefixes_without_triggering_bold() {
 #[test]
 fn horizontal_rule_lines_render_as_rule_text() {
     let lines = tokenize_creole("----\n.. Section ..");
-    assert_eq!(lines[0][0].text, "------------------------");
-    assert!(lines[0][0].mono);
+    // Plain `----` now emits an is_hr sentinel (rendered as SVG <line>).
+    assert!(lines[0][0].is_hr);
+    // Titled `.. Section ..` still renders as text.
     assert_eq!(lines[1][0].text, "---------- Section ----------");
+    assert!(lines[1][0].mono);
 }
 
 #[test]

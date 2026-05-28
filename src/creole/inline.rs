@@ -38,6 +38,7 @@ fn span_from_state(text: String, state: &InlineState) -> CreoleSpan {
         underline: state.underline,
         strike: state.strike,
         wave: state.wave,
+        is_hr: false,
         color: state.color.clone(),
         background: state.background.clone(),
         size: state.size,

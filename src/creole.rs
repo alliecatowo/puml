@@ -3,7 +3,8 @@
 /// Supports: **bold**, //italic//, ""mono"", __underline__, --strikethrough--,
 /// ~~wave underline~~, [[url label]] hyperlinks, <color:X>text</color>,
 /// <size:N>text</size>, legacy HTML-style tags, \n line breaks, basic block
-/// Creole line forms, and <&icon> placeholders.
+/// Creole line forms (lists, headings, horizontal rules, tilde escape), and
+/// <&icon> placeholders.
 mod inline;
 mod inline_helpers;
 mod parser;
@@ -23,6 +24,9 @@ pub struct CreoleSpan {
     pub underline: bool,
     pub strike: bool,
     pub wave: bool,
+    /// Set to `true` for a horizontal-rule sentinel span.  The SVG renderer
+    /// emits an `<line>` element instead of a `<tspan>` for these spans.
+    pub is_hr: bool,
     pub color: Option<String>,
     pub background: Option<String>,
     pub size: Option<u32>,
