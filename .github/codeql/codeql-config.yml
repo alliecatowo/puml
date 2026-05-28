@@ -10,3 +10,9 @@ paths:
   - crates
   - stdlib
   - tests
+
+paths-ignore:
+  - .github
+  - docs
+  - site
+  - scripts

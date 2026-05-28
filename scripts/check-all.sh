@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="full"
 SKIP_BENCH=0
+BINARY_LIMIT_BYTES=16000000
 
 usage() {
   cat <<'USAGE'
@@ -42,6 +43,16 @@ require_cmd() {
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "[gate] missing required command: $cmd" >&2
     exit 1
+  fi
+}
+
+binary_size_bytes() {
+  local path="$1"
+
+  if stat -f%z "$path" >/dev/null 2>&1; then
+    stat -f%z "$path"
+  else
+    stat -c%s "$path"
   fi
 }
 
@@ -90,11 +101,25 @@ if [[ "$MODE" == "full" ]]; then
   cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
 
   echo "[gate] cargo build --release -p puml --locked --bin puml"
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    LTO_ARGS="-C link-arg=-Wl,--as-needed -C link-arg=-Wl,--gc-sections"
+  else
+    LTO_ARGS=""
+  fi
+
+  export RUSTFLAGS="${RUSTFLAGS:-} -C strip=symbols -C panic=abort ${LTO_ARGS}"
   cargo build --release -p puml --locked --bin puml
 
   if command -v strip >/dev/null 2>&1; then
     echo "[gate] stripping release binary"
-    strip target/release/puml
+    strip --strip-unneeded target/release/puml
+  fi
+
+  BINARY_BYTES="$(binary_size_bytes target/release/puml)"
+  echo "[gate] release binary size: ${BINARY_BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
+  if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
+    echo "[gate] release binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B" >&2
+    exit 1
   fi
 
   if [[ "$SKIP_BENCH" -eq 0 ]]; then

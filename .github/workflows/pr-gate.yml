@@ -193,8 +193,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ needs.changes.outputs.run_full_gate }}" == "true" ]]; then
-            ./scripts/check-all.sh
+          if [[ "${{ needs.changes.outputs.run_full_gate }}" == "true" || "${{ needs.changes.outputs.docs_examples_changed }}" == "true" ]]; then
+            ./scripts/check-all.sh --skip-bench
           else
             ./scripts/check-all.sh --quick --skip-bench
           fi
