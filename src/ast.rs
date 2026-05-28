@@ -181,6 +181,8 @@ pub enum StatementKind {
         label: Option<String>,
         members: Vec<String>,
         relations: Vec<FamilyRelation>,
+        /// Optional fill color for the group frame (e.g. `#LightYellow` on `frame "X" #LightYellow`).
+        fill_color: Option<String>,
     },
     AssociationClass {
         left: String,

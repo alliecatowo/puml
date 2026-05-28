@@ -27,6 +27,8 @@ pub(super) struct PackageLayout {
     pub(super) abs_y: i32,
     pub(super) frame_w: i32,
     pub(super) frame_h: i32,
+    /// Optional fill color for the frame background (e.g. from `frame "X" #LightYellow`).
+    pub(super) fill_color: Option<String>,
 }
 
 /// Backwards-compatible alias; delegates to the real timeline renderer.
@@ -350,6 +352,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             abs_y: fy,
             frame_w: fw,
             frame_h: fh,
+            fill_color: group.fill_color.clone(),
         });
     }
 
