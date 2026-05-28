@@ -36,6 +36,8 @@ pub(in crate::render::state) fn compute_node_size(
         StateNodeKind::InputPin | StateNodeKind::OutputPin => (34, 34),
         StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => (46, 30),
         StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
+        StateNodeKind::Terminate => (26, 26),
+        StateNodeKind::SdlReceive | StateNodeKind::SdlSend => (STATE_NODE_W, STATE_NODE_H),
         StateNodeKind::Note => {
             let lines = node_display_lines(node);
             let max_cols = lines

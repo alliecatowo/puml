@@ -64,6 +64,12 @@ pub enum StateNodeKind {
     /// `<<expansionInput>>` / `<<expansionOutput>>` expansion port pseudo-states
     ExpansionInput,
     ExpansionOutput,
+    /// `<<terminate>>` stereotype — X-mark in a circle (UML terminate pseudostate)
+    Terminate,
+    /// `<<sdlreceive>>` stereotype — SDL receive signal (concave arrow shape)
+    SdlReceive,
+    /// `<<sdlsend>>` stereotype — SDL send signal (convex arrow shape)
+    SdlSend,
     /// Attached or floating state note
     Note,
     /// Inline `json $alias { ... }` projection in a state diagram

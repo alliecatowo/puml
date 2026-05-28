@@ -244,6 +244,9 @@ fn state_node_kind_label(kind: &StateNodeKind) -> &'static str {
         StateNodeKind::OutputPin => "output-pin",
         StateNodeKind::ExpansionInput => "expansion-input",
         StateNodeKind::ExpansionOutput => "expansion-output",
+        StateNodeKind::Terminate => "terminate",
+        StateNodeKind::SdlReceive => "sdl-receive",
+        StateNodeKind::SdlSend => "sdl-send",
         StateNodeKind::Note => "note",
         StateNodeKind::JsonProjection => "json-projection",
     }
