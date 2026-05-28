@@ -458,6 +458,10 @@ pub enum TimingDeclKind {
     Robust,
     Clock,
     Binary,
+    /// `analog "Label" between MIN and MAX as ID` — continuous-line waveform.
+    /// The min/max range is encoded in the `controls` vec as
+    /// `__timing:analog_between <min> <max>`.
+    Analog,
 }
 
 #[derive(Debug, Clone)]

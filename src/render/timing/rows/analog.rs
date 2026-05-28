@@ -79,10 +79,27 @@ pub(super) fn render_timing_analog_signal(out: &mut String, ctx: TimingAnalogRen
         };
         let x = (ctx.time_to_x)(*time);
         let y = y_for(value);
+        // Extract per-event color if present (e.g. `3.3 #palegreen`).
+        let event_fill = timing_state_style(state).fill;
+        let point_fill = event_fill
+            .as_deref()
+            .unwrap_or_else(|| ctx.style.signal_border_color.as_str());
         out.push_str(&format!(
             "<circle class=\"timing-analog-point\" cx=\"{x}\" cy=\"{y}\" r=\"3\" fill=\"{}\"/>",
-            escape_text(&ctx.style.signal_border_color)
+            escape_text(point_fill)
         ));
+        // If per-event color is present, draw a small fill rect below the point to
+        // visually indicate the event color.
+        if let Some(ref fill) = event_fill {
+            let rect_h = (ctx.wave_y_lo - y).max(0);
+            if rect_h > 0 {
+                out.push_str(&format!(
+                    "<rect class=\"timing-analog-fill\" x=\"{}\" y=\"{y}\" width=\"6\" height=\"{rect_h}\" fill=\"{}\" opacity=\"0.5\"/>",
+                    x - 3,
+                    escape_text(fill)
+                ));
+            }
+        }
         out.push_str(&format!(
             "<text x=\"{x}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
             y - 6,
