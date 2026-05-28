@@ -4,8 +4,13 @@
 # Install once with: ./scripts/install-hooks.sh
 # Uninstall with:   ./scripts/install-hooks.sh --uninstall
 #
-# CI remains the source of truth — these hooks are developer convenience
-# guards to catch fmt/clippy issues before a push reaches CI.
+# Philosophy: hooks must be FAST or developers turn them off. Every step here
+# runs in under ~10s on a warm cache. CI is the source of truth for heavy
+# verification (full clippy, full test suite, coverage, binary size, oracle).
+#
+# What stays here: the cheap-but-high-signal guards that catch the drift
+# patterns we've actually hit in CI (fmt, file-size, renderer boundaries,
+# basic compile). Heavy clippy and nextest run in CI's parallel jobs.
 
 # Skip hooks during rebase and merge commits
 skip_output:
@@ -15,25 +20,48 @@ pre-commit:
   skip:
     - rebase
     - merge
+  parallel: true
   commands:
     fmt:
       name: cargo fmt --check
       run: cargo fmt --check
       fail_text: |
-        rustfmt found formatting issues. Run `cargo fmt` and re-stage your changes.
+        rustfmt found formatting issues. Run `cargo fmt` and re-stage.
+
+    file-size:
+      name: rust file-size guardrail
+      run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+      fail_text: |
+        One or more authored Rust files is over 600 LOC. Split it into a
+        cohesive submodule before committing. See scripts/check_rust_file_sizes.py.
+
+    renderer-boundaries:
+      name: renderer boundary guard
+      run: python3 ./scripts/check_renderer_boundaries.py --fail-on-violations
+      fail_text: |
+        Renderer boundary guard tripped. See docs/internal/architecture/renderer-refactor-roadmap.md.
 
 pre-push:
   skip:
     - rebase
     - merge
+  parallel: true
   commands:
-    clippy:
-      name: cargo clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+    # Fast `cargo check` — compiles without codegen, ~5-15s warm cache.
+    # Catches type errors that would tank PR Gate's lint job.
+    cargo-check:
+      name: cargo check (fast)
+      run: cargo check --all-targets --all-features --locked
       fail_text: |
-        clippy found warnings. Fix them before pushing (warnings are errors in CI).
-    test-lib:
-      name: cargo nextest run --lib
-      run: cargo nextest run --lib
-      fail_text: |
-        Library test failures detected. Fix them before pushing.
+        cargo check failed. Fix compile errors before pushing — PR Gate's
+        lint/test shards will reject this on arrival.
+
+    # Re-run the cheap guardrails on push too (in case someone pushed without
+    # going through a commit, or amended after a previous commit).
+    file-size:
+      name: rust file-size guardrail
+      run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+
+    renderer-boundaries:
+      name: renderer boundary guard
+      run: python3 ./scripts/check_renderer_boundaries.py --fail-on-violations

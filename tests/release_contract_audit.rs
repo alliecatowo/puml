@@ -141,3 +141,40 @@ fn release_docs_capture_release_gate_contract() {
         "README should document explicit baseline refresh command"
     );
 }
+
+/// Prevents the silent drift that broke main on 2026-05-28: when
+/// `scripts/check-all.sh` (the Main Gate canonical script) gained a guardrail
+/// step, the PR Gate workflow needed to be hand-mirrored or PRs sailed through
+/// and broke main. This test asserts every cheap guardrail step in check-all.sh
+/// has a corresponding step name in `.github/workflows/pr-gate.yml` so the two
+/// stay aligned by construction.
+#[test]
+fn pr_gate_workflow_mirrors_check_all_guardrails() {
+    let pr_gate = fs::read_to_string(repo_path(".github/workflows/pr-gate.yml"))
+        .expect("failed to read .github/workflows/pr-gate.yml");
+
+    // Guardrail steps that MUST appear in pr-gate.yml because Main Gate's
+    // check-all.sh runs them. Keep this list in lockstep with check-all.sh's
+    // `[gate] echo` steps. When you add a guardrail to check-all.sh, add the
+    // corresponding step here and the matching step to pr-gate.yml.
+    let required_steps: &[&str] = &[
+        "rust file-size guardrail",
+        "renderer boundary guard",
+        "cargo fmt --check",
+        // clippy and tests already covered by the existing `lint` + test-shard jobs.
+    ];
+
+    let mut missing = Vec::new();
+    for step in required_steps {
+        if !pr_gate.contains(step) {
+            missing.push(*step);
+        }
+    }
+
+    assert!(
+        missing.is_empty(),
+        "PR Gate workflow is missing guardrail steps that Main Gate enforces: {missing:?}.\n\
+         Add the matching step to .github/workflows/pr-gate.yml (typically in the lint job) \
+         so PRs catch failures locally instead of breaking main after merge."
+    );
+}

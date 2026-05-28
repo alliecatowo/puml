@@ -176,6 +176,14 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
+      # Structural guardrails (same as main-gate via scripts/check-all.sh).
+      # Keep these in lockstep — PR gate must catch what main-gate would catch.
+      - name: rust file-size guardrail
+        run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+
+      - name: renderer boundary guardrail
+        run: python3 ./scripts/check_renderer_boundaries.py --fail-on-violations
+
       - name: fmt gate
         run: cargo fmt --check
 
