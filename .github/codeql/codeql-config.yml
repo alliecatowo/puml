@@ -1,0 +1,12 @@
+name: Lightweight CI Analyzer
+
+disable-default-queries: true
+
+queries:
+  - uses: security-and-quality
+
+paths:
+  - src
+  - crates
+  - stdlib
+  - tests
