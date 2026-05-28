@@ -282,10 +282,7 @@ nwdiag {
 
     // Each assigned IP address must appear somewhere in the rendered SVG.
     for ip in ["10.1.0.1", "10.1.0.2", "10.2.0.1", "10.2.0.2"] {
-        assert!(
-            svg.contains(ip),
-            "expected address '{ip}' in rendered SVG"
-        );
+        assert!(svg.contains(ip), "expected address '{ip}' in rendered SVG");
     }
 
     // For multi-homed nodes, the renderer emits per-connector address labels

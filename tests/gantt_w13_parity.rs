@@ -49,7 +49,10 @@ Project starts 2026-01-01
     );
 
     // Both task labels must appear in the label column.
-    assert!(svg.contains("Short"), "task name 'Short' must appear in SVG");
+    assert!(
+        svg.contains("Short"),
+        "task name 'Short' must appear in SVG"
+    );
     assert!(svg.contains("Long"), "task name 'Long' must appear in SVG");
 }
 

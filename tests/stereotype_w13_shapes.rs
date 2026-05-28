@@ -26,14 +26,12 @@ fn svg(src: &str) -> String {
 /// labels above the class name, not as raw `<<foo>>` angle-bracket characters.
 #[test]
 fn stereotype_unknown_renders_as_guillemets_not_double_angle_brackets() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class UserController <<controller>>
 class UserService <<service>>
 class UserRepository <<repository>>
 @enduml
-"#,
-    );
+"#);
     // Guillemet forms must be present.
     assert!(
         s.contains("\u{ab}controller\u{bb}"),
@@ -67,12 +65,10 @@ class UserRepository <<repository>>
 /// A completely arbitrary user stereotype must also render as guillemets.
 #[test]
 fn stereotype_arbitrary_user_label_renders_as_guillemets() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class Widget <<myCustomStereotype>>
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}myCustomStereotype\u{bb}"),
         "arbitrary user stereotype must render as «myCustomStereotype»: {s}"
@@ -89,12 +85,10 @@ class Widget <<myCustomStereotype>>
 /// characteristic warm-tan (#fde68a) header introduced in wave-9-A.
 #[test]
 fn stereotype_entity_continues_to_render_with_tan_header_after_w9a() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class User <<entity>>
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}entity\u{bb}"),
         "<<entity>> must render «entity» guillemet label: {s}"
@@ -112,12 +106,10 @@ class User <<entity>>
 /// «enumeration» label and lemon-yellow (#ffffcc) header.
 #[test]
 fn stereotype_enumeration_word_form_maps_to_enum_header() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class Color <<enumeration>>
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}enumeration\u{bb}"),
         "<<enumeration>> must render «enumeration» guillemet label: {s}"
@@ -131,15 +123,13 @@ class Color <<enumeration>>
 /// The `enum` keyword form must continue to produce the same canonical label.
 #[test]
 fn stereotype_enumeration_renders_class_box_with_enumeration_header() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 enum Status {
   ACTIVE
   INACTIVE
 }
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}enumeration\u{bb}"),
         "enum keyword must render «enumeration» guillemet label: {s}"
@@ -156,12 +146,10 @@ enum Status {
 /// canonical reddish (#fecaca) header fill.
 #[test]
 fn stereotype_exception_renders_with_reddish_header() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 exception IOException
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}exception\u{bb}"),
         "exception keyword must render «exception» guillemet label: {s}"
@@ -178,12 +166,10 @@ exception IOException
 /// UML convention (fix #767).
 #[test]
 fn stereotype_abstract_renders_class_name_in_italic() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 abstract class Vehicle
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("font-style=\"italic\""),
         "abstract class name must be rendered in italic: {s}"
@@ -201,12 +187,10 @@ abstract class Vehicle
 /// change.  The rendered SVG must contain a `<rect>` element (the class box).
 #[test]
 fn stereotype_custom_controller_renders_as_guillemets_label() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class Auth <<controller>>
 @enduml
-"#,
-    );
+"#);
     // Must still be a rect-based class box.
     assert!(
         s.contains("<rect"),
@@ -230,12 +214,10 @@ class Auth <<controller>>
 /// Both must appear in the header as guillemet labels.
 #[test]
 fn stereotype_multiple_on_same_class_all_render_in_header() {
-    let s = svg(
-        r#"@startuml
+    let s = svg(r#"@startuml
 class UserService <<service>> <<internal>>
 @enduml
-"#,
-    );
+"#);
     assert!(
         s.contains("\u{ab}service\u{bb}"),
         "first stereotype «service» must appear: {s}"

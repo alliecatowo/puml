@@ -90,7 +90,9 @@ pub(super) fn render_class_node(
             // Exception: reddish header (PlantUML convention)
             Some("\u{ab}exception\u{bb}") => "#fecaca",
             // Metaclass, stereotype, circle: neutral slate header
-            Some("\u{ab}metaclass\u{bb}") | Some("\u{ab}stereotype\u{bb}") | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
+            Some("\u{ab}metaclass\u{bb}")
+            | Some("\u{ab}stereotype\u{bb}")
+            | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
             _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",
