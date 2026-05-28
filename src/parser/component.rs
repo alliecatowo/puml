@@ -553,10 +553,7 @@ pub(crate) fn parse_component_multiline_decl(
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let text = strip_inline_plantuml_comment(raw).trim();
         if text == "]" {
-            if let StatementKind::ComponentDecl {
-                label, members, ..
-            } = &mut kind
-            {
+            if let StatementKind::ComponentDecl { label, members, .. } = &mut kind {
                 let label_body = body.join("\n");
                 if !label_body.is_empty() {
                     *label = Some(label_body);

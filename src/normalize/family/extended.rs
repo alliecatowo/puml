@@ -83,9 +83,15 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 for (direction_hint, port_name) in port_decls {
                     let scoped_name = format!("{component_id}::{port_name}");
                     let port_members = if direction_hint == "portin" {
-                        vec![ClassMember { text: "<<portin>>".to_string(), modifier: None }]
+                        vec![ClassMember {
+                            text: "<<portin>>".to_string(),
+                            modifier: None,
+                        }]
                     } else if direction_hint == "portout" {
-                        vec![ClassMember { text: "<<portout>>".to_string(), modifier: None }]
+                        vec![ClassMember {
+                            text: "<<portout>>".to_string(),
+                            modifier: None,
+                        }]
                     } else {
                         Vec::new()
                     };
@@ -392,8 +398,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         for endpoint in [rel.from.as_str(), rel.to.as_str()] {
                             if !endpoint.is_empty()
                                 && !nodes.iter().any(|n| {
-                                    n.name == endpoint
-                                        || n.alias.as_deref() == Some(endpoint)
+                                    n.name == endpoint || n.alias.as_deref() == Some(endpoint)
                                 })
                             {
                                 nodes.push(FamilyNode {
