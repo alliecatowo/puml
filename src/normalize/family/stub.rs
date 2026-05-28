@@ -349,8 +349,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 hide_options.insert(opt.to_ascii_lowercase());
             }
             StatementKind::Title(v) => common.title(v),
-            StatementKind::Header(v) => common.raw_header(v),
-            StatementKind::Footer(v) => common.raw_footer(v),
+            StatementKind::Header(v) => common.header(v),
+            StatementKind::Footer(v) => common.footer(v),
             StatementKind::Caption(v) => common.caption(v),
             StatementKind::Legend(v) => common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::Mainframe(v) => common.mainframe(v),
@@ -567,7 +567,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         namespace_separator,
         title: common.title,
         header: common.header,
+        header_align: common.header_align,
         footer: common.footer,
+        footer_align: common.footer_align,
         caption: common.caption,
         legend: common.legend,
         legend_halign: common.legend_halign,

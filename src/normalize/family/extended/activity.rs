@@ -23,11 +23,20 @@ pub(super) fn normalize_activity_step(
     let sdl_shape = extract_activity_sdl_shape(&mut label);
     let note_meta = extract_activity_note_meta(&mut label);
     let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
+    // Extract swimlane bold/stereotype display metadata before using the
+    // label as a lane routing identifier.
+    let (swim_bold, swim_stereotype) = if matches!(step.kind, ActivityStepKind::PartitionStart) {
+        extract_activity_swim_display(&mut label)
+    } else {
+        (false, None)
+    };
     match step.kind {
         ActivityStepKind::PartitionStart => {
             if partition_block {
                 state.partition_stack.push(state.active_partition.clone());
             }
+            // Use the clean label (swim display markers already stripped) as
+            // the lane identifier so that node routing is unaffected by style.
             state.active_partition = label.clone();
         }
         ActivityStepKind::PartitionEnd => {
@@ -69,6 +78,12 @@ pub(super) fn normalize_activity_step(
         if *floating {
             alias_parts.push("note_floating=1".to_string());
         }
+    }
+    if swim_bold {
+        alias_parts.push("swim_bold=1".to_string());
+    }
+    if let Some(ref stereo) = swim_stereotype {
+        alias_parts.push(format!("swim_stereotype={stereo}"));
     }
     let alias = alias_parts.join("|");
     nodes.push(FamilyNode {

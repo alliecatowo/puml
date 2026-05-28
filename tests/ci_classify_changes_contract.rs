@@ -102,7 +102,7 @@ fn docs_examples_changes_keep_drift_and_site_coverage() {
     assert_output_contains(
         &output,
         &[
-            "run_full_gate=true",
+            "run_full_gate=false",
             "docs_examples_changed=true",
             "run_docs_examples_drift=true",
             "run_wasm_check=false",

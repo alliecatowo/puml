@@ -410,6 +410,9 @@ pub(super) fn state_kind_from_stereotype(stereotype: Option<&str>) -> StateNodeK
         "outputpin" => StateNodeKind::OutputPin,
         "expansioninput" => StateNodeKind::ExpansionInput,
         "expansionoutput" => StateNodeKind::ExpansionOutput,
+        "terminate" => StateNodeKind::Terminate,
+        "sdlreceive" => StateNodeKind::SdlReceive,
+        "sdlsend" => StateNodeKind::SdlSend,
         _ => StateNodeKind::Normal,
     }
 }

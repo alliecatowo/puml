@@ -16,6 +16,9 @@ pub(super) fn state_node_kind_name(kind: &StateNodeKind) -> &'static str {
         StateNodeKind::OutputPin => "output-pin",
         StateNodeKind::ExpansionInput => "expansion-input",
         StateNodeKind::ExpansionOutput => "expansion-output",
+        StateNodeKind::Terminate => "terminate",
+        StateNodeKind::SdlReceive => "sdl-receive",
+        StateNodeKind::SdlSend => "sdl-send",
         StateNodeKind::Note => "note",
         StateNodeKind::JsonProjection => "json-projection",
     }

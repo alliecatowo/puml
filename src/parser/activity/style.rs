@@ -1,9 +1,25 @@
 use super::*;
+
+/// Parse a swimlane header line of the form `|...|`.
+///
+/// Supported variants (PlantUML reference §6.13 / §6.14):
+/// - `|Lane|`                     — plain swimlane
+/// - `|#color|Lane|`              — colored swimlane
+/// - `|#color|Lane|`              — color + name combo
+/// - `|= Lane|`                   — **bold** header (display only, `=` stripped from name)
+/// - `|<<role>>Lane|`             — stereotype; `<<role>>` stripped from identifier,
+///   stored as `lane_stereotype=role` metadata in the label
+///
+/// The returned label encodes both the clean lane identifier (used for node
+/// routing) and any display modifiers, using `\x1f`-delimited fields.
 pub(crate) fn parse_activity_swimlane(line: &str) -> Option<String> {
     if !line.starts_with('|') || !line.ends_with('|') {
         return None;
     }
     let mut color: Option<&str> = None;
+    let mut bold = false;
+    let mut stereotype: Option<String> = None;
+
     let parts: Vec<&str> = line
         .trim_matches('|')
         .split('|')
@@ -19,7 +35,45 @@ pub(crate) fn parse_activity_swimlane(line: &str) -> Option<String> {
             true
         })
         .collect();
-    parts.last().map(|part| activity_style_label(*part, color))
+
+    let raw_name = parts.last().copied()?;
+    // Strip leading `=` bold modifier
+    let raw_name = if let Some(rest) = raw_name.strip_prefix('=') {
+        bold = true;
+        rest.trim()
+    } else {
+        raw_name
+    };
+    // Strip leading `<<stereotype>>` prefix
+    let clean_name = if raw_name.starts_with("<<") {
+        if let Some(close) = raw_name.find(">>") {
+            let stereo = &raw_name[2..close];
+            if !stereo.is_empty() {
+                stereotype = Some(stereo.to_string());
+            }
+            raw_name[close + 2..].trim()
+        } else {
+            raw_name
+        }
+    } else {
+        raw_name
+    };
+
+    // Build the style-annotated label.  The clean_name is the lane identifier;
+    // bold and stereotype are display-only hints encoded as \x1f markers.
+    let mut style_parts: Vec<String> = Vec::new();
+    if bold {
+        style_parts.push("\x1fswim:bold\x1f".to_string());
+    }
+    if let Some(ref stereo) = stereotype {
+        style_parts.push(format!("\x1fswim:stereotype={stereo}\x1f"));
+    }
+    let annotated_name = if style_parts.is_empty() {
+        clean_name.to_string()
+    } else {
+        format!("{}{}", style_parts.concat(), clean_name)
+    };
+    Some(activity_style_label(annotated_name, color))
 }
 
 pub(crate) fn parse_activity_colored_action(line: &str) -> Option<(String, Option<String>)> {
@@ -94,6 +148,35 @@ pub(crate) fn parse_activity_partition_like(line: &str) -> Option<(String, Optio
     } else {
         Some((label, color))
     }
+}
+
+/// Extract swimlane display metadata embedded in a lane label by
+/// [`parse_activity_swimlane`].
+///
+/// Returns `(clean_name, bold, stereotype)` where `clean_name` has all `\x1f`
+/// swim markers stripped, `bold` is true when `|= Name|` was parsed, and
+/// `stereotype` carries the `<<role>>` text if present.
+#[allow(dead_code)]
+pub(crate) fn extract_swimlane_display_meta(label: &str) -> (&str, bool, Option<&str>) {
+    let mut rest = label;
+    let mut bold = false;
+    let mut stereotype: Option<&str> = None;
+    loop {
+        if let Some(after) = rest.strip_prefix("\x1fswim:bold\x1f") {
+            bold = true;
+            rest = after;
+        } else if let Some(after) = rest.strip_prefix("\x1fswim:stereotype=") {
+            if let Some(end) = after.find('\x1f') {
+                stereotype = Some(&after[..end]);
+                rest = &after[end + 1..];
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    (rest, bold, stereotype)
 }
 
 pub(crate) fn parse_activity_arrow_directive(line: &str) -> Option<String> {

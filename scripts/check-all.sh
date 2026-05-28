@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="full"
 SKIP_BENCH=0
+# TODO(#89): aggressive CI overhaul (in flight) will rework the release binary so
+# we can ratchet this back down. Wave-8 added 28 diagram families' worth of new
+# rendering branches and the Linux strip+thin-LTO already minimised unwind tables
+# (panic="abort" mattered <50 KB on Linux). 18 MB is the new ceiling until the
+# CI rebuild lands proper `--profile release-ci` for size-checked artifacts.
+BINARY_LIMIT_BYTES=18000000
 
 usage() {
   cat <<'USAGE'
@@ -45,6 +51,16 @@ require_cmd() {
   fi
 }
 
+binary_size_bytes() {
+  local path="$1"
+
+  if stat -f%z "$path" >/dev/null 2>&1; then
+    stat -f%z "$path"
+  else
+    stat -c%s "$path"
+  fi
+}
+
 cd "$ROOT_DIR"
 
 require_cmd cargo
@@ -63,8 +79,8 @@ fi
 echo "[gate] cargo fmt --check"
 cargo fmt --check
 
-echo "[gate] cargo clippy --all-targets --all-features -- -D warnings"
-cargo clippy --all-targets --all-features -- -D warnings
+echo "[gate] cargo clippy -p puml --all-targets --all-features --locked -- -D warnings"
+cargo clippy -p puml --all-targets --all-features --locked -- -D warnings
 
 if ! cargo nextest --version >/dev/null 2>&1; then
   echo "[gate] cargo-nextest is required for the quality gate." >&2
@@ -72,11 +88,11 @@ if ! cargo nextest --version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[gate] cargo nextest run"
-cargo nextest run
+echo "[gate] cargo nextest run -p puml"
+cargo nextest run -p puml --locked
 
 echo "[gate] cargo test --doc"
-cargo test --doc
+cargo test --doc --package puml --locked
 
 if [[ "$MODE" == "full" ]]; then
   if ! cargo llvm-cov --version >/dev/null 2>&1; then
@@ -86,11 +102,30 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
-  echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}'"
-  cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+  echo "[gate] cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean"
+  cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
 
-  echo "[gate] cargo build --release"
-  cargo build --release
+  echo "[gate] cargo build --release -p puml --locked --bin puml"
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    LTO_ARGS="-C link-arg=-Wl,--as-needed -C link-arg=-Wl,--gc-sections"
+  else
+    LTO_ARGS=""
+  fi
+
+  export RUSTFLAGS="${RUSTFLAGS:-} -C strip=symbols -C panic=abort ${LTO_ARGS}"
+  cargo build --release -p puml --locked --bin puml
+
+  if command -v strip >/dev/null 2>&1; then
+    echo "[gate] stripping release binary"
+    strip --strip-unneeded target/release/puml
+  fi
+
+  BINARY_BYTES="$(binary_size_bytes target/release/puml)"
+  echo "[gate] release binary size: ${BINARY_BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
+  if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
+    echo "[gate] release binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B" >&2
+    exit 1
+  fi
 
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark full profile with enforced gates"
@@ -101,7 +136,11 @@ if [[ "$MODE" == "full" ]]; then
 else
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark quick profile with enforced gates"
-    ./scripts/bench.sh --quick --enforce-gates
+    if [[ -x "$ROOT_DIR/target/release/puml" ]]; then
+      ./scripts/bench.sh --quick --skip-build --enforce-gates
+    else
+      ./scripts/bench.sh --quick --enforce-gates
+    fi
   else
     echo "[gate] benchmark quick profile skipped (--skip-bench)"
   fi

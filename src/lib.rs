@@ -45,8 +45,8 @@ pub use ast::Document;
 pub use diagnostic::{normalized_warnings, Diagnostic, DiagnosticCategory, DiagnosticJson};
 pub use metadata::{extract_metadata, DiagramMetadata};
 pub use model::{
-    FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
-    SequenceDocument, SequencePage, StateDocument, TimelineDocument,
+    FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, MetadataHAlign, NormalizedDocument,
+    ScaleSpec, SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
 pub use output::{
     CommonCommandApplication, CommonCommandKind, CommonCommandPath, RenderArtifact,

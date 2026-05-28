@@ -1,4 +1,4 @@
-use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
+use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
 };
@@ -45,7 +45,9 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
 
     // Layout constants
     let margin_x: i32 = 32;
-    let margin_top: i32 = 32;
+    // Extra top margin for a `header` block above the title / nodes.
+    let header_block_h = family_metadata_label_height(document.header.as_deref());
+    let margin_top: i32 = 32 + header_block_h;
     let col_count: i32 = 3;
     let group_frames = collect_render_group_frames(&document.groups);
     let max_group_depth = group_frames
@@ -190,7 +192,10 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         title_block_height,
     );
     let svg_width = canvas.svg_width;
-    let svg_height = canvas.svg_height;
+    // Reserve space below nodes for caption and footer labels.
+    let caption_block_h = family_metadata_label_height(document.caption.as_deref());
+    let footer_block_h = family_metadata_label_height(document.footer.as_deref());
+    let svg_height = canvas.svg_height + caption_block_h + footer_block_h;
     let nodes_bottom = canvas.nodes_bottom;
     // gl_canvas_right / gl_canvas_bottom consumed by class_compute_canvas
     let mut out = String::new();
@@ -264,6 +269,20 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         render_ie_marker_defs(&mut out, arrow_stroke);
     }
     out.push_str("</defs>");
+
+    // Header — rendered above the title at the very top of the canvas.
+    // The header_block_h added to margin_top already reserves vertical space.
+    if let Some(header_text) = &document.header {
+        render_family_metadata_label(
+            &mut out,
+            header_text,
+            "header",
+            document.header_align,
+            16,
+            svg_width,
+            "fill=\"#333333\"",
+        );
+    }
 
     // Title
     if let Some(title) = &document.title {
@@ -387,6 +406,35 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         );
     }
 
+    // Caption — rendered in italic below the diagram nodes/legend (before footer).
+    // `canvas.svg_height` is the bottom of the nodes+legend area (before our additions).
+    let caption_y = canvas.svg_height + 14;
+    if let Some(caption_text) = &document.caption {
+        render_family_metadata_label(
+            &mut out,
+            caption_text,
+            "caption",
+            MetadataHAlign::Left,
+            caption_y,
+            svg_width,
+            "fill=\"#555555\" font-style=\"italic\"",
+        );
+    }
+
+    // Footer — rendered at the very bottom of the SVG.
+    let footer_y = caption_y + caption_block_h + 14;
+    if let Some(footer_text) = &document.footer {
+        render_family_metadata_label(
+            &mut out,
+            footer_text,
+            "footer",
+            document.footer_align,
+            footer_y,
+            svg_width,
+            "fill=\"#333333\"",
+        );
+    }
+
     out.push_str("</svg>");
     crate::output::append_optional_mainframe_svg(&mut out, document.mainframe.as_deref());
     let mut scene = gl_result_class.scene.clone();
@@ -396,6 +444,57 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         document.mainframe.clone(),
         document.mainframe.is_some(),
     )
+}
+
+/// Render a `header`, `footer`, or `caption` label for class/family diagrams.
+///
+/// `y_top` is the baseline of the first line of text.  `svg_width` is used to
+/// compute the x position for centered / right-aligned variants.  Each text line
+/// is spaced 16px apart (12px monospace font).
+///
+/// PlantUML renders these labels in a small italic font outside the diagram area.
+/// We emit them as `<g class="uml-{role}">` blocks so CSS or tests can target them.
+pub(super) fn render_family_metadata_label(
+    out: &mut String,
+    text: &str,
+    role: &str,
+    align: MetadataHAlign,
+    y_top: i32,
+    svg_width: i32,
+    extra_attrs: &str,
+) {
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.is_empty() {
+        return;
+    }
+    out.push_str(&format!("<g class=\"uml-{role}\">"));
+    for (idx, line) in lines.iter().enumerate() {
+        let line_width = crate::render::text_metrics::monospace_width(line, 7).max(1);
+        let x = match align {
+            MetadataHAlign::Left => 8,
+            MetadataHAlign::Center => ((svg_width - line_width) / 2).max(8),
+            MetadataHAlign::Right => (svg_width - line_width - 8).max(8),
+        };
+        let y = y_top + (idx as i32) * 16;
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" {extra}>{text}</text>",
+            extra = extra_attrs,
+            text = escape_text(line)
+        ));
+    }
+    out.push_str("</g>");
+}
+
+/// Compute the height (in pixels) consumed by a multi-line metadata label block.
+/// Returns `0` if `text` is `None`.
+pub(super) fn family_metadata_label_height(text: Option<&str>) -> i32 {
+    match text {
+        None => 0,
+        Some(t) => {
+            let count = t.lines().count().max(1) as i32;
+            count * 16 + 8
+        }
+    }
 }
 
 /// Render a `legend ... end legend` block at the corner indicated by

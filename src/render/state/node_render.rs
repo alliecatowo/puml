@@ -181,6 +181,125 @@ pub(super) fn render_node<'a>(
             }
         }
 
+        StateNodeKind::Terminate => {
+            // UML terminate pseudostate: circle with an X drawn inside it.
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            let r = 10i32;
+            let border = state_node_border(node, state_style);
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx, cy, r, state_style.background_color, border
+            ));
+            // X cross lines
+            let offset = (r as f32 * 0.6) as i32;
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx - offset,
+                cy - offset,
+                cx + offset,
+                cy + offset,
+                border
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx + offset,
+                cy - offset,
+                cx - offset,
+                cy + offset,
+                border
+            ));
+        }
+
+        StateNodeKind::SdlReceive => {
+            // SDL receive signal: rectangle with a concave indent on the left side.
+            // Shape: start from top-left, go right to top-right, down to bottom-right,
+            // left to bottom-left, then concave arc inward at the left.
+            let fill = state_node_fill(node, state_style);
+            let border = state_node_border(node, state_style);
+            let indent = (h / 4).max(6);
+            let path = format!(
+                "M {},{} L {},{} L {},{} L {},{} L {},{} Q {},{} {},{}  Z",
+                x,
+                y,
+                x + w,
+                y,
+                x + w,
+                y + h,
+                x,
+                y + h,
+                x + indent,
+                y + h / 2, // bottom-left concave tip
+                x - indent / 2,
+                y + h / 2, // control point (inward)
+                x,
+                y // back to top-left (arc)
+            );
+            // Simpler polygon form: arrow-head indent on left
+            let pts = format!(
+                "{},{} {},{} {},{} {},{} {},{}",
+                x + indent,
+                y,
+                x + w,
+                y,
+                x + w,
+                y + h,
+                x + indent,
+                y + h,
+                x,
+                y + h / 2,
+            );
+            out.push_str(&format!(
+                "<polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                pts, fill, border
+            ));
+            // Label: state name centered
+            let display = node.display.as_deref().unwrap_or(&node.name);
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                x + (w + indent) / 2,
+                y + h / 2 + state_node_font_size(state_style) as i32 / 3,
+                state_node_font_size(state_style),
+                state_node_text(node, state_style),
+                escape_text(display)
+            ));
+            let _ = path; // suppress unused warning
+        }
+
+        StateNodeKind::SdlSend => {
+            // SDL send signal: rectangle with a convex arrow-point on the right side.
+            let fill = state_node_fill(node, state_style);
+            let border = state_node_border(node, state_style);
+            let point = (h / 4).max(6);
+            let pts = format!(
+                "{},{} {},{} {},{} {},{} {},{}",
+                x,
+                y,
+                x + w - point,
+                y,
+                x + w,
+                y + h / 2,
+                x + w - point,
+                y + h,
+                x,
+                y + h,
+            );
+            out.push_str(&format!(
+                "<polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                pts, fill, border
+            ));
+            // Label: state name centered
+            let display = node.display.as_deref().unwrap_or(&node.name);
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                x + (w - point) / 2,
+                y + h / 2 + state_node_font_size(state_style) as i32 / 3,
+                state_node_font_size(state_style),
+                state_node_text(node, state_style),
+                escape_text(display)
+            ));
+        }
+
         StateNodeKind::Note => {
             render_state_note(out, node, x, y, w, h);
         }

@@ -196,6 +196,13 @@ pub(super) fn build_activity_scene(
 
     // ---- Extra/branch edges (if/while branching) ----
     for (k, route) in redirected_extra_arrows.iter().enumerate() {
+        // Skip while-loop back-edges and exit-path arrows: the SVG renderer
+        // detours them around obstacle nodes using multi-segment paths.  A
+        // straight 2-point approximation in the scene would cross intermediate
+        // nodes and produce spurious EdgeCrossesNode geometry violations.
+        if route.skip_in_scene {
+            continue;
+        }
         // Find which node this extra arrow targets (same dst matching as emit_extra_arrows)
         let to_idx = doc
             .nodes

@@ -5,7 +5,7 @@
 //! when the fixture records a linked issue.
 
 use puml::render::validate::{self, AutoCorrect};
-use puml::render_core::{GeometryIssue, SceneAvailability};
+use puml::render_core::GeometryIssue;
 
 #[derive(Clone, Copy)]
 struct PromotedFixture {
@@ -134,15 +134,9 @@ fn promoted_visual_cases_have_svg_invariant_coverage() {
         // artifact still produces SVG, but validate_geometry is unavailable —
         // those fixtures pass the geometry gates vacuously (no scene → no issues
         // to report) and fall back on the SVG-level label check above.
-        let typed_issues: Vec<GeometryIssue> =
-            if artifact.scene_availability == SceneAvailability::TypedScene {
-                artifact
-                    .typed_scene()
-                    .map(|scene| scene.validate_geometry())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
+        let typed_issues: Vec<GeometryIssue> = artifact
+            .typed_scene()
+            .map_or_else(Vec::new, |scene| scene.validate_geometry());
 
         // INV-1 / INV-4: edge-vs-node and edge-vs-group-header crossings.
         let route_node_count = typed_issues

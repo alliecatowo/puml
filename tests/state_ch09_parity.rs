@@ -1,6 +1,277 @@
 use puml::model::{NormalizedDocument, StateNodeKind};
 use std::fs;
 
+// ── Feature: inline transition color ────────────────────────────────────────
+// PlantUML spec §3.36: tail-form inline style on state transitions.
+// `From --> To #red : event` sets the transition stroke to red.
+// `From --> To #line:blue;line.bold : event` sets blue bold stroke.
+// Before this fix the `#red` / `#line:blue` was incorrectly appended to the
+// target node name, creating phantom nodes like "To #red".
+#[test]
+fn state_transition_inline_tail_color_parses_correctly() {
+    let src = r#"@startuml
+[*] --> Idle
+Idle --> Active #red : start
+Active --> Idle #line:blue;line.bold : stop
+Active --> Done #CC00FF
+@enduml"#;
+    let document = puml::parser::parse(src).expect("parse inline-color transitions");
+    let NormalizedDocument::State(model) =
+        puml::normalize_family(document).expect("normalize inline-color transitions")
+    else {
+        panic!("should normalize as State");
+    };
+
+    // No phantom nodes: only Idle, Active, Done, [*] and optionally [*]__end
+    let node_names: Vec<&str> = model.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(
+        !node_names.iter().any(|n| n.contains("#")),
+        "no node name should contain '#'; got: {node_names:?}"
+    );
+    assert!(
+        node_names.contains(&"Idle"),
+        "Idle must exist as a clean node"
+    );
+    assert!(
+        node_names.contains(&"Active"),
+        "Active must exist as a clean node"
+    );
+    assert!(
+        node_names.contains(&"Done"),
+        "Done must exist as a clean node"
+    );
+
+    // Transition colours are captured
+    let idle_to_active = model
+        .transitions
+        .iter()
+        .find(|t| t.from == "Idle" && t.to == "Active")
+        .expect("Idle→Active transition");
+    assert_eq!(
+        idle_to_active.line_color.as_deref(),
+        Some("#ff0000"),
+        "Idle→Active should be red"
+    );
+    assert_eq!(
+        idle_to_active.label.as_deref(),
+        Some("start"),
+        "Idle→Active label should be 'start'"
+    );
+
+    let active_to_idle = model
+        .transitions
+        .iter()
+        .find(|t| t.from == "Active" && t.to == "Idle")
+        .expect("Active→Idle transition");
+    assert_eq!(
+        active_to_idle.line_color.as_deref(),
+        Some("#0000ff"),
+        "Active→Idle should be blue"
+    );
+    assert!(
+        active_to_idle.thickness.is_some(),
+        "Active→Idle should be bold"
+    );
+
+    let active_to_done = model
+        .transitions
+        .iter()
+        .find(|t| t.from == "Active" && t.to == "Done")
+        .expect("Active→Done transition");
+    assert!(
+        active_to_done.line_color.is_some(),
+        "Active→Done should carry a line color"
+    );
+}
+
+#[test]
+fn state_transition_inline_tail_color_renders_correct_strokes() {
+    let src = r#"@startuml
+[*] --> Idle
+Idle --> Active #red : start
+Active --> Idle #line:blue;line.bold : stop
+@enduml"#;
+    let svg = puml::render_source_to_svg(src).expect("render inline-color state transitions");
+
+    // State nodes must NOT include "#" in their name attribute
+    assert!(
+        !svg.contains("data-state-node=\"Active #"),
+        "phantom 'Active #...' node must not appear in SVG"
+    );
+    assert!(
+        !svg.contains("data-state-node=\"Idle #"),
+        "phantom 'Idle #...' node must not appear in SVG"
+    );
+
+    // The correct stroke colour must appear on the Idle→Active path
+    assert!(
+        svg.contains("data-state-from=\"Idle\" data-state-to=\"Active\""),
+        "Idle→Active path must be present"
+    );
+    // Red is rendered as #ff0000
+    assert!(
+        svg.contains("stroke=\"#ff0000\""),
+        "red transition stroke (#ff0000) must appear in SVG"
+    );
+    // Bold blue
+    assert!(
+        svg.contains("stroke=\"#0000ff\""),
+        "blue transition stroke (#0000ff) must appear in SVG"
+    );
+    assert!(
+        svg.contains("stroke-width=\"3\""),
+        "bold (stroke-width=3) transition must appear in SVG"
+    );
+}
+
+// ── Feature: <<terminate>> pseudostate ──────────────────────────────────────
+// UML terminate pseudostate: rendered as a circle with an X cross inside.
+#[test]
+fn state_terminate_stereotype_normalizes_to_correct_kind() {
+    let src = r#"@startuml
+state T <<terminate>>
+[*] --> S
+S --> T : done
+@enduml"#;
+    let document = puml::parser::parse(src).expect("parse terminate stereotype");
+    let NormalizedDocument::State(model) =
+        puml::normalize_family(document).expect("normalize terminate stereotype")
+    else {
+        panic!("should normalize as State");
+    };
+
+    let t_node = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "T")
+        .expect("T node must exist");
+    assert_eq!(
+        t_node.kind,
+        StateNodeKind::Terminate,
+        "<<terminate>> should map to StateNodeKind::Terminate"
+    );
+}
+
+#[test]
+fn state_terminate_stereotype_renders_circle_with_x() {
+    let src = r#"@startuml
+state T <<terminate>>
+[*] --> S
+S --> T : done
+@enduml"#;
+    let svg = puml::render_source_to_svg(src).expect("render terminate state");
+
+    assert!(
+        svg.contains("data-state-kind=\"terminate\""),
+        "terminate node must appear with data-state-kind=\"terminate\""
+    );
+    // Must NOT fall back to a rectangle (no <rect> immediately after terminate metadata)
+    let doc = roxmltree::Document::parse(&svg).expect("SVG should parse");
+    let elements: Vec<_> = doc.descendants().filter(|n| n.is_element()).collect();
+    let term_meta_idx = elements
+        .iter()
+        .position(|n| {
+            n.has_tag_name("metadata") && n.attribute("data-state-kind") == Some("terminate")
+        })
+        .expect("terminate metadata must exist");
+    // The first shape after the metadata must be a circle (the outer ring), not a rect
+    let first_shape = elements
+        .iter()
+        .skip(term_meta_idx + 1)
+        .find(|n| matches!(n.tag_name().name(), "rect" | "circle" | "polygon" | "line"))
+        .expect("a shape must follow terminate metadata");
+    assert_eq!(
+        first_shape.tag_name().name(),
+        "circle",
+        "terminate pseudostate must render as a circle, not a {:?}",
+        first_shape.tag_name().name()
+    );
+    // The X cross lines must also be present in the SVG
+    let has_cross_lines = elements
+        .iter()
+        .skip(term_meta_idx + 1)
+        .take(5) // look at a few elements right after the circle
+        .any(|n| n.has_tag_name("line"));
+    assert!(
+        has_cross_lines,
+        "terminate pseudostate must render with X cross lines"
+    );
+}
+
+// ── Feature: <<sdlreceive>> / <<sdlsend>> pseudostates ──────────────────────
+// SDL signal stereotypes: distinctive polygon shapes instead of rounded rectangles.
+#[test]
+fn state_sdl_stereotypes_normalize_to_correct_kinds() {
+    let src = r#"@startuml
+state R <<sdlreceive>>
+state S <<sdlsend>>
+[*] --> R
+R --> S
+@enduml"#;
+    let document = puml::parser::parse(src).expect("parse SDL stereotypes");
+    let NormalizedDocument::State(model) =
+        puml::normalize_family(document).expect("normalize SDL stereotypes")
+    else {
+        panic!("should normalize as State");
+    };
+
+    let r_node = model.nodes.iter().find(|n| n.name == "R").expect("R node");
+    let s_node = model.nodes.iter().find(|n| n.name == "S").expect("S node");
+    assert_eq!(
+        r_node.kind,
+        StateNodeKind::SdlReceive,
+        "<<sdlreceive>> should map to StateNodeKind::SdlReceive"
+    );
+    assert_eq!(
+        s_node.kind,
+        StateNodeKind::SdlSend,
+        "<<sdlsend>> should map to StateNodeKind::SdlSend"
+    );
+}
+
+#[test]
+fn state_sdl_stereotypes_render_polygon_shapes() {
+    let src = r#"@startuml
+state R <<sdlreceive>>
+state S <<sdlsend>>
+[*] --> R
+R --> S
+@enduml"#;
+    let svg = puml::render_source_to_svg(src).expect("render SDL state stereotypes");
+
+    assert!(
+        svg.contains("data-state-kind=\"sdl-receive\""),
+        "sdl-receive node must appear with correct data-state-kind"
+    );
+    assert!(
+        svg.contains("data-state-kind=\"sdl-send\""),
+        "sdl-send node must appear with correct data-state-kind"
+    );
+
+    let doc = roxmltree::Document::parse(&svg).expect("SVG should parse");
+    let elements: Vec<_> = doc.descendants().filter(|n| n.is_element()).collect();
+
+    for (kind, name) in [("sdl-receive", "R"), ("sdl-send", "S")] {
+        let meta_idx = elements
+            .iter()
+            .position(|n| {
+                n.has_tag_name("metadata") && n.attribute("data-state-kind") == Some(kind)
+            })
+            .unwrap_or_else(|| panic!("{kind} metadata must exist"));
+        let first_shape = elements
+            .iter()
+            .skip(meta_idx + 1)
+            .find(|n| matches!(n.tag_name().name(), "rect" | "circle" | "polygon"))
+            .unwrap_or_else(|| panic!("a shape must follow {kind} metadata"));
+        assert_eq!(
+            first_shape.tag_name().name(),
+            "polygon",
+            "{name} (<<{kind}>>) must render as a polygon, not a {:?}",
+            first_shape.tag_name().name()
+        );
+    }
+}
+
 const CH09_STATE_SRC: &str = r##"@startuml
 title State ch09 parity slice
 hide empty description

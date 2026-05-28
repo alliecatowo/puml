@@ -1,77 +1,26 @@
+mod frames;
+mod helpers;
+
+use frames::{branch_is_live, ForkBranch, ForkFrame, IfFrame, RepeatFrame, WhileFrame};
+use helpers::{activity_decision_guard, layout_note_node, unpack_layout_params};
+pub(in crate::render::activity) use helpers::{
+    is_activity_flow_neutral_node, is_activity_terminal_step, previous_activity_flow_node,
+};
+
 use super::super::super::layout_constants::ACTIVITY_ARROW_OUT_OFFSET;
 use super::super::arrows::fork_branch_cx;
 use super::{ActivityRoute, LayoutParams, LayoutResult, NodeLayout, NodeMeta};
-use crate::model::{FamilyDocument, FamilyNodeKind};
-
-struct IfFrame {
-    diamond_cx: i32,
-    diamond_arrow_out: i32,
-    diamond_next_slot: i32,
-    then_guard: Option<String>,
-    then_cx: i32,
-    then_rightmost_cx: i32,
-    then_end_next_slot: i32,
-    in_else: bool,
-    else_cx: i32,
-    else_start_slot: i32,
-}
-
-struct ForkFrame {
-    fork_node_idx: usize,
-    fork_cx: i32,
-    fork_slot_y: i32,
-    branch_start_y: i32,
-    is_split: bool,
-    branches: Vec<ForkBranch>,
-    current_branch: usize,
-    fork_again_indices: Vec<usize>,
-}
-
-struct ForkBranch {
-    start_node_idx: usize,
-    end_next_slot: i32,
-    end_node_idx: Option<usize>,
-}
-
-fn branch_is_live(branch: &ForkBranch, metas: &[NodeMeta]) -> bool {
-    !branch
-        .end_node_idx
-        .is_some_and(|idx| is_activity_terminal_step(&metas[idx].step_kind))
-}
-
-struct RepeatFrame {
-    body_start_idx: usize,
-}
-
-// ---------------------------------------------------------------------------
-
-// Pass 1: compute layout positions for every node
-// ---------------------------------------------------------------------------
+use crate::model::FamilyDocument;
+use crate::model::FamilyNodeKind;
 
 pub(in crate::render::activity) fn compute_layout(
     doc: &FamilyDocument,
     metas: &[NodeMeta],
     params: &LayoutParams<'_>,
 ) -> LayoutResult {
-    let LayoutParams {
-        header_h,
-        lane_header_h,
-        step_h,
-        branch_x_offset,
-        fork_col_w,
-        lane_w,
-        lane_center_x,
-        min_fork_col_w,
-    } = params;
-    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w, min_fork_col_w) = (
-        *header_h,
-        *lane_header_h,
-        *step_h,
-        *branch_x_offset,
-        *fork_col_w,
-        *lane_w,
-        *min_fork_col_w,
-    );
+    let lane_center_x = params.lane_center_x;
+    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w, min_fork_col_w) =
+        unpack_layout_params(params);
     const ARROW_OUT: i32 = ACTIVITY_ARROW_OUT_OFFSET;
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
@@ -84,6 +33,7 @@ pub(in crate::render::activity) fn compute_layout(
     let mut if_stack: Vec<IfFrame> = Vec::new();
     let mut fork_stack: Vec<ForkFrame> = Vec::new();
     let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
+    let mut while_stack: Vec<WhileFrame> = Vec::new();
     let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
 
     for (i, meta) in metas.iter().enumerate() {
@@ -445,6 +395,103 @@ pub(in crate::render::activity) fn compute_layout(
 
                 current_slot_y = next_slot_y;
             }
+            "WhileStart" => {
+                // Render the while condition diamond.  Body actions flow straight
+                // down from the diamond on the "yes" (is) path.  On `endwhile` we
+                // emit a back-edge from the last body node back to the top of the
+                // diamond body and mark the exit path with the "no" guard label.
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                // Extract the "is (yes)" guard label for the back-loop arrow.
+                let yes_guard = doc.nodes[i]
+                    .label
+                    .as_deref()
+                    .and_then(activity_decision_guard);
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                while_stack.push(WhileFrame {
+                    diamond_idx: i,
+                    diamond_cx: cx,
+                    yes_guard,
+                });
+                current_slot_y = next_slot_y;
+            }
+            "EndWhile" => {
+                // Pop the matching WhileFrame.
+                // Emit a back-edge arrow from the last body node's arrow_out_y
+                // back to the diamond's slot_y (which IS the slot_y of the
+                // first body node, since the diamond advances the slot by step_h).
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                // The EndWhile placeholder gets zero height (it's a control node).
+                suppress_prev_arrow.insert(i);
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+
+                if let Some(while_frame) = while_stack.pop() {
+                    // Back-edge: from the node before EndWhile back to the diamond.
+                    // The source is the arrow_out_y of the last body action (the
+                    // node just before EndWhile).
+                    let back_src_y = if i > 0 {
+                        node_layouts[i - 1].arrow_out_y
+                    } else {
+                        slot_y
+                    };
+                    let diamond_slot_y = node_layouts[while_frame.diamond_idx].slot_y;
+
+                    // The exit label from `endwhile (no)` goes on the exit arrow.
+                    let exit_guard = doc.nodes[i]
+                        .label
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+
+                    // Back-edge: last body node → while diamond (upward back-loop).
+                    // Destination is the diamond node's slot_y so that
+                    // emit_extra_arrows matches it when rendering the WhileStart node.
+                    // Marked skip_in_scene: the SVG renderer detours this arrow
+                    // around obstacle nodes; a straight-line approximation in the
+                    // typed scene would produce spurious EdgeCrossesNode violations.
+                    extra_arrows.push(
+                        ActivityRoute::new(
+                            while_frame.diamond_cx,
+                            back_src_y,
+                            while_frame.diamond_cx,
+                            diamond_slot_y,
+                        )
+                        .with_label(while_frame.yes_guard)
+                        .skip_in_scene(),
+                    );
+                    // Exit path arrow from the diamond's right side, routing around
+                    // the loop body to land on the node below EndWhile.
+                    // Destination slot_y: we store the exit guard and diamond info
+                    // for the deferred arrow — the next node isn't laid out yet,
+                    // so we mark the destination as (cx, next_slot_y) which is the
+                    // EndWhile node's own next_slot_y; the successor node will
+                    // share that slot_y (suppress_prev_arrow ensures it lands there).
+                    // Also skip_in_scene: the diagonal route crosses body nodes.
+                    let diamond_layout = &node_layouts[while_frame.diamond_idx];
+                    let exit_src_x = diamond_layout.cx + 100; // right side of diamond
+                    let exit_src_y = diamond_layout.slot_y + 24; // diamond mid-height
+                    extra_arrows.push(
+                        ActivityRoute::new(exit_src_x, exit_src_y, cx, next_slot_y)
+                            .with_label(exit_guard)
+                            .skip_in_scene(),
+                    );
+                }
+                current_slot_y = next_slot_y;
+            }
             _ => {
                 // Partition/swimlane markers: zero-height layout nodes
                 let is_partition_marker = meta.step_kind == "PartitionStart"
@@ -452,40 +499,20 @@ pub(in crate::render::activity) fn compute_layout(
                     || meta.step_kind == "Arrow"
                     || meta.step_kind == "OldStyle";
                 if meta.step_kind == "Note" {
-                    let anchor_idx = previous_activity_flow_node(doc, metas, i);
-                    let (slot_y, anchor_cx, anchor_arrow_out_y) = anchor_idx
-                        .and_then(|idx| {
-                            node_layouts
-                                .get(idx)
-                                .map(|layout| (layout.slot_y, layout.cx, layout.arrow_out_y))
-                        })
-                        .unwrap_or((current_slot_y, cx, current_slot_y + ARROW_OUT));
-                    let note_h = super::super::nodes::activity_note_card_height(
-                        doc.nodes[i].label.as_deref().unwrap_or_default(),
+                    let (note_layout, next_slot_y) = layout_note_node(
+                        doc,
+                        metas,
+                        &node_layouts,
+                        i,
+                        meta,
+                        cx,
+                        current_slot_y,
+                        lane_w,
+                        header_h,
+                        step_h,
+                        ARROW_OUT,
                     );
-                    let note_offset = (lane_w / 2).max(140) + 32;
-                    let vertical_note_offset = (lane_w / 4).clamp(160, 240);
-                    let vertical_note_cx = anchor_cx + vertical_note_offset;
-                    let (note_cx, note_slot_y, next_slot_y) = match meta.note_side.as_deref() {
-                        Some("left") => (anchor_cx - note_offset, slot_y, current_slot_y),
-                        Some("top") => (
-                            vertical_note_cx,
-                            (slot_y - note_h - 12).max(header_h),
-                            current_slot_y,
-                        ),
-                        Some("bottom") => {
-                            let y = slot_y + step_h;
-                            (vertical_note_cx, y, current_slot_y.max(y + note_h + 12))
-                        }
-                        Some("right") | None => (anchor_cx + note_offset, slot_y, current_slot_y),
-                        Some(_) => (anchor_cx + note_offset, slot_y, current_slot_y),
-                    };
-                    node_layouts.push(NodeLayout {
-                        cx: note_cx,
-                        slot_y: note_slot_y,
-                        arrow_out_y: anchor_arrow_out_y,
-                        next_slot_y,
-                    });
+                    node_layouts.push(note_layout);
                     suppress_prev_arrow.insert(i);
                     current_slot_y = next_slot_y;
                 } else if is_partition_marker
@@ -555,39 +582,4 @@ pub(in crate::render::activity) fn compute_layout(
         direct_arrows,
         suppress_prev_arrow,
     }
-}
-
-fn activity_decision_guard(label: &str) -> Option<String> {
-    label
-        .split_once(" / ")
-        .map(|(_, guard)| guard.trim().to_string())
-}
-
-pub(in crate::render::activity) fn is_activity_terminal_step(step_kind: &str) -> bool {
-    matches!(step_kind, "Stop" | "End" | "Kill" | "Detach")
-}
-
-pub(in crate::render::activity) fn is_activity_flow_neutral_node(
-    doc: &FamilyDocument,
-    metas: &[NodeMeta],
-    idx: usize,
-) -> bool {
-    let step_kind = metas[idx].step_kind.as_str();
-    (matches!(doc.nodes[idx].kind, FamilyNodeKind::ActivityPartition)
-        && (step_kind == "PartitionStart"
-            || step_kind == "PartitionEnd"
-            || step_kind == "Arrow"
-            || step_kind == "OldStyle"))
-        || step_kind == "RepeatStart"
-        || step_kind == "Note"
-}
-
-pub(in crate::render::activity) fn previous_activity_flow_node(
-    doc: &FamilyDocument,
-    metas: &[NodeMeta],
-    idx: usize,
-) -> Option<usize> {
-    (0..idx)
-        .rev()
-        .find(|&prev_idx| !is_activity_flow_neutral_node(doc, metas, prev_idx))
 }

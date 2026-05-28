@@ -94,8 +94,11 @@ pub(crate) fn parse_activity_step(line: &str) -> Option<StatementKind> {
             Some("end split".to_string()),
         ));
     }
-    if trimmed == "endwhile" || trimmed == "end while" {
-        return Some(activity_step_statement(ActivityStepKind::EndWhile, None));
+    if let Some(exit_label) = parse_activity_endwhile(trimmed) {
+        return Some(activity_step_statement(
+            ActivityStepKind::EndWhile,
+            exit_label,
+        ));
     }
     if trimmed == "repeat" {
         return Some(activity_step_statement(ActivityStepKind::RepeatStart, None));

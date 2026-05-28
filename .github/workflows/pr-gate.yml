@@ -97,7 +97,7 @@ jobs:
           cache-on-failure: true
 
       - name: Build puml CLI binary for artifact regen
-        run: cargo build --release --bin puml
+        run: cargo build --release -p puml --locked --bin puml
 
       - name: Regenerate committed diagram artifacts
         run: ./scripts/regen-artifacts.sh --force
@@ -160,26 +160,12 @@ jobs:
       - name: fmt gate
         run: cargo fmt --check
 
-  rust_file_size:
-    name: rust file size
+  quality:
+    name: quality gate
     needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    if: always() && (needs.changes.outputs.run_full_gate == 'true' || needs.changes.outputs.docs_examples_changed == 'true') && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Rust file-size guardrail
-        run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
-
-  clippy:
-    name: clippy
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -188,30 +174,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: clippy gate
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  test:
-    name: test
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+          components: rustfmt, clippy, llvm-tools-preview
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -222,11 +185,19 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
-      - name: test gate
-        run: cargo nextest run
+      - name: Install cargo-llvm-cov
+        if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: doc test gate
-        run: cargo test --doc
+      - name: run quality gate
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ needs.changes.outputs.run_full_gate }}" == "true" || "${{ needs.changes.outputs.docs_examples_changed }}" == "true" ]]; then
+            ./scripts/check-all.sh --skip-bench
+          else
+            ./scripts/check-all.sh --quick --skip-bench
+          fi
 
       - name: Upload visual regression artifacts
         if: always()
@@ -274,35 +245,7 @@ jobs:
           cache-on-failure: true
 
       - name: wasm check
-        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
-
-  coverage:
-    name: coverage
-    needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: coverage gate
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+        run: cargo check --target wasm32-unknown-unknown -p puml-wasm --locked
 
   docs_examples_drift:
     name: docs examples drift
@@ -395,11 +338,8 @@ jobs:
     needs:
       - changes
       - artifact_regen
-      - fmt
-      - clippy
-      - test
+      - quality
       - wasm
-      - coverage
       - docs_examples_drift
       - site_smoke
     if: always()
@@ -419,13 +359,11 @@ jobs:
       IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
       ARTIFACT_REGEN_RESULT: ${{ needs.artifact_regen.result }}
-      FMT_RESULT: ${{ needs.fmt.result }}
-      CLIPPY_RESULT: ${{ needs.clippy.result }}
-      TEST_RESULT: ${{ needs.test.result }}
+      QUALITY_RESULT: ${{ needs.quality.result }}
       WASM_RESULT: ${{ needs.wasm.result }}
-      COVERAGE_RESULT: ${{ needs.coverage.result }}
       DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
+      RUN_DOCS_EXAMPLES_CHANGED: ${{ needs.changes.outputs.docs_examples_changed }}
 
     steps:
       - name: Summarize PR gate shards
@@ -441,11 +379,8 @@ jobs:
           echo "run_site_smoke=${RUN_SITE_SMOKE}"
           echo "regen_pushed=${REGEN_PUSHED}"
           echo "artifact_regen=${ARTIFACT_REGEN_RESULT}"
-          echo "fmt=${FMT_RESULT}"
-          echo "clippy=${CLIPPY_RESULT}"
-          echo "test=${TEST_RESULT}"
+          echo "quality=${QUALITY_RESULT}"
           echo "wasm=${WASM_RESULT}"
-          echo "coverage=${COVERAGE_RESULT}"
           echo "docs_examples=${DOCS_EXAMPLES_RESULT}"
           echo "site_smoke=${SITE_SMOKE_RESULT}"
 
@@ -470,13 +405,8 @@ jobs:
             fi
           fi
 
-          if [[ "${RUN_FULL_GATE}" == "true" ]]; then
-            require_success "fmt" "${FMT_RESULT}"
-            require_success "clippy" "${CLIPPY_RESULT}"
-            require_success "test" "${TEST_RESULT}"
-            if [[ "${IS_BOT_DEP_UPDATER}" != "true" ]]; then
-              require_success "coverage" "${COVERAGE_RESULT}"
-            fi
+          if [[ "${RUN_FULL_GATE}" == "true" || "${RUN_DOCS_EXAMPLES_CHANGED}" == "true" ]]; then
+            require_success "quality" "${QUALITY_RESULT}"
           fi
 
           if [[ "${RUN_WASM_CHECK}" == "true" ]]; then
