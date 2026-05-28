@@ -23,10 +23,12 @@ use url::process_include_url;
 use super::builtins::{execute_procedure_call, invoke_dynamic_procedure};
 use super::includes::{
     eval_simple_arithmetic, evaluate_assert_expression, evaluate_preprocess_expr,
-    parse_preprocess_directive, process_import_directive, process_include_directive,
-    process_include_many_directive, ImportDirectiveContext,
+    find_matching_enddefinelong, parse_preprocess_directive, process_import_directive,
+    process_include_directive, process_include_many_directive, ImportDirectiveContext,
 };
-use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
+use super::macros::{
+    expand_preprocessor_text, parse_macro_define, parse_macro_definelong, parse_named_call,
+};
 use super::{
     ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
     PreprocVariableScope, PreprocessDirective, PreprocessResult,
@@ -329,6 +331,29 @@ pub(super) fn preprocess_text(
                                     .insert(name.to_string(), value.trim().to_string());
                             }
                         }
+                    }
+                }
+                PreprocessDirective::DefineLong(header) => {
+                    let end_idx = find_matching_enddefinelong(&lines, i)?;
+                    if active {
+                        // Collect body lines between the header and !enddefinelong.
+                        let body_lines = &lines[i + 1..end_idx];
+                        let (name, mac) =
+                            parse_macro_definelong(&header, body_lines).map_err(|d| {
+                                annotate_preproc_diagnostic(d, source, raw_span, include_stack)
+                            })?;
+                        state.defines.remove(&name);
+                        state.macros.insert(name, mac);
+                    }
+                    i = end_idx + 1;
+                    continue;
+                }
+                PreprocessDirective::EndDefineLong => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_ENDDEFINELONG_UNEXPECTED",
+                            "`!enddefinelong` without matching `!definelong`",
+                        ));
                     }
                 }
                 PreprocessDirective::Undef(name) => {

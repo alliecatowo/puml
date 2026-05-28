@@ -26,6 +26,8 @@ pub(in crate::preproc) fn parse_preprocess_directive(line: &str) -> Option<Prepr
 
     match lower.as_str() {
         "define" => Some(PreprocessDirective::Define(arg.to_string())),
+        "definelong" => Some(PreprocessDirective::DefineLong(arg.to_string())),
+        "enddefinelong" => Some(PreprocessDirective::EndDefineLong),
         "undef" => Some(PreprocessDirective::Undef(arg.to_string())),
         "include" => Some(PreprocessDirective::Include(arg.to_string())),
         "include_once" => Some(PreprocessDirective::IncludeOnce(arg.to_string())),
@@ -124,6 +126,24 @@ pub(in crate::preproc) fn find_matching_endfor(
     Err(Diagnostic::error_code(
         "E_PREPROC_FOREACH_UNCLOSED",
         "missing `!endfor` for `!foreach` block",
+    ))
+}
+
+pub(in crate::preproc) fn find_matching_enddefinelong(
+    lines: &[&str],
+    start_idx: usize,
+) -> Result<usize, Diagnostic> {
+    // `!definelong` does not nest in PlantUML — the first `!enddefinelong`
+    // encountered after the opening `!definelong` terminates the macro body.
+    for (idx, raw) in lines.iter().enumerate().skip(start_idx + 1) {
+        let line = raw.trim();
+        if let Some(PreprocessDirective::EndDefineLong) = parse_preprocess_directive(line) {
+            return Ok(idx);
+        }
+    }
+    Err(Diagnostic::error_code(
+        "E_DEFINELONG_UNCLOSED",
+        "missing `!enddefinelong` for `!definelong` block",
     ))
 }
 
