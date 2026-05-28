@@ -1,13 +1,13 @@
-/// Wave-11 batch B: component diagram parity tests for nested packages,
-/// interface alias `()` syntax, and named port declarations.
-///
-/// Acceptance criteria:
-///  - Nested `package` blocks render the inner frame INSIDE the outer frame.
-///  - `() "Label" as ID` (interface alias) renders as a circle + label, with `ID`
-///    usable in relations.
-///  - `port NAME` inside a `component "X" [...]` block creates a named Port node
-///    scoped as `X::NAME`.
-///  - Relations like `[Component::port_name] --> [Other]` anchor at the port node.
+//! Wave-11 batch B: component diagram parity tests for nested packages,
+//! interface alias `()` syntax, and named port declarations.
+//!
+//! Acceptance criteria:
+//!  - Nested `package` blocks render the inner frame INSIDE the outer frame.
+//!  - `() "Label" as ID` (interface alias) renders as a circle + label, with `ID`
+//!    usable in relations.
+//!  - `port NAME` inside a `component "X" [...]` block creates a named Port node
+//!    scoped as `X::NAME`.
+//!  - Relations like `[Component::port_name] --> [Other]` anchor at the port node.
 
 fn render_svg(src: &str) -> String {
     puml::render_source_to_svg(src).expect("component diagram should render without error")

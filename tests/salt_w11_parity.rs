@@ -1,12 +1,12 @@
-/// Wave-11 batch G — Salt UI mockup widget parity tests.
-///
-/// Each test verifies that the parser + renderer pipeline correctly handles one
-/// of the new widget families added in this batch: menu bar, tab strip,
-/// scrollable container, tree outline (with `**`/`***` syntax), combo box with
-/// chevron, and radio button groups.
-///
-/// These tests ONLY assert on SVG data attributes and structural markers so that
-/// layout pixel values need not be hard-coded.
+//! Wave-11 batch G — Salt UI mockup widget parity tests.
+//!
+//! Each test verifies that the parser + renderer pipeline correctly handles one
+//! of the new widget families added in this batch: menu bar, tab strip,
+//! scrollable container, tree outline (with `**`/`***` syntax), combo box with
+//! chevron, and radio button groups.
+//!
+//! These tests ONLY assert on SVG data attributes and structural markers so that
+//! layout pixel values need not be hard-coded.
 
 /// Helper: render a salt source string and return the SVG output.
 fn render_svg(src: &str) -> String {
@@ -249,8 +249,14 @@ fn salt_radio_button_group_renders_checked_filled() {
         "checked radio must have a filled inner circle (r=2); got: {svg}"
     );
     // Labels must appear.
-    assert!(svg.contains("Radio A"), "radio group must include 'Radio A'");
-    assert!(svg.contains("Radio B"), "radio group must include 'Radio B'");
+    assert!(
+        svg.contains("Radio A"),
+        "radio group must include 'Radio A'"
+    );
+    assert!(
+        svg.contains("Radio B"),
+        "radio group must include 'Radio B'"
+    );
 }
 
 /// `(*)` is a PlantUML synonym for a checked radio button and must render

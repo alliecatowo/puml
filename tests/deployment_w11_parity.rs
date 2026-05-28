@@ -1,6 +1,6 @@
-/// Wave-11 batch E: deployment diagram parity tests
-/// Covers: nested node/cloud/frame blocks, artifact stereotypes, deploy-spec
-/// stereotypes on nodes, and frame fill colors.
+//! Wave-11 batch E: deployment diagram parity tests
+//! Covers: nested node/cloud/frame blocks, artifact stereotypes, deploy-spec
+//! stereotypes on nodes, and frame fill colors.
 
 fn render(src: &str) -> String {
     puml::render_source_to_svg(src).expect("render should succeed")
@@ -71,14 +71,8 @@ node "AppServer" {
 @enduml
 "#;
     let svg = render(src);
-    assert!(
-        svg.contains("appwar"),
-        "artifact name missing\n{svg}"
-    );
-    assert!(
-        svg.contains("configxml"),
-        "second artifact missing\n{svg}"
-    );
+    assert!(svg.contains("appwar"), "artifact name missing\n{svg}");
+    assert!(svg.contains("configxml"), "second artifact missing\n{svg}");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
