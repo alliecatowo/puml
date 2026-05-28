@@ -163,7 +163,7 @@ jobs:
   quality:
     name: quality gate
     needs: [changes, artifact_regen]
-    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    if: always() && (needs.changes.outputs.run_full_gate == 'true' || needs.changes.outputs.docs_examples_changed == 'true') && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -186,30 +186,18 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Install cargo-llvm-cov
-        if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+        if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: rust file-size guardrail
-        run: python3 ./scripts/check_rust_file_sizes.py --fail-on-violations
+      - name: run quality gate
+        run: |
+          set -euo pipefail
 
-      - name: renderer boundary guardrail
-        run: python3 ./scripts/check_renderer_boundaries.py --fail-on-violations
-
-      - name: fmt gate
-        run: cargo fmt --check
-
-      - name: clippy gate
-        run: cargo clippy -p puml --all-targets --all-features --locked -- -D warnings
-
-      - name: test gate
-        run: cargo nextest run -p puml --locked
-
-      - name: doc test gate
-        run: cargo test --doc --package puml --locked
-
-      - name: coverage gate
-        if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
-        run: cargo llvm-cov --all-features --package puml --locked --no-clean --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+          if [[ "${{ needs.changes.outputs.run_full_gate }}" == "true" ]]; then
+            ./scripts/check-all.sh
+          else
+            ./scripts/check-all.sh --quick --skip-bench
+          fi
 
       - name: Upload visual regression artifacts
         if: always()
@@ -375,6 +363,7 @@ jobs:
       WASM_RESULT: ${{ needs.wasm.result }}
       DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
+      RUN_DOCS_EXAMPLES_CHANGED: ${{ needs.changes.outputs.docs_examples_changed }}
 
     steps:
       - name: Summarize PR gate shards
@@ -416,7 +405,7 @@ jobs:
             fi
           fi
 
-          if [[ "${RUN_FULL_GATE}" == "true" ]]; then
+          if [[ "${RUN_FULL_GATE}" == "true" || "${RUN_DOCS_EXAMPLES_CHANGED}" == "true" ]]; then
             require_success "quality" "${QUALITY_RESULT}"
           fi
 

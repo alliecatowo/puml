@@ -92,6 +92,11 @@ if [[ "$MODE" == "full" ]]; then
   echo "[gate] cargo build --release -p puml --locked --bin puml"
   cargo build --release -p puml --locked --bin puml
 
+  if command -v strip >/dev/null 2>&1; then
+    echo "[gate] stripping release binary"
+    strip target/release/puml
+  fi
+
   if [[ "$SKIP_BENCH" -eq 0 ]]; then
     echo "[gate] benchmark full profile with enforced gates"
     ./scripts/bench.sh --skip-build --enforce-gates
