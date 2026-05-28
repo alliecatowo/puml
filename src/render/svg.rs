@@ -306,12 +306,39 @@ fn render_text_with_inline_sprites(
             // are respected even within sprite-containing labels.
             let creole_lines = tokenize_creole(text);
             if creole_lines.len() == 1 {
-                let inner =
-                    render_creole_line_to_tspans(&creole_lines[0], cursor_x as i32, base_color);
-                out.push_str(&format!(
-                    "<text x=\"{cursor_x:.2}\" y=\"{baseline_y}\"{}>{}</text>",
-                    attrs, inner
-                ));
+                let line = &creole_lines[0];
+                // If all spans are plain (no markup attributes), emit the text
+                // directly inside <text> so plain labels like "edge gateway" are
+                // not needlessly wrapped in <tspan> elements.
+                let all_plain = line.iter().all(|s| {
+                    !s.bold
+                        && !s.italic
+                        && !s.mono
+                        && !s.underline
+                        && !s.strike
+                        && !s.wave
+                        && s.color.is_none()
+                        && s.background.is_none()
+                        && s.size.is_none()
+                        && s.font.is_none()
+                        && s.baseline_shift.is_none()
+                        && s.decoration_color.is_none()
+                        && s.link.is_none()
+                });
+                if all_plain {
+                    let plain_text: String = line.iter().map(|s| s.text.as_str()).collect();
+                    out.push_str(&format!(
+                        "<text x=\"{cursor_x:.2}\" y=\"{baseline_y}\"{}>{}</text>",
+                        attrs,
+                        escape_text(&plain_text)
+                    ));
+                } else {
+                    let inner = render_creole_line_to_tspans(line, cursor_x as i32, base_color);
+                    out.push_str(&format!(
+                        "<text x=\"{cursor_x:.2}\" y=\"{baseline_y}\"{}>{}</text>",
+                        attrs, inner
+                    ));
+                }
             } else {
                 // Multiple lines within a text segment (shouldn't happen since
                 // normalize_sprite_text_lines already split on line breaks, but

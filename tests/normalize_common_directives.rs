@@ -64,10 +64,9 @@ end legend
 
     assert_eq!(family.title.as_deref(), Some("MindMap Title"));
     assert_eq!(family.header.as_deref(), Some("MindMap Header"));
-    assert_eq!(
-        family.legend.as_deref(),
-        Some("LEGEND_POS:top left\nRaw Family Legend")
-    );
+    assert_eq!(family.legend.as_deref(), Some("Raw Family Legend"));
+    assert_eq!(family.legend_halign, LegendHAlign::Left);
+    assert_eq!(family.legend_valign, LegendVAlign::Top);
 
     let timeline_source = r#"@startgantt
 title Gantt Title
