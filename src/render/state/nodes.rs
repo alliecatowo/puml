@@ -47,12 +47,48 @@ pub(super) fn state_direction_attr(direction: Option<&str>) -> String {
 }
 
 pub(super) fn state_node_fill(node: &StateNode, state_style: &crate::theme::StateStyle) -> String {
+    // If a gradient is set, return a reference to the gradient id;
+    // the caller must have already emitted the gradient def via state_node_gradient_def.
+    if node.style.fill_gradient.is_some() {
+        return format!("url(#grad-{})", escape_gradient_id(&node.name));
+    }
     escape_text(
         node.style
             .fill_color
             .as_deref()
             .unwrap_or(&state_style.background_color),
     )
+}
+
+/// Return an SVG `<linearGradient>` definition string if the node has a gradient fill,
+/// or an empty string if it does not.
+///
+/// The returned string should be embedded inside an SVG `<defs>` block before the
+/// node's rect is emitted.
+pub(super) fn state_node_gradient_def(node: &StateNode) -> String {
+    let Some((c1, c2)) = node.style.fill_gradient.as_ref() else {
+        return String::new();
+    };
+    let id = escape_gradient_id(&node.name);
+    format!(
+        "<defs><linearGradient id=\"grad-{id}\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0%\" stop-color=\"{}\"/><stop offset=\"100%\" stop-color=\"{}\"/></linearGradient></defs>",
+        escape_text(c1),
+        escape_text(c2),
+    )
+}
+
+/// Produce a safe ID suffix for a gradient from a node name by replacing
+/// non-alphanumeric characters with underscores (deterministic, no HashMap).
+fn escape_gradient_id(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 pub(super) fn state_node_border(

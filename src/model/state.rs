@@ -32,6 +32,9 @@ pub struct StateNode {
 #[derive(Debug, Clone, Default)]
 pub struct StateNodeStyle {
     pub fill_color: Option<String>,
+    /// Gradient fill: two colors (top → bottom) for `state X #c1-c2` syntax.
+    /// When present, `fill_color` holds the first color as a fallback.
+    pub fill_gradient: Option<(String, String)>,
     pub border_color: Option<String>,
     pub border_dashed: bool,
     pub border_thickness: Option<u8>,

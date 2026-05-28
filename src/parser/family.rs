@@ -94,6 +94,7 @@ pub(crate) fn parse_family_declaration(
         if has_block || later_lines_contain_ie_family_context(lines, start) {
             let mut members = if has_block {
                 let mut members = parse_family_decl_members(lines, start, "entity", &name)?;
+                // Insert user stereotypes before member body.
                 for stereotype in stereotypes.iter().rev() {
                     members.insert(
                         0,
@@ -107,6 +108,15 @@ pub(crate) fn parse_family_declaration(
             } else {
                 declaration_marker_members(None, stereotypes)
             };
+            // Prepend the <<entity>> type marker so the normalizer and renderer
+            // can identify this node as an IE/ER entity (class-family, rounded-rect).
+            members.insert(
+                0,
+                ClassMember {
+                    text: "<<entity>>".to_string(),
+                    modifier: None,
+                },
+            );
             append_class_visibility_member(&mut members, class_visibility);
             append_family_tag_members(&mut members, tags);
             append_inline_fill_member(&mut members, fill_color);

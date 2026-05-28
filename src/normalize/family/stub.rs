@@ -219,7 +219,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
-                        kind: FamilyNodeKind::Class,
+                        kind: FamilyNodeKind::Diamond,
                         name: association.clone(),
                         alias: None,
                         members: Vec::new(),
@@ -230,6 +230,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         fill_color: None,
                     },
                 );
+                // Force the association node to Diamond kind even if a plain
+                // `class Enrollment` declaration appeared earlier.
+                if let Some(n) = nodes.iter_mut().find(|n| n.name == association) {
+                    n.kind = FamilyNodeKind::Diamond;
+                }
                 relations.push(simple_family_relation(left.clone(), right.clone(), arrow));
                 relations.push(simple_family_relation(
                     association.clone(),
@@ -241,6 +246,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Note(note) => {
                 note_counter += 1;
                 let target = note.target.clone();
+                let target_member = note.target_member.clone();
                 let note_node = family_note_node(note_counter, note);
                 let note_name = note_node.name.clone();
                 nodes.push(note_node);
@@ -254,8 +260,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         target
                     };
                     if !target.is_empty() {
+                        // When a member qualifier like `Foo::counter` is present,
+                        // route the relation from the qualified endpoint so the
+                        // renderer can anchor the connector at the member row.
+                        let from_endpoint = if let Some(ref member) = target_member {
+                            format!("{target}::{member}")
+                        } else {
+                            relation_node_endpoint(&target)
+                        };
                         relations.push(simple_family_relation(
-                            relation_node_endpoint(&target),
+                            from_endpoint,
                             note_name,
                             "..".to_string(),
                         ));

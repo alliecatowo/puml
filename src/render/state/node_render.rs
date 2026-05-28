@@ -314,7 +314,8 @@ pub(super) fn render_node<'a>(
 
             if has_children {
                 // ── Composite state ──────────────────────────────────────────
-                // Draw the enclosing rounded-rect box
+                // Emit gradient def if needed, then draw the enclosing rounded-rect box
+                out.push_str(&state_node_gradient_def(node));
                 let fill = state_node_fill(node, state_style);
                 let border = state_node_border(node, state_style);
                 let text = state_node_text(node, state_style);
@@ -541,6 +542,8 @@ pub(super) fn render_node<'a>(
                 }
             } else {
                 // ── Simple state box ─────────────────────────────────────────
+                // Emit gradient def if needed
+                out.push_str(&state_node_gradient_def(node));
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
                     x,

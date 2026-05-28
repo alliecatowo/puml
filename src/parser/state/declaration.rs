@@ -148,7 +148,13 @@ pub(crate) fn parse_state_style_token(token: &str, style: &mut crate::ast::State
         for part in rest.split(';') {
             let part = part.trim();
             if let Some(value) = part.strip_prefix("back:") {
-                style.fill_color = Some(normalize_state_color_token(value));
+                let full_token = format!("#{value}");
+                if let Some((c1, c2)) = parse_gradient_fill(&full_token) {
+                    style.fill_color = Some(c1.clone());
+                    style.fill_gradient = Some((c1, c2));
+                } else {
+                    style.fill_color = Some(normalize_state_color_token(value));
+                }
             } else if let Some(value) = part.strip_prefix("line:") {
                 style.border_color = Some(normalize_state_color_token(value));
             } else if let Some(value) = part.strip_prefix("text:") {
@@ -160,7 +166,14 @@ pub(crate) fn parse_state_style_token(token: &str, style: &mut crate::ast::State
             }
         }
     } else {
-        style.fill_color = Some(normalize_state_color_token(rest));
+        // Check for gradient fill: `#c1-c2` or `#c1|c2`
+        let full_token = format!("#{rest}");
+        if let Some((c1, c2)) = parse_gradient_fill(&full_token) {
+            style.fill_color = Some(c1.clone());
+            style.fill_gradient = Some((c1, c2));
+        } else {
+            style.fill_color = Some(normalize_state_color_token(rest));
+        }
     }
 }
 
@@ -194,6 +207,8 @@ pub(crate) fn normalize_state_color_token(token: &str) -> String {
     if is_hex {
         format!("#{raw}")
     } else if raw.contains('-') || raw.contains('|') {
+        // Strip the first color segment only; gradient pairs are handled by
+        // parse_gradient_fill which keeps both sides.
         raw.split(['-', '|'])
             .next()
             .map(str::trim)
@@ -202,5 +217,48 @@ pub(crate) fn normalize_state_color_token(token: &str) -> String {
             .to_string()
     } else {
         raw.to_string()
+    }
+}
+
+/// Attempt to parse a gradient fill from a bare `#token` fill value.
+///
+/// Accepted forms:
+/// - `#c1-c2`   (named-color or hex, hyphen separator)
+/// - `#c1-#c2`  (explicit `#` prefix on second part)
+/// - `#c1|c2`   (pipe separator — PlantUML gradient vertical)
+///
+/// Returns `Some((c1, c2))` only when both parts are non-empty.
+/// Named colours and hex values are both accepted.
+pub(crate) fn parse_gradient_fill(token: &str) -> Option<(String, String)> {
+    // Strip leading `#`
+    let raw = token.trim().trim_start_matches('#');
+    // Try `-` first, then `|`
+    for sep in ['-', '|'] {
+        // Find the first occurrence of the separator that isn't part of a hex run.
+        // Walk char-by-char: once we see a non-hex non-alpha character that is our
+        // separator, split there.
+        if let Some(idx) = raw.char_indices().find(|(_, c)| *c == sep).map(|(i, _)| i) {
+            let left = raw[..idx].trim().trim_start_matches('#');
+            let right = raw[idx + 1..].trim().trim_start_matches('#');
+            if !left.is_empty() && !right.is_empty() {
+                let c1 = normalize_color_part(left);
+                let c2 = normalize_color_part(right);
+                if !c1.is_empty() && !c2.is_empty() && c1 != c2 {
+                    return Some((c1, c2));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Normalize a single color part (without leading `#`) — re-attach `#` for hex.
+fn normalize_color_part(part: &str) -> String {
+    let part = part.trim().trim_start_matches('#');
+    let is_hex = matches!(part.len(), 3 | 4 | 6 | 8) && part.chars().all(|c| c.is_ascii_hexdigit());
+    if is_hex {
+        format!("#{part}")
+    } else {
+        part.to_string()
     }
 }

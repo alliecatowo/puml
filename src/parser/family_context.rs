@@ -62,7 +62,11 @@ pub(crate) fn later_lines_contain_sequence_family_keywords(
         let lower = line.to_ascii_lowercase();
         // Sequence arrows: ->, ->>, -->, -->>, <-, <<-, <--, etc.
         let has_sequence_arrow = line.contains("->") || line.contains("<-");
-        // Unambiguous sequence keywords (not shared with component/class)
+        // Unambiguous sequence keywords (not shared with component/class).
+        // NOTE: "entity " is intentionally NOT listed here — it is also a valid
+        // IE/ER class-family declaration keyword. Including it caused IE diagrams
+        // (where later lines contain other `entity` declarations) to be mis-routed
+        // to the sequence family (Refs #88).
         let is_sequence_keyword = lower.starts_with("activate ")
             || lower == "activate"
             || lower.starts_with("deactivate ")
@@ -73,7 +77,6 @@ pub(crate) fn later_lines_contain_sequence_family_keywords(
             || lower.starts_with("participant ")
             || lower.starts_with("boundary ")
             || lower.starts_with("control ")
-            || lower.starts_with("entity ")
             || lower.starts_with("collections ")
             || lower.starts_with("queue ")
             || lower.starts_with("alt ")

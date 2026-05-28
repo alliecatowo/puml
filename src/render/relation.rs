@@ -113,6 +113,8 @@ fn relation_marker_id(marker: crate::model::FamilyRelationEndpointMarker) -> &'s
         crate::model::FamilyRelationEndpointMarker::BoxFilled => "arrow-box-filled",
         crate::model::FamilyRelationEndpointMarker::Plus => "arrow-plus",
         crate::model::FamilyRelationEndpointMarker::Slash => "arrow-slash",
+        crate::model::FamilyRelationEndpointMarker::Cross => "arrow-cross",
+        crate::model::FamilyRelationEndpointMarker::BracketOpen => "arrow-bracket-open",
         crate::model::FamilyRelationEndpointMarker::IeZeroMany => "arrow-ie-zero-many",
         crate::model::FamilyRelationEndpointMarker::IeOneMany => "arrow-ie-one-many",
         crate::model::FamilyRelationEndpointMarker::IeZeroOne => "arrow-ie-zero-one",
@@ -215,6 +217,18 @@ pub(crate) fn render_relation_marker_defs_with_prefix(
         "<marker id=\"{prefix}arrow-slash\" viewBox=\"0 0 12 12\" refX=\"10\" refY=\"6\" \
          markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M3,2 L9,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-cross\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M2,2 L10,10 M10,2 L2,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-bracket-open\" viewBox=\"0 0 12 14\" refX=\"11\" refY=\"7\" \
+         markerWidth=\"12\" markerHeight=\"14\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M10,1 L4,1 L4,13 L10,13\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\
          </marker>",
     ));
     out.push_str("</defs>");

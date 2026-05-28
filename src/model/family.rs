@@ -319,6 +319,10 @@ pub enum FamilyRelationEndpointMarker {
     BoxFilled,
     Plus,
     Slash,
+    /// `x--` crossed/dead-end arrowhead.
+    Cross,
+    /// `}--` bracket-open arrowhead.
+    BracketOpen,
     IeZeroMany,
     IeOneMany,
     IeZeroOne,
@@ -455,6 +459,10 @@ fn marker_from_endpoint_char(ch: char) -> Option<FamilyRelationEndpointMarker> {
         '#' => Some(FamilyRelationEndpointMarker::BoxFilled),
         '+' => Some(FamilyRelationEndpointMarker::Plus),
         '\\' | '/' => Some(FamilyRelationEndpointMarker::Slash),
+        // `x--` crossed/dead-end arrowhead (IE two-char patterns are checked first).
+        'x' => Some(FamilyRelationEndpointMarker::Cross),
+        // `}--` bracket-open arrowhead (IE two-char patterns `}o`, `}|` checked first).
+        '}' => Some(FamilyRelationEndpointMarker::BracketOpen),
         _ => None,
     }
 }

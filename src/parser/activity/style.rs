@@ -237,6 +237,42 @@ pub(crate) fn parse_activity_arrow_directive(line: &str) -> Option<String> {
     Some(parts.join("\x1f"))
 }
 
+/// Parse an activity action body (after the leading `:`) for suffix fill-color.
+///
+/// PlantUML allows `:action text; #color` where the `#color` token follows the
+/// terminator character.  This function returns the body-before-color and the
+/// color token as an owned `String`, allowing the caller to apply fill styling.
+///
+/// Handles both the plain-semicolon form (`;  #color`) and SDL terminators
+/// (`|  #color`, `>  #color`, etc.).
+///
+/// Returns `(body_with_terminator, Some(color))` if a suffix color is
+/// present, or `(rest_unchanged, None)` when no color suffix is found.
+pub(crate) fn strip_activity_action_suffix_color(rest: &str) -> (&str, Option<String>) {
+    // Locate the last `#` that could be the start of a color token.
+    let Some(hash_pos) = rest.rfind('#') else {
+        return (rest, None);
+    };
+    let candidate = &rest[hash_pos..];
+    // A color token must start with `#` followed by at least one alphanumeric character.
+    let after_hash = &candidate[1..];
+    if after_hash.is_empty()
+        || !after_hash
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+    {
+        return (rest, None);
+    }
+    // The `#` must be preceded by whitespace (separator between terminator and color).
+    // This guards against `#` embedded mid-label (e.g. `:#item;` remains untouched).
+    if hash_pos > 0 && !rest[..hash_pos].ends_with(|c: char| c.is_ascii_whitespace()) {
+        return (rest, None);
+    }
+    let color = normalize_activity_color_token(candidate);
+    (&rest[..hash_pos], Some(color))
+}
+
 /// Parse an activity action body (after the leading `:`), extracting the SDL
 /// terminator character if present.
 ///

@@ -308,6 +308,9 @@ pub struct StateDecl {
 #[derive(Debug, Clone, Default)]
 pub struct StateDeclStyle {
     pub fill_color: Option<String>,
+    /// Gradient fill: two colors (top → bottom) for `state X #c1-c2` syntax.
+    /// When present, `fill_color` holds the first color as a fallback.
+    pub fill_gradient: Option<(String, String)>,
     pub border_color: Option<String>,
     pub border_dashed: bool,
     pub border_thickness: Option<u8>,
@@ -458,6 +461,10 @@ pub enum TimingDeclKind {
     Robust,
     Clock,
     Binary,
+    /// `analog "Label" between MIN and MAX as ID` — continuous-line waveform.
+    /// The min/max range is encoded in the `controls` vec as
+    /// `__timing:analog_between <min> <max>`.
+    Analog,
 }
 
 #[derive(Debug, Clone)]
@@ -580,6 +587,11 @@ pub struct Note {
     pub kind: NoteKind,
     pub position: String,
     pub target: Option<String>,
+    /// When `target` is a member-qualified identifier like `Foo::counter`,
+    /// this holds the member name (`"counter"`) and `target` is reduced to
+    /// the class name (`"Foo"`). Used to anchor the note connector at the
+    /// correct member-row Y-position in class diagrams.
+    pub target_member: Option<String>,
     pub text: String,
     /// When `true`, the note is rendered aligned with the previous note at the
     /// same vertical level (PlantUML `/ note` syntax — feature 1.18).

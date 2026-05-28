@@ -103,6 +103,9 @@ pub(super) fn merge_state_node_style(existing: &mut StateNodeStyle, incoming: St
     if incoming.fill_color.is_some() && existing.fill_color.is_none() {
         existing.fill_color = incoming.fill_color;
     }
+    if incoming.fill_gradient.is_some() && existing.fill_gradient.is_none() {
+        existing.fill_gradient = incoming.fill_gradient;
+    }
     if incoming.border_color.is_some() && existing.border_color.is_none() {
         existing.border_color = incoming.border_color;
     }
@@ -420,6 +423,7 @@ pub(super) fn state_kind_from_stereotype(stereotype: Option<&str>) -> StateNodeK
 pub(super) fn state_style_from_decl(style: &crate::ast::StateDeclStyle) -> StateNodeStyle {
     StateNodeStyle {
         fill_color: style.fill_color.clone(),
+        fill_gradient: style.fill_gradient.clone(),
         border_color: style.border_color.clone(),
         border_dashed: style.border_dashed,
         border_thickness: style.border_thickness,

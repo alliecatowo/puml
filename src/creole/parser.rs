@@ -55,11 +55,13 @@ pub(super) fn parse_block_line(raw_line: &str) -> CreoleLine {
 
     if let Some((level, text)) = parse_heading_line(trimmed) {
         let mut line = parse_inline(text);
+        // Font sizes approximate the h1=1.5x, h2=1.3x, h3=1.15x multipliers
+        // against a base of 16 px: 24, 21, 18, 16.
         let size = match level {
             1 => 24,
-            2 => 20,
-            3 => 16,
-            _ => 14,
+            2 => 21,
+            3 => 18,
+            _ => 16,
         };
         for span in &mut line {
             span.bold = true;
@@ -68,9 +70,17 @@ pub(super) fn parse_block_line(raw_line: &str) -> CreoleLine {
         return line;
     }
 
-    if let Some(text) = parse_horizontal_rule_line(trimmed) {
+    // Plain horizontal rules (----, ====, ____) become SVG <line> sentinels.
+    // Titled section rules (.. Title ..) keep their text-based rendering.
+    if is_plain_horizontal_rule(trimmed) {
         return vec![CreoleSpan {
-            text,
+            is_hr: true,
+            ..Default::default()
+        }];
+    }
+    if let Some(titled_text) = parse_titled_rule_line(trimmed) {
+        return vec![CreoleSpan {
+            text: titled_text,
             mono: true,
             color: Some("#64748b".to_string()),
             ..Default::default()
@@ -131,14 +141,17 @@ fn parse_heading_line(line: &str) -> Option<(usize, &str)> {
     Some((level, text))
 }
 
-fn parse_horizontal_rule_line(line: &str) -> Option<String> {
-    if line.len() >= 4
+/// Returns `true` for lines that are solely repetitions of `-`, `=`, or `_`
+/// (at least 4 characters).  These become SVG `<line>` elements.
+fn is_plain_horizontal_rule(line: &str) -> bool {
+    line.len() >= 4
         && matches!(line.as_bytes().first(), Some(b'-' | b'=' | b'_'))
         && line.bytes().all(|b| b == line.as_bytes()[0])
-    {
-        return Some("------------------------".to_string());
-    }
+}
 
+/// Returns `Some(text)` for the `.. Title ..` section-rule syntax that keeps a
+/// text-based representation.
+fn parse_titled_rule_line(line: &str) -> Option<String> {
     if line.len() >= 4 && line.starts_with("..") && line.ends_with("..") {
         let title = line[2..line.len() - 2].trim();
         if title.is_empty() {
@@ -146,7 +159,6 @@ fn parse_horizontal_rule_line(line: &str) -> Option<String> {
         }
         return Some(format!("---------- {title} ----------"));
     }
-
     None
 }
 

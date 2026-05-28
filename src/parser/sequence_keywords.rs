@@ -148,7 +148,7 @@ pub(crate) fn parse_keyword(line: &str) -> Option<StatementKind> {
             ));
         }
         let (head, text) = split_note_head_text(tail);
-        let (pos, target) = if let Some(position) = parse_note_on_link_head(head) {
+        let (pos, raw_target) = if let Some(position) = parse_note_on_link_head(head) {
             (position, Some("on link".to_string()))
         } else {
             parse_note_head(head)
@@ -159,10 +159,14 @@ pub(crate) fn parse_keyword(line: &str) -> Option<StatementKind> {
                 note_line
             )));
         }
+        // Split `Foo::counter` → target = "Foo", target_member = "counter"
+        // so class diagram renderers can anchor note connectors at the member row.
+        let (target, target_member) = split_member_qualified_target(raw_target);
         return Some(StatementKind::Note(Note {
             kind: note_kind_from_keyword(note_kw),
             position: pos,
             target,
+            target_member,
             text: text.trim().to_string(),
             aligned: aligned_note,
         }));
@@ -387,6 +391,26 @@ pub(crate) fn parse_note_head(head: &str) -> (String, Option<String>) {
         position,
         (!target.trim().is_empty()).then(|| clean_ident(target.trim())),
     )
+}
+
+/// Splits a member-qualified note target like `"Foo::counter"` into
+/// `(Some("Foo"), Some("counter"))` so the renderer can anchor the
+/// note connector at the correct member-row Y-position.
+/// For plain identifiers returns `(original, None)`.
+pub(crate) fn split_member_qualified_target(
+    target: Option<String>,
+) -> (Option<String>, Option<String>) {
+    let Some(t) = target else {
+        return (None, None);
+    };
+    if let Some((class, member)) = t.split_once("::") {
+        let class = class.trim().to_string();
+        let member = member.trim().to_string();
+        if !class.is_empty() && !member.is_empty() {
+            return (Some(class), Some(member));
+        }
+    }
+    (Some(t), None)
 }
 
 pub(crate) fn note_kind_from_keyword(keyword: &str) -> crate::ast::NoteKind {

@@ -32,8 +32,10 @@ pub(crate) fn parse_activity_step(line: &str) -> Option<StatementKind> {
         ));
     }
     // `:action;` or `:action` form (including SDL terminator variants: |, <, >, /, \, ], })
+    // Also handles the suffix fill-color form: `:action; #color`
     if let Some(rest) = trimmed.strip_prefix(':') {
-        let (body, sdl_shape) = parse_activity_action_terminator(rest);
+        let (rest_no_color, suffix_color) = strip_activity_action_suffix_color(rest);
+        let (body, sdl_shape) = parse_activity_action_terminator(rest_no_color);
         let label = if let Some(shape) = sdl_shape {
             if body.is_empty() {
                 None
@@ -44,6 +46,11 @@ pub(crate) fn parse_activity_step(line: &str) -> Option<StatementKind> {
             None
         } else {
             Some(body.to_string())
+        };
+        let label = if let Some(color) = suffix_color {
+            label.map(|l| activity_style_label(l, Some(color.as_str())))
+        } else {
+            label
         };
         return Some(activity_step_statement(ActivityStepKind::Action, label));
     }

@@ -82,6 +82,7 @@ pub(super) fn timing_kind_label(kind: TimingDeclKind) -> &'static str {
         TimingDeclKind::Robust => "timing-robust",
         TimingDeclKind::Clock => "timing-clock",
         TimingDeclKind::Binary => "timing-binary",
+        TimingDeclKind::Analog => "timing-analog",
     }
 }
 
@@ -226,6 +227,7 @@ mod tests {
             (TimingDeclKind::Robust, "timing-robust"),
             (TimingDeclKind::Clock, "timing-clock"),
             (TimingDeclKind::Binary, "timing-binary"),
+            (TimingDeclKind::Analog, "timing-analog"),
         ];
 
         for (kind, label) in timing_cases {

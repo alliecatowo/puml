@@ -44,7 +44,8 @@ pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<Stat
         "bordercolor" | "statebordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "arrowcolor" | "statearrowcolor" => parse_color_value(value)
+        // `linecolor` appears in `<style> stateDiagram { arrow { LineColor X } }` blocks
+        "arrowcolor" | "statearrowcolor" | "linecolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "statestartcolor" => parse_color_value(value)

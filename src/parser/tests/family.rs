@@ -185,9 +185,12 @@ fn parses_ie_entity_blocks_as_class_family_with_crows_feet() {
     match &doc.statements[1].kind {
         StatementKind::ClassDecl(decl) => {
             assert_eq!(decl.name, "CUSTOMER");
-            assert_eq!(decl.members[0].text, "*customer_id : number <<generated>>");
-            assert_eq!(decl.members[1].text, "--");
-            assert_eq!(decl.members[2].text, "*name : text");
+            // members[0] is the `<<entity>>` type-marker that the IE entity routing
+            // injects so the renderer can identify this class as an IE entity node.
+            assert_eq!(decl.members[0].text, "<<entity>>");
+            assert_eq!(decl.members[1].text, "*customer_id : number <<generated>>");
+            assert_eq!(decl.members[2].text, "--");
+            assert_eq!(decl.members[3].text, "*name : text");
         }
         other => panic!("unexpected statement: {other:?}"),
     }

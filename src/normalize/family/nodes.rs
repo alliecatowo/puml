@@ -242,6 +242,9 @@ pub(super) fn timing_decl_node_kind(kind: TimingDeclKind) -> FamilyNodeKind {
         TimingDeclKind::Robust => FamilyNodeKind::TimingRobust,
         TimingDeclKind::Clock => FamilyNodeKind::TimingClock,
         TimingDeclKind::Binary => FamilyNodeKind::TimingBinary,
+        // Analog maps to Robust in the normalized model; the `__timing:analog`
+        // control in the members vec distinguishes it at render time.
+        TimingDeclKind::Analog => FamilyNodeKind::TimingRobust,
     }
 }
 

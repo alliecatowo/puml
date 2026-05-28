@@ -269,6 +269,58 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         render_ie_marker_defs(&mut out, arrow_stroke);
     }
     out.push_str("</defs>");
+    // Extended arrowhead marker defs used by exotic arrowheads (#--, x--, +--, ^--, }--)
+    // and shared renderers. A second <defs> block is valid SVG.
+    out.push_str("<defs>");
+    out.push_str(&format!(
+        "<marker id=\"arrow-triangle-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-box-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <rect x=\"2\" y=\"2\" width=\"8\" height=\"8\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-plus\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M6,1 L6,11 M1,6 L11,6\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-cross\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M2,2 L10,10 M10,2 L2,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-bracket-open\" viewBox=\"0 0 12 14\" refX=\"11\" refY=\"7\" \
+         markerWidth=\"12\" markerHeight=\"14\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M10,1 L4,1 L4,13 L10,13\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-circle-open\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"6\" cy=\"6\" r=\"4\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-circle-filled\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"6\" cy=\"6\" r=\"4\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-double-open\" viewBox=\"0 0 16 12\" refX=\"15\" refY=\"6\" \
+         markerWidth=\"16\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,1 L8,6 L0,11 M7,1 L15,6 L7,11\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str("</defs>");
 
     // Header — rendered above the title at the very top of the canvas.
     // The header_block_h added to margin_top already reserves vertical space.

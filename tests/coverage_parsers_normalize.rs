@@ -131,10 +131,14 @@ Order --() ShipmentPort
         .nodes
         .iter()
         .any(|node| node.name == "Order<T>" && node.alias.as_deref() == Some("Order")));
+    // Wave-10-F: `(Student, Course) .. Enrollment` association class binding now
+    // force-marks the binder node as `Diamond` (the association-class glyph) even
+    // when a prior `class Enrollment` declaration created it as `Class`. The
+    // diamond is rendered with dashed lines to each participant.
     assert!(model
         .nodes
         .iter()
-        .any(|node| node.name == "Enrollment" && node.kind == FamilyNodeKind::Class));
+        .any(|node| node.name == "Enrollment" && node.kind == FamilyNodeKind::Diamond));
     assert!(model
         .relations
         .iter()

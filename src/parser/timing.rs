@@ -102,7 +102,7 @@ pub(crate) fn parse_timing_analog_decl(rest: &str, compact: bool) -> Option<Stat
         controls.push("__timing:compact".to_string());
     }
     Some(StatementKind::TimingDecl {
-        kind: TimingDeclKind::Robust,
+        kind: TimingDeclKind::Analog,
         name,
         label,
         controls,
