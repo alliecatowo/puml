@@ -39,6 +39,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
     steps:
       - uses: actions/checkout@v6
 
@@ -46,6 +51,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -74,12 +82,15 @@ jobs:
           zola --version
 
       - name: Build puml CLI binary
-        run: cargo build --release -p puml --locked --bin puml
+        # Use release-ci profile (opt-level=1, lto=false) — the pages build
+        # only needs a working binary for SVG regen, not peak performance.
+        # Saves ~40-60s vs full release profile (no thin-LTO link phase).
+        run: cargo build --profile release-ci -p puml --locked --bin puml
 
       - name: Regenerate diagram artifacts
         run: |
           set -euo pipefail
-          PUML_BIN="./target/release/puml"
+          PUML_BIN="./target/release-ci/puml"
 
           # Regenerate SVG and PNG for all .puml files in docs/examples/ and docs/diagrams/
           for puml_file in $(find docs/examples docs/diagrams -name "*.puml" | sort); do

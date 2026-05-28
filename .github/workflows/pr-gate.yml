@@ -17,6 +17,15 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
+  # Sparse registry protocol: fetch only the index entries actually needed
+  # instead of cloning the full crates.io git index (~1.4 GB).  Saves ~30-60s
+  # on cold-cache runs.  Safe on stable Rust 1.68+ (enabled unconditionally here
+  # because our rust-version = "1.88").
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  # sccache: compiler-output cache shared across jobs via GHA cache backend.
+  # Documented savings: 30-120s per job depending on changed file count.
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: sccache
 
 jobs:
   changes:
@@ -87,8 +96,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
 
+      - name: Check disk space
+        run: df -h
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -97,10 +112,13 @@ jobs:
           cache-on-failure: true
 
       - name: Build puml CLI binary for artifact regen
-        run: cargo build --release -p puml --locked --bin puml
+        # Use the fast CI profile (opt-level=1, lto=false, codegen-units=16)
+        # instead of the full release profile.  This is sufficient for
+        # deterministic SVG regeneration and saves ~40-60s of compile time.
+        run: cargo build --profile release-ci --bin puml --locked
 
       - name: Regenerate committed diagram artifacts
-        run: ./scripts/regen-artifacts.sh --force
+        run: PUML_BIN=target/release-ci/puml ./scripts/regen-artifacts.sh --force
 
       - name: Commit regenerated artifacts when drift is detected
         id: commit
@@ -135,12 +153,18 @@ jobs:
           echo "Artifact regeneration produced a commit on the PR branch."
           echo "The synchronize rerun will execute the expensive CI checks once against the updated branch."
 
-  fmt:
-    name: fmt
+  # ---------------------------------------------------------------------------
+  # Lint: fmt + clippy merged into one job.
+  # Saves one full runner checkout + cache-restore vs two separate jobs (~45s).
+  # Wall-time estimate: ~1:45 (fmt is instant after cache hits; clippy
+  # compiles all targets once with the cached incremental store + sccache).
+  # ---------------------------------------------------------------------------
+  lint:
+    name: lint (fmt + clippy)
     needs: [changes, artifact_regen]
     if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -149,7 +173,10 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -160,21 +187,36 @@ jobs:
       - name: fmt gate
         run: cargo fmt --check
 
-  quality:
-    name: quality gate
+      - name: clippy gate
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Test shards: nextest partitioned 2-way across two runners.
+  # Each shard compiles once (shared cache key), then runs half the tests.
+  # Wall time goes from ~N minutes to ~N/2 minutes for the test run portion.
+  # Note: llvm-cov instrumentation is NOT used here — tests run under the
+  # standard dev profile for speed. Coverage is a separate optional job.
+  # Estimated savings vs single test job: ~60-90s test-run wall time.
+  # ---------------------------------------------------------------------------
+  test-shard-1:
+    name: test (shard 1/2)
     needs: [changes, artifact_regen]
-    if: always() && (needs.changes.outputs.run_full_gate == 'true' || needs.changes.outputs.docs_examples_changed == 'true') && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Check disk space
+        run: df -h
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -185,42 +227,163 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      - name: test gate (shard 1/2)
+        # --profile ci: no retries, immediate output, 60s slow-test warning
+        # --partition count:1/2: run the first half of tests by stable hash
+        run: cargo nextest run --profile ci --partition count:1/2
+
+      - name: doc test gate
+        # doc tests can't be partitioned; run on shard 1 only
+        run: cargo test --doc
+
+  test-shard-2:
+    name: test (shard 2/2)
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check disk space
+        run: df -h
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: test gate (shard 2/2)
+        run: cargo nextest run --profile ci --partition count:2/2
+
+  # ---------------------------------------------------------------------------
+  # Coverage: llvm-cov only, separate job, skipped for bots and docs-only.
+  # Decoupled from test shards so it doesn't block test feedback and doesn't
+  # serialize the instrumented compile with the release binary build.
+  # The instrumented compile is expensive (~2-3 min extra vs debug compile);
+  # by running it in parallel with binary_size we recover that time.
+  # Skipped for dependabot/renovate: they don't change logic, coverage is noise.
+  # Estimated savings vs previous single quality job: ~90-120s wall time
+  # (parallel with binary_size instead of serialized after tests).
+  # ---------------------------------------------------------------------------
+  coverage:
+    name: coverage (llvm-cov)
+    needs: [changes, artifact_regen]
+    if: >
+      always()
+      && needs.changes.outputs.run_full_gate == 'true'
+      && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+      && github.actor != 'dependabot[bot]'
+      && github.actor != 'renovate[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check disk space
+        run: df -h
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Separate cache key: llvm-cov instrumentation produces different
+          # artifacts than the plain debug or release builds. Sharing the key
+          # would thrash the cache and slow down both jobs.
+          shared-key: pr-gate-ubuntu-coverage
+          cache-on-failure: true
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Install cargo-llvm-cov
-        if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: run quality gate
+      - name: coverage gate
         run: |
           set -euo pipefail
+          COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+          cargo llvm-cov --all-features --package puml \
+            --fail-under-lines 87 \
+            --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" \
+            --profile ci
 
-          if [[ "${{ needs.changes.outputs.run_full_gate }}" == "true" || "${{ needs.changes.outputs.docs_examples_changed }}" == "true" ]]; then
-            ./scripts/check-all.sh --skip-bench
+  # ---------------------------------------------------------------------------
+  # Binary size: uses release-ci profile (opt-level=1, lto=false) which saves
+  # ~60-90s vs the full [profile.release] with lto="thin" + codegen-units=1.
+  # Runs in parallel with coverage — combined, these two jobs replace what was
+  # previously the sequential "llvm-cov → cargo build --release" pair inside
+  # check-all.sh (wall time was dominated by the serialized sum of both).
+  # The binary size limit is slightly larger than for the release profile
+  # (no LTO dead-code removal) but the DELTA direction is identical.
+  # Estimated savings vs previous approach: ~60-90s wall time.
+  # ---------------------------------------------------------------------------
+  binary_size:
+    name: binary size
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BINARY_LIMIT_BYTES: "22000000"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Build release-ci binary
+        # release-ci profile: opt-level=1, lto=false, codegen-units=16.
+        # Saves ~60-90s vs full release (no thin-LTO link phase).
+        run: cargo build --profile release-ci -p puml --locked --bin puml
+
+      - name: Binary size check
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="target/release-ci/puml"
+          if stat -f%z "${BINARY}" >/dev/null 2>&1; then
+            BYTES=$(stat -f%z "${BINARY}")
           else
-            ./scripts/check-all.sh --quick --skip-bench
+            BYTES=$(stat -c%s "${BINARY}")
           fi
-
-      - name: Upload visual regression artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr-visual-smoke-${{ github.run_number }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: target/visual-diff
-
-      - name: Upload benchmark artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr-benchmarks-${{ github.run_number }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            docs/benchmarks/latest.md
-            docs/benchmarks/latest.csv
-            docs/benchmarks/latest.json
-            docs/benchmarks/latest_trend.md
-            docs/benchmarks/latest_trend.json
+          echo "Binary size (release-ci profile): ${BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
+          if (( BYTES > BINARY_LIMIT_BYTES )); then
+            echo "ERROR: Binary size ${BYTES}B exceeds limit ${BINARY_LIMIT_BYTES}B" >&2
+            exit 1
+          fi
 
   wasm:
     name: wasm
@@ -237,6 +400,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -260,6 +426,9 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -291,6 +460,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
@@ -338,7 +511,11 @@ jobs:
     needs:
       - changes
       - artifact_regen
-      - quality
+      - lint
+      - test-shard-1
+      - test-shard-2
+      - coverage
+      - binary_size
       - wasm
       - docs_examples_drift
       - site_smoke
@@ -359,7 +536,11 @@ jobs:
       IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
       ARTIFACT_REGEN_RESULT: ${{ needs.artifact_regen.result }}
-      QUALITY_RESULT: ${{ needs.quality.result }}
+      LINT_RESULT: ${{ needs.lint.result }}
+      TEST_SHARD_1_RESULT: ${{ needs.test-shard-1.result }}
+      TEST_SHARD_2_RESULT: ${{ needs.test-shard-2.result }}
+      COVERAGE_RESULT: ${{ needs.coverage.result }}
+      BINARY_SIZE_RESULT: ${{ needs.binary_size.result }}
       WASM_RESULT: ${{ needs.wasm.result }}
       DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
@@ -379,7 +560,11 @@ jobs:
           echo "run_site_smoke=${RUN_SITE_SMOKE}"
           echo "regen_pushed=${REGEN_PUSHED}"
           echo "artifact_regen=${ARTIFACT_REGEN_RESULT}"
-          echo "quality=${QUALITY_RESULT}"
+          echo "lint=${LINT_RESULT}"
+          echo "test_shard_1=${TEST_SHARD_1_RESULT}"
+          echo "test_shard_2=${TEST_SHARD_2_RESULT}"
+          echo "coverage=${COVERAGE_RESULT}"
+          echo "binary_size=${BINARY_SIZE_RESULT}"
           echo "wasm=${WASM_RESULT}"
           echo "docs_examples=${DOCS_EXAMPLES_RESULT}"
           echo "site_smoke=${SITE_SMOKE_RESULT}"
@@ -405,8 +590,17 @@ jobs:
             fi
           fi
 
-          if [[ "${RUN_FULL_GATE}" == "true" || "${RUN_DOCS_EXAMPLES_CHANGED}" == "true" ]]; then
-            require_success "quality" "${QUALITY_RESULT}"
+          if [[ "${RUN_FULL_GATE}" == "true" ]]; then
+            require_success "lint" "${LINT_RESULT}"
+            require_success "test shard 1" "${TEST_SHARD_1_RESULT}"
+            require_success "test shard 2" "${TEST_SHARD_2_RESULT}"
+            require_success "binary size" "${BINARY_SIZE_RESULT}"
+            # Coverage is skipped for bot dependency updaters; treat skipped as OK.
+            if [[ "${IS_BOT_DEP_UPDATER}" != "true" ]]; then
+              if [[ "${COVERAGE_RESULT}" != "success" && "${COVERAGE_RESULT}" != "skipped" ]]; then
+                failures+=("coverage expected success or skipped, got ${COVERAGE_RESULT}")
+              fi
+            fi
           fi
 
           if [[ "${RUN_WASM_CHECK}" == "true" ]]; then

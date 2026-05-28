@@ -22,6 +22,9 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - name: Checkout
@@ -32,6 +35,9 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
