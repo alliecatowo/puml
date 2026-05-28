@@ -5861,10 +5861,17 @@ fn class_hide_options_suppress_circle_and_stereotype() {
         .stderr(predicate::str::is_empty());
 
     let svg = render_source_to_svg(&src).expect("rendered svg");
-    // When hide circle is active, no circle element for class icon
+    // When hide circle is active, no class-icon `<circle>` outside `<defs>`. Marker
+    // defs for arrowheads (added by wave-10-F: arrow-circle-open / arrow-circle-filled
+    // for IE crow's-foot endpoints) always live inside `<defs>` blocks and are not
+    // visible without a marker reference — they don't count as the suppressed icon.
+    let after_defs: &str = svg
+        .rsplit_once("</defs>")
+        .map(|(_, rest)| rest)
+        .unwrap_or(svg.as_str());
     assert!(
-        !svg.contains("<circle"),
-        "SVG should not contain class icon circle when hide circle is set"
+        !after_defs.contains("<circle"),
+        "SVG should not contain a class icon circle outside <defs> when hide circle is set"
     );
     // When hide stereotype is active, the 'class' keyword label should not appear before node names
     // The node names themselves should still appear
@@ -7163,7 +7170,9 @@ end note\n\
     assert!(svg.contains("font-size=\"24\""));
     assert!(svg.contains("font-weight=\"bold\""));
     assert!(svg.contains("<title>Open docs</title>"));
-    assert!(svg.contains("------------------------"));
+    // Wave-9-E: `----` HR now renders as an SVG `<line>` element instead of a
+    // dash-string. The visual outcome is identical; the byte assertion changed.
+    assert!(svg.contains("<line x1=\"0\" y1=\"0.6em\""));
     assert!(svg.contains("data-creole-back=\"#FF8080\""));
     assert!(svg.contains("`- "));
     assert!(svg.contains("font-family=\"monospace\""));
