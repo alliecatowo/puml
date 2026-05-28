@@ -1,24 +1,27 @@
 use std::collections::BTreeMap;
 
 mod autonumber;
+mod create;
 mod finalize;
 mod geometry;
+mod structure;
 mod text;
 
 use crate::model::{ParticipantRole, SequenceDocument, SequenceEventKind, SequencePage};
 use crate::normalize;
 use crate::scene::{
-    ActivationBox, GroupBox, GroupSeparator, Label, LayoutOptions, LifecycleMarker,
-    LifecycleMarkerKind, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene, StructureKind,
-    StructureLine,
+    ActivationBox, GroupBox, GroupSeparator, Label, LayoutOptions, LifecycleMarker, Lifeline,
+    MessageLine, NoteBox, ParticipantBox, Scene, StructureKind, StructureLine,
 };
 use autonumber::AutonumberState;
+use create::{handle_create_event, handle_destroy_event};
 use geometry::{
     activation_edge_for_depth, activation_message_x_bounds, default_center,
     group_horizontal_bounds, message_x_bounds, note_horizontal_bounds, note_vertical_position_y,
-    scene_leftmost_geometry_x, shift_scene_geometry_x, structure_bounds, OpenActivation,
-    SceneGeometryMut, SceneGeometryRefs,
+    scene_leftmost_geometry_x, shift_scene_geometry_x, OpenActivation, SceneGeometryMut,
+    SceneGeometryRefs,
 };
+use structure::push_structure_line;
 use text::{
     else_separator_label, estimate_text_px_width, group_content_min_size, legend_box_size,
     message_label_bounds, message_label_lines, message_label_top_clearance,
@@ -75,10 +78,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let participant_height = (max_participant_line_count * 16) + 12;
     let participant_height = participant_height.max(options.participant_height);
 
-    // Compute x positions for ALL participants (including mid-flow `create`d ones)
-    // so that center/bounds maps are available for message routing.  However, only
-    // create the top-header `ParticipantBox` for participants that are NOT mid-flow
-    // created — those will get their box rendered at the `create` event row.
+    // Compute x/center positions for ALL participants (mid-flow created ones included)
+    // so routing has access to them.  Header boxes for mid-flow creates are deferred.
     for (idx, participant) in document.participants.iter().enumerate() {
         let x = options.margin + (idx as i32 * options.participant_spacing);
         let center_x = x + options.participant_width / 2;
@@ -383,54 +384,28 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 }
             }
             SequenceEventKind::Create(id) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let x = centers_by_id
-                    .get(id)
-                    .copied()
-                    .unwrap_or_else(|| default_center(&options));
-                // For mid-flow created participants, render their header box at the
-                // creation row instead of at the top of the diagram.
-                if document.created_participants.contains(id.as_str()) {
-                    let participant_x = x - options.participant_width / 2;
-                    let (display_lines, role) = created_display_lines
-                        .get(id.as_str())
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            (vec![id.clone()], crate::model::ParticipantRole::Participant)
-                        });
-                    participants.push(ParticipantBox {
-                        id: id.clone(),
-                        display_lines,
-                        role,
-                        x: participant_x,
-                        y,
-                        width: options.participant_width,
-                        height: participant_height,
-                    });
-                    event_rows +=
-                        row_units_for_height(participant_height, options.message_row_height);
-                } else {
-                    lifecycle_markers.push(LifecycleMarker {
-                        participant_id: id.clone(),
-                        x,
-                        y,
-                        kind: LifecycleMarkerKind::Create,
-                    });
-                }
+                handle_create_event(
+                    id,
+                    &document.created_participants,
+                    &created_display_lines,
+                    &centers_by_id,
+                    &options,
+                    events_top,
+                    &mut event_rows,
+                    participant_height,
+                    &mut participants,
+                    &mut lifecycle_markers,
+                );
             }
             SequenceEventKind::Destroy(id) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let x = centers_by_id
-                    .get(id)
-                    .copied()
-                    .unwrap_or_else(|| default_center(&options));
-                lifecycle_markers.push(LifecycleMarker {
-                    participant_id: id.clone(),
-                    x,
-                    y,
-                    kind: LifecycleMarkerKind::Destroy,
-                });
-                event_rows += 1;
+                handle_destroy_event(
+                    id,
+                    &centers_by_id,
+                    &options,
+                    events_top,
+                    &mut event_rows,
+                    &mut lifecycle_markers,
+                );
             }
             SequenceEventKind::Note {
                 kind,
@@ -551,55 +526,46 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 }
                 event_rows += 1;
             }
-            SequenceEventKind::Delay(label) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let (x1, x2) = structure_bounds(&centers_by_id, &options);
-                structures.push(StructureLine {
-                    kind: StructureKind::Delay,
-                    y,
-                    x1,
-                    x2,
-                    label: label.clone(),
-                });
-                event_rows += 1;
-            }
-            SequenceEventKind::Divider(label) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let (x1, x2) = structure_bounds(&centers_by_id, &options);
-                structures.push(StructureLine {
-                    kind: StructureKind::Divider,
-                    y,
-                    x1,
-                    x2,
-                    label: label.clone(),
-                });
-                event_rows += 1;
-            }
-            SequenceEventKind::Separator(label) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let (x1, x2) = structure_bounds(&centers_by_id, &options);
-                structures.push(StructureLine {
-                    kind: StructureKind::Separator,
-                    y,
-                    x1,
-                    x2,
-                    label: label.clone(),
-                });
-                event_rows += 1;
-            }
-            SequenceEventKind::Spacer(pixels) => {
-                let y = events_top + (event_rows * options.message_row_height);
-                let (x1, x2) = structure_bounds(&centers_by_id, &options);
-                structures.push(StructureLine {
-                    kind: StructureKind::Spacer,
-                    y,
-                    x1,
-                    x2,
-                    label: None,
-                });
-                let pixels = pixels.unwrap_or(options.message_row_height).max(1);
-                event_rows += row_units_for_height(pixels, options.message_row_height);
-            }
+            SequenceEventKind::Delay(label) => push_structure_line(
+                StructureKind::Delay,
+                label.clone(),
+                None,
+                &mut event_rows,
+                events_top,
+                &centers_by_id,
+                &options,
+                &mut structures,
+            ),
+            SequenceEventKind::Divider(label) => push_structure_line(
+                StructureKind::Divider,
+                label.clone(),
+                None,
+                &mut event_rows,
+                events_top,
+                &centers_by_id,
+                &options,
+                &mut structures,
+            ),
+            SequenceEventKind::Separator(label) => push_structure_line(
+                StructureKind::Separator,
+                label.clone(),
+                None,
+                &mut event_rows,
+                events_top,
+                &centers_by_id,
+                &options,
+                &mut structures,
+            ),
+            SequenceEventKind::Spacer(pixels) => push_structure_line(
+                StructureKind::Spacer,
+                None,
+                Some(pixels.unwrap_or(options.message_row_height)),
+                &mut event_rows,
+                events_top,
+                &centers_by_id,
+                &options,
+                &mut structures,
+            ),
             _ => {}
         }
     }

@@ -128,3 +128,47 @@ pub(super) fn adjust_color(raw: &str, pct: i64, lighten: bool) -> String {
     };
     format!("#{:02x}{:02x}{:02x}", adjust(r), adjust(g), adjust(b))
 }
+
+/// Dispatch a color-related preprocessor builtin.
+///
+/// Returns `Some(result)` if `name` is a known color builtin, `None` if the
+/// name is not recognized as a color builtin (caller should continue matching).
+pub(super) fn dispatch_color_builtin(
+    name: &str,
+    arg0: &str,
+    arg1: &str,
+    arg2: &str,
+    arg3: &str,
+    argc: usize,
+) -> Option<String> {
+    match name {
+        "is_dark" => Some(is_dark_color(arg0).to_string()),
+        "is_light" => Some(is_light_color(arg0).to_string()),
+        "reverse_color" => Some(
+            parse_hex_rgb(arg0)
+                .map(|(r, g, b)| format!("#{:02x}{:02x}{:02x}", 255 - r, 255 - g, 255 - b))
+                .unwrap_or_default(),
+        ),
+        "reverse_hsluv_color" => Some(reverse_hsluv_color(arg0)),
+        "lighten" => {
+            let pct = super::value::parse_int_lenient(arg1);
+            Some(adjust_color(arg0, pct, true))
+        }
+        "darken" => {
+            let pct = super::value::parse_int_lenient(arg1);
+            Some(adjust_color(arg0, pct, false))
+        }
+        "hsl_color" => {
+            let h = super::value::parse_int_lenient(arg0) as f64;
+            let s = super::value::parse_int_lenient(arg1) as f64;
+            let l = super::value::parse_int_lenient(arg2) as f64;
+            let alpha = if argc >= 4 {
+                Some(super::value::parse_int_lenient(arg3).clamp(0, 255) as u8)
+            } else {
+                None
+            };
+            Some(hsl_color_to_hex(h, s, l, alpha))
+        }
+        _ => None,
+    }
+}
