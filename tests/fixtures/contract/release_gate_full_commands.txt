@@ -2,6 +2,6 @@ cargo fmt --check
 cargo clippy -p puml --all-targets --all-features --locked -- -D warnings
 cargo nextest run -p puml --locked
 cargo test --doc --package puml --locked
-cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs --no-clean
+cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean
 cargo build --release -p puml --locked --bin puml
 ./scripts/bench.sh --skip-build --enforce-gates
