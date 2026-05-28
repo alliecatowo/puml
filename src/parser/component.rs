@@ -549,13 +549,46 @@ pub(crate) fn parse_component_multiline_decl(
         return Ok(None);
     };
     let mut body = Vec::new();
+    let mut port_members: Vec<ClassMember> = Vec::new();
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let text = strip_inline_plantuml_comment(raw).trim();
         if text == "]" {
-            if let StatementKind::ComponentDecl { label, .. } = &mut kind {
-                *label = Some(body.join("\n"));
+            if let StatementKind::ComponentDecl {
+                label, members, ..
+            } = &mut kind
+            {
+                let label_body = body.join("\n");
+                if !label_body.is_empty() {
+                    *label = Some(label_body);
+                }
+                members.extend(port_members);
             }
             return Ok(Some((kind, idx)));
+        }
+        // Detect `port NAME`, `portin NAME`, `portout NAME` lines inside the block.
+        // Encode them as special members so the normalizer can emit separate Port nodes.
+        let lower = text.to_ascii_lowercase();
+        if let Some(port_name_raw) = lower
+            .strip_prefix("portin ")
+            .or_else(|| lower.strip_prefix("portout "))
+            .or_else(|| lower.strip_prefix("port "))
+        {
+            let raw_offset = text.len() - port_name_raw.len();
+            let port_name = clean_ident(text[raw_offset..].trim());
+            if !port_name.is_empty() {
+                let direction_hint = if lower.starts_with("portin ") {
+                    "portin"
+                } else if lower.starts_with("portout ") {
+                    "portout"
+                } else {
+                    "port"
+                };
+                port_members.push(ClassMember {
+                    text: format!("\x1fcomponent:port:{direction_hint}:{port_name}"),
+                    modifier: None,
+                });
+                continue;
+            }
         }
         body.push(text.to_string());
     }
