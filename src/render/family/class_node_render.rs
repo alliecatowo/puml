@@ -85,6 +85,8 @@ pub(super) fn render_class_node(
             Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
             Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
             Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
+            // IE/ER entity: light warm tan to distinguish from plain class boxes
+            Some("\u{ab}entity\u{bb}") => "#fde68a",
             _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",

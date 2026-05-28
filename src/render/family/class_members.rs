@@ -167,6 +167,8 @@ pub(super) fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> 
         "<<annotation>>" => Some("\u{ab}annotation\u{bb}"),
         "<<protocol>>" => Some("\u{ab}protocol\u{bb}"),
         "<<struct>>" => Some("\u{ab}struct\u{bb}"),
+        // IE/ER entity — class-family rounded-rectangle with entity stereotype header.
+        "<<entity>>" => Some("\u{ab}entity\u{bb}"),
         _ => None,
     }
 }

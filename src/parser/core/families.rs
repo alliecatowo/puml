@@ -40,6 +40,13 @@ pub(crate) fn parse_component_or_deployment_core(
     let ambiguous_usecase_prefers_usecase = current_kind.is_none()
         && (line.starts_with("usecase ") || line.starts_with('('))
         && later_lines_contain_usecase_family_declaration(lines, i);
+    // `entity X` without a brace block is ambiguous between deployment (Robustness)
+    // and IE/ER class-family.  When later lines contain IE crow's-foot relation tokens
+    // (e.g. `||--`, `}|..`) the entity belongs to the class family, not deployment.
+    let ambiguous_entity_prefers_class_family = current_kind.is_none()
+        && line.to_ascii_lowercase().starts_with("entity ")
+        && !line.trim_end().ends_with('{')
+        && later_lines_contain_ie_family_context(lines, i);
     let ambiguous_class_scope = current_kind.is_none()
         && (line.starts_with("package ") || line.starts_with("namespace "))
         && line.trim_end().ends_with('{')
@@ -72,6 +79,7 @@ pub(crate) fn parse_component_or_deployment_core(
         || ambiguous_activity_keyword_prefers_activity
         || ambiguous_usecase_prefers_usecase
         || ambiguous_class_scope
+        || ambiguous_entity_prefers_class_family
     {
         return Ok(None);
     }
