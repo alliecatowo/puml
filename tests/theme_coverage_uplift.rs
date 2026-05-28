@@ -1,9 +1,16 @@
-/// Coverage uplift tests for `src/theme/styles.rs` and `src/theme/values.rs`.
-///
-/// These tests target the branches that were identified as uncovered in the wave-8
-/// coverage report, pushing the total line coverage past the 87% gate.
-///
-/// Refs #89
+//! Coverage uplift tests for `src/theme/styles.rs` and `src/theme/values.rs`.
+//!
+//! These tests target the branches that were identified as uncovered in the wave-8
+//! coverage report, pushing the total line coverage past the 87% gate.
+//!
+//! Refs #89
+
+// Test code mutates `SequenceStyle::default()` in many small focused tests; rewriting
+// each as a full struct-literal expansion (with every other field defaulted) is far
+// noisier than the mutation pattern itself, and adds no readability or safety in test
+// code. The lint is meaningful in production code where partial init can hide bugs.
+#![allow(clippy::field_reassign_with_default)]
+
 use puml::theme::{
     hex_color_is_dark, salt_style_from_sequence_theme, GroupHeaderFontStyle, MessageAlign,
     MonochromeMode, SequenceStyle, StyleColor, StyleSource, TextAlignment,
