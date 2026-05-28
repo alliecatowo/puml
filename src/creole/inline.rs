@@ -213,6 +213,29 @@ pub(super) fn parse_inline(text: &str) -> CreoleLine {
                 continue;
             }
 
+            // <img:url> or <img:path> — render as a bracketed placeholder.
+            // PlantUML supports embedding external images; we emit a monospaced
+            // placeholder so the label still reads meaningfully.
+            if let Some(after) = parse_open_tag_with_value(&rest, "img") {
+                flush!();
+                let url = after.0.trim();
+                // Derive a short display name: use filename component of the URL.
+                let display = if let Some(sep) = url.rfind('/') {
+                    &url[sep + 1..]
+                } else {
+                    url
+                };
+                let display = display.trim_end_matches(|c: char| {
+                    !c.is_alphanumeric() && c != '.' && c != '_' && c != '-'
+                });
+                let display = if display.is_empty() { "img" } else { display };
+                let mut img_state = state.clone();
+                img_state.mono = true;
+                spans.push(span_from_state(format!("[{display}]"), &img_state));
+                i += after.1;
+                continue;
+            }
+
             // <code>...</code> is inline verbatim monospaced text.
             if rest.to_ascii_lowercase().starts_with("<code>") {
                 if let Some(close) = find_case_insensitive(&rest, "</code>") {
@@ -433,6 +456,83 @@ pub(super) fn parse_inline(text: &str) -> CreoleLine {
                 flush!();
                 state.baseline_shift = None;
                 i += 6;
+                continue;
+            }
+
+            // HTML semantic aliases — map to the matching inline state.
+            // <strong> / </strong> → bold
+            if rest.to_ascii_lowercase().starts_with("<strong>") {
+                flush!();
+                state.bold = true;
+                i += 8;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</strong>") {
+                flush!();
+                state.bold = false;
+                i += 9;
+                continue;
+            }
+
+            // <em> / </em> → italic
+            if rest.to_ascii_lowercase().starts_with("<em>") {
+                flush!();
+                state.italic = true;
+                i += 4;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</em>") {
+                flush!();
+                state.italic = false;
+                i += 5;
+                continue;
+            }
+
+            // <del> / </del> → strikethrough (alias for <s>)
+            if rest.to_ascii_lowercase().starts_with("<del>") {
+                flush!();
+                state.strike = true;
+                i += 5;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</del>") {
+                flush!();
+                state.strike = false;
+                if !state.underline && !state.wave {
+                    state.decoration_color = None;
+                }
+                i += 6;
+                continue;
+            }
+
+            // <strike> / </strike> → strikethrough (another alias for <s>)
+            if rest.to_ascii_lowercase().starts_with("<strike>") {
+                flush!();
+                state.strike = true;
+                i += 8;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</strike>") {
+                flush!();
+                state.strike = false;
+                if !state.underline && !state.wave {
+                    state.decoration_color = None;
+                }
+                i += 9;
+                continue;
+            }
+
+            // <tt> / </tt> → monospace (alias for ""..."")
+            if rest.to_ascii_lowercase().starts_with("<tt>") {
+                flush!();
+                state.mono = true;
+                i += 4;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</tt>") {
+                flush!();
+                state.mono = false;
+                i += 5;
                 continue;
             }
 
