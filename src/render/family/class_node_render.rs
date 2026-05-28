@@ -218,20 +218,70 @@ pub(super) fn render_class_node(
         } else {
             (node.name.as_str(), 0)
         };
-        // Name centered — the alias is the internal id only; do NOT display it (fix #478)
+        // Collect extension point names (encoded as `\x1fuc:ext-point:NAME` members).
+        // These are rendered as a horizontal divider + list inside the oval.
+        let ext_points: Vec<&str> = node
+            .members
+            .iter()
+            .filter_map(|m| m.text.strip_prefix("\x1fuc:ext-point:"))
+            .collect();
+        let has_ext_points = !ext_points.is_empty()
+            || node
+                .members
+                .iter()
+                .any(|m| m.text == "\x1fuc:ext-points-header");
+
+        // Name centered — the alias is the internal id only; do NOT display it (fix #478).
+        // When extension points are present, shift the name upward so the divider
+        // and point list fit inside the oval below it.
+        let name_ty = if has_ext_points {
+            // Position the name in the upper portion of the ellipse.
+            cy - (ry / 3).max(8)
+        } else {
+            cy + 4
+        };
         out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            "<text x=\"{cx}\" y=\"{name_ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
             escape_text(font_color),
-            ty = cy + 4,
             name = escape_text(uc_display_name)
         ));
-        // Members rendered below the ellipse (rare for usecases), skipping display-label slot
+
+        // Render extension-points section inside the ellipse.
+        if has_ext_points {
+            // Dividing line across the interior of the oval at ~40% from top.
+            let div_y = cy - (ry / 6).max(4);
+            // Half-chord width at div_y: w_chord = rx * sqrt(1 - ((div_y-cy)/ry)^2)
+            let dy_frac = (div_y - cy) as f64 / ry as f64;
+            let chord_half = (rx as f64 * (1.0 - dy_frac * dy_frac).max(0.0).sqrt()) as i32;
+            let line_x1 = cx - chord_half + 4;
+            let line_x2 = cx + chord_half - 4;
+            out.push_str(&format!(
+                "<line class=\"uml-usecase-ext-divider\" x1=\"{line_x1}\" y1=\"{div_y}\" x2=\"{line_x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+            ));
+            // Extension point names listed below the divider.
+            let mut ep_y = div_y + 13;
+            for ep_name in &ext_points {
+                out.push_str(&format!(
+                    "<text class=\"uml-usecase-ext-point\" x=\"{cx}\" y=\"{ep_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"9\" fill=\"{}\">{txt}</text>",
+                    escape_text(font_family),
+                    escape_text(member_color),
+                    txt = escape_text(ep_name)
+                ));
+                ep_y += 12;
+            }
+        }
+
+        // Members rendered below the ellipse (rare for usecases), skipping display-label slot.
+        // Skip internal uc: members — those are rendered inside the oval above.
         let mut my = y + h + 14;
         for member in node.members.iter().skip(uc_member_skip) {
             let text = member.text.trim();
-            if is_family_style_member(text) || (hide_stereotype && is_user_stereotype(text)) {
+            if is_family_style_member(text)
+                || text.starts_with("\x1fuc:")
+                || (hide_stereotype && is_user_stereotype(text))
+            {
                 continue;
             }
             out.push_str(&format!(
@@ -240,7 +290,7 @@ pub(super) fn render_class_node(
                 member_font_size,
                 tx = x + w / 2,
                 mc = member_color,
-                m = escape_text(&member.text)
+                m = escape_text(text)
             ));
             my += 14;
         }

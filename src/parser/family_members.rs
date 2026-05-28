@@ -1,4 +1,69 @@
 use super::*;
+
+/// Parse the body of a `usecase "X" { ... }` block.
+///
+/// Recognizes the `extension points` section: a line that reads
+/// `extension points` (case-insensitive) introduces a list of extension
+/// point names — one per line — until the closing `}`. Each name is
+/// encoded as a `\x1fuc:ext-point:<name>` member so the renderer can
+/// draw the dividing line + name list inside the use-case oval.
+///
+/// Any other body line is treated as a regular class member (stereotype,
+/// inline style, etc.) via the standard `parse_class_member` path.
+pub(crate) fn parse_usecase_block_members(
+    lines: &[(&str, Span)],
+    start: usize,
+    name: &str,
+) -> Result<Vec<ClassMember>, Diagnostic> {
+    let end_idx = find_family_decl_end(lines, start);
+    if end_idx == start {
+        return Err(Diagnostic::error(format!(
+            "[E_FAMILY_DECL_BLOCK_UNCLOSED] unclosed usecase declaration block for `{name}`: missing `}}`",
+        ))
+        .with_span(lines[start].1));
+    }
+    let mut members = Vec::new();
+    let mut in_extension_points = false;
+    for (raw, _) in lines.iter().take(end_idx).skip(start + 1) {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        // Detect `extension points` header line (case-insensitive).
+        if trimmed.eq_ignore_ascii_case("extension points") {
+            in_extension_points = true;
+            // Emit a sentinel member so the renderer knows there is an
+            // extension-points section even if no names follow.
+            members.push(ClassMember {
+                text: "\x1fuc:ext-points-header".to_string(),
+                modifier: None,
+            });
+            continue;
+        }
+        if in_extension_points {
+            // Each non-empty line inside the extension-points section is a name.
+            // Names may not contain `{` (brace modifiers) or `<<` (stereotypes)
+            // — those belong to other use-case member syntax.
+            let name_trimmed = trimmed.trim_end_matches(';');
+            if !name_trimmed.is_empty()
+                && !name_trimmed.starts_with("<<")
+                && !name_trimmed.starts_with('{')
+            {
+                members.push(ClassMember {
+                    text: format!("\x1fuc:ext-point:{name_trimmed}"),
+                    modifier: None,
+                });
+                continue;
+            }
+            // If it looks like something else, fall back to a regular member
+            // and exit the extension-points section.
+            in_extension_points = false;
+        }
+        members.push(parse_class_member(trimmed));
+    }
+    Ok(members)
+}
+
 pub(crate) fn parse_family_decl_members(
     lines: &[(&str, Span)],
     start: usize,

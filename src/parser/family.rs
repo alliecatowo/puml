@@ -272,7 +272,16 @@ pub(crate) fn parse_family_declaration(
             ..
         } = decl;
         let mut members = if has_block {
-            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            // Use the usecase-aware block parser for `usecase`/`usecase/` so that
+            // `extension points` sections are recognised and encoded as internal
+            // `\x1fuc:ext-point:NAME` members. For `actor`/`actor/` use the generic
+            // member parser (actors do not have extension-point sections).
+            let is_usecase_kw = keyword == "usecase" || keyword == "usecase/";
+            let mut members = if is_usecase_kw {
+                parse_usecase_block_members(lines, start, &name)?
+            } else {
+                parse_family_decl_members(lines, start, keyword, &name)?
+            };
             if let Some(marker) = marker {
                 members.insert(
                     0,
