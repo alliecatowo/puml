@@ -216,3 +216,144 @@ fn json_and_yaml_root_arrays_keep_index_paths_for_highlight() {
     assert!(yaml_svg.contains("data-yaml-label=\"[1]: beta\""));
     assert!(yaml_svg.contains("data-yaml-highlight=\"true\""));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P12 — Document-order key rendering (PlantUML parity)
+// JSON/YAML objects must render keys in source/document order, not alphabetical.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// JSON object `{"zebra":1,"apple":2}` — "zebra" appears before "apple" in the
+/// source, so the rendered SVG must show zebra FIRST (document order), not apple.
+#[test]
+fn json_object_keys_render_in_document_order_not_alphabetical() {
+    let src = r#"@startjson
+{
+  "zebra": 1,
+  "apple": 2
+}
+@endjson
+"#;
+    let svg = puml::render_source_to_svg(src).expect("json render");
+
+    let zebra_pos = svg
+        .find("data-json-label=\"zebra:")
+        .expect("zebra key must appear in SVG");
+    let apple_pos = svg
+        .find("data-json-label=\"apple:")
+        .expect("apple key must appear in SVG");
+
+    assert!(
+        zebra_pos < apple_pos,
+        "zebra (first in source) must render before apple (second in source); \
+         got zebra_pos={zebra_pos} apple_pos={apple_pos} — alphabetical ordering detected"
+    );
+}
+
+/// Nested JSON: inner objects also preserve document order.
+#[test]
+fn json_nested_object_keys_preserve_document_order() {
+    let src = r#"@startjson
+{
+  "zoo": {
+    "zebra": "stripey",
+    "aardvark": "digger"
+  },
+  "farm": {
+    "yak": "woolly",
+    "bovine": "horned"
+  }
+}
+@endjson
+"#;
+    let svg = puml::render_source_to_svg(src).expect("nested json render");
+
+    // Top-level: "zoo" must appear before "farm"
+    let zoo_pos = svg
+        .find("data-json-label=\"zoo:")
+        .expect("zoo key must appear");
+    let farm_pos = svg
+        .find("data-json-label=\"farm:")
+        .expect("farm key must appear");
+    assert!(
+        zoo_pos < farm_pos,
+        "top-level: zoo (first in source) must render before farm; \
+         zoo_pos={zoo_pos} farm_pos={farm_pos}"
+    );
+
+    // Inner zoo object: "zebra" must appear before "aardvark"
+    let zebra_pos = svg
+        .find("data-json-label=\"zebra:")
+        .expect("zebra key must appear");
+    let aardvark_pos = svg
+        .find("data-json-label=\"aardvark:")
+        .expect("aardvark key must appear");
+    assert!(
+        zebra_pos < aardvark_pos,
+        "nested: zebra (first in source) must render before aardvark; \
+         zebra_pos={zebra_pos} aardvark_pos={aardvark_pos}"
+    );
+}
+
+/// YAML mapping `zebra: 1 / apple: 2` — zebra must render before apple.
+#[test]
+fn yaml_mapping_keys_render_in_document_order_not_alphabetical() {
+    let src = r#"@startyaml
+zebra: 1
+apple: 2
+@endyaml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("yaml render");
+
+    let zebra_pos = svg
+        .find("data-yaml-label=\"zebra:")
+        .expect("zebra key must appear in YAML SVG");
+    let apple_pos = svg
+        .find("data-yaml-label=\"apple:")
+        .expect("apple key must appear in YAML SVG");
+
+    assert!(
+        zebra_pos < apple_pos,
+        "yaml: zebra (first in source) must render before apple (second in source); \
+         got zebra_pos={zebra_pos} apple_pos={apple_pos} — alphabetical ordering detected"
+    );
+}
+
+/// Nested YAML: inner mappings also preserve document order.
+#[test]
+fn yaml_nested_mapping_keys_preserve_document_order() {
+    let src = r#"@startyaml
+zoo:
+  zebra: stripey
+  aardvark: digger
+farm:
+  yak: woolly
+  bovine: horned
+@endyaml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("nested yaml render");
+
+    // Top-level: "zoo" must appear before "farm"
+    let zoo_pos = svg
+        .find("data-yaml-label=\"zoo:")
+        .expect("zoo key must appear");
+    let farm_pos = svg
+        .find("data-yaml-label=\"farm:")
+        .expect("farm key must appear");
+    assert!(
+        zoo_pos < farm_pos,
+        "yaml top-level: zoo must render before farm; zoo_pos={zoo_pos} farm_pos={farm_pos}"
+    );
+
+    // Inner zoo mapping: "zebra" must appear before "aardvark"
+    let zebra_pos = svg
+        .find("data-yaml-label=\"zebra:")
+        .expect("zebra key must appear");
+    let aardvark_pos = svg
+        .find("data-yaml-label=\"aardvark:")
+        .expect("aardvark key must appear");
+    assert!(
+        zebra_pos < aardvark_pos,
+        "yaml nested: zebra (first in source) must render before aardvark; \
+         zebra_pos={zebra_pos} aardvark_pos={aardvark_pos}"
+    );
+}
