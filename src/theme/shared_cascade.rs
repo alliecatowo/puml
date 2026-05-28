@@ -26,11 +26,11 @@
 //! - [x] Class family      — `effective_class_node_style` wired through this module
 //! - [x] Component family  — `component_node_effective_style` wired through this module
 //! - [x] Deployment family — shares `ComponentStyle`; covered by the component wiring above
-//! - [ ] Activity family   — `ActivityStyle` not yet wired
-//! - [ ] State family      — `StateStyle` not yet wired
-//! - [ ] Timing family     — `TimingStyle` not yet wired
-//! - [ ] Sequence family   — `SequenceStyle` not yet wired
-//! - [ ] MindMap family    — `MindMapStyle` not yet wired
+//! - [x] Activity family   — `activity_node_effective_style` wired through this module
+//! - [x] State family      — `state_node_effective_style` wired through this module
+//! - [x] Timing family     — `timing_lane_effective_style` wired through this module
+//! - [x] Sequence family   — `sequence_participant_effective_style` wired through this module
+//! - [x] MindMap family    — `mindmap_node_effective_style` wired through this module
 
 use super::values::{EffectiveStyleValue, StyleColor, StyleSource};
 
@@ -462,9 +462,69 @@ pub fn component_node_effective_style(
     }
 }
 
+// ─── Simple-family cascade helper ────────────────────────────────────────────
+//
+// Activity, State, Timing, Sequence, and MindMap style structs do not carry
+// per-field source tracking (unlike ClassStyle / ComponentStyle).  Callers
+// supply `diagram_source` explicitly — they know whether the current value
+// originated from a theme preset, a skinparam directive, or the built-in
+// default.
+pub(crate) fn simple_cascade(
+    diagram_color: &str,
+    diagram_source: Src,
+    stereotype_color: Option<&str>,
+    inline_color: Option<&str>,
+) -> EffectiveStyleValue<StyleColor> {
+    let (theme_color, skinparam_color) = match diagram_source {
+        Src::ThemePreset => (Some(diagram_color.to_string()), None),
+        Src::SkinParam | Src::StyleBlock => (None, Some(diagram_color.to_string())),
+        Src::Default | Src::Stereotype | Src::Inline => (None, None),
+    };
+    let input = CascadeInput {
+        default: CascadeTier {
+            color: Some(diagram_color.to_string()),
+            source: Src::Default,
+        },
+        theme: CascadeTier {
+            color: theme_color,
+            source: Src::ThemePreset,
+        },
+        skinparam: CascadeTier {
+            color: skinparam_color,
+            source: Src::SkinParam,
+        },
+        stereotype: CascadeTier {
+            color: stereotype_color.map(str::to_string),
+            source: Src::Stereotype,
+        },
+        style_block: CascadeTier::absent(Src::StyleBlock),
+        inline: CascadeTier {
+            color: inline_color.map(str::to_string),
+            source: Src::Inline,
+        },
+    };
+    resolve_color(&input)
+}
+
+// ─── Additional-family cascade functions ─────────────────────────────────────
+// Activity, State, Timing, Sequence, and MindMap families are in a separate
+// module to stay within the 600-line file-size guardrail.
+#[path = "shared_cascade_families.rs"]
+pub mod families;
+pub use families::{
+    activity_node_effective_style, mindmap_node_effective_style,
+    sequence_participant_effective_style, state_node_effective_style, timing_lane_effective_style,
+    EffectiveActivityNodeStyle, EffectiveMindMapNodeStyle, EffectiveSequenceParticipantStyle,
+    EffectiveStateNodeStyle, EffectiveTimingLaneStyle,
+};
+
 // ─── Unit tests ──────────────────────────────────────────────────────────────
-// Tests are in a separate file to stay within the 600-line file-size guardrail.
+// Tests are in separate files to stay within the 600-line file-size guardrail.
 
 #[cfg(test)]
 #[path = "shared_cascade_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "shared_cascade_family_tests.rs"]
+mod family_tests;

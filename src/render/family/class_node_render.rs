@@ -265,15 +265,26 @@ pub(super) fn render_class_node(
     // Members to display: skip all header stereotype members
     let display_members = &node.members[header_skip..];
 
+    // Corner radius from `skinparam roundcorner <N>`; default keeps the
+    // historical visual of 4px when the skinparam is not specified.
+    let rx = class_style.round_corner.unwrap_or(4);
+    // `skinparam shadowing true` drops a soft shadow under the outer rect.
+    // The header rect is intentionally unshadowed so the band does not
+    // appear to "float" above the body.
+    let shadow_attr = if class_style.shadowing {
+        " filter=\"url(#shadow)\""
+    } else {
+        ""
+    };
     // Outer rect
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}{shadow_attr}/>",
     ));
     // Header band — taller when we display stereotype labels (14px per label — fix #470, #551)
     let stereotype_extra = (header_stereotype_labels.len() as i32) * 14;
     let effective_header_h = header_h + stereotype_extra;
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
         hh = effective_header_h
     ));
     // Header separator line

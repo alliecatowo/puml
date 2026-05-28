@@ -5,6 +5,7 @@
 /// <size:N>text</size>, legacy HTML-style tags, \n line breaks, basic block
 /// Creole line forms, and <&icon> placeholders.
 mod inline;
+mod inline_helpers;
 mod parser;
 mod svg;
 #[cfg(test)]

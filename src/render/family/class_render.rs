@@ -219,6 +219,16 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     // fill="#ffffff" instead of fill="white" avoids resvg keyword-inheritance
     // rendering the triangle filled in PNG output (fix #467).
     out.push_str("<defs>");
+    // `skinparam shadowing true` drops a subtle shadow under each class/object
+    // node rect. Filter id is referenced from class_node_render via the
+    // `class_style.shadowing` flag.
+    if class_style.shadowing {
+        out.push_str(
+            "<filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\
+             <feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/>\
+             </filter>",
+        );
+    }
     out.push_str(&format!(
         "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
          markerWidth=\"10\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
@@ -363,6 +373,20 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         );
     }
 
+    // Legend block. PlantUML supports `legend left|right|center|top|bottom`
+    // followed by free-form body lines; we render a small bordered box at the
+    // requested corner. Default placement matches PlantUML (bottom-right).
+    if let Some(legend_text) = &document.legend {
+        render_family_legend_box(
+            &mut out,
+            legend_text,
+            svg_width,
+            svg_height,
+            document.legend_halign,
+            document.legend_valign,
+        );
+    }
+
     out.push_str("</svg>");
     crate::output::append_optional_mainframe_svg(&mut out, document.mainframe.as_deref());
     let mut scene = gl_result_class.scene.clone();
@@ -372,4 +396,57 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         document.mainframe.clone(),
         document.mainframe.is_some(),
     )
+}
+
+/// Render a `legend ... end legend` block at the corner indicated by
+/// `halign`/`valign`. Mirrors the sequence diagram's legend rendering so
+/// PlantUML `legend left|right|top|bottom` placement is honored for class,
+/// object, and usecase diagrams. Determinism: output is a function of
+/// (text, dimensions, alignment) only — no hash / map iteration.
+pub(super) fn render_family_legend_box(
+    out: &mut String,
+    text: &str,
+    svg_width: i32,
+    svg_height: i32,
+    halign: crate::model::LegendHAlign,
+    valign: crate::model::LegendVAlign,
+) {
+    use crate::model::{LegendHAlign, LegendVAlign};
+    let lines: Vec<&str> = text.lines().collect();
+    let line_count = lines.len().max(1) as i32;
+    let max_line_width = lines
+        .iter()
+        .map(|line| crate::render::text_metrics::monospace_width(line, 7))
+        .max()
+        .unwrap_or(0);
+    let box_width = (max_line_width + 16).max(120);
+    let box_height = 18 + line_count * 16;
+    let margin: i32 = 10;
+
+    let x = match halign {
+        LegendHAlign::Left => margin,
+        LegendHAlign::Center => (svg_width - box_width) / 2,
+        // PlantUML default placement is bottom-right when no halign is given,
+        // and `right` here means the same.
+        LegendHAlign::Right => svg_width - box_width - margin,
+    };
+    let y = match valign {
+        LegendVAlign::Top => margin,
+        // Default valign (Bottom) places the legend near the bottom edge.
+        LegendVAlign::Bottom => svg_height - box_height - margin,
+    };
+
+    out.push_str(&format!(
+        "<rect class=\"uml-legend\" x=\"{x}\" y=\"{y}\" width=\"{box_width}\" height=\"{box_height}\" rx=\"4\" ry=\"4\" fill=\"#fffff0\" stroke=\"#aaaaaa\" stroke-width=\"1\" opacity=\"0.9\"/>",
+    ));
+
+    let mut ty = y + 14;
+    for line in &lines {
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#333333\">{text}</text>",
+            tx = x + 8,
+            text = escape_text(line)
+        ));
+        ty += 16;
+    }
 }

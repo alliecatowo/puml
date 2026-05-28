@@ -155,6 +155,18 @@ fn label_has_markup(label: &str) -> bool {
         || label_lower.contains("</sub>")
         || label_lower.contains("<sup>")
         || label_lower.contains("</sup>")
+        || label_lower.contains("<img:")
+        || label_lower.contains("<br")
+        || label_lower.contains("<strong>")
+        || label_lower.contains("</strong>")
+        || label_lower.contains("<em>")
+        || label_lower.contains("</em>")
+        || label_lower.contains("<del>")
+        || label_lower.contains("</del>")
+        || label_lower.contains("<strike>")
+        || label_lower.contains("</strike>")
+        || label_lower.contains("<tt>")
+        || label_lower.contains("</tt>")
 }
 
 pub fn apply_scale_svg(svg: &mut String, scale: &ScaleSpec) {

@@ -45,6 +45,10 @@ pub struct FamilyDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    /// Horizontal alignment of the legend block (`legend left|center|right`).
+    pub legend_halign: crate::model::LegendHAlign,
+    /// Vertical alignment of the legend block (`legend top|bottom`).
+    pub legend_valign: crate::model::LegendVAlign,
     /// Optional mainframe title (`mainframe <text>` common command).
     pub mainframe: Option<String>,
     /// Optional output scaling (`scale <factor>`, `scale <w>*<h>`, etc.).

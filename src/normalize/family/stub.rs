@@ -352,7 +352,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Header(v) => common.raw_header(v),
             StatementKind::Footer(v) => common.raw_footer(v),
             StatementKind::Caption(v) => common.caption(v),
-            StatementKind::Legend(v) => common.legend(v, LegendTextMode::Raw),
+            StatementKind::Legend(v) => common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::Scale(body) => common.scale(&body),
             StatementKind::Theme(value) => {
@@ -363,6 +363,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     continue;
                 }
                 style_cascade.apply_theme(&value, stmt.span)?;
+            }
+            StatementKind::LegendPos(pos) => {
+                common.legend_position(&pos);
             }
             StatementKind::Pragma(_)
             | StatementKind::AllowMixing
@@ -567,6 +570,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         footer: common.footer,
         caption: common.caption,
         legend: common.legend,
+        legend_halign: common.legend_halign,
+        legend_valign: common.legend_valign,
         mainframe: common.mainframe,
         scale: common.scale,
         orientation,

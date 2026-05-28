@@ -1,9 +1,21 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 
+use super::shared_cascade::families::{
+    activity_node_effective_style as shared_activity_effective,
+    mindmap_node_effective_style as shared_mindmap_effective,
+    sequence_participant_effective_style as shared_sequence_effective,
+    state_node_effective_style as shared_state_effective,
+    timing_lane_effective_style as shared_timing_effective, EffectiveActivityNodeStyle,
+    EffectiveMindMapNodeStyle, EffectiveSequenceParticipantStyle, EffectiveStateNodeStyle,
+    EffectiveTimingLaneStyle,
+};
 use super::shared_cascade::{
     class_node_effective_style as shared_class_effective,
     component_node_effective_style as shared_component_effective,
 };
+use super::skinparam::{ActivityStyle, StateStyle, TimingStyle};
+use super::styles::{MindMapDepthStyle, MindMapStyle, SequenceStyle};
+use super::values::StyleSource;
 use super::{ClassStyle, ComponentStyle, ComponentStyleTarget, EffectiveStyleValue};
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -142,6 +154,110 @@ pub fn effective_class_node_style(
     let inline_style = family_node_inline_style(node);
     let fill_inline = node.fill_color.as_deref();
     shared_class_effective(class_style, scoped_style, &inline_style, fill_inline)
+}
+
+/// Compute the fully-resolved per-node style for an activity diagram element.
+///
+/// Delegates to the shared cascade resolver, which enforces the documented
+/// precedence: `default < theme < skinparam < stereotype < <style> < inline`.
+///
+/// `diagram_source` reflects how the values in `activity_style` were last
+/// written (Default / ThemePreset / SkinParam).  Inline overrides come from
+/// `FamilyNode::fill_color` and the member-encoded inline style.
+pub fn effective_activity_node_style(
+    activity_style: &ActivityStyle,
+    diagram_source: StyleSource,
+    node: &FamilyNode,
+) -> EffectiveActivityNodeStyle {
+    let inline_style = family_node_inline_style(node);
+    let fill_inline = node.fill_color.as_deref();
+    shared_activity_effective(
+        activity_style,
+        diagram_source,
+        fill_inline,
+        inline_style.border_color.as_deref(),
+        inline_style.text_color.as_deref(),
+    )
+}
+
+/// Compute the fully-resolved per-node style for a state diagram element.
+///
+/// Delegates to the shared cascade resolver.  Inline overrides come from the
+/// per-node `StateNodeStyle` (which mirrors `FamilyNodeInlineStyle`'s tokens).
+pub fn effective_state_node_style(
+    state_style: &StateStyle,
+    diagram_source: StyleSource,
+    inline_fill: Option<&str>,
+    inline_stroke: Option<&str>,
+    inline_font: Option<&str>,
+) -> EffectiveStateNodeStyle {
+    shared_state_effective(
+        state_style,
+        diagram_source,
+        inline_fill,
+        inline_stroke,
+        inline_font,
+    )
+}
+
+/// Compute the fully-resolved style for a timing diagram lane.
+///
+/// Delegates to the shared cascade resolver.  Timing lanes do not currently
+/// carry per-lane inline tokens in the model, so `inline_*` arguments are
+/// usually `None` at call sites; the parameters exist so future overrides can
+/// be threaded without a signature change.
+pub fn effective_timing_lane_style(
+    timing_style: &TimingStyle,
+    diagram_source: StyleSource,
+    inline_fill: Option<&str>,
+    inline_stroke: Option<&str>,
+    inline_font: Option<&str>,
+) -> EffectiveTimingLaneStyle {
+    shared_timing_effective(
+        timing_style,
+        diagram_source,
+        inline_fill,
+        inline_stroke,
+        inline_font,
+    )
+}
+
+/// Compute the fully-resolved per-participant style for a sequence diagram.
+///
+/// Delegates to the shared cascade resolver.  `inline_fill` is the
+/// participant-level `#color` shorthand token, when supplied by the parser.
+pub fn effective_sequence_participant_style(
+    seq_style: &SequenceStyle,
+    diagram_source: StyleSource,
+    inline_fill: Option<&str>,
+) -> EffectiveSequenceParticipantStyle {
+    shared_sequence_effective(seq_style, diagram_source, inline_fill)
+}
+
+/// Compute the fully-resolved per-node style for a MindMap element.
+///
+/// Delegates to the shared cascade resolver.  `depth_style` is the per-depth
+/// override from `MindMapStyle::depth_styles` (treated as the skinparam tier);
+/// `default_*` are the palette fallbacks for this depth; `inline_fill` is the
+/// `FamilyNode::fill_color` inline `#color` token.
+pub fn effective_mindmap_node_style(
+    mindmap_style: &MindMapStyle,
+    depth_style: Option<&MindMapDepthStyle>,
+    diagram_source: StyleSource,
+    default_fill: &str,
+    default_stroke: &str,
+    default_font: &str,
+    inline_fill: Option<&str>,
+) -> EffectiveMindMapNodeStyle {
+    shared_mindmap_effective(
+        mindmap_style,
+        depth_style,
+        diagram_source,
+        default_fill,
+        default_stroke,
+        default_font,
+        inline_fill,
+    )
 }
 
 fn is_user_stereotype_marker(text: &str) -> bool {

@@ -46,29 +46,15 @@ pub(crate) fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i = end_idx + 1;
             continue;
         }
-        if line.eq_ignore_ascii_case("listsprite") || line.eq_ignore_ascii_case("listsprites") {
-            detected_kind = Some(select_diagram_kind(
-                detected_kind,
-                DiagramKind::Sequence,
-                span,
-            )?);
-            statements.push(Statement {
-                span,
-                kind: StatementKind::ListSprites,
-            });
-            i += 1;
-            continue;
-        }
-        if line.eq_ignore_ascii_case("stdlib") {
-            detected_kind = Some(select_diagram_kind(
-                detected_kind,
-                DiagramKind::Stdlib,
-                span,
-            )?);
-            statements.push(Statement {
-                span,
-                kind: StatementKind::StdlibInventory,
-            });
+        let lc = line.to_ascii_lowercase();
+        if lc == "listsprite" || lc == "listsprites" || lc == "stdlib" {
+            let (kind, family) = if lc == "stdlib" {
+                (StatementKind::StdlibInventory, DiagramKind::Stdlib)
+            } else {
+                (StatementKind::ListSprites, DiagramKind::Sequence)
+            };
+            detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+            statements.push(Statement { span, kind });
             i += 1;
             continue;
         }
@@ -137,6 +123,14 @@ pub(crate) fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+        }
+
+        // Graph-family `legend|title|... ... end X` blocks — Refs #1258.
+        if let Some(next) =
+            try_graph_family_text_block(&lines, i, line, span, detected_kind, &mut statements)
+        {
+            i = next;
+            continue;
         }
 
         if detected_kind.is_none() && looks_like_old_activity_flow(line) {

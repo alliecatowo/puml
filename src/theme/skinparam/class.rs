@@ -20,6 +20,12 @@ pub struct ClassStyle {
     pub font_name: Option<String>,
     pub actor_style: ActorStyle,
     pub attribute_icons: bool,
+    /// Corner radius for class/object node rectangles in px. `None` keeps the
+    /// renderer's built-in default. Set by `skinparam roundcorner <N>`.
+    pub round_corner: Option<i32>,
+    /// When true, class/object node rectangles render with a drop shadow.
+    /// Controlled by `skinparam shadowing true|false`.
+    pub shadowing: bool,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
     pub sources: ClassStyleSources,
 }
@@ -74,6 +80,8 @@ impl Default for ClassStyle {
             font_name: None,
             actor_style: ActorStyle::Stick,
             attribute_icons: true,
+            round_corner: None,
+            shadowing: false,
             stereotype_styles: BTreeMap::new(),
             sources: ClassStyleSources::default(),
         }
@@ -92,6 +100,10 @@ pub enum ClassSkinParamValue {
     FontName(String),
     ActorStyle(ActorStyle),
     AttributeIcons(bool),
+    /// `skinparam roundcorner <N>` — corner radius for class/object node rects.
+    RoundCorner(i32),
+    /// `skinparam shadowing true|false` — drop-shadow on class/object node rects.
+    Shadowing(bool),
     Monochrome(MonochromeMode),
     StereotypeBackgroundColor(String, String),
     StereotypeBorderColor(String, String),
@@ -241,6 +253,23 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::UnsupportedValue
             }
         }
+        "roundcorner" => {
+            if let Ok(n) = value.trim().parse::<i32>() {
+                if n >= 0 {
+                    SkinParamSupport::SupportedWithValue(ClassSkinParamValue::RoundCorner(n))
+                } else {
+                    SkinParamSupport::UnsupportedValue
+                }
+            } else {
+                SkinParamSupport::UnsupportedValue
+            }
+        }
+        "shadowing" => match parse_bool_value(value) {
+            Some(enabled) => {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::Shadowing(enabled))
+            }
+            None => SkinParamSupport::UnsupportedValue,
+        },
         "classstereotypefontcolor"
         | "classstereotypefontsize"
         | "classstereotypefontname"
@@ -250,8 +279,6 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         | "usecasestereotypefontcolor"
         | "actorstereotypefontcolor"
         | "linetype"
-        | "roundcorner"
-        | "shadowing"
         // Package visual style and layout skinparams — accepted as noop (shape not yet rendered).
         | "packagestyle"
         | "packagebackgroundcolor"

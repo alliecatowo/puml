@@ -330,3 +330,192 @@ fn render_remaining_html_tag_attributes() {
     assert!(out.contains("baseline-shift=\"sub\""));
     assert!(out.contains("line-through"));
 }
+
+// ---- New markup features added in w6-creole ----
+
+#[test]
+fn img_tag_emits_monospaced_filename_placeholder() {
+    // <img:path/to/file.png> should produce a mono span with the filename
+    let line = single_line("<img:path/to/diagram.png>");
+    assert_eq!(line.len(), 1);
+    assert_eq!(line[0].text, "[diagram.png]");
+    assert!(line[0].mono);
+}
+
+#[test]
+fn img_tag_bare_name_emits_placeholder() {
+    // <img:logo.svg> — no path separator
+    let line = single_line("<img:logo.svg>");
+    assert_eq!(line[0].text, "[logo.svg]");
+    assert!(line[0].mono);
+}
+
+#[test]
+fn img_tag_url_shows_filename_placeholder() {
+    // <img:http://example.com/img/pic.gif>
+    let line = single_line("<img:http://example.com/img/pic.gif>");
+    // The last path component after the last '/' should be used
+    assert_eq!(line[0].text, "[pic.gif]");
+    assert!(line[0].mono);
+}
+
+#[test]
+fn img_tag_no_path_uses_img_fallback() {
+    // <img:> — empty value: fallback to "img"
+    let line = single_line("<img:>");
+    assert_eq!(line[0].text, "[img]");
+    assert!(line[0].mono);
+}
+
+#[test]
+fn img_tag_inline_with_other_markup() {
+    // Mix: bold text before img placeholder
+    let line = single_line("**see** <img:photo.jpg> here");
+    let bold = &line[0];
+    assert!(bold.bold);
+    assert_eq!(bold.text, "see");
+    let img = line.iter().find(|s| s.text == "[photo.jpg]");
+    assert!(img.is_some());
+    assert!(img.unwrap().mono);
+}
+
+#[test]
+fn img_tag_renders_to_svg_tspan() {
+    // The SVG output for <img:...> should include mono font-family
+    let lines = tokenize_creole("See: <img:chart.png>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("font-family=\"monospace\""));
+    assert!(out.contains("[chart.png]"));
+}
+
+#[test]
+fn html_strong_tag_is_bold() {
+    let line = single_line("<strong>bold</strong> plain");
+    assert!(line[0].bold);
+    assert_eq!(line[0].text, "bold");
+    assert!(!line[1].bold);
+    assert_eq!(line[1].text, " plain");
+}
+
+#[test]
+fn html_em_tag_is_italic() {
+    let line = single_line("<em>italic</em> plain");
+    assert!(line[0].italic);
+    assert_eq!(line[0].text, "italic");
+    assert!(!line[1].italic);
+}
+
+#[test]
+fn html_del_tag_is_strikethrough() {
+    let line = single_line("<del>gone</del> rest");
+    assert!(line[0].strike);
+    assert_eq!(line[0].text, "gone");
+    assert!(!line[1].strike);
+}
+
+#[test]
+fn html_strike_tag_is_strikethrough() {
+    let line = single_line("<strike>removed</strike> ok");
+    assert!(line[0].strike);
+    assert_eq!(line[0].text, "removed");
+    assert!(!line[1].strike);
+}
+
+#[test]
+fn html_tt_tag_is_monospace() {
+    let line = single_line("<tt>code</tt> plain");
+    assert!(line[0].mono);
+    assert_eq!(line[0].text, "code");
+    assert!(!line[1].mono);
+}
+
+#[test]
+fn html_strong_renders_font_weight_bold() {
+    let lines = tokenize_creole("<strong>important</strong>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("font-weight=\"bold\""));
+    assert!(out.contains(">important<"));
+}
+
+#[test]
+fn html_em_renders_font_style_italic() {
+    let lines = tokenize_creole("<em>emphasis</em>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("font-style=\"italic\""));
+    assert!(out.contains(">emphasis<"));
+}
+
+#[test]
+fn html_del_renders_line_through() {
+    let lines = tokenize_creole("<del>deleted</del>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("line-through"));
+    assert!(out.contains(">deleted<"));
+}
+
+#[test]
+fn html_tt_renders_monospace_font() {
+    let lines = tokenize_creole("<tt>fixed</tt>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("font-family=\"monospace\""));
+    assert!(out.contains(">fixed<"));
+}
+
+#[test]
+fn br_tag_splits_into_multiple_lines() {
+    // <br> should split into multiple tokenized lines
+    let lines = tokenize_creole("first<br>second");
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0][0].text, "first");
+    assert_eq!(lines[1][0].text, "second");
+}
+
+#[test]
+fn br_self_closing_splits_into_multiple_lines() {
+    let lines = tokenize_creole("a<br/>b");
+    assert_eq!(lines.len(), 2);
+}
+
+#[test]
+fn br_with_space_splits_into_multiple_lines() {
+    let lines = tokenize_creole("x<br />y");
+    assert_eq!(lines.len(), 2);
+}
+
+#[test]
+fn br_renders_dy_tspan() {
+    // Verify that <br> in a label causes dy="1.2em" in SVG output
+    let lines = tokenize_creole("line1<br>line2");
+    let out = render_creole_to_svg_tspans(&lines, 5, "black");
+    assert!(out.contains("dy=\"1.2em\""));
+    assert!(out.contains(">line1<"));
+    assert!(out.contains(">line2<"));
+}
+
+#[test]
+fn br_case_insensitive() {
+    let lines = tokenize_creole("a<BR>b");
+    assert_eq!(lines.len(), 2);
+}
+
+#[test]
+fn del_decoration_color_cleared_on_close() {
+    // Closing <del> should clear decoration_color when no other decoration is active
+    let line = single_line("<del>x</del> y");
+    assert!(!line[1].strike);
+    assert!(line[1].decoration_color.is_none());
+}
+
+#[test]
+fn combined_strong_color_renders_correctly() {
+    // <strong> + <color:blue> should combine bold + color in one span
+    let line = single_line("<strong><color:blue>notice</color></strong>");
+    assert!(line[0].bold);
+    assert_eq!(line[0].color.as_deref(), Some("blue"));
+    assert_eq!(line[0].text, "notice");
+
+    let lines = tokenize_creole("<strong><color:blue>notice</color></strong>");
+    let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+    assert!(out.contains("font-weight=\"bold\""));
+    assert!(out.contains("fill=\"blue\""));
+}
