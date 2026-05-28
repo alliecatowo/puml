@@ -40,9 +40,19 @@ pub(super) fn render_box_grid_package_frames(
         let fx = pkg.abs_x;
         let fy = pkg.abs_y;
 
-        // Draw the outer frame first (light fill, dark border, rounded corners)
+        // Draw the outer frame first (light fill, dark border, rounded corners).
+        // Use a per-frame fill color if the group header specified one (e.g. `frame "X" #LightYellow`).
+        let frame_fill = pkg
+            .fill_color
+            .as_deref()
+            .and_then(|c| {
+                let token = c.trim_start_matches('#');
+                crate::theme::color::parse_color_value(token)
+                    .or_else(|| crate::theme::color::parse_color_value(c))
+            })
+            .unwrap_or_else(|| "#f8faff".to_string());
         out.push_str(&format!(
-        "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"#f8faff\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"{frame_fill}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
         escape_text(&pkg.scope),
         comp_style.border_color
     ));

@@ -161,6 +161,7 @@ fn walk_statements(stmts: &[Statement], builder: &mut StatsBuilder, depth: usize
                 label,
                 members,
                 relations,
+                ..
             } => {
                 let (group_count, max_scope_depth) =
                     class_group_scope_stats(members, label.as_deref());

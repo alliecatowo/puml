@@ -93,6 +93,8 @@ pub struct FamilyGroup {
     pub kind: String,
     pub label: Option<String>,
     pub member_ids: Vec<String>,
+    /// Optional fill color for the group frame (e.g. `#LightYellow` from `frame "X" #LightYellow`).
+    pub fill_color: Option<String>,
 }
 
 /// Side placement for MindMap nodes (left/right of root).

@@ -281,6 +281,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 label,
                 members,
                 relations: group_relations,
+                fill_color: group_fill_color,
             } => {
                 // Auto-create nodes for members declared inside a package/namespace block
                 // if they haven't already been declared as top-level statements.
@@ -348,6 +349,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     kind,
                     label,
                     member_ids: group_member_ids,
+                    fill_color: group_fill_color,
                 });
                 for rel in group_relations {
                     last_relation = Some((rel.from.clone(), rel.to.clone()));

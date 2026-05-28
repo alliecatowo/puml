@@ -36,7 +36,7 @@ pub(crate) fn parse_component_scoping_block(
     if kind == "namespace" && !group_body_contains_component_family(lines, start, end_idx) {
         return Ok(None);
     }
-    let label = clean_component_group_label(label_raw);
+    let (label, fill_color) = clean_component_group_label_with_color(label_raw);
     let content =
         collect_scoped_component_group_content(lines, start, end_idx, std::slice::from_ref(&label));
     Ok(Some((
@@ -45,6 +45,7 @@ pub(crate) fn parse_component_scoping_block(
             label: if label.is_empty() { None } else { Some(label) },
             members: content.members,
             relations: content.relations,
+            fill_color,
         },
         end_idx,
     )))
@@ -198,6 +199,72 @@ pub(crate) fn clean_component_group_label(raw: &str) -> String {
         return clean_ident(lhs);
     }
     clean_ident(trimmed.trim_matches('"'))
+}
+
+/// Like `clean_component_group_label` but also extracts a trailing `#Color` token.
+///
+/// Returns `(label, fill_color)` where `fill_color` is `Some("#rrggbb")` when
+/// the group header contains an explicit color modifier like `frame "Production" #LightYellow`.
+pub(crate) fn clean_component_group_label_with_color(raw: &str) -> (String, Option<String>) {
+    let trimmed = raw.trim_end_matches('{').trim();
+    // Quoted label: `"Name" [#Color] [{]` or `"Name" as Alias`
+    if let Some(stripped) = trimmed.strip_prefix('"') {
+        if let Some(end) = stripped.find('"') {
+            let name = &stripped[..end];
+            let suffix = stripped[end + 1..].trim();
+            if suffix.starts_with("as ") {
+                return (clean_ident(name), None);
+            }
+            // If the suffix is a `#Color` token, return the clean name plus the color.
+            // Otherwise fall through to old behavior — preserving non-color suffixes like
+            // `<<stereotype>>` which some tests rely on remaining in the scope string.
+            let fill_color = extract_leading_color_token(suffix);
+            if fill_color.is_some() {
+                return (clean_ident(name), fill_color);
+            }
+        }
+    }
+    // Unquoted: `Name [#Color]` or `Name as Alias`
+    let (label_part, fill_color) = if let Some((lhs, _rhs)) = trimmed.split_once(" as ") {
+        (lhs.trim(), None)
+    } else {
+        let fill_color = extract_trailing_color_token(trimmed);
+        let label_part = if fill_color.is_some() {
+            trimmed
+                .rsplit_once('#')
+                .map(|(l, _)| l.trim())
+                .unwrap_or(trimmed)
+        } else {
+            trimmed
+        };
+        (label_part, fill_color)
+    };
+    (clean_ident(label_part.trim_matches('"')), fill_color)
+}
+
+/// Returns the `#Color` token at the START of `s` if it begins with one, else `None`.
+fn extract_leading_color_token(s: &str) -> Option<String> {
+    let s = s.trim();
+    if s.is_empty() || !s.starts_with('#') {
+        return None;
+    }
+    let token = s.split_whitespace().next().unwrap_or(s);
+    if token.len() > 1 {
+        Some(token.to_string())
+    } else {
+        None
+    }
+}
+
+/// Returns the `#Color` token at the END of `s` if it ends with one, else `None`.
+fn extract_trailing_color_token(s: &str) -> Option<String> {
+    let s = s.trim();
+    let last = s.split_whitespace().next_back().unwrap_or("");
+    if last.starts_with('#') && last.len() > 1 {
+        Some(last.to_string())
+    } else {
+        None
+    }
 }
 
 pub(crate) fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {

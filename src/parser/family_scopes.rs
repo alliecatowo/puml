@@ -36,6 +36,7 @@ pub(crate) fn parse_class_scoping_block(
                 label: None,
                 members,
                 relations: Vec::new(),
+                fill_color: None,
             },
             end_idx,
         )));
@@ -68,6 +69,7 @@ pub(crate) fn parse_class_scoping_block(
                 label: if label.is_empty() { None } else { Some(label) },
                 members: content.members,
                 relations: content.relations,
+                fill_color: None,
             },
             end_idx,
         )));
@@ -93,6 +95,7 @@ pub(crate) fn parse_class_scoping_block(
                 label: if label.is_empty() { None } else { Some(label) },
                 members: content.members,
                 relations: content.relations,
+                fill_color: None,
             },
             end_idx,
         )));
@@ -118,6 +121,7 @@ pub(crate) fn parse_class_scoping_block(
                 label: if label.is_empty() { None } else { Some(label) },
                 members: content.members,
                 relations: content.relations,
+                fill_color: None,
             },
             end_idx,
         )));
