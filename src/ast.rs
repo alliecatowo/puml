@@ -365,6 +365,8 @@ pub struct ClassMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChenDeclKind {
     Entity,
+    /// `weak-entity X { }` keyword form — syntactic sugar that sets `weak: true`.
+    WeakEntity,
     Relationship,
 }
 

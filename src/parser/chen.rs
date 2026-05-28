@@ -4,7 +4,9 @@ pub(crate) fn parse_chen_declaration(
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    // `weak-entity` must be checked before `entity` to avoid prefix-match confusion.
     for (keyword, kind) in [
+        ("weak-entity", ChenDeclKind::WeakEntity),
         ("entity", ChenDeclKind::Entity),
         ("relationship", ChenDeclKind::Relationship),
     ] {
@@ -162,11 +164,30 @@ pub(crate) fn find_chen_attribute_child_end(lines: &[(&str, Span)], start: usize
 }
 
 pub(crate) fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
-    let (without_stereotypes, stereotypes) = strip_declaration_stereotypes(input);
-    let (name_part, data_type) = without_stereotypes
+    // Composite attribute shorthand: `(Attr1, Attr2)` on a single line.
+    // Produces a virtual parent attribute whose children are the listed sub-attributes.
+    if let Some(composite) = parse_chen_composite_shorthand(input) {
+        return composite;
+    }
+
+    // Multivalued shorthand: `[AttrName]` or `[AttrName] : type`
+    if let Some(attr) = parse_chen_multivalued_shorthand(input) {
+        return attr;
+    }
+
+    let (without_stereotypes, mut stereotypes) = strip_declaration_stereotypes(input);
+
+    // Derived attribute shorthand: trailing `/` before optional `: type`.
+    // Handles: `Salary /`, `Salary / : number`, `Age/`
+    let (name_data_part, derived_from_slash) = strip_chen_derived_slash(&without_stereotypes);
+    if derived_from_slash && !stereotypes.iter().any(|s| s.eq_ignore_ascii_case("derived")) {
+        stereotypes.push("derived".to_string());
+    }
+
+    let (name_part, data_type) = name_data_part
         .split_once(':')
         .map(|(name, ty)| (name.trim(), Some(ty.trim().to_string())))
-        .unwrap_or((without_stereotypes.trim(), None));
+        .unwrap_or((name_data_part.trim(), None));
     let (name_raw, alias_raw) = split_chen_alias(name_part);
     ChenAttribute {
         name: clean_ident(name_raw),
@@ -175,6 +196,118 @@ pub(crate) fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
         stereotypes,
         children: Vec::new(),
     }
+}
+
+/// Parse a composite-attribute shorthand: `(Attr1, Attr2)` possibly with a type.
+/// Returns `None` if the line does not start with `(`.
+/// The composite group gets a synthetic name from its children joined by `_`.
+fn parse_chen_composite_shorthand(input: &str) -> Option<ChenAttribute> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('(') {
+        return None;
+    }
+    let close = trimmed.find(')')?;
+    let inner = &trimmed[1..close];
+    // Optional type annotation after closing paren: `) : type`
+    let rest = trimmed[close + 1..].trim();
+    let data_type = if let Some(ty_str) = rest.strip_prefix(':') {
+        let ty = ty_str.trim().to_string();
+        if ty.is_empty() {
+            None
+        } else {
+            Some(ty)
+        }
+    } else {
+        None
+    };
+    let children: Vec<ChenAttribute> = inner
+        .split(',')
+        .map(|part| {
+            let name = clean_ident(part.trim());
+            ChenAttribute {
+                name: name.clone(),
+                alias: None,
+                data_type: None,
+                stereotypes: Vec::new(),
+                children: Vec::new(),
+            }
+        })
+        .filter(|attr| !attr.name.is_empty())
+        .collect();
+    if children.is_empty() {
+        return None;
+    }
+    // Synthetic parent name — deterministic, derived from sorted child names.
+    let mut child_names: Vec<&str> = children.iter().map(|c| c.name.as_str()).collect();
+    child_names.sort_unstable();
+    let group_name = child_names.join("_");
+    Some(ChenAttribute {
+        name: group_name,
+        alias: None,
+        data_type,
+        stereotypes: vec!["composite".to_string()],
+        children,
+    })
+}
+
+/// Parse a multivalued-attribute shorthand: `[AttrName]` or `[AttrName] : type`.
+/// Returns `None` if the line does not start with `[`.
+fn parse_chen_multivalued_shorthand(input: &str) -> Option<ChenAttribute> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let close = trimmed.find(']')?;
+    let name_raw = trimmed[1..close].trim();
+    if name_raw.is_empty() {
+        return None;
+    }
+    let rest = trimmed[close + 1..].trim();
+    let (without_stereos, mut stereotypes) = strip_declaration_stereotypes(rest);
+    let data_type = if let Some(ty_str) = without_stereos.strip_prefix(':') {
+        let ty = ty_str.trim().to_string();
+        if ty.is_empty() {
+            None
+        } else {
+            Some(ty)
+        }
+    } else {
+        None
+    };
+    if !stereotypes.iter().any(|s| s.eq_ignore_ascii_case("multi")) {
+        stereotypes.push("multi".to_string());
+    }
+    Some(ChenAttribute {
+        name: clean_ident(name_raw),
+        alias: None,
+        data_type,
+        stereotypes,
+        children: Vec::new(),
+    })
+}
+
+/// Detect and strip the trailing `/` derived-attribute marker.
+/// Returns `(cleaned_string, was_derived)` where `cleaned_string` has the slash
+/// removed so the caller can proceed with normal name/type parsing.
+/// Handles: `Salary /`, `Salary / : number`, `Age/`
+fn strip_chen_derived_slash(input: &str) -> (String, bool) {
+    let trimmed = input.trim();
+    // Case 1: slash appears before a colon — `Name / : type`
+    if let Some(colon_pos) = trimmed.find(':') {
+        let name_part = trimmed[..colon_pos].trim_end();
+        if name_part.ends_with('/') {
+            let name_clean = name_part.trim_end_matches('/').trim_end();
+            let type_part = &trimmed[colon_pos..];
+            return (format!("{name_clean}{type_part}"), true);
+        }
+    } else {
+        // Case 2: slash at the end with no colon — `Age /`
+        if trimmed.ends_with('/') {
+            let name_clean = trimmed.trim_end_matches('/').trim_end();
+            return (name_clean.to_string(), true);
+        }
+    }
+    (trimmed.to_string(), false)
 }
 
 pub(crate) fn parse_chen_relation(line: &str) -> Option<StatementKind> {
