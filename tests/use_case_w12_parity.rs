@@ -183,8 +183,8 @@ fn usecase_include_arrow_renders_dashed_with_label() {
 
 #[test]
 fn usecase_actor_generalization_renders_filled_triangle() {
-    let svg = puml::render_source_to_svg(ACTOR_GENERALIZATION_SRC)
-        .expect("render actor generalization");
+    let svg =
+        puml::render_source_to_svg(ACTOR_GENERALIZATION_SRC).expect("render actor generalization");
 
     // The --|> arrow uses the `arrow-triangle` marker (hollow triangle / generalization).
     // PlantUML renders generalization between actors as a hollow-triangle (white-filled)

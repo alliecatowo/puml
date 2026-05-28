@@ -332,10 +332,7 @@ pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
     }
 
     document.nodes.iter().all(|node| {
-        let only_uc_internals = node
-            .members
-            .iter()
-            .all(|m| m.text.starts_with("\x1fuc:"));
+        let only_uc_internals = node.members.iter().all(|m| m.text.starts_with("\x1fuc:"));
         matches!(
             node.kind,
             FamilyNodeKind::UseCase

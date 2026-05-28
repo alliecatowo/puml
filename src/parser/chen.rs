@@ -180,7 +180,11 @@ pub(crate) fn parse_chen_attribute_head(input: &str) -> ChenAttribute {
     // Derived attribute shorthand: trailing `/` before optional `: type`.
     // Handles: `Salary /`, `Salary / : number`, `Age/`
     let (name_data_part, derived_from_slash) = strip_chen_derived_slash(&without_stereotypes);
-    if derived_from_slash && !stereotypes.iter().any(|s| s.eq_ignore_ascii_case("derived")) {
+    if derived_from_slash
+        && !stereotypes
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case("derived"))
+    {
         stereotypes.push("derived".to_string());
     }
 

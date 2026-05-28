@@ -129,25 +129,18 @@ fn normalize_chen_attribute(attr: crate::ast::ChenAttribute) -> ModelChenAttribu
         id,
         label: attr.name,
         data_type: attr.data_type,
-        key: attr
-            .stereotypes
-            .iter()
-            .any(|value| {
-                value.eq_ignore_ascii_case("key")
-                    || value.eq_ignore_ascii_case("pk")
-                    || value.eq_ignore_ascii_case("pk-partial")
-            }),
+        key: attr.stereotypes.iter().any(|value| {
+            value.eq_ignore_ascii_case("key")
+                || value.eq_ignore_ascii_case("pk")
+                || value.eq_ignore_ascii_case("pk-partial")
+        }),
         derived: attr
             .stereotypes
             .iter()
             .any(|value| value.eq_ignore_ascii_case("derived")),
-        multivalued: attr
-            .stereotypes
-            .iter()
-            .any(|value| {
-                value.eq_ignore_ascii_case("multi")
-                    || value.eq_ignore_ascii_case("multivalued")
-            }),
+        multivalued: attr.stereotypes.iter().any(|value| {
+            value.eq_ignore_ascii_case("multi") || value.eq_ignore_ascii_case("multivalued")
+        }),
         children: attr
             .children
             .into_iter()
