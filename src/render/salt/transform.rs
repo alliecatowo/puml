@@ -128,7 +128,14 @@ pub(super) fn transform_salt_row(
         }]);
     }
 
-    if lower.starts_with("{t") || lower == "tree" || lower.starts_with("tree ") {
+    // `{T ... }` and `{. ... }` are both tree/outline container blocks.
+    // `{T}` uses `+`/`++` prefix syntax; `{.}` uses `**`/`***` prefix syntax.
+    // Both activate `in_tree` so subsequent lines are parsed as tree items.
+    if lower.starts_with("{t")
+        || lower.starts_with("{.")
+        || lower == "tree"
+        || lower.starts_with("tree ")
+    {
         state.in_tree = true;
         return None;
     }

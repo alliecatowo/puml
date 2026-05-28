@@ -181,11 +181,17 @@ pub(crate) fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
             let inner = &trimmed[1..trimmed.len() - 1];
             !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=')
         };
+    // Tree outline items using `**`/`***` prefix (used inside `{.` containers).
+    let is_star_tree_item = {
+        let star_count = trimmed.chars().take_while(|&ch| ch == '*').count();
+        star_count >= 2
+    };
     let whole_line_widget = trimmed == "}"
         || lower.starts_with("{*")
         || lower.starts_with("{/")
         || lower.starts_with("{s")
         || lower.starts_with("{t")
+        || lower.starts_with("{.")
         || lower.starts_with("{+")
         || lower.starts_with("{#")
         || lower.starts_with("{!")
@@ -201,13 +207,20 @@ pub(crate) fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
         || lower.starts_with("scroll")
         || lower.contains("scrollbar")
         || is_combo_line
-        || is_progress_bar;
+        || is_progress_bar
+        || is_star_tree_item;
     if whole_line_widget {
         return Some(StatementKind::SaltGridRow {
             cells: vec![SaltCell::Label(trimmed.to_string())],
         });
     }
+    // Single bracket widgets `[label]` and bracket-combos `[label v]` without `|`.
+    // These are valid standalone rows (e.g. a lone button or combo box on its own line).
     if !trimmed.contains('|') {
+        if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() >= 2 {
+            let cell = parse_salt_cell(trimmed);
+            return Some(StatementKind::SaltGridRow { cells: vec![cell] });
+        }
         return None;
     }
     // Split on `|` and parse each cell token.
@@ -244,8 +257,9 @@ pub(crate) fn parse_salt_cell(text: &str) -> SaltCell {
     if let Some(rest) = text.strip_prefix("[]") {
         return SaltCell::CheckboxUnchecked(rest.trim().to_string());
     }
-    // `(X) label`, `( ) label`, or compact `() label` → Radio
-    if text.starts_with("(X)") || text.starts_with("(x)") {
+    // `(X) label`, `(*) label`, `( ) label`, or compact `() label` → Radio
+    // `(*)` is an alternate PlantUML synonym for a checked/selected radio button.
+    if text.starts_with("(X)") || text.starts_with("(x)") || text.starts_with("(*)") {
         let label = text[3..].trim().to_string();
         return SaltCell::RadioOn(label);
     }
@@ -261,6 +275,22 @@ pub(crate) fn parse_salt_cell(text: &str) -> SaltCell {
         if !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=') {
             // Encode as a special label token; the renderer will decode it.
             return SaltCell::Label(text.to_string());
+        }
+    }
+    // `[label v]` or `[label V]` → Combo box with dropdown chevron.
+    // The trailing ` v` / ` V` is the PlantUML bracket-combo convention.
+    // Trim inner whitespace before checking the suffix so `[ Foo v ]` works.
+    // Must be checked before the generic Button check.
+    if text.starts_with('[') && text.ends_with(']') && text.len() >= 4 {
+        let inner = text[1..text.len() - 1].trim();
+        if let Some(label) = inner
+            .strip_suffix(" v")
+            .or_else(|| inner.strip_suffix(" V"))
+        {
+            let label = label.trim().to_string();
+            if !label.is_empty() {
+                return SaltCell::Combo(label);
+            }
         }
     }
     // `[button text]` → Button

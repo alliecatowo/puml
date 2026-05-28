@@ -30,16 +30,31 @@ pub(super) fn parse_salt_sprite_ref(text: &str) -> Option<String> {
 }
 
 pub(super) fn parse_salt_tree_line(line: &str) -> Option<(usize, String)> {
-    let depth = line.chars().take_while(|&ch| ch == '+').count();
-    if depth == 0 {
-        return None;
+    // PlantUML `{T ... }` tree syntax: lines starting with `+` characters.
+    // Example: `+ Root` (depth 0), `++ Child` (depth 1), `+++ Grandchild` (depth 2).
+    let plus_depth = line.chars().take_while(|&ch| ch == '+').count();
+    if plus_depth > 0 {
+        let label = line[plus_depth..].trim().trim_matches('"').to_string();
+        return if label.is_empty() {
+            None
+        } else {
+            Some((plus_depth.saturating_sub(1), label))
+        };
     }
-    let label = line[depth..].trim().trim_matches('"').to_string();
-    if label.is_empty() {
-        None
-    } else {
-        Some((depth.saturating_sub(1), label))
+    // Alternate outline/tree syntax using `**`/`***` markers (used inside `{.` containers).
+    // Example: `** Folder A` (depth 0), `*** File 1` (depth 1).
+    // Single `*` is NOT a tree marker — it is used for table spans elsewhere.
+    let star_count = line.chars().take_while(|&ch| ch == '*').count();
+    if star_count >= 2 {
+        let label = line[star_count..].trim().trim_matches('"').to_string();
+        return if label.is_empty() {
+            None
+        } else {
+            // `**` → depth 0, `***` → depth 1, `****` → depth 2, etc.
+            Some((star_count.saturating_sub(2), label))
+        };
     }
+    None
 }
 
 pub(super) fn parse_salt_items(line: &str, prefixes: &[&str]) -> Option<Vec<String>> {
