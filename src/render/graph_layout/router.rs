@@ -118,16 +118,6 @@ impl Router for ChannelRouter {
             src_rank: usize,
             tgt_rank: usize,
             src_x: f64,
-            /// True when the layout-time edge direction is the reverse of the
-            /// original model edge.  The router builds the polyline in the
-            /// layout-time direction (so it always flows from a higher rank to
-            /// a lower one); we flip the path before publishing so consumers
-            /// always see waypoints ordered from the original `from` to the
-            /// original `to`.  Without this flip the endpoint-snap logic in
-            /// `box_grid_edges` / `class_relations` snaps the wrong end of the
-            /// polyline to the source bbox, producing the corner-anchored
-            /// "marker tip floating outside the box" artefact tracked by
-            /// #1318.
             reversed: bool,
         }
 
@@ -337,20 +327,6 @@ impl Router for ChannelRouter {
                 track: *edge_track.get(&ei.edge_id).unwrap_or(&0),
             }));
 
-        // Symmetric track offset for a given channel and track index.
-        // With n_tracks tracks in channel `ch`, track i is at:
-        //   offset = (i as f64 - n_tracks as f64 / 2.0) * effective_spacing
-        // so the band is centered on the channel midpoint.
-        //
-        // For channels with ≤ 2 tracks (≤ 2 edges crossing the gap), TRACK_SPACING
-        // (8 px) is used as before — narrow fans are visually fine.  For channels
-        // with ≥ 3 tracks (e.g. the four bipartite edges in a deployment web-server →
-        // db/cache tier), the fan is spread adaptively to fill ~2/3 of the available
-        // channel half-height so that crossing horizontal segments are clearly
-        // separated rather than overlapping in a visually tangled X.
-        //
-        // The band half-width is capped at (inter_rank_gap − 8) / 2 in all cases so
-        // that tracks never collide with the adjacent node rows.
         let symmetric_offset = |ch: usize, track: usize| -> f64 {
             let n_tracks_idx = *channel_max_track.get(&ch).unwrap_or(&0); // max track index used
             let n_tracks = n_tracks_idx as f64;
@@ -374,21 +350,6 @@ impl Router for ChannelRouter {
             let raw = (track as f64 - n_tracks / 2.0) * effective_spacing;
             raw.clamp(-max_half, max_half)
         };
-
-        // ── Path generation ────────────────────────────────────────────────────────
-        //
-        // Every cross-rank edge routes through the inter-rank channel midpoint plus
-        // a symmetric track offset, producing a path:
-        //   [src_port, (src_x, ch_y), (tgt_x, ch_y), tgt_port]
-        // for a single-hop downward edge.  The ch_y is the channel midpoint ± offset,
-        // which sits ~40px from each node row with the default rank_separation of 80px,
-        // making the orthogonal bend clearly visible regardless of horizontal alignment.
-        //
-        // The near-port clamp (±2px) from Wave 14 is replaced by a softer boundary:
-        // only clamp when the inter-rank gap is genuinely < 16px (degenerate layout).
-        //
-        // After building each path, adjacent duplicate points are removed so the
-        // final polyline always has ≥3 distinct waypoints for cross-rank edges.
 
         let mut paths: BTreeMap<String, Vec<(f64, f64)>> = BTreeMap::new();
 
@@ -466,13 +427,6 @@ impl Router for ChannelRouter {
                         // Normal gap: allow any value strictly within the gap.
                         raw.clamp(bot + 4.0, next_top - 4.0)
                     };
-                    // Package-header avoidance: push the channel y below any package
-                    // header band whose frame top (gy) lies within this inter-rank
-                    // channel [bot, next_top].  When gy is inside the channel, the
-                    // vertical entry shaft from ch_y to the first node inside the
-                    // package crosses [gy, gy + PKG_HEADER_ROUTING_CLEARANCE], so we must
-                    // ensure ch_y >= gy + PKG_HEADER_ROUTING_CLEARANCE + 4 to keep arrow shafts
-                    // out of the package label text.
                     let mut result = clamped;
                     for &(_, gy, _, _) in group_bounds.values() {
                         // Only act on packages whose frame top falls in this channel.
@@ -582,10 +536,6 @@ impl Router for ChannelRouter {
                 pts
             };
 
-            // Re-orient the path to match the ORIGINAL edge direction (from →
-            // to in the source model) so that downstream endpoint snapping in
-            // box_grid_edges / class_relations assumes the correct first/last
-            // waypoint corresponds to the model's from / to nodes (#1318).
             let path = if ei.reversed {
                 let mut rev = path;
                 rev.reverse();
@@ -613,5 +563,3 @@ impl Router for ChannelRouter {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
