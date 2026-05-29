@@ -1,10 +1,10 @@
 # Dependabot configuration for PUML.
-# - Cargo (Rust): weekly updates with grouped patches for minor versions.
+# - Cargo (Rust): weekly updates with grouped patch/minor bumps; majors separate.
 # - GitHub Actions: weekly updates (covers actions in .github/workflows + .github/actions).
 # - npm (VS Code extension).
 #
-# Strategy: group minor + patch bumps to reduce PR churn; surface majors
-# individually so they can be reviewed deliberately.
+# Strategy: group minor + patch bumps to reduce PR churn; allow majors and
+# surface them individually so they can be reviewed deliberately.
 
 version: 2
 updates:
@@ -31,14 +31,6 @@ updates:
         update-types:
           - minor
         # Keep majors separate so we can review breaking changes individually.
-    ignore:
-      # Examples — keep manual control over major version bumps for crates
-      # whose API changes affect public surface.
-      - dependency-name: "syn"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "proc-macro2"
-        update-types: ["version-update:semver-major"]
-
   # GitHub Actions (.github/workflows + .github/actions)
   - package-ecosystem: github-actions
     directory: /
@@ -63,6 +55,7 @@ updates:
   # npm for VS Code extension
   - package-ecosystem: npm
     directory: /extensions/vscode
+    versioning-strategy: increase
     schedule:
       interval: weekly
       day: monday
