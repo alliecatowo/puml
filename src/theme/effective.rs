@@ -268,11 +268,17 @@ fn is_builtin_type_stereotype_marker(text: &str) -> bool {
     matches!(
         text,
         "<<enum>>"
+            | "<<enumeration>>"
             | "<<interface>>"
             | "<<abstract>>"
             | "<<abstract class>>"
             | "<<annotation>>"
             | "<<protocol>>"
             | "<<struct>>"
+            | "<<entity>>"
+            | "<<exception>>"
+            | "<<metaclass>>"
+            | "<<stereotype>>"
+            | "<<circle>>"
     )
 }

@@ -161,7 +161,7 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
 
 pub(super) fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> {
     match text {
-        "<<enum>>" => Some("\u{ab}enumeration\u{bb}"),
+        "<<enum>>" | "<<enumeration>>" => Some("\u{ab}enumeration\u{bb}"),
         "<<interface>>" => Some("\u{ab}interface\u{bb}"),
         "<<abstract>>" | "<<abstract class>>" => Some("\u{ab}abstract\u{bb}"),
         "<<annotation>>" => Some("\u{ab}annotation\u{bb}"),
@@ -169,6 +169,12 @@ pub(super) fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> 
         "<<struct>>" => Some("\u{ab}struct\u{bb}"),
         // IE/ER entity — class-family rounded-rectangle with entity stereotype header.
         "<<entity>>" => Some("\u{ab}entity\u{bb}"),
+        // Exception — PlantUML renders with a reddish header.
+        "<<exception>>" => Some("\u{ab}exception\u{bb}"),
+        // Metaclass, stereotype, circle — PlantUML built-in type keywords.
+        "<<metaclass>>" => Some("\u{ab}metaclass\u{bb}"),
+        "<<stereotype>>" => Some("\u{ab}stereotype\u{bb}"),
+        "<<circle>>" => Some("\u{ab}circle\u{bb}"),
         _ => None,
     }
 }

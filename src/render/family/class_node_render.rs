@@ -87,6 +87,12 @@ pub(super) fn render_class_node(
             Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
             // IE/ER entity: light warm tan to distinguish from plain class boxes
             Some("\u{ab}entity\u{bb}") => "#fde68a",
+            // Exception: reddish header (PlantUML convention)
+            Some("\u{ab}exception\u{bb}") => "#fecaca",
+            // Metaclass, stereotype, circle: neutral slate header
+            Some("\u{ab}metaclass\u{bb}")
+            | Some("\u{ab}stereotype\u{bb}")
+            | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
             _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",
