@@ -142,6 +142,14 @@ pub(super) fn render_node<'a>(
                     cx + 5, cy - 5, cx - 5, cy + 5, border
                 ));
             }
+            // Name label below the glyph (closes #1305)
+            let label = node.display.as_deref().unwrap_or(&node.name);
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    cx, cy + 16, state_node_text(node, state_style), escape_text(label)
+                ));
+            }
         }
 
         StateNodeKind::InputPin | StateNodeKind::OutputPin => {
@@ -159,6 +167,16 @@ pub(super) fn render_node<'a>(
                 sw,
                 state_node_border_dash(node)
             ));
+            // Name label below the glyph (closes #1305)
+            let label = node.display.as_deref().unwrap_or(&node.name);
+            if !label.is_empty() {
+                let cx = x + w / 2;
+                let cy = y + h / 2;
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    cx, cy + 18, state_node_text(node, state_style), escape_text(label)
+                ));
+            }
         }
 
         StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => {
@@ -177,6 +195,16 @@ pub(super) fn render_node<'a>(
                     border,
                     sw,
                     state_node_border_dash(node)
+                ));
+            }
+            // Name label below the glyph (closes #1305)
+            let label = node.display.as_deref().unwrap_or(&node.name);
+            if !label.is_empty() {
+                let cx = x + w / 2;
+                let cy = y + h / 2;
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    cx, cy + 16, state_node_text(node, state_style), escape_text(label)
                 ));
             }
         }
@@ -329,6 +357,25 @@ pub(super) fn render_node<'a>(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
                     x + w / 2, y + 20, state_node_font_size(state_style), text, escape_text(display)
                 ));
+                // Internal actions (entry/exit/do) in composite header band (closes #1304)
+                if !node.internal_actions.is_empty() {
+                    out.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y + 28, x + w, y + 28, state_style.border_color
+                    ));
+                    for (ai, action) in node.internal_actions.iter().enumerate() {
+                        let ay = y + 30 + ai as i32 * 14;
+                        let action_text = if action.action.is_empty() {
+                            action.kind.clone()
+                        } else {
+                            format!("{} / {}", action.kind, action.action)
+                        };
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
+                            x + 6, ay + 10, state_node_text(node, state_style), escape_text(&action_text)
+                        ));
+                    }
+                }
 
                 // Draw concurrent region dividers (dashed vertical lines)
                 if node.regions.len() > 1 {
