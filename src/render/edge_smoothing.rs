@@ -44,11 +44,11 @@ pub fn polyline_points_attr(pts: &[(i32, i32)]) -> String {
 ///
 /// Returns the body of the `d` attribute (no surrounding quotes). For
 /// inputs of length 0 or 1 returns an empty string; for length 2 emits a
-/// straight `M ax,ay L bx,by`; for length ≥ 3 emits a sequence of `M`
-/// + `C` commands. Each cubic Bézier segment shares its endpoint with
-/// the next segment's start, so the curve is C1-continuous everywhere
-/// except at corners with a sharp polyline angle, where the smoothing
-/// gently rounds them.
+/// straight `M ax,ay L bx,by`; for length ≥ 3 emits a sequence of
+/// `M`, then `C` commands. Each cubic Bézier segment shares its endpoint
+/// with the next segment's start, so the curve is C1-continuous
+/// everywhere except at corners with a sharp polyline angle, where the
+/// smoothing gently rounds them.
 pub fn cubic_bezier_path_d(pts: &[(i32, i32)]) -> String {
     if pts.len() < 2 {
         return String::new();
