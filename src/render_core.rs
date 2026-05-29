@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 pub mod backend;
 mod issues;
+pub mod text_metrics;
 pub mod validate;
 
 pub use backend::{
