@@ -280,5 +280,16 @@ fn is_builtin_type_stereotype_marker(text: &str) -> bool {
             | "<<metaclass>>"
             | "<<stereotype>>"
             | "<<circle>>"
+            // Smart-default DDD / architectural stereotype shapes (issue #1285).
+            // These are excluded from user-stereotype skinparam scope lookups because
+            // they carry their own smart-default header colour / shape.
+            | "<<controller>>"
+            | "<<service>>"
+            | "<<repository>>"
+            | "<<value>>"
+            | "<<aggregate>>"
+            | "<<factory>>"
+            | "<<datatype>>"
+            | "<<utility>>"
     )
 }

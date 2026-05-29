@@ -175,6 +175,18 @@ pub(super) fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> 
         "<<metaclass>>" => Some("\u{ab}metaclass\u{bb}"),
         "<<stereotype>>" => Some("\u{ab}stereotype\u{bb}"),
         "<<circle>>" => Some("\u{ab}circle\u{bb}"),
+        // ── Smart-default DDD / architectural stereotype shapes (issue #1285) ────────
+        // These are PUML extensions; they produce a canonical guillemet label AND a
+        // visually distinct shape + header colour.  The skinparam cascade still wins
+        // over the smart defaults (checked in class_node_render.rs).
+        "<<controller>>" => Some("\u{ab}controller\u{bb}"),
+        "<<service>>" => Some("\u{ab}service\u{bb}"),
+        "<<repository>>" => Some("\u{ab}repository\u{bb}"),
+        "<<value>>" => Some("\u{ab}value\u{bb}"),
+        "<<aggregate>>" => Some("\u{ab}aggregate\u{bb}"),
+        "<<factory>>" => Some("\u{ab}factory\u{bb}"),
+        "<<datatype>>" => Some("\u{ab}datatype\u{bb}"),
+        "<<utility>>" => Some("\u{ab}utility\u{bb}"),
         _ => None,
     }
 }
