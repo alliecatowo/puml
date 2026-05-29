@@ -359,14 +359,23 @@ pub(in crate::render::activity) fn compute_layout(
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
 
-                // Compute bar half-width spanning all branch columns
+                // Compute bar half-width spanning the branch column centers.
+                //
+                // The bar must visibly connect the leftmost and rightmost branch
+                // columns, but should NOT stretch a full `effective_col_w` past
+                // each end — that produces fork bars that visually punch outside
+                // the enclosing partition/lane (#1299).  We pad by a small
+                // visual margin (~1/3 of a branch column, capped at the rough
+                // node-box half-width derived from `min_fork_col_w`) which keeps
+                // the bar reading as a single unit without engulfing the
+                // surrounding frame.
+                let box_half_w_est = ((min_fork_col_w - 24) / 2).max(60);
+                let bar_pad = (effective_col_w / 3).min(box_half_w_est).max(24);
                 let bar_span_half = if n_branches > 1 {
-                    let leftmost = fork_branch_cx(fork_cx, 0, n_branches, effective_col_w)
-                        - effective_col_w / 2;
-                    let rightmost =
-                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w)
-                            + effective_col_w / 2;
-                    (rightmost - leftmost) / 2
+                    let leftmost_cx = fork_branch_cx(fork_cx, 0, n_branches, effective_col_w);
+                    let rightmost_cx =
+                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w);
+                    (rightmost_cx - leftmost_cx) / 2 + bar_pad
                 } else {
                     (lane_w - 24).clamp(60, 110)
                 };
@@ -376,11 +385,11 @@ pub(in crate::render::activity) fn compute_layout(
                     indices => {
                         let first = *indices.first().unwrap();
                         let last = *indices.last().unwrap();
-                        let leftmost = fork_branch_cx(fork_cx, first, n_branches, effective_col_w)
-                            - effective_col_w / 2;
-                        let rightmost = fork_branch_cx(fork_cx, last, n_branches, effective_col_w)
-                            + effective_col_w / 2;
-                        (rightmost - leftmost) / 2
+                        let leftmost_cx =
+                            fork_branch_cx(fork_cx, first, n_branches, effective_col_w);
+                        let rightmost_cx =
+                            fork_branch_cx(fork_cx, last, n_branches, effective_col_w);
+                        (rightmost_cx - leftmost_cx) / 2 + bar_pad
                     }
                 };
                 fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);
