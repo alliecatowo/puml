@@ -1,14 +1,14 @@
-/// Wave-13 parity tests for nwdiag network diagrams.
-///
-/// Validates the acceptance criteria:
-///   - Horizontal network buses with CIDR address labels at left edge
-///   - Host boxes rendered below the bus header (in SVG top-down coords)
-///   - Vertical drop-lines from host to each bus it belongs to
-///   - IP address labels at bus intersections
-///   - Multi-homed hosts (same name on multiple networks) render as ONE box
-///     with drop-lines to each network
-///
-/// Syntax: `@startnwdiag` / `@endnwdiag` (the nwdiag-specific start/end tags).
+//! Wave-13 parity tests for nwdiag network diagrams.
+//!
+//! Validates the acceptance criteria:
+//!   - Horizontal network buses with CIDR address labels at left edge
+//!   - Host boxes rendered below the bus header (in SVG top-down coords)
+//!   - Vertical drop-lines from host to each bus it belongs to
+//!   - IP address labels at bus intersections
+//!   - Multi-homed hosts (same name on multiple networks) render as ONE box
+//!     with drop-lines to each network
+//!
+//! Syntax: `@startnwdiag` / `@endnwdiag` (the nwdiag-specific start/end tags).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SVG helper utilities

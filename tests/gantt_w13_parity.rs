@@ -1,15 +1,15 @@
-/// Wave-13 batch T: Gantt diagram parity — project schedule rendering.
-///
-/// These tests exercise the full set of gantt constructs required by the
-/// PlantUML Language Reference Guide (Gantt chapter):
-///   - `[Task] lasts N days`                  duration → bar of proportional width
-///   - `starts at [Other]'s end`              chained task dependency scheduling
-///   - `is colored in X`                      fill color override on task bar
-///   - `is N% complete`                       progress fill overlay on task bar
-///   - `happens at [Task]'s end`              milestone diamond rendered at date
-///   - `saturday/sunday are closed`           weekend exclusion shading
-///   - `[Parent.Child]` sub-task              indented under parent in output
-///   - `[A] -> [B]`                           dependency arrow between tasks
+//! Wave-13 batch T: Gantt diagram parity — project schedule rendering.
+//!
+//! These tests exercise the full set of gantt constructs required by the
+//! PlantUML Language Reference Guide (Gantt chapter):
+//!   - `[Task] lasts N days`                  duration → bar of proportional width
+//!   - `starts at [Other]'s end`              chained task dependency scheduling
+//!   - `is colored in X`                      fill color override on task bar
+//!   - `is N% complete`                       progress fill overlay on task bar
+//!   - `happens at [Task]'s end`              milestone diamond rendered at date
+//!   - `saturday/sunday are closed`           weekend exclusion shading
+//!   - `[Parent.Child]` sub-task              indented under parent in output
+//!   - `[A] -> [B]`                           dependency arrow between tasks
 
 // ---------------------------------------------------------------------------
 // gantt_task_lasts_n_days_renders_bar_of_correct_width
