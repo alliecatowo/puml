@@ -252,12 +252,18 @@ fn issue_1287_deep_class_packages_dont_overlap() {
 #[test]
 fn issue_1288_cross_package_edges_are_polylines() {
     let svg = render_svg(&fixture("docs/examples/class/14_nested_packages.puml"));
-    // Every cross-package relation must be drawn as a polyline (≥4
-    // waypoints) — the obstacle-avoiding orthogonal router never produces
-    // 2-point straight relations between distinct package-scoped classes.
-    let mut cross_pkg_polylines = 0;
+    // Every cross-package relation must use the obstacle-avoiding
+    // multi-segment route. Under EdgeRouting::Splines (the default) the
+    // routed waypoints are smoothed into a cubic-Bézier `<path d="…">`
+    // with multiple `C` segments — so we count "C "/"L " commands as
+    // proxies for waypoints. Under EdgeRouting::Polyline / Ortho the
+    // emission is a `<polyline points="…">` and we count point pairs
+    // directly. Both paths must have ≥ 3 effective waypoints.
+    let mut cross_pkg_count = 0;
     for chunk in svg.split('<') {
-        if !chunk.starts_with("polyline class=\"uml-relation\"") {
+        let is_polyline = chunk.starts_with("polyline class=\"uml-relation\"");
+        let is_path = chunk.starts_with("path class=\"uml-relation\"");
+        if !is_polyline && !is_path {
             continue;
         }
         let from = attr(chunk, "data-uml-from").unwrap_or_default();
@@ -268,17 +274,27 @@ fn issue_1288_cross_package_edges_are_polylines() {
         if !cross {
             continue;
         }
-        let points = attr(chunk, "points").unwrap_or_default();
-        let waypoints = points.split_whitespace().count();
+        let waypoints = if is_polyline {
+            attr(chunk, "points")
+                .unwrap_or_default()
+                .split_whitespace()
+                .count()
+        } else {
+            // Each "C " command produces one cubic Bézier segment that
+            // ends at a waypoint; the initial "M " seeds the start
+            // point. waypoint_count = 1 (M) + number_of_C_segments.
+            let d = attr(chunk, "d").unwrap_or_default();
+            1 + d.matches(" C ").count() + d.matches(" L ").count()
+        };
         assert!(
             waypoints >= 3,
-            "cross-package relation must use multi-segment polyline (#1288): from={from} to={to} points={points}"
+            "cross-package relation must use a multi-segment route (#1288): from={from} to={to} chunk={chunk}"
         );
-        cross_pkg_polylines += 1;
+        cross_pkg_count += 1;
     }
     assert!(
-        cross_pkg_polylines >= 2,
-        "expected ≥2 cross-package relations to verify (#1288), saw {cross_pkg_polylines}"
+        cross_pkg_count >= 2,
+        "expected ≥2 cross-package relations to verify (#1288), saw {cross_pkg_count}"
     );
 }
 

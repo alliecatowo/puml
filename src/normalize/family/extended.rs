@@ -374,17 +374,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
-                // `skinparam linetype <value>` is a global edge-routing knob
-                // that mirrors PlantUML's upstream `splines=` Graphviz mode.
-                // It applies to every Graphviz-routed family so we extract it
-                // here, before family-specific classifiers see it as a noop.
-                if key.trim().eq_ignore_ascii_case("linetype") {
-                    if let Some(mode) =
-                        crate::render::graph_layout::EdgeRouting::parse_linetype(&value)
-                    {
-                        edge_routing = mode;
-                    }
-                }
+                super::directives::handle_family_linetype_skinparam(
+                    &key,
+                    &value,
+                    &mut edge_routing,
+                );
                 family_styles.handle_skinparam(
                     family_kind,
                     &key,
