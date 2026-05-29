@@ -263,8 +263,10 @@ pub(super) fn group_horizontal_bounds(
                 let target_width =
                     (max_right - min_left + REF_OVER_MARGIN * 2).max(options.participant_width);
                 let width = target_width.max(min_content_width);
-                let x =
-                    (min_left - REF_OVER_MARGIN - ((width - target_width) / 2)).max(options.margin);
+                // Allow x to extend left of the canvas margin by up to REF_OVER_MARGIN so
+                // the glyph edge is always clear of the leftmost participant border.
+                let x_unclamped = min_left - REF_OVER_MARGIN - ((width - target_width) / 2);
+                let x = x_unclamped.max(options.margin - REF_OVER_MARGIN);
                 return (x, width);
             }
         }
