@@ -1,7 +1,7 @@
 use crate::ast::MemberModifier;
 use crate::model::FamilyNodeKind;
 use crate::render::svg::{creole_text, escape_text, render_actor_stick_figure};
-use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle};
+use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle, StyleSource};
 
 use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
@@ -94,6 +94,24 @@ pub(super) fn render_class_node(
             | Some("\u{ab}stereotype\u{bb}")
             | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
             // ── Smart-default DDD / architectural stereotype header colours (#1285) ──
+            // User-set stereotype skinparam (source == Stereotype or StyleBlock) wins
+            // over the smart default. Check effective_style.header_color.source() first.
+            Some(
+                "\u{ab}controller\u{bb}"
+                | "\u{ab}service\u{bb}"
+                | "\u{ab}repository\u{bb}"
+                | "\u{ab}value\u{bb}"
+                | "\u{ab}aggregate\u{bb}"
+                | "\u{ab}factory\u{bb}"
+                | "\u{ab}datatype\u{bb}"
+                | "\u{ab}utility\u{bb}",
+            ) if matches!(
+                effective_style.header_color.source(),
+                StyleSource::Stereotype | StyleSource::StyleBlock
+            ) =>
+            {
+                effective_style.header_color.as_str()
+            }
             Some("\u{ab}controller\u{bb}") => "#bfdbfe", // light blue
             Some("\u{ab}service\u{bb}") => "#bbf7d0",    // light green
             Some("\u{ab}repository\u{bb}") => "#fef3c7", // light tan
