@@ -256,9 +256,15 @@ pub(super) fn group_horizontal_bounds(
                     .map(|(_, right)| *right)
                     .max()
                     .unwrap_or(options.margin + options.participant_width);
-                let target_width = (max_right - min_left).max(options.participant_width);
+                // Extend ref box by a small horizontal margin on each side so the
+                // rightmost (and leftmost) participant is visually enclosed rather
+                // than sitting exactly on the frame border (closes #1295).
+                const REF_OVER_MARGIN: i32 = 4;
+                let target_width =
+                    (max_right - min_left + REF_OVER_MARGIN * 2).max(options.participant_width);
                 let width = target_width.max(min_content_width);
-                let x = (min_left - ((width - target_width) / 2)).max(options.margin);
+                let x =
+                    (min_left - REF_OVER_MARGIN - ((width - target_width) / 2)).max(options.margin);
                 return (x, width);
             }
         }
