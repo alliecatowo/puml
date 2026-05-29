@@ -9,28 +9,59 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: build-${{ matrix.name }}
+  create-release:
+    name: Ensure GitHub release exists
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ensure release exists for tag
+        id: release
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh release create "$TAG_NAME" \
+            --title "puml $TAG_NAME" \
+            --notes "Automated release $TAG_NAME" \
+            --verify-tag
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+  build-and-publish:
+    name: Build ${{ matrix.name }} binary
+    needs: create-release
+    runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - name: linux-x86_64
             runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            binary: puml
             artifact: puml-linux-x86_64
-            binary: target/x86_64-unknown-linux-gnu/release/puml
           - name: macos-x86_64
             runner: macos-latest
             target: x86_64-apple-darwin
+            binary: puml
             artifact: puml-macos-x86_64
-            binary: target/x86_64-apple-darwin/release/puml
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: 0
-
+          - name: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: puml.exe
+            artifact: puml-windows-x86_64.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -47,46 +78,64 @@ jobs:
           cache-on-failure: true
 
       - name: Build release binary
-        run: cargo build --release --locked --target "${{ matrix.target }}" -p puml --bin puml
+        run: cargo build --release --locked --target "${{ matrix.target }}" --bin puml
 
       - name: Stage artifact
-        run: cp "${{ matrix.binary }}" "${{ matrix.artifact }}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "dist/${{ matrix.artifact }}"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
+      - name: Upload asset to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
-          retention-days: 7
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: dist/${{ matrix.artifact }}
 
-  release:
-    name: Create GitHub Release
+  publish-to-cargo:
+    name: Publish crate
     runs-on: ubuntu-latest
-    needs: [build]
-    timeout-minutes: 10
-
+    needs:
+      - build-and-publish
+    permissions:
+      contents: read
+    if: github.ref_type == 'tag'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Download Linux binary
-        uses: actions/download-artifact@v8
-        with:
-          name: puml-linux-x86_64
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Download macOS binary
-        uses: actions/download-artifact@v8
-        with:
-          name: puml-macos-x86_64
-
-      - name: Create GitHub Release
+      - name: Verify version matches tag
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "puml ${{ github.ref_name }}" \
-            --generate-notes \
-            puml-linux-x86_64 \
-            puml-macos-x86_64
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME#v}"
+          CARGO_VERSION="$(python3 - <<'PY'
+import re
+from pathlib import Path
+
+text = Path("Cargo.toml").read_text()
+m = re.search(r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"', text, re.M)
+if not m:
+    raise SystemExit("No version line found in Cargo.toml")
+print(m.group(0).split('"')[1])
+PY
+)"
+          if [ "$TAG_NAME" != "$CARGO_VERSION" ]; then
+            echo "Tag version $TAG_NAME does not match Cargo version $CARGO_VERSION"
+            exit 1
+          fi
+
+      - name: Publish to crates.io
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "Missing CARGO_REGISTRY_TOKEN secret."
+            exit 1
+          fi
+          cargo publish --locked --token "$CARGO_REGISTRY_TOKEN"
