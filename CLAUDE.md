@@ -37,7 +37,10 @@ tests/                  Integration tests + visual_baselines/
 **Current architectural state (post-Wave-21):**
 
 - Hierarchical layout module live at `src/render/graph_layout.rs` (stage 1 complete)
-- Orthogonal edge routing wired into sequence and class diagram families
+- Edge routing: three global modes (`Splines` default / `Polyline` / `Ortho`) wired
+  through `skinparam linetype`, matching upstream PlantUML's
+  `splines=`/`splines=polyline`/`splines=ortho` directives. See
+  `docs/internal/architecture/edge-routing.md`.
 - In-browser `!include` resolver ships in the JS preproc layer (`site/`)
 - Language service APIs unified: hover, completion, diagnostics, semantic tokens,
   formatting — all accessible via MCP and the VS Code extension
