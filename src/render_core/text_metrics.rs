@@ -15,9 +15,9 @@
 //!   - Multi-byte characters are counted as one glyph (Unicode codepoint
 //!     counting via `.chars().count()`, not byte-length)
 //!
-//! These constants match the `DEFAULT_MONOSPACE_CHAR_WIDTH = 7` in
-//! `crate::render::text_metrics` and the `CHAR_WIDTH_PX = 7` in the
-//! validate layer, keeping all three in sync.
+//! These constants match `DEFAULT_MONOSPACE_CHAR_WIDTH = 7` in the
+//! render-family layer and `CHAR_WIDTH_PX = 7` in the validate layer,
+//! keeping all three in sync.
 
 /// Baseline font size for the `7 px/char` heuristic (in pixels).
 pub const BASE_FONT_SIZE_PX: u32 = 14;
