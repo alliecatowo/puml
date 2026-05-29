@@ -319,3 +319,49 @@ pub(super) fn diamond_anchor(node: &PlacedNode, toward_x: i32, toward_y: i32) ->
         cy + ((dy as f64) * scale).round() as i32,
     )
 }
+
+/// Emit internal-actions separator line + italic text rows inside a state box (#1304).
+/// `sep_y` is the Y of the separator line; action rows start at `sep_y + 12`.
+pub(super) fn push_internal_actions(
+    out: &mut String,
+    node: &StateNode,
+    x: i32,
+    w: i32,
+    sep_y: i32,
+    state_style: &crate::theme::StateStyle,
+) {
+    if node.internal_actions.is_empty() {
+        return;
+    }
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        x,
+        sep_y,
+        x + w,
+        sep_y,
+        state_style.border_color
+    ));
+    for (ai, action) in node.internal_actions.iter().enumerate() {
+        let t = if action.action.is_empty() {
+            action.kind.clone()
+        } else {
+            format!("{} / {}", action.kind, action.action)
+        };
+        out.push_str(&format!("<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>", x + 6, sep_y + 12 + ai as i32 * 14, state_node_text(node, state_style), escape_text(&t)));
+    }
+}
+
+/// Emit a centred name label `dy` pixels below `(cx, cy)` for pseudostate glyphs (#1305).
+pub(super) fn push_pseudostate_name_label(
+    out: &mut String,
+    node: &StateNode,
+    cx: i32,
+    cy: i32,
+    dy: i32,
+    state_style: &crate::theme::StateStyle,
+) {
+    let label = node.display.as_deref().unwrap_or(&node.name);
+    if !label.is_empty() {
+        out.push_str(&format!("<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>", cx, cy + dy, state_node_text(node, state_style), escape_text(label)));
+    }
+}

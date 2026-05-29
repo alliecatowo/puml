@@ -143,13 +143,7 @@ pub(super) fn render_node<'a>(
                 ));
             }
             // Name label below the glyph (closes #1305)
-            let label = node.display.as_deref().unwrap_or(&node.name);
-            if !label.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    cx, cy + 16, state_node_text(node, state_style), escape_text(label)
-                ));
-            }
+            push_pseudostate_name_label(out, node, cx, cy, 16, state_style);
         }
 
         StateNodeKind::InputPin | StateNodeKind::OutputPin => {
@@ -168,15 +162,7 @@ pub(super) fn render_node<'a>(
                 state_node_border_dash(node)
             ));
             // Name label below the glyph (closes #1305)
-            let label = node.display.as_deref().unwrap_or(&node.name);
-            if !label.is_empty() {
-                let cx = x + w / 2;
-                let cy = y + h / 2;
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    cx, cy + 18, state_node_text(node, state_style), escape_text(label)
-                ));
-            }
+            push_pseudostate_name_label(out, node, x + w / 2, y + h / 2, 18, state_style);
         }
 
         StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => {
@@ -198,15 +184,7 @@ pub(super) fn render_node<'a>(
                 ));
             }
             // Name label below the glyph (closes #1305)
-            let label = node.display.as_deref().unwrap_or(&node.name);
-            if !label.is_empty() {
-                let cx = x + w / 2;
-                let cy = y + h / 2;
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    cx, cy + 16, state_node_text(node, state_style), escape_text(label)
-                ));
-            }
+            push_pseudostate_name_label(out, node, x + w / 2, y + h / 2, 16, state_style);
         }
 
         StateNodeKind::Terminate => {
@@ -240,30 +218,10 @@ pub(super) fn render_node<'a>(
         }
 
         StateNodeKind::SdlReceive => {
-            // SDL receive signal: rectangle with a concave indent on the left side.
-            // Shape: start from top-left, go right to top-right, down to bottom-right,
-            // left to bottom-left, then concave arc inward at the left.
+            // SDL receive signal: rectangle with an arrow-head indent on the left side.
             let fill = state_node_fill(node, state_style);
             let border = state_node_border(node, state_style);
             let indent = (h / 4).max(6);
-            let path = format!(
-                "M {},{} L {},{} L {},{} L {},{} L {},{} Q {},{} {},{}  Z",
-                x,
-                y,
-                x + w,
-                y,
-                x + w,
-                y + h,
-                x,
-                y + h,
-                x + indent,
-                y + h / 2, // bottom-left concave tip
-                x - indent / 2,
-                y + h / 2, // control point (inward)
-                x,
-                y // back to top-left (arc)
-            );
-            // Simpler polygon form: arrow-head indent on left
             let pts = format!(
                 "{},{} {},{} {},{} {},{} {},{}",
                 x + indent,
@@ -291,7 +249,6 @@ pub(super) fn render_node<'a>(
                 state_node_text(node, state_style),
                 escape_text(display)
             ));
-            let _ = path; // suppress unused warning
         }
 
         StateNodeKind::SdlSend => {
@@ -358,24 +315,7 @@ pub(super) fn render_node<'a>(
                     x + w / 2, y + 20, state_node_font_size(state_style), text, escape_text(display)
                 ));
                 // Internal actions (entry/exit/do) in composite header band (closes #1304)
-                if !node.internal_actions.is_empty() {
-                    out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y + 28, x + w, y + 28, state_style.border_color
-                    ));
-                    for (ai, action) in node.internal_actions.iter().enumerate() {
-                        let ay = y + 30 + ai as i32 * 14;
-                        let action_text = if action.action.is_empty() {
-                            action.kind.clone()
-                        } else {
-                            format!("{} / {}", action.kind, action.action)
-                        };
-                        out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
-                            x + 6, ay + 10, state_node_text(node, state_style), escape_text(&action_text)
-                        ));
-                    }
-                }
+                push_internal_actions(out, node, x, w, y + 28, state_style);
 
                 // Draw concurrent region dividers (dashed vertical lines)
                 if node.regions.len() > 1 {
@@ -611,24 +551,7 @@ pub(super) fn render_node<'a>(
                     escape_text(display)
                 ));
                 // Internal actions
-                if !node.internal_actions.is_empty() {
-                    out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y + STATE_NODE_H - 4, x + w, y + STATE_NODE_H - 4, state_style.border_color
-                    ));
-                    for (ai, action) in node.internal_actions.iter().enumerate() {
-                        let ay = y + STATE_NODE_H + ai as i32 * 14;
-                        let text = if action.action.is_empty() {
-                            action.kind.clone()
-                        } else {
-                            format!("{} / {}", action.kind, action.action)
-                        };
-                        out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
-                            x + 6, ay + 10, state_node_text(node, state_style), escape_text(&text)
-                        ));
-                    }
-                }
+                push_internal_actions(out, node, x, w, y + STATE_NODE_H - 4, state_style);
             }
         }
     }
