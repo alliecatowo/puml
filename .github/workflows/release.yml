@@ -18,21 +18,31 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_ext: tar.gz
             archive_name: puml-linux-x86_64
-            binary_name: puml
+            artifact_ext: tar.gz
+            cli_binary: puml
+            lsp_binary: puml-lsp
+            binary_ext: ""
           - name: macos-x86_64
             os: macos-latest
             target: x86_64-apple-darwin
-            artifact_ext: tar.gz
             archive_name: puml-macos-x86_64
-            binary_name: puml
+            artifact_ext: tar.gz
+            cli_binary: puml
+            lsp_binary: puml-lsp
+            binary_ext: ""
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_ext: zip
             archive_name: puml-windows-x86_64
-            binary_name: puml.exe
+            artifact_ext: zip
+            cli_binary: puml
+            lsp_binary: puml-lsp
+            binary_ext: ".exe"
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -48,8 +58,8 @@ jobs:
           shared-key: release-${{ matrix.target }}-stable
           cache-on-failure: true
 
-      - name: Build release binary
-        run: cargo build --release --locked --target "${{ matrix.target }}" -p puml --bin puml
+      - name: Build release binaries
+        run: cargo build --release --locked --target "${{ matrix.target }}" -p puml --bins
 
       - name: Package artifact
         id: package_artifact
@@ -59,14 +69,20 @@ jobs:
 
           VERSION="${{ github.event.release.tag_name }}"
           OUTDIR="dist"
-          mkdir -p "$OUTDIR"
-
+          STAGE_DIR="$OUTDIR/${{ matrix.archive_name }}-${VERSION}"
           ARCHIVE_PATH="$OUTDIR/${{ matrix.archive_name }}-${VERSION}.${{ matrix.artifact_ext }}"
 
+          mkdir -p "$STAGE_DIR"
+
+          cp "target/${{ matrix.target }}/release/${{ matrix.cli_binary }}${{ matrix.binary_ext }}" \
+            "$STAGE_DIR/${{ matrix.cli_binary }}${{ matrix.binary_ext }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}" \
+            "$STAGE_DIR/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}"
+
           if [ "${{ matrix.artifact_ext }}" = "zip" ]; then
-            tar -a -cf "$ARCHIVE_PATH" -C "target/${{ matrix.target }}/release" "${{ matrix.binary_name }}"
+            tar -a -cf "$ARCHIVE_PATH" -C "$STAGE_DIR" .
           else
-            tar -czf "$ARCHIVE_PATH" -C "target/${{ matrix.target }}/release" "${{ matrix.binary_name }}"
+            tar -czf "$ARCHIVE_PATH" -C "$STAGE_DIR" .
           fi
 
           echo "artifact_path=$ARCHIVE_PATH" >> "$GITHUB_OUTPUT"
@@ -79,11 +95,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-wasm:
+    name: Build and upload wasm artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-and-upload]
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-wasm-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Install wasm-pack
+        uses: ./.github/actions/install-wasm-pack
+
+      - name: Build and package wasm artifact
+        id: package_wasm
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          OUT_DIR: dist
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT_DIR"
+          wasm-pack build --release --target web --out-dir "$OUT_DIR/puml-wasm"
+          tar -czf "$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" -C "$OUT_DIR" puml-wasm
+          echo "artifact_path=$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload wasm artifact to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ${{ steps.package_wasm.outputs.artifact_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   publish-to-cargo:
     name: Publish crate to crates.io
     runs-on: ubuntu-latest
     if: github.event.release.prerelease == false
-    needs: [build-and-upload]
+    needs: [build-and-upload, build-wasm]
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
