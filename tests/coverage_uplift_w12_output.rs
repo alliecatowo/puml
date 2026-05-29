@@ -522,7 +522,8 @@ fn render_artifact_refresh_svg_metadata_with_viewbox() {
 #[test]
 fn render_artifact_refresh_svg_metadata_no_viewbox() {
     let mut artifact = RenderArtifact {
-        svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\"></svg>".to_string(),
+        svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\"></svg>"
+            .to_string(),
         ..Default::default()
     };
     artifact.refresh_svg_metadata();
