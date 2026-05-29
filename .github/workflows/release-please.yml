@@ -22,3 +22,5 @@ jobs:
           package-name: puml
           default-branch: main
           bump-minor-pre-major: true
+          skip-github-release: true
+          skip-github-pull-request: true
