@@ -1,6 +1,9 @@
 use super::*;
 use crate::output::RenderArtifact;
-use crate::render_core::{LabelBox, LabelRole, NodeBox, Rect, RenderScene, SceneNode};
+use crate::render_core::{
+    text_metrics::estimate_text_width_default, LabelBox, LabelRole, NodeBox, Rect, RenderScene,
+    SceneNode,
+};
 
 pub fn render_regex_svg(document: &RegexDocument) -> String {
     render_regex_artifact(document).svg
@@ -26,8 +29,9 @@ pub fn render_regex_artifact(document: &RegexDocument) -> RenderArtifact {
         .patterns
         .iter()
         .map(|pat| {
-            // Source regex string row width (shown as /source/)
-            let source_px = (pat.source.len() as i32) * 7 + 64;
+            // Source regex string row width (shown as /source/). Regex
+            // source is ASCII-only so byte-len == char count here.
+            let source_px = estimate_text_width_default(&pat.source) + 64;
             // Token row: sum of token label widths
             let tokens_px: i32 = regex_tokens_to_labels(&pat.tokens)
                 .iter()

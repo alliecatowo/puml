@@ -264,9 +264,10 @@ pub fn render_svg(scene: &Scene) -> String {
                 let first_line = label.lines().next().unwrap_or("");
                 let header_text = format!("{} {}", g.kind, first_line).trim().to_string();
                 // Estimate the notch width from the text content.
-                let char_w = 7_i32;
                 let notch_w =
-                    (header_text.chars().count() as i32 * char_w + 16).clamp(40, g.width - 4);
+                    (crate::render_core::text_metrics::estimate_text_width_default(&header_text)
+                        + 16)
+                        .clamp(40, g.width - 4);
                 let notch_h = 20_i32;
                 let cut = 6_i32;
                 out.push_str(&format!(
