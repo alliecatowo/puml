@@ -439,12 +439,48 @@ pub(super) fn render_node<'a>(
                         let dir = state_direction_attr(t.direction.as_deref());
 
                         if t.from == t.to {
-                            let cpx = x1 + 18;
-                            let cpy = y1 - 14;
+                            // Self-transition curve (#1319): emit a visible
+                            // arc that exits the right edge and re-enters the
+                            // top edge so the loop reads as a real curved
+                            // back-pointer rather than a degenerate quadratic
+                            // collapsed to a single point.
+                            let (sx_box, sy_box, sw_box, sh_box) = (fp.x, fp.y, fp.w, fp.h);
+                            let exit_x = sx_box + sw_box;
+                            let exit_y = sy_box + sh_box / 3;
+                            let enter_x = sx_box + sw_box - 20.max(sw_box / 4);
+                            let enter_y = sy_box;
+                            let arc_w = 28;
+                            let arc_h = 28;
+                            let c1x = exit_x + arc_w;
+                            let c1y = exit_y;
+                            let c2x = enter_x;
+                            let c2y = enter_y - arc_h;
                             out.push_str(&format!(
-                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {exit_x} {exit_y} C {c1x} {c1y} {c2x} {c2y} {enter_x} {enter_y}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
                                 escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                             ));
+                            let _ = (x1, y1, x2, y2);
+                            if let Some(label) = &t.label {
+                                let apex_x = exit_x + arc_w + 2;
+                                let apex_y = enter_y - arc_h / 2;
+                                let layout = place_state_transition_label(
+                                    label,
+                                    apex_x,
+                                    apex_y,
+                                    apex_x,
+                                    apex_y,
+                                    &inner_placed,
+                                    occupied_label_bounds,
+                                );
+                                render_state_transition_label(
+                                    out,
+                                    &layout,
+                                    label,
+                                    &state_style.font_color,
+                                );
+                                occupied_label_bounds.push(layout.bounds);
+                            }
+                            continue;
                         } else if has_reverse {
                             let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 10);
                             let cpx = (ox1 + ox2) / 2;
