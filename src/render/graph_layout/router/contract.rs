@@ -3,6 +3,56 @@ use crate::render::layout_constants::{MAX_TRACKS, PKG_HEADER_ROUTING_CLEARANCE, 
 use crate::render_core::RouteChannel;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Global edge-routing mode, selected by `skinparam linetype <value>`.
+///
+/// PlantUML exposes exactly three routing modes (mapped 1-to-1 onto Graphviz's
+/// `splines=` attribute):
+///
+/// - [`EdgeRouting::Splines`] — smooth B-spline curves, PlantUML's *and* our
+///   default. Long sweeping arcs for distant endpoints, gentle near-straights
+///   for short ones. Source: `splines=true` (no directive emitted by upstream
+///   `DotStringFactory`).
+/// - [`EdgeRouting::Polyline`] — straight line segments through the routed
+///   waypoints, no smoothing. Source: `splines=polyline`.
+/// - [`EdgeRouting::Ortho`] — pure orthogonal right-angle elbows. Source:
+///   `splines=ortho`. The only mode we shipped pre-Stage-2.
+///
+/// See `docs/internal/architecture/edge-routing.md` for the user-facing guide
+/// and `docs/internal/architecture/edge-curve-research-2026-05-29.md` for the
+/// upstream Java references.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum EdgeRouting {
+    /// Smooth B-spline curves — PlantUML default.
+    #[default]
+    Splines,
+    /// Straight line segments through waypoints.
+    Polyline,
+    /// Orthogonal right-angle elbows.
+    Ortho,
+}
+
+impl EdgeRouting {
+    /// Parse a `skinparam linetype` value. Accepts case-insensitive
+    /// `splines`, `polyline`, and `ortho`. Returns `None` for any other token.
+    pub fn parse_linetype(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "splines" | "spline" | "curve" | "curved" => Some(Self::Splines),
+            "polyline" | "poly" | "straight" => Some(Self::Polyline),
+            "ortho" | "orthogonal" => Some(Self::Ortho),
+            _ => None,
+        }
+    }
+
+    /// Return the value as it would appear in upstream PlantUML source.
+    pub const fn as_skinparam_value(self) -> &'static str {
+        match self {
+            Self::Splines => "splines",
+            Self::Polyline => "polyline",
+            Self::Ortho => "ortho",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::render::graph_layout) struct RouteOptions {
     pub track_spacing: f64,
