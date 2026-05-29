@@ -117,16 +117,35 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .map(|(i, s)| (i, s.as_str()))
         .collect();
 
+    // Walk the parser-produced qualified node name (e.g.
+    // `Kubernetes Cluster::Namespace: backend::Pod: api-server::API`) to
+    // derive the deepest enclosing scope rather than the flattened outer
+    // group label.  This lets `compute_group_bounds` recursively grow
+    // ancestor bboxes so 3+ levels of nesting don't collapse onto one
+    // overlapping band (#1287, #1290).
+    let deepest_scope_for = |qualified: &str| -> Option<String> {
+        let parts: Vec<&str> = qualified.split("::").filter(|p| !p.is_empty()).collect();
+        if parts.len() < 2 {
+            return None;
+        }
+        Some(parts[..parts.len() - 1].join("::"))
+    };
     let gl_nodes: Vec<GlNodeSize> = doc
         .nodes
         .iter()
         .map(|n| {
             let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
-            let parent = node_to_group
+            let group_scope = node_to_group
                 .get(&key)
                 .or_else(|| node_to_group.get(&n.name))
                 .and_then(|g_idx| group_scope_map.get(g_idx))
                 .map(|s| s.to_string());
+            // Prefer the deepest scope derived from the qualified node name.
+            // Fall back to the immediate group scope (which is typically the
+            // outermost label when the parser flattened nested scopes).
+            let parent = deepest_scope_for(&n.name)
+                .or_else(|| deepest_scope_for(&key))
+                .or(group_scope);
             GlNodeSize {
                 id: key,
                 width: cell_w as f64,
