@@ -385,12 +385,14 @@ fn parser_rejects_salt_marker_mismatch_fixture() {
 #[test]
 fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
     // Plain (non-pipe) lines in a @startsalt block are encoded as SALT_ROW label nodes.
-    let src = "@startsalt\nwidget title\n@endsalt\n";
+    // Use a plain text label (not the `widget` keyword — that is now consumed as a no-op
+    // per issue #1294 to avoid rendering the keyword itself as text).
+    let src = "@startsalt\nJust a label\n@endsalt\n";
     let doc = parse(src).expect("parse should succeed");
     let normalized = normalize_family(doc).expect("salt normalize should succeed");
     match normalized {
         NormalizedDocument::Family(model) => {
-            assert_eq!(model.nodes.len(), 1, "expected one widget node");
+            assert_eq!(model.nodes.len(), 1, "expected one SALT_ROW node");
             // Salt lines are now encoded as "SALT_ROW\x1fL:<text>" for the wireframe renderer.
             assert!(
                 model.nodes[0].name.starts_with("SALT_ROW\x1f"),
@@ -398,7 +400,7 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
                 model.nodes[0].name
             );
             assert!(
-                model.nodes[0].name.contains("widget title"),
+                model.nodes[0].name.contains("Just a label"),
                 "expected label text, got: {}",
                 model.nodes[0].name
             );
@@ -406,6 +408,25 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
         }
         NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
         NormalizedDocument::Timeline(_) => panic!("expected salt family model"),
+        _ => panic!("expected salt family model"),
+    }
+}
+
+#[test]
+fn normalize_family_salt_widget_keyword_is_consumed_as_noop() {
+    // `widget <name>` is consumed silently — it must not appear as a text node
+    // in the rendered output (#1294).
+    let src = "@startsalt\nwidget submit_button\n@endsalt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("salt normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert_eq!(
+                model.nodes.len(),
+                0,
+                "widget keyword should be consumed, not rendered as text node"
+            );
+        }
         _ => panic!("expected salt family model"),
     }
 }
