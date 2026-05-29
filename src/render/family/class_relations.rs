@@ -51,6 +51,67 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
+        // Self-association curve (#1319): when the relation refers to the
+        // same class box on both ends, the orthogonal router produces a
+        // degenerate zero-length line.  Emit a small "C"-shaped arc hugging
+        // the top-right corner instead — this is the PlantUML convention for
+        // class self-association (ch 3 of the language reference).
+        if render_from_name == render_to_name {
+            let style = arrow_style(&normalized_arrow);
+            let relation_color = relation.line_color.as_deref().unwrap_or(ctx.arrow_stroke);
+            let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
+            let stroke_dash = if style.dashed || relation.dashed {
+                " stroke-dasharray=\"5 3\""
+            } else {
+                ""
+            };
+            let visibility = if relation.hidden {
+                " visibility=\"hidden\""
+            } else {
+                ""
+            };
+            let mut markers = String::new();
+            if let Some(end) = style.end_marker {
+                markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+            }
+            if let Some(start) = style.start_marker {
+                markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+            }
+            // Arc anchors: exit the top edge ~20px left of the right corner,
+            // bulge up-and-right by `arc_w` × `arc_h`, and return into the
+            // right edge ~20px below the top corner.  Two quadratic-bezier
+            // corners give the classic looped self-pointer shape.
+            let arc_w: i32 = 28;
+            let arc_h: i32 = 28;
+            let exit_x = from.x + from.w - 20;
+            let exit_y = from.y;
+            let return_x = from.x + from.w;
+            let return_y = from.y + 20;
+            let top_x = from.x + from.w + arc_w / 2;
+            let top_y = from.y - arc_h;
+            let right_x = from.x + from.w + arc_w;
+            let right_y = from.y + arc_h / 2;
+            let label_x = top_x + arc_w / 2;
+            let label_y = top_y + 4;
+            out.push_str(&format!(
+                "<path class=\"uml-relation uml-self-association\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" d=\"M {} {} Q {} {} {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
+                escape_text(&relation.from),
+                escape_text(&relation.to),
+                escape_text(normalized_arrow.as_str()),
+                exit_x, exit_y,
+                top_x, top_y, right_x, right_y,
+                right_x, return_y, return_x, return_y,
+                relation_color, stroke_width,
+                stroke_dash, visibility, markers
+            ));
+            if let Some(label) = relation.label.as_deref() {
+                out.push_str(&format!(
+                    "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    label_x, label_y, ctx.class_style.member_color, escape_text(label)
+                ));
+            }
+            continue;
+        }
         let mut style = arrow_style(&normalized_arrow);
         let usecase_dependency = usecase_dependency_label(relation.label.as_deref())
             .or_else(|| usecase_dependency_label(relation.stereotype.as_deref()));
