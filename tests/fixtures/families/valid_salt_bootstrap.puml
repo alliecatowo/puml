@@ -1,10 +1,9 @@
 @startsalt
 {
-  Login
+  Login Form
   ==
-  Username: | "user    "
+  Username: | "submit_button"
   Password: | "****    "
   [OK] | [Cancel]
 }
-submit_button --> auth_service : posts credentials
 @endsalt

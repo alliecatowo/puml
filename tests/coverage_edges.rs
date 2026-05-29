@@ -171,11 +171,11 @@ fn normalize_reports_destroy_active_for_shortcut() {
 
 #[test]
 fn normalize_family_routes_bootstrap_families_to_stub_model() {
+    // Families that produce both nodes and relations.
     for case in [
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
-        "families/valid_salt_bootstrap.puml",
     ] {
         let src = fs::read_to_string(fixture(case)).expect("fixture should load");
         let doc = parse(&src).expect("parse should succeed");
@@ -189,6 +189,21 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             | NormalizedDocument::Timeline(_)
             | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
+            }
+            _ => panic!("expected family stub model for {case}"),
+        }
+    }
+
+    // Salt fixture: produces nodes (SALT_ROW items) but no relations — salt is a
+    // wireframe layout family with no inter-component wiring in its bootstrap fixture.
+    {
+        let case = "families/valid_salt_bootstrap.puml";
+        let src = fs::read_to_string(fixture(case)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        let normalized = normalize_family(doc).expect("family normalize should succeed");
+        match normalized {
+            NormalizedDocument::Family(model) => {
+                assert!(!model.nodes.is_empty(), "expected nodes for {case}");
             }
             _ => panic!("expected family stub model for {case}"),
         }
