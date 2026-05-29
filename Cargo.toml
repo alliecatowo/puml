@@ -17,6 +17,10 @@ lto = "fat"
 codegen-units = 1
 strip = "symbols"
 panic = "abort"
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false
 
 [profile.release-ci]
 # Fast CI binary profile: same correctness as release but no LTO and parallel
