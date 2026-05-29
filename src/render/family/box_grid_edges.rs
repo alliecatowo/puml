@@ -223,15 +223,12 @@ pub(super) fn render_box_grid_relations_and_labels(
                     orth_pts[n - 2].0 = x2;
                 }
             }
-            let pts_str: String = orth_pts
-                .iter()
-                .map(|(px, py)| format!("{px},{py}"))
-                .collect::<Vec<_>>()
-                .join(" ");
+            let (tag, geom_attr) =
+                crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, &orth_pts);
             out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
                 escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
-                pts_str, relation_color, stroke_width,
+                geom_attr, relation_color, stroke_width,
                 dash_attr, visibility_attr, direction_attr, style_attr, markers
             ));
             let longest_horiz = orth_pts
@@ -379,15 +376,12 @@ pub(super) fn render_box_grid_relations_and_labels(
                 };
 
                 let pts = best_pts.as_slice();
-                let pts_str: String = pts
-                    .iter()
-                    .map(|(px, py)| format!("{},{}", px, py))
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                let (tag, geom_attr) =
+                    crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, pts);
                 out.push_str(&format!(
-                    "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                    "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
                     escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
-                    pts_str, relation_color, stroke_width,
+                    geom_attr, relation_color, stroke_width,
                     dash_attr, visibility_attr, direction_attr, markers
                 ));
 
