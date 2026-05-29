@@ -208,9 +208,7 @@ fn tokenize_bang_define_is_keyword() {
     // We assert that @startuml and @enduml are still present — the source
     // remains well-formed even after preprocessing.
     assert!(
-        tokens
-            .iter()
-            .any(|&(text, _)| text == "@startuml"),
+        tokens.iter().any(|&(text, _)| text == "@startuml"),
         "after preprocessing, @startuml must still appear; got: {tokens:?}"
     );
 }
@@ -227,14 +225,18 @@ fn tokenize_block_comment_not_in_rust_semantic_tokens() {
     let source = "@startuml\n/' this is a block comment '/\nAlice -> Bob\n@enduml\n";
     let tokens = rust_token_pairs(source);
     // The block-comment text must NOT appear as a Rust semantic token.
-    let comment_token = tokens.iter().find(|&&(text, _)| text.contains("block comment"));
+    let comment_token = tokens
+        .iter()
+        .find(|&&(text, _)| text.contains("block comment"));
     assert!(
         comment_token.is_none(),
         "Rust semantic_tokens must not emit tokens for block comments; got: {tokens:?}"
     );
     // But @startuml and -> must still be present.
     assert!(tokens.iter().any(|&(text, _)| text == "@startuml"));
-    assert!(tokens.iter().any(|&(text, kind)| text == "->" && kind == SemanticTokenKind::Operator));
+    assert!(tokens
+        .iter()
+        .any(|&(text, kind)| text == "->" && kind == SemanticTokenKind::Operator));
 }
 
 /// JS tokenizer recognises `note` as a keyword (NOTE_KEYWORDS set).
@@ -306,7 +308,10 @@ fn include_once_deduplicates() {
     let expanded = preprocess_with_root(src, dir.path()).expect("include_once");
     // The content must appear exactly once.
     let count = expanded.matches("Alice -> Bob: once").count();
-    assert_eq!(count, 1, "!include_once must include content exactly once; got count={count}");
+    assert_eq!(
+        count, 1,
+        "!include_once must include content exactly once; got count={count}"
+    );
 }
 
 /// JS divergence: JS resolver strips @startuml/@enduml wrappers from fetched
@@ -338,7 +343,10 @@ fn include_js_strips_startuml_wrappers_rust_does_not() {
     // "Bob -> Carol: after" is unreachable.
     let expanded = preprocess_with_root(src, dir.path()).expect("wrapped include");
     // After preprocessing, the inner @enduml is present:
-    assert!(expanded.contains("@enduml"), "Rust passes @enduml through verbatim");
+    assert!(
+        expanded.contains("@enduml"),
+        "Rust passes @enduml through verbatim"
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -591,7 +599,8 @@ fn unknown_directive_is_error_on_rust_side() {
     let err = parse(src).expect_err("unknown directive should fail");
     assert!(
         err.message.contains("E_PREPROC_UNSUPPORTED"),
-        "expected E_PREPROC_UNSUPPORTED, got: {}", err.message
+        "expected E_PREPROC_UNSUPPORTED, got: {}",
+        err.message
     );
 }
 
@@ -618,7 +627,8 @@ fn unclosed_if_block_is_error() {
     let err = parse(src).expect_err("unclosed !if must error");
     assert!(
         err.message.contains("E_PREPROC_COND_UNCLOSED"),
-        "expected E_PREPROC_COND_UNCLOSED, got: {}", err.message
+        "expected E_PREPROC_COND_UNCLOSED, got: {}",
+        err.message
     );
 }
 
@@ -629,7 +639,8 @@ fn orphaned_endif_is_error() {
     let err = parse(src).expect_err("orphaned !endif must error");
     assert!(
         err.message.contains("E_PREPROC_COND_UNEXPECTED"),
-        "expected E_PREPROC_COND_UNEXPECTED, got: {}", err.message
+        "expected E_PREPROC_COND_UNEXPECTED, got: {}",
+        err.message
     );
 }
 
@@ -642,8 +653,10 @@ fn include_missing_file_is_error() {
     let err = preprocess_with_pipeline_options(src, &ParsePipelineOptions::default())
         .expect_err("missing include must error");
     assert!(
-        err.message.contains("E_INCLUDE_ROOT_REQUIRED") || err.message.contains("E_INCLUDE_NOT_FOUND"),
-        "expected include error, got: {}", err.message
+        err.message.contains("E_INCLUDE_ROOT_REQUIRED")
+            || err.message.contains("E_INCLUDE_NOT_FOUND"),
+        "expected include error, got: {}",
+        err.message
     );
 }
 
