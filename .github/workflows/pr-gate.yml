@@ -142,7 +142,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Binary size: release-ci profile (opt-level=1, lto=false) — saves ~60-90s vs full release.
+  # Main parity: use the release profile and the same binary/perf gate checks as main-gate.
   # Runs in parallel with test shards.
   binary_size:
     name: binary size
@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      BINARY_LIMIT_BYTES: "22000000"
+      BINARY_LIMIT_BYTES: "16000000"
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -159,19 +159,20 @@ jobs:
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
-      - name: Build release-ci binary
-        run: cargo build --profile release-ci -p puml --locked --bin puml
-      - name: Binary size check
+      - name: Build release binary
+        run: cargo build --release -p puml --locked --bin puml
+      - name: Binary size + perf gate
         shell: bash
         run: |
           set -euo pipefail
-          BINARY="target/release-ci/puml"
+          BINARY="target/release/puml"
           if stat -f%z "${BINARY}" >/dev/null 2>&1; then BYTES=$(stat -f%z "${BINARY}")
           else BYTES=$(stat -c%s "${BINARY}"); fi
-          echo "Binary size (release-ci profile): ${BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
+          echo "Binary size (release profile): ${BYTES} bytes (limit ${BINARY_LIMIT_BYTES})"
           if (( BYTES > BINARY_LIMIT_BYTES )); then
             echo "ERROR: Binary size ${BYTES}B exceeds limit ${BINARY_LIMIT_BYTES}B" >&2; exit 1
           fi
+          ./scripts/bench.sh --skip-build --enforce-gates
 
   wasm:
     name: wasm
