@@ -186,10 +186,21 @@ pub(super) fn collect_decl_transitions(
                 // contains("__in__") / contains("__end__") to avoid false-positive
                 // matches on legitimate user state names that happen to contain those
                 // substrings (e.g. a state named "EndStateA" or "inline__end__proc").
-                if !from.starts_with("[*]__in__") && !from.starts_with("[*]__end__") {
+                // Skip composite-scoped [*] pseudo-states and [H]/[H*] history
+                // pseudostates from the flat top-level node list — they are placed
+                // inside the composite region by state_decl_to_node (closes #1306).
+                if !from.starts_with("[*]__in__")
+                    && !from.starts_with("[*]__end__")
+                    && from != "[H]"
+                    && from != "[H*]"
+                {
                     ensure_state_node(nodes, &from);
                 }
-                if !to.starts_with("[*]__in__") && !to.starts_with("[*]__end__") {
+                if !to.starts_with("[*]__in__")
+                    && !to.starts_with("[*]__end__")
+                    && to != "[H]"
+                    && to != "[H*]"
+                {
                     ensure_state_node(nodes, &to);
                 }
                 transitions.push(ModelStateTransition {
@@ -300,6 +311,14 @@ pub(super) fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                         let scoped =
                             scope_pseudo_star_region(endpoint, parent_name, region_idx, is_target);
                         ensure_region_state_node(&mut current_region, &scoped);
+                    } else if endpoint == "[H]" || endpoint == "[H*]" {
+                        // History pseudostates declared via inline transition syntax
+                        // (e.g. `[H] --> Foo`) must be placed inside the owning
+                        // composite region, not promoted to the top-level node list.
+                        // Without this, [H] ends up rendered outside the composite box
+                        // (closes #1306).
+                        let _ = is_target;
+                        ensure_region_state_node(&mut current_region, endpoint);
                     } else if is_composite_region_endpoint(endpoint, decl.name.as_str()) {
                         ensure_region_state_node(&mut current_region, endpoint);
                     }

@@ -921,8 +921,15 @@ Bob --> Alice: response\n\
         .find(|group| group.kind == "ref")
         .expect("ref group");
 
-    assert_eq!(reference.x, alice.x);
-    assert_eq!(reference.x + reference.width, charlie.x + charlie.width);
+    // After PR #1311 (#1295 fix): ref-over rect now applies a small margin past the
+    // leftmost/rightmost participant edges so the rounded corners don't clip labels.
+    // See `src/render/sequence/refs.rs::REF_OVER_MARGIN`.
+    const REF_OVER_MARGIN: i32 = 4;
+    assert_eq!(reference.x, alice.x - REF_OVER_MARGIN);
+    assert_eq!(
+        reference.x + reference.width,
+        charlie.x + charlie.width + REF_OVER_MARGIN
+    );
 
     let svg = render::render_svg(&scene);
     assert!(
