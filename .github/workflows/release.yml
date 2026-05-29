@@ -1,48 +1,76 @@
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  build-and-upload:
-    name: Build and upload ${{ matrix.name }} release artifact
-    runs-on: ${{ matrix.os }}
+  create-release:
+    name: Ensure GitHub release exists
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ensure release exists for tag
+        id: release
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh release create "$TAG_NAME" \
+            --title "puml $TAG_NAME" \
+            --notes "Automated release $TAG_NAME" \
+            --verify-tag
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+  build-and-publish:
+    name: Build ${{ matrix.name }} binaries
+    needs: create-release
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x86_64
-            os: ubuntu-latest
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            archive_name: puml-linux-x86_64
-            artifact_ext: tar.gz
             cli_binary: puml
             lsp_binary: puml-lsp
+            cli_artifact: puml-linux-x86_64
+            lsp_artifact: puml-lsp-linux-x86_64
             binary_ext: ""
           - name: macos-x86_64
-            os: macos-latest
+            runner: macos-latest
             target: x86_64-apple-darwin
-            archive_name: puml-macos-x86_64
-            artifact_ext: tar.gz
             cli_binary: puml
             lsp_binary: puml-lsp
+            cli_artifact: puml-macos-x86_64
+            lsp_artifact: puml-lsp-macos-x86_64
             binary_ext: ""
           - name: windows-x86_64
-            os: windows-latest
+            runner: windows-latest
             target: x86_64-pc-windows-msvc
-            archive_name: puml-windows-x86_64
-            artifact_ext: zip
             cli_binary: puml
             lsp_binary: puml-lsp
+            cli_artifact: puml-windows-x86_64.exe
+            lsp_artifact: puml-lsp-windows-x86_64.exe
             binary_ext: ".exe"
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: 0
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -59,51 +87,35 @@ jobs:
           cache-on-failure: true
 
       - name: Build release binaries
-        run: cargo build --release --locked --target "${{ matrix.target }}" -p puml --bins
+        run: |
+          set -euo pipefail
+          cargo build --release --locked --target "${{ matrix.target }}" -p puml --bins
 
-      - name: Package artifact
-        id: package_artifact
+      - name: Stage artifacts
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.cli_binary }}${{ matrix.binary_ext }}" "dist/${{ matrix.cli_artifact }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}" "dist/${{ matrix.lsp_artifact }}"
 
-          VERSION="${{ github.event.release.tag_name }}"
-          OUTDIR="dist"
-          STAGE_DIR="$OUTDIR/${{ matrix.archive_name }}-${VERSION}"
-          ARCHIVE_PATH="$OUTDIR/${{ matrix.archive_name }}-${VERSION}.${{ matrix.artifact_ext }}"
-
-          mkdir -p "$STAGE_DIR"
-
-          cp "target/${{ matrix.target }}/release/${{ matrix.cli_binary }}${{ matrix.binary_ext }}" \
-            "$STAGE_DIR/${{ matrix.cli_binary }}${{ matrix.binary_ext }}"
-          cp "target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}" \
-            "$STAGE_DIR/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}"
-
-          if [ "${{ matrix.artifact_ext }}" = "zip" ]; then
-            tar -a -cf "$ARCHIVE_PATH" -C "$STAGE_DIR" .
-          else
-            tar -czf "$ARCHIVE_PATH" -C "$STAGE_DIR" .
-          fi
-
-          echo "artifact_path=$ARCHIVE_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Upload artifact to GitHub release
+      - name: Upload assets to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: ${{ steps.package_artifact.outputs.artifact_path }}
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: |
+            dist/${{ matrix.cli_artifact }}
+            dist/${{ matrix.lsp_artifact }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-wasm:
     name: Build and upload wasm artifact
+    needs: create-release
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [build-and-upload]
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -126,7 +138,7 @@ jobs:
         id: package_wasm
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
           OUT_DIR: dist
         run: |
           set -euo pipefail
@@ -138,43 +150,46 @@ jobs:
       - name: Upload wasm artifact to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name }}
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: ${{ steps.package_wasm.outputs.artifact_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-to-cargo:
-    name: Publish crate to crates.io
+    name: Publish crate
     runs-on: ubuntu-latest
-    if: github.event.release.prerelease == false
-    needs: [build-and-upload, build-wasm]
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: 0
+    needs:
+      - build-and-publish
+      - build-wasm
+    permissions:
+      contents: read
+    if: github.ref_type == 'tag'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify Cargo version matches release tag
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+      - name: Verify version matches tag
         run: |
           set -euo pipefail
-          TAG_VERSION="${RELEASE_TAG#v}"
+          TAG_NAME="${GITHUB_REF_NAME#v}"
           CARGO_VERSION="$(python3 - <<'PY'
-import tomllib
+import re
 from pathlib import Path
 
-cfg = tomllib.loads(Path('Cargo.toml').read_text())
-print(cfg['package']['version'])
+text = Path("Cargo.toml").read_text()
+m = re.search(r'^version\s*=\s*"\d+\.\d+\.\d+"', text, re.M)
+if not m:
+    raise SystemExit("No version line found in Cargo.toml")
+print(m.group(0).split('"')[1])
 PY
 )"
-          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
-            echo "Release tag version ($TAG_VERSION) does not match Cargo.toml version ($CARGO_VERSION)."
-            echo "Ensure release automation updated Cargo.toml before publishing."
+          if [ "$TAG_NAME" != "$CARGO_VERSION" ]; then
+            echo "Tag version $TAG_NAME does not match Cargo version $CARGO_VERSION"
             exit 1
           fi
 
@@ -183,4 +198,8 @@ PY
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "Missing CARGO_REGISTRY_TOKEN secret."
+            exit 1
+          fi
           cargo publish --locked --token "$CARGO_REGISTRY_TOKEN"
