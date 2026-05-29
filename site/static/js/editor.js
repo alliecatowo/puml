@@ -32,10 +32,30 @@ const INCLUDE_BASE_URL = (() => {
 
 // Base URL for resolving angle-bracket stdlib includes (e.g. `!include <C4/C4_Context>`).
 // The stdlib/ directory is published alongside examples/ by scripts/build-site.mjs.
+//
+// We can't rely on `window.__PUML_BASE__` here because Zola does not inject it
+// into editor.js (it's only injected for templated pages). Derive the base from
+// `document.location.pathname` instead: site pages live under `/puml/...` on
+// github.io, so the resolved stdlib URL becomes
+// `https://alliecatowo.github.io/puml/stdlib/`. Local Zola dev (no /puml/
+// prefix) falls back to the origin root, which is correct for `zola serve`.
 const STDLIB_BASE_URL = (() => {
   try {
-    return window.__PUML_STDLIB_BASE__ ||
-      new URL('stdlib/', window.location.origin + (window.__PUML_BASE__ || '/')).toString();
+    if (window.__PUML_STDLIB_BASE__) {
+      return window.__PUML_STDLIB_BASE__;
+    }
+    const explicitBase = window.__PUML_BASE__;
+    let base = explicitBase || '/';
+    if (!explicitBase) {
+      // Auto-detect the deploy base by looking at the first path segment when
+      // we're on a *.github.io host (which serves projects under /<repo>/).
+      const host = window.location.hostname;
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      if (host.endsWith('.github.io') && segments.length > 0) {
+        base = `/${segments[0]}/`;
+      }
+    }
+    return new URL('stdlib/', window.location.origin + base).toString();
   } catch {
     return 'https://alliecatowo.github.io/puml/stdlib/';
   }
