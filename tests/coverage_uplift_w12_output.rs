@@ -491,8 +491,10 @@ fn render_artifact_require_typed_scene_for_includes_owner_in_error() {
 
 #[test]
 fn render_artifact_refresh_svg_metadata_sets_dimensions_from_svg() {
-    let mut artifact = RenderArtifact::default();
-    artifact.svg = svg_with_dims(640, 480);
+    let mut artifact = RenderArtifact {
+        svg: svg_with_dims(640, 480),
+        ..Default::default()
+    };
     artifact.refresh_svg_metadata();
     let dims = artifact.dimensions.expect("dimensions should be set");
     assert_eq!(dims.width, 640.0);
@@ -501,10 +503,11 @@ fn render_artifact_refresh_svg_metadata_sets_dimensions_from_svg() {
 
 #[test]
 fn render_artifact_refresh_svg_metadata_with_viewbox() {
-    let mut artifact = RenderArtifact::default();
-    artifact.svg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"100\" viewBox=\"10 20 200 100\"></svg>"
-            .to_string();
+    let mut artifact = RenderArtifact {
+        svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"100\" viewBox=\"10 20 200 100\"></svg>"
+            .to_string(),
+        ..Default::default()
+    };
     artifact.refresh_svg_metadata();
     let dims = artifact.dimensions.expect("dims");
     assert_eq!(dims.width, 200.0);
@@ -518,9 +521,10 @@ fn render_artifact_refresh_svg_metadata_with_viewbox() {
 
 #[test]
 fn render_artifact_refresh_svg_metadata_no_viewbox() {
-    let mut artifact = RenderArtifact::default();
-    artifact.svg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\"></svg>".to_string();
+    let mut artifact = RenderArtifact {
+        svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\"></svg>".to_string(),
+        ..Default::default()
+    };
     artifact.refresh_svg_metadata();
     let dims = artifact.dimensions.expect("dims");
     assert!(dims.view_box.is_none());
