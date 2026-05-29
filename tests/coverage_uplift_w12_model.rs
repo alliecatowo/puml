@@ -7,10 +7,7 @@
 //! Refs #89
 
 use puml::ast::StatementKind;
-use puml::model::{
-    FamilyNode, FamilyNodeKind, FamilyRelationArrow, FamilyRelationColor, FamilyRelationDirection,
-    MindMapSide,
-};
+use puml::model::{FamilyRelationArrow, FamilyRelationColor, FamilyRelationDirection, MindMapSide};
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
