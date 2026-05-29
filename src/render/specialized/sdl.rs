@@ -282,7 +282,9 @@ fn render_sdl_transition(
         };
         // Approximate half-width of the label text so we can draw a white
         // background rect that prevents any arrow from bleeding through.
-        let approx_half_w = (label.len() as i32 * 7) / 2 + 4;
+        // Use the shared text-width helper (7 px/char at 14 px font).
+        let approx_half_w =
+            crate::render_core::text_metrics::estimate_text_width_default(label) / 2 + 4;
         let font_h: i32 = 11;
         let pad: i32 = 2;
         labels_out.push_str(&format!(

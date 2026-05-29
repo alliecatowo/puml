@@ -191,7 +191,11 @@ pub(super) fn write_gantt_task_rows(ctx: &mut GanttRowsRenderContext<'_>) {
         }
         if !document.hide_resource_names && !task.resources.is_empty() {
             let resource_label = task.resources.join(", ");
-            let pill_w = ((resource_label.len() as i32) * 7 + 14).min((bw - 6).max(0));
+            // Use the shared text-width helper; resource labels are ASCII in practice.
+            let pill_w =
+                (crate::render_core::text_metrics::estimate_text_width_default(&resource_label)
+                    + 14)
+                    .min((bw - 6).max(0));
             if pill_w > 26 {
                 out.push_str(&format!(
                     "<rect class=\"gantt-resource-pill\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"14\" rx=\"7\" ry=\"7\" fill=\"#dbeafe\" stroke=\"#93c5fd\" stroke-width=\"1\"/>",
