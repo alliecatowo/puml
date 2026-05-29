@@ -186,8 +186,11 @@ pub(super) fn parse_attr_i32_lossy(tag: &str, attr: &str) -> Option<i32> {
         .or_else(|| parse_attr_f64(tag, attr).map(|value| value.round() as i32))
 }
 
-/// Approximate character-width estimate in pixels at `font-size="12"`.
-pub(super) const CHAR_WIDTH_PX: i32 = 7;
+/// Approximate character-width estimate in pixels (monospace, 7 px/char).
+///
+/// Matches `crate::render_core::text_metrics::BASE_CHAR_WIDTH_PX`. Kept as a
+/// local alias so validate-layer callsites do not gain a render_core dep.
+pub(super) const CHAR_WIDTH_PX: i32 = crate::render_core::text_metrics::BASE_CHAR_WIDTH_PX as i32;
 /// Approximate descent below the y baseline.
 pub(super) const TEXT_DESCENT_PX: i32 = 4;
 /// Approximate ascent above the y baseline.
