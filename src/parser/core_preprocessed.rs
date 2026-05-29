@@ -552,7 +552,15 @@ pub(crate) fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 continue;
             }
             let trimmed = line.trim();
-            if matches!(trimmed, "{" | "{-" | "---") || trimmed.is_empty() {
+            let lower_trimmed = trimmed.to_ascii_lowercase();
+            // Structural delimiters and no-op keywords are silently consumed.
+            // `widget <name>` is a PlantUML salt no-op group declaration that
+            // should not appear in the rendered output.
+            if matches!(trimmed, "{" | "{-" | "---")
+                || trimmed.is_empty()
+                || lower_trimmed == "widget"
+                || lower_trimmed.starts_with("widget ")
+            {
                 i += 1;
                 continue;
             }
