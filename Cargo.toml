@@ -4,14 +4,15 @@ members = ["crates/puml-wasm"]
 [profile.release]
 # Default profile shared by the workspace; the wasm crate wants tight
 # binaries (opt-level = "z" + lto) but the puml CLI release profile is
-# otherwise tuned for runtime speed. Strip symbols so benchmark and main-gate
+# tuned for a shipped-binary size target while preserving release performance
+# characteristics for normal use. Strip symbols so benchmark and main-gate
 # binary-size checks measure the shipped CLI artifact instead of debug metadata.
 #
 # panic = "abort" drops unwind tables (saves ~1-3 MB binary size) and lets the
 # linker eliminate panic-cleanup paths that the CLI never relies on — the
 # binary aborts on panic instead of unwinding. Cargo test still uses the dev
 # profile (unwind), so #[should_panic] tests are unaffected.
-opt-level = 3
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
