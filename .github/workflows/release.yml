@@ -100,7 +100,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}" "dist/${{ matrix.lsp_artifact }}"
 
       - name: Upload assets to GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: |
@@ -148,7 +148,7 @@ jobs:
           echo "artifact_path=$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload wasm artifact to GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: ${{ steps.package_wasm.outputs.artifact_path }}
