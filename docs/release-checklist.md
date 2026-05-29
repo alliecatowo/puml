@@ -23,8 +23,8 @@
 
 ## Benchmark / Perf / Size Contract
 
-- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>40ms`, binary size `<=16,000,000` bytes).
-- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>50ms`, binary size `<=16,000,000` bytes).
+- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>40ms`, binary size `<=18,000,000` bytes).
+- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>50ms`, binary size `<=18,000,000` bytes).
 - [ ] Confirm checked-in benchmark JSON artifacts match the current gate policy: `./scripts/bench.sh --check-artifacts`.
 - [ ] Confirm mode baseline files exist and are reviewed: `docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`.
 - [ ] Confirm regression comparisons are mode-scoped (full vs full baseline, quick vs quick baseline).

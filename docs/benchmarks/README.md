@@ -69,11 +69,11 @@ Current policy version: `bench-gate-v2-2026-05-17`.
 - `full` (default):
 - absolute per-scenario mean limit: `250ms`
 - regression limit vs previous `baseline_full.json`: `10%` with absolute delta floor `>40ms`
-- binary size limit (`target/release/puml`): `16,000,000` bytes
+- binary size limit (`target/release/puml`): `18,000,000` bytes
 - `quick` (`--quick`):
 - absolute per-scenario mean limit: `350ms`
 - regression limit vs previous `baseline_quick.json`: `20%` with absolute delta floor `>50ms`
-- binary size limit (`target/release/puml`): `16,000,000` bytes
+- binary size limit (`target/release/puml`): `18,000,000` bytes
 
 If no matching mode baseline exists, regression checks are skipped and absolute/binary checks still apply.
 

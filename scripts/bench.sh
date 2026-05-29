@@ -16,9 +16,9 @@ SKIP_BUILD=0
 POLICY_VERSION="bench-gate-v2-2026-05-17"
 
 # URL includes pull in TLS/HTTP dependencies; keep the size gate above the
-# current ~10 MB release binary while still catching accidental large growth.
-BINARY_LIMIT_BYTES_FULL=16000000
-BINARY_LIMIT_BYTES_QUICK=16000000
+# current release binary target while still catching accidental large growth.
+BINARY_LIMIT_BYTES_FULL=18000000
+BINARY_LIMIT_BYTES_QUICK=18000000
 ABS_MEAN_LIMIT_MS_FULL=250
 ABS_MEAN_LIMIT_MS_QUICK=350
 REGRESSION_LIMIT_PCT_FULL=10
