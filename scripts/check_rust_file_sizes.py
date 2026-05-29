@@ -23,6 +23,16 @@ ALLOWLIST_REASONS = {
     # pub(crate) visibility annotations on cross-module struct fields (FamilyDeclParts,
     # FamilyHeritage, FamilyInlineStyle). Split is tracked in #1258.
     "src/parser/family_declarations.rs": "pre-existing large module; +23 lines from refactor visibility annotations",
+    # Was 591 lines; grew to 617 after wave-14 re-orient fix (#1318/#1319) added
+    # reversed-edge path-flip logic and EdgeInfo docs. The routing algorithm is a
+    # single tightly-coupled computation; a mechanical split would only add indirection.
+    # Tracked for a future path-building extraction in the graph-layout refactor (#590).
+    "src/render/graph_layout/router.rs": "wave-14 re-orient fix added 26 lines; split tracked in #590",
+    # Was 558 lines on main; grew to 624 after wave-14 curves+anchoring (#1318/#1319)
+    # inlined the state self-transition cubic-arc and internal-actions rendering.
+    # The render_node function is a match-arm state machine; mechanical sub-function
+    # extraction requires plumbing all local vars through parameters. Split tracked in #590.
+    "src/render/state/node_render.rs": "wave-14 self-transition curve added 66 lines net; split tracked in #590",
 }
 
 
