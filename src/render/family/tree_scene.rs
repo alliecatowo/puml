@@ -420,6 +420,7 @@ mod tests {
             maximum_width: None,
             sprites: Default::default(),
             list_sprites: false,
+            edge_routing: Default::default(),
             warnings: vec![],
         }
     }

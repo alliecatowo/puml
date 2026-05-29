@@ -36,6 +36,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut orientation = FamilyOrientation::TopToBottom;
+    let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -373,6 +374,17 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
+                // `skinparam linetype <value>` is a global edge-routing knob
+                // that mirrors PlantUML's upstream `splines=` Graphviz mode.
+                // It applies to every Graphviz-routed family so we extract it
+                // here, before family-specific classifiers see it as a noop.
+                if key.trim().eq_ignore_ascii_case("linetype") {
+                    if let Some(mode) =
+                        crate::render::graph_layout::EdgeRouting::parse_linetype(&value)
+                    {
+                        edge_routing = mode;
+                    }
+                }
                 family_styles.handle_skinparam(
                     family_kind,
                     &key,
@@ -542,6 +554,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         maximum_width: None,
         sprites,
         list_sprites,
+        edge_routing,
         warnings: ext_warnings,
         groups,
         json_projections,
