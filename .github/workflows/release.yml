@@ -115,14 +115,11 @@ jobs:
           set -euo pipefail
           TAG_NAME="${GITHUB_REF_NAME#v}"
           CARGO_VERSION="$(python3 - <<'PY'
-import re
+import tomllib
 from pathlib import Path
 
-text = Path("Cargo.toml").read_text()
-m = re.search(r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"', text, re.M)
-if not m:
-    raise SystemExit("No version line found in Cargo.toml")
-print(m.group(0).split('"')[1])
+cfg = tomllib.loads(Path("Cargo.toml").read_text())
+print(cfg["package"]["version"])
 PY
 )"
           if [ "$TAG_NAME" != "$CARGO_VERSION" ]; then
@@ -135,7 +132,7 @@ PY
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "Missing CARGO_REGISTRY_TOKEN secret."
-            exit 1
+            echo "CARGO_REGISTRY_TOKEN secret is missing; skipping publish."
+            exit 0
           fi
           cargo publish --locked --token "$CARGO_REGISTRY_TOKEN"
