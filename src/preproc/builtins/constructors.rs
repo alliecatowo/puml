@@ -101,6 +101,19 @@ pub(super) fn preprocessor_get_opt(container: &str, key: &str) -> Option<String>
 
 pub(super) fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
     if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        // Fast path: bare integer key on a JSON array (e.g. %set($list, 1, "B")).
+        // Must be handled before set_json_value_at_path, which would otherwise
+        // destructively coerce the array into an object.
+        if value.is_array() {
+            if let Ok(idx) = key.trim().parse::<usize>() {
+                if let Some(arr) = value.as_array_mut() {
+                    if let Some(slot) = arr.get_mut(idx) {
+                        *slot = json_value_from_preproc(replacement);
+                    }
+                    return serde_json::Value::Array(arr.clone()).to_string();
+                }
+            }
+        }
         if set_json_value_at_path(
             &mut value,
             &split_json_path(key),
@@ -118,7 +131,7 @@ pub(super) fn preprocessor_set(container: &str, key: &str, replacement: &str) ->
         if let Some(arr) = value.as_array_mut() {
             if let Ok(idx) = key.trim().parse::<usize>() {
                 if let Some(slot) = arr.get_mut(idx) {
-                    *slot = serde_json::Value::String(replacement.to_string());
+                    *slot = json_value_from_preproc(replacement);
                 }
             }
             return serde_json::Value::Array(arr.clone()).to_string();
