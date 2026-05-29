@@ -52,13 +52,13 @@ jobs:
           fi
 
           CURRENT_VERSION="$(python3 - <<'PY'
-import tomllib
-from pathlib import Path
+          import tomllib
+          from pathlib import Path
 
-cfg = tomllib.loads(Path("Cargo.toml").read_text())
-print(cfg["package"]["version"])
-PY
-)"
+          cfg = tomllib.loads(Path("Cargo.toml").read_text())
+          print(cfg["package"]["version"])
+          PY
+          )"
 
           MAJOR="$(echo "$CURRENT_VERSION" | cut -d. -f1)"
           MINOR="$(echo "$CURRENT_VERSION" | cut -d. -f2)"
@@ -83,33 +83,33 @@ PY
           set -euo pipefail
           NEXT_VERSION="${{ steps.version.outputs.next_version }}"
           python3 - "$NEXT_VERSION" <<'PY'
-import re
-import sys
-from pathlib import Path
+          import re
+          import sys
+          from pathlib import Path
 
-next_version = sys.argv[1]
-path = Path("Cargo.toml")
-text = path.read_text()
+          next_version = sys.argv[1]
+          path = Path("Cargo.toml")
+          text = path.read_text()
 
-updated = re.sub(
-    r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"',
-    f'version = "{next_version}"',
-    text,
-    count=1,
-    flags=re.M,
-)
-if updated == text:
-    raise SystemExit("No version line found in Cargo.toml")
-path.write_text(updated)
-PY
+          updated = re.sub(
+              r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"',
+              f'version = "{next_version}"',
+              text,
+              count=1,
+              flags=re.M,
+          )
+          if updated == text:
+              raise SystemExit("No version line found in Cargo.toml")
+          path.write_text(updated)
+          PY
 
           python3 - <<'PY'
-from pathlib import Path
-for line in Path("Cargo.toml").read_text().splitlines():
-    if line.startswith("version = "):
-        print(line)
-        break
-PY
+          from pathlib import Path
+          for line in Path("Cargo.toml").read_text().splitlines():
+              if line.startswith("version = "):
+                  print(line)
+                  break
+          PY
 
       - name: Create release commit and tag
         env:
