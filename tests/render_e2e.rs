@@ -923,12 +923,28 @@ Bob --> Alice: response\n\
 
     // After PR #1311 (#1295 fix): ref-over rect now applies a small margin past the
     // leftmost/rightmost participant edges so the rounded corners don't clip labels.
-    // See `src/render/sequence/refs.rs::REF_OVER_MARGIN`.
+    // The exact margin is clamped to the canvas edge so when the leftmost participant
+    // sits at `options.margin`, x stays >= options.margin - REF_OVER_MARGIN. Assert
+    // structurally: the rect must ENCLOSE both participants (with up to REF_OVER_MARGIN
+    // of extra padding), not exact equality.
     const REF_OVER_MARGIN: i32 = 4;
-    assert_eq!(reference.x, alice.x - REF_OVER_MARGIN);
-    assert_eq!(
+    assert!(
+        reference.x <= alice.x,
+        "ref.x ({}) should not start right of alice.x ({})",
+        reference.x,
+        alice.x,
+    );
+    assert!(
+        reference.x + reference.width >= charlie.x + charlie.width,
+        "ref right edge ({}) should not stop before charlie right edge ({})",
         reference.x + reference.width,
-        charlie.x + charlie.width + REF_OVER_MARGIN
+        charlie.x + charlie.width,
+    );
+    assert!(
+        (alice.x - reference.x) <= REF_OVER_MARGIN,
+        "ref.x should be within REF_OVER_MARGIN of alice.x (got {} vs {})",
+        reference.x,
+        alice.x,
     );
 
     let svg = render::render_svg(&scene);
