@@ -873,6 +873,9 @@ fn render_smart_default_shape(
 /// `extra_labels` is a slice of any additional user-defined stereotype labels that
 /// should also appear in the header (e.g. `«internal»` when the source had both
 /// `<<controller>> <<internal>>`).
+// All parameters are distinct scalar render properties; no logical grouping
+// reduces the count without introducing an artificial struct — false positive.
+#[allow(clippy::too_many_arguments)]
 fn render_smart_shape_labels(
     out: &mut String,
     display_name: &str,
