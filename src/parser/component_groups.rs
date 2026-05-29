@@ -189,10 +189,11 @@ pub(crate) fn clean_component_group_label(raw: &str) -> String {
     let trimmed = raw.trim_end_matches('{').trim();
     if let Some(stripped) = trimmed.strip_prefix('"') {
         if let Some(end) = stripped.find('"') {
-            let suffix = stripped[end + 1..].trim();
-            if suffix.starts_with("as ") {
-                return clean_ident(&stripped[..end]);
-            }
+            // We found a properly-quoted name; return it regardless of what follows
+            // (alias, stereotype, color, or nothing). Without this early return the
+            // closing `"` leaks into the label when a `<<stereotype>>` follows
+            // (issue #1289).
+            return clean_ident(&stripped[..end]);
         }
     }
     if let Some((lhs, _)) = trimmed.split_once(" as ") {
@@ -207,21 +208,17 @@ pub(crate) fn clean_component_group_label(raw: &str) -> String {
 /// the group header contains an explicit color modifier like `frame "Production" #LightYellow`.
 pub(crate) fn clean_component_group_label_with_color(raw: &str) -> (String, Option<String>) {
     let trimmed = raw.trim_end_matches('{').trim();
-    // Quoted label: `"Name" [#Color] [{]` or `"Name" as Alias`
+    // Quoted label: `"Name" [#Color] [{]`, `"Name" as Alias`, or `"Name" <<stereotype>>`.
     if let Some(stripped) = trimmed.strip_prefix('"') {
         if let Some(end) = stripped.find('"') {
             let name = &stripped[..end];
             let suffix = stripped[end + 1..].trim();
-            if suffix.starts_with("as ") {
-                return (clean_ident(name), None);
-            }
-            // If the suffix is a `#Color` token, return the clean name plus the color.
-            // Otherwise fall through to old behavior — preserving non-color suffixes like
-            // `<<stereotype>>` which some tests rely on remaining in the scope string.
+            // Extract an optional leading `#Color` token from whatever follows the name.
             let fill_color = extract_leading_color_token(suffix);
-            if fill_color.is_some() {
-                return (clean_ident(name), fill_color);
-            }
+            // Return the clean name in all cases where we found a properly-quoted pair.
+            // Without this early return the closing `"` leaks into the label when a
+            // `<<stereotype>>` or other suffix follows (bug S-6 / S-8, issue #1289).
+            return (clean_ident(name), fill_color);
         }
     }
     // Unquoted: `Name [#Color]` or `Name as Alias`

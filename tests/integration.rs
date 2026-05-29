@@ -6211,10 +6211,7 @@ fn component_grouped_lollipop_routes_use_shared_layout_edges() {
         "OrderDomain should sit in the package body, below the reserved header"
     );
 
-    for group in [
-        "Database&quot; &lt;&lt;database&gt;&gt;",
-        "Message Bus&quot; &lt;&lt;queue&gt;&gt;",
-    ] {
+    for group in ["Database", "Message Bus"] {
         let frame = svg_elements_with_attr(&svg, "data-uml-group", group)
             .into_iter()
             .find(|element| element.contains("class=\"uml-group-frame\""))
