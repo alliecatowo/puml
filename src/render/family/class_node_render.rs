@@ -11,6 +11,7 @@ use super::class_members::{
     parse_member_modifiers, parse_visibility_member, render_map_rows, uml_visibility_name,
     MapRenderCtx,
 };
+use super::class_smart_shapes::{ddd_smart_header_color, render_smart_default_shape};
 use super::class_types::ClassNodeGeometry;
 use super::cloud_icons::{find_cloud_stereotype, render_cloud_icon_box};
 use super::family_node_shapes::{
@@ -72,9 +73,8 @@ pub(super) fn render_class_node(
     let font_family = effective_style.font_family.as_str();
     let title_font_size = effective_style.title_font_size;
     let member_font_size = effective_style.member_font_size;
-    // Determine the header fill colour.  For classes we also inspect the
-    // leading type-marker member so that enum / annotation / interface / abstract
-    // classes each get a visually distinct header (fix #769).
+    // Determine the header fill colour — inspect the leading type-marker member so
+    // that enum / annotation / interface / abstract classes get a distinct header (#769).
     let builtin_type_marker = node
         .members
         .first()
@@ -93,33 +93,17 @@ pub(super) fn render_class_node(
             Some("\u{ab}metaclass\u{bb}")
             | Some("\u{ab}stereotype\u{bb}")
             | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
-            // ── Smart-default DDD / architectural stereotype header colours (#1285) ──
-            // User-set stereotype skinparam (source == Stereotype or StyleBlock) wins
-            // over the smart default. Check effective_style.header_color.source() first.
-            Some(
-                "\u{ab}controller\u{bb}"
-                | "\u{ab}service\u{bb}"
-                | "\u{ab}repository\u{bb}"
-                | "\u{ab}value\u{bb}"
-                | "\u{ab}aggregate\u{bb}"
-                | "\u{ab}factory\u{bb}"
-                | "\u{ab}datatype\u{bb}"
-                | "\u{ab}utility\u{bb}",
-            ) if matches!(
-                effective_style.header_color.source(),
-                StyleSource::Stereotype | StyleSource::StyleBlock
-            ) =>
-            {
-                effective_style.header_color.as_str()
+            // DDD/arch stereotypes (#1285): user override wins; else smart default colour.
+            m if ddd_smart_header_color(m).is_some() => {
+                if matches!(
+                    effective_style.header_color.source(),
+                    StyleSource::Stereotype | StyleSource::StyleBlock
+                ) {
+                    effective_style.header_color.as_str()
+                } else {
+                    ddd_smart_header_color(m).unwrap()
+                }
             }
-            Some("\u{ab}controller\u{bb}") => "#bfdbfe", // light blue
-            Some("\u{ab}service\u{bb}") => "#bbf7d0",    // light green
-            Some("\u{ab}repository\u{bb}") => "#fef3c7", // light tan
-            Some("\u{ab}value\u{bb}") => "#e9d5ff",      // lavender (DDD value object)
-            Some("\u{ab}aggregate\u{bb}") => "#ffffff",  // white (thick border)
-            Some("\u{ab}factory\u{bb}") => "#fed7aa",    // salmon
-            Some("\u{ab}datatype\u{bb}") => "#f1f5f9",   // white-gray (double border)
-            Some("\u{ab}utility\u{bb}") => "#cbd5e1",    // gray (corner U mark)
             _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",
@@ -127,13 +111,9 @@ pub(super) fn render_class_node(
         FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
-    // ── Smart-default shape dispatch for DDD / architectural stereotypes (#1285) ─
-    // When the leading stereotype is one of the mapped DDD/arch types, delegate
-    // to a specialised SVG shape renderer.  The skinparam cascade (header_color
-    // from effective_style) continues to win because the node will already have
-    // been styled before we reach here.
-    if node.kind == FamilyNodeKind::Class {
-        let dispatched = render_smart_default_shape(
+    // DDD/arch stereotype dispatch (#1285): delegate to specialised SVG shape renderer.
+    if node.kind == FamilyNodeKind::Class
+        && render_smart_default_shape(
             out,
             node,
             geometry,
@@ -147,10 +127,9 @@ pub(super) fn render_class_node(
             title_font_size,
             namespace_separator,
             hide_stereotype,
-        );
-        if dispatched {
-            return;
-        }
+        )
+    {
+        return;
     }
 
     if matches!(node.kind, FamilyNodeKind::Diamond) {
@@ -190,19 +169,14 @@ pub(super) fn render_class_node(
             ));
         }
         match class_style.actor_style {
-            ActorStyle::Stick => {
-                // Canonical stick-figure rendering for actors (issue #715).
-                // Proportions are shared with the sequence renderer via render_actor_stick_figure.
-                render_actor_stick_figure(out, cx, fig_cy, stroke);
-            }
+            // Stick-figure proportions shared with sequence renderer via render_actor_stick_figure (#715).
+            ActorStyle::Stick => render_actor_stick_figure(out, cx, fig_cy, stroke),
             ActorStyle::Awesome => render_actor_awesome_figure(out, cx, fig_cy, stroke),
             ActorStyle::Hollow => render_actor_hollow_figure(out, cx, fig_cy, stroke),
         }
         let name_y = match class_style.actor_style {
-            // Stick-figure feet end at fig_cy + 23; keep the historical 4px gap.
-            ActorStyle::Stick => fig_cy + 27,
-            // The alternative PlantUML actor glyphs are bulkier silhouettes.
-            ActorStyle::Awesome | ActorStyle::Hollow => fig_cy + 42,
+            ActorStyle::Stick => fig_cy + 27, // feet end at fig_cy+23; 4px gap
+            ActorStyle::Awesome | ActorStyle::Hollow => fig_cy + 42, // bulkier silhouette
         };
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
@@ -355,11 +329,9 @@ pub(super) fn render_class_node(
         return;
     }
 
-    // Collect all leading header stereotype labels (built-in type markers + user-defined
-    // <<…>> markers — fix #470 for built-in types, fix #551 for user stereotypes).
-    // These are rendered as guillemet labels in the header, NOT as ordinary member rows.
+    // Collect leading header stereotype labels (built-in + user-defined — fix #470, #551);
+    // rendered as guillemet labels in the header, not as ordinary member rows.
     let header_skip = count_header_stereotype_members(&node.members);
-    // Build the list of guillemet labels to show in the header (top → bottom).
     let mut header_stereotype_labels: Vec<String> = Vec::new();
     if !hide_stereotype {
         for m in &node.members[..header_skip] {
@@ -375,12 +347,9 @@ pub(super) fn render_class_node(
     // Members to display: skip all header stereotype members
     let display_members = &node.members[header_skip..];
 
-    // Corner radius from `skinparam roundcorner <N>`; default keeps the
-    // historical visual of 4px when the skinparam is not specified.
+    // Corner radius from `skinparam roundcorner <N>`; 4px default keeps historical visual.
     let rx = class_style.round_corner.unwrap_or(4);
-    // `skinparam shadowing true` drops a soft shadow under the outer rect.
-    // The header rect is intentionally unshadowed so the band does not
-    // appear to "float" above the body.
+    // `skinparam shadowing true` drops a soft shadow; header rect is intentionally unshadowed.
     let shadow_attr = if class_style.shadowing {
         " filter=\"url(#shadow)\""
     } else {
@@ -474,12 +443,8 @@ pub(super) fn render_class_node(
         return;
     }
 
-    // Members — split by `--` / `..` divider tokens to draw compartment lines (fix #468).
-    // We also auto-insert a divider between the last attribute and the first operation
-    // when there is no explicit divider in the source (fix #468 second compartment).
-    //
-    // Pre-scan: detect whether there are both attributes and operations in display_members
-    // so we know to auto-insert a divider at the transition boundary.
+    // Members — split by `--` / `..` dividers (fix #468); auto-insert divider between
+    // last attribute and first operation when no explicit divider exists (fix #468).
     let has_explicit_divider = display_members
         .iter()
         .any(|m| parse_member_divider(m.text.trim()).is_some());
@@ -509,7 +474,6 @@ pub(super) fn render_class_node(
     };
 
     let mut my = y + effective_header_h + 16;
-    let mut section_started = false; // tracks if we've seen at least one non-divider member
     for (midx, member) in display_members.iter().enumerate() {
         let raw_text = member.text.trim();
         if is_family_style_member(raw_text) {
@@ -522,18 +486,14 @@ pub(super) fn render_class_node(
                 "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                 x2 = x + w
             ));
-            section_started = false;
         }
-        // Detect explicit divider tokens (`--` or `..` compartment separator)
-        // PlantUML 3.8: titled separators `-- Section --`, `== Title ==`, `__ sub __`, `.. note ..`
+        // Detect explicit divider tokens (`--` / `..` / titled separators — fix #468)
         if let Some(div_title) = parse_member_divider(raw_text) {
-            // Draw a horizontal divider line (fix #468)
             let div_y = my - 8;
             out.push_str(&format!(
                 "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                 x2 = x + w
             ));
-            // If the separator has a title, render it centered above the divider
             if let Some(title) = div_title {
                 let title_escaped = crate::render::svg::escape_text(title);
                 let cx = x + w / 2;
@@ -542,9 +502,8 @@ pub(super) fn render_class_node(
                     "<text x=\"{cx}\" y=\"{title_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" fill=\"{stroke}\" font-style=\"italic\">{title_escaped}</text>",
                     ff = escape_text(font_family),
                 ));
-                my += 4; // extra vertical space for the title
+                my += 4;
             }
-            section_started = false;
             continue;
         }
         // Skip blank display lines
@@ -552,8 +511,6 @@ pub(super) fn render_class_node(
             my += 16;
             continue;
         }
-        let _ = section_started;
-        section_started = true;
         let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(raw_text);
         let (base_style, text_after_mod) = parse_member_modifiers(rest_after_vis);
         let mut style_attrs = String::from(base_style);
@@ -639,803 +596,4 @@ pub(super) fn render_class_node(
         }
         my += 16;
     }
-}
-
-// ── Smart-default shape dispatch for DDD / architectural stereotypes (#1285) ──
-
-/// Render a DDD / architectural stereotype node using its canonical shape.
-///
-/// Returns `true` when a specialised shape was rendered (caller must `return`).
-/// Returns `false` for stereotypes that have only a header colour but no bespoke
-/// geometry, allowing the caller to fall through to the standard rect renderer.
-///
-/// Shape mapping (const table — issue #1285):
-/// | Stereotype      | Shape                          | Header colour |
-/// |-----------------|--------------------------------|---------------|
-/// | `<<controller>>`| hexagon (flat top/bottom)      | `#bfdbfe`     |
-/// | `<<service>>`   | pill / rounded-rect tall       | `#bbf7d0`     |
-/// | `<<repository>>`| cylinder                       | `#fef3c7`     |
-/// | `<<value>>`     | hexagon (flat top/bottom)      | `#e9d5ff`     |
-/// | `<<aggregate>>` | thick-border rounded rect      | `#ffffff`     |
-/// | `<<factory>>`   | rounded rect + header band     | `#fed7aa`     |
-/// | `<<datatype>>`  | double-border rectangle        | `#f1f5f9`     |
-/// | `<<utility>>`   | rectangle + corner U mark      | `#cbd5e1`     |
-///
-/// Opt-out: `!pragma stereotype_smart_defaults off` reverts to vanilla (plain
-/// class box).  The pragma is accepted by the family normaliser which passes it
-/// through `ClassStyle`; that path is tracked in issue #1285 and currently
-/// implemented as a TODO pending pragma infrastructure work.
-///
-/// TODO(#1285): thread `ClassStyle::stereotype_smart_defaults` bool through the
-/// normaliser pragma handler and check it here before dispatching.
-#[allow(clippy::too_many_arguments)]
-fn render_smart_default_shape(
-    out: &mut String,
-    node: &crate::model::FamilyNode,
-    geometry: ClassNodeGeometry,
-    builtin_type_marker: Option<&'static str>,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    namespace_separator: Option<&str>,
-    hide_stereotype: bool,
-) -> bool {
-    let ClassNodeGeometry { x, y, w, h, .. } = geometry;
-    let node_id = node.alias.as_deref().unwrap_or(&node.name);
-    let display_name = class_node_display_name(node, namespace_separator);
-    // Collect any additional user-defined stereotypes beyond the first built-in one,
-    // so they still appear in the header even when a smart-default shape is rendered.
-    let extra_user_labels: Vec<String> = if hide_stereotype {
-        Vec::new()
-    } else {
-        let header_skip = count_header_stereotype_members(&node.members);
-        // Skip the first member (the built-in type marker), collect any remaining
-        // leading user stereotypes.
-        node.members[..header_skip]
-            .iter()
-            .skip(1) // skip the primary builtin marker
-            .filter_map(|m| {
-                if is_user_stereotype(&m.text) {
-                    let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
-                    Some(format!("\u{ab}{inner}\u{bb}"))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    };
-
-    match builtin_type_marker {
-        Some("\u{ab}controller\u{bb}") => {
-            render_hexagon_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}controller\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-controller",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}service\u{bb}") => {
-            render_pill_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}service\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-service",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}repository\u{bb}") => {
-            render_cylinder_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}repository\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-repository",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}value\u{bb}") => {
-            render_hexagon_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}value\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-value",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}aggregate\u{bb}") => {
-            render_thick_rounded_rect_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}aggregate\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-aggregate",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}factory\u{bb}") => {
-            // Factory uses the standard rect layout; we only need a distinctive
-            // header band.  Fall through to the default renderer but signal
-            // "not dispatched" so the caller handles it via the standard path.
-            // The header_fill is already set to the salmon colour.
-            false
-        }
-        Some("\u{ab}datatype\u{bb}") => {
-            render_double_border_rect_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}datatype\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-datatype",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        Some("\u{ab}utility\u{bb}") => {
-            render_corner_u_rect_node(
-                out,
-                node_id,
-                &display_name,
-                "\u{ab}utility\u{bb}",
-                &extra_user_labels,
-                "uml-stereotype-utility",
-                x,
-                y,
-                w,
-                h,
-                header_fill,
-                fill,
-                stroke,
-                stroke_width,
-                font_family,
-                font_color,
-                title_font_size,
-                hide_stereotype,
-            );
-            true
-        }
-        _ => false,
-    }
-}
-
-// ── Individual smart-default shape renderers ────────────────────────────────
-
-/// Helper: render the guillemet stereotype label(s) above the node name, and then
-/// the node name itself, centred within a pre-drawn shape.
-///
-/// `stereotype_label` is the canonical built-in label (e.g. `«controller»`).
-/// `extra_labels` is a slice of any additional user-defined stereotype labels that
-/// should also appear in the header (e.g. `«internal»` when the source had both
-/// `<<controller>> <<internal>>`).
-// All parameters are distinct scalar render properties; no logical grouping
-// reduces the count without introducing an artificial struct — false positive.
-#[allow(clippy::too_many_arguments)]
-fn render_smart_shape_labels(
-    out: &mut String,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    cx: i32,
-    label_y: i32,
-    name_y: i32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    if !hide_stereotype {
-        out.push_str(&format!(
-            "<text class=\"uml-stereotype\" x=\"{cx}\" y=\"{label_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
-            ff = escape_text(font_family),
-            fc = escape_text(font_color),
-            lbl = escape_text(stereotype_label),
-        ));
-        // Render any additional user-defined stereotype labels below the primary one.
-        for (i, extra) in extra_labels.iter().enumerate() {
-            let extra_y = label_y + (i as i32 + 1) * 12;
-            out.push_str(&format!(
-                "<text class=\"uml-stereotype\" x=\"{cx}\" y=\"{extra_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
-                ff = escape_text(font_family),
-                fc = escape_text(font_color),
-                lbl = escape_text(extra),
-            ));
-        }
-    }
-    out.push_str(&format!(
-        "<text class=\"uml-node-name\" x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\">{name}</text>",
-        ff = escape_text(font_family),
-        fs = title_font_size,
-        fc = escape_text(font_color),
-        name = escape_text(display_name),
-    ));
-}
-
-/// Render a flat-top hexagon node (used by `<<controller>>` and `<<value>>`).
-///
-/// Geometry: the hexagon is inscribed in the node bounding box.  Flat-top
-/// means the top and bottom edges are horizontal; the left/right sides are
-/// angled at 60°.
-///
-/// ```text
-///   ┌─────────┐   ← horizontal top edge
-///  /           \
-/// │             │
-///  \           /
-///   └─────────┘   ← horizontal bottom edge
-/// ```
-///
-/// The header band is drawn as a filled polygon occupying the upper ~30% of
-/// the hexagon (clipped by the same outline shape).
-#[allow(clippy::too_many_arguments)]
-fn render_hexagon_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    // Flat-top hexagon: indent = w / 5 gives a ~72° angle (close enough to 60°).
-    let indent = (w / 5).max(8);
-    let cx = x + w / 2;
-    // Outer hexagon points (clockwise from top-left)
-    //   TL=(x+indent, y)  TR=(x+w-indent, y)
-    //   R=(x+w, y+h/2)
-    //   BR=(x+w-indent, y+h)  BL=(x+indent, y+h)
-    //   L=(x, y+h/2)
-    let points = format!(
-        "{},{} {},{} {},{} {},{} {},{} {},{}",
-        x + indent,
-        y,
-        x + w - indent,
-        y,
-        x + w,
-        y + h / 2,
-        x + w - indent,
-        y + h,
-        x + indent,
-        y + h,
-        x,
-        y + h / 2,
-    );
-    // Body hexagon
-    out.push_str(&format!(
-        "<polygon class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" points=\"{pts}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        pts = points,
-        sw = stroke_width,
-    ));
-    // Header band: same shape clipped to upper ~30%.
-    let header_h = (h * 3 / 10).max(22);
-    let hy = y + header_h;
-    // Determine where the angled sides cross at hy.
-    // Left side: from (x+indent, y) to (x, y+h/2).  Parametric t = (hy-y)/(h/2 - 0).
-    // But the left angled side only starts at y+0 (top of indent corner).
-    // Simpler: at row `hy`, the hexagon's left edge = x + indent * (1 - 2*(hy-y)/h).max(0)
-    // The left edge of the angled part: as we go from y to y+h/2, x goes from x+indent to x.
-    let t_top = (hy - y) as f64 / (h as f64 / 2.0); // 0..1 from top to mid
-    let left_x_at_hy = if t_top <= 1.0 {
-        x as f64 + indent as f64 * (1.0 - t_top)
-    } else {
-        // below midpoint — left side goes back out
-        let t_bot = t_top - 1.0;
-        x as f64 + indent as f64 * t_bot
-    };
-    let right_x_at_hy = if t_top <= 1.0 {
-        (x + w) as f64 - indent as f64 * (1.0 - t_top)
-    } else {
-        let t_bot = t_top - 1.0;
-        (x + w) as f64 - indent as f64 * t_bot
-    };
-    let hx_l = left_x_at_hy.round() as i32;
-    let hx_r = right_x_at_hy.round() as i32;
-    // Header polygon: top two corners of the hexagon + the band cut
-    let header_pts = format!(
-        "{},{} {},{} {},{} {},{}",
-        x + indent,
-        y,
-        x + w - indent,
-        y,
-        hx_r,
-        hy,
-        hx_l,
-        hy,
-    );
-    out.push_str(&format!(
-        "<polygon class=\"{css_class}-header\" points=\"{pts}\" fill=\"{hf}\" stroke=\"none\"/>",
-        pts = header_pts,
-        hf = header_fill,
-    ));
-    // Header bottom border line
-    out.push_str(&format!(
-        "<line x1=\"{hx_l}\" y1=\"{hy}\" x2=\"{hx_r}\" y2=\"{hy}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-    ));
-    // Stereotype label + node name
-    let label_y = y + 12;
-    let name_y = y + header_h - 6;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
-}
-
-/// Render a pill (heavily-rounded rectangle) node — used by `<<service>>`.
-///
-/// The pill is a rectangle where `rx = ry = h/2`, making the left and right
-/// ends fully rounded.
-#[allow(clippy::too_many_arguments)]
-fn render_pill_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    let r = h / 2; // full radius → pill shape
-    let cx = x + w / 2;
-    // Body pill
-    out.push_str(&format!(
-        "<rect class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"{r}\" ry=\"{r}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        sw = stroke_width,
-    ));
-    // Header band: upper ~30% of the pill, clipped via a rect with the same rx.
-    let header_h = (h * 3 / 10).max(22);
-    // Draw header fill as a rect that is clipped by the pill outline.
-    // We clip by drawing the header rect and the full pill body on top so the
-    // corners are handled naturally by the underlying pill rect.
-    out.push_str(&format!(
-        "<rect class=\"{css_class}-header\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{header_h}\" rx=\"{r}\" ry=\"{r}\" fill=\"{hf}\" stroke=\"none\"/>",
-        hf = header_fill,
-    ));
-    // Erase the bottom-rounded corners of the header rect (it has rounded bottom corners
-    // that should be square at the divider line).  Cover with the body fill.
-    let sq_y = y + header_h - r;
-    if sq_y > y {
-        out.push_str(&format!(
-            "<rect x=\"{x}\" y=\"{sq_y}\" width=\"{w}\" height=\"{r}\" fill=\"{hf}\" stroke=\"none\"/>",
-            hf = header_fill,
-        ));
-    }
-    // Header separator line
-    let hy = y + header_h;
-    out.push_str(&format!(
-        "<line x1=\"{x}\" y1=\"{hy}\" x2=\"{x2}\" y2=\"{hy}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-        x2 = x + w,
-    ));
-    // Stereotype label + node name
-    let label_y = y + 12;
-    let name_y = y + header_h - 6;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
-}
-
-/// Render a cylinder node — used by `<<repository>>`.
-///
-/// A cylinder is drawn as:
-///   - A rectangle for the body.
-///   - An ellipse cap at the top.
-///   - An ellipse cap at the bottom (body fill, so it merges).
-///
-/// The top ellipse acts as the header band.
-#[allow(clippy::too_many_arguments)]
-fn render_cylinder_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    let ell_ry = (h / 8).max(6); // vertical radius of the ellipse caps
-    let cx = x + w / 2;
-    let cy_top = y + ell_ry;
-    let cy_bot = y + h - ell_ry;
-    let rx = w / 2;
-    // Body rect (flush between the two ellipse caps)
-    out.push_str(&format!(
-        "<rect class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" x=\"{x}\" y=\"{cy_top}\" width=\"{w}\" height=\"{body_h}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        body_h = cy_bot - cy_top,
-        sw = stroke_width,
-    ));
-    // Bottom ellipse cap (body fill, no top-of-stroke so it blends)
-    out.push_str(&format!(
-        "<ellipse cx=\"{cx}\" cy=\"{cy_bot}\" rx=\"{rx}\" ry=\"{ell_ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        sw = stroke_width,
-    ));
-    // Top ellipse cap = header fill
-    out.push_str(&format!(
-        "<ellipse class=\"{css_class}-header\" cx=\"{cx}\" cy=\"{cy_top}\" rx=\"{rx}\" ry=\"{ell_ry}\" fill=\"{hf}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        hf = header_fill,
-        sw = stroke_width,
-    ));
-    // Left / right body border lines (connecting the two ellipse caps)
-    out.push_str(&format!(
-        "<line x1=\"{x}\" y1=\"{cy_top}\" x2=\"{x}\" y2=\"{cy_bot}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        sw = stroke_width,
-    ));
-    out.push_str(&format!(
-        "<line x1=\"{x2}\" y1=\"{cy_top}\" x2=\"{x2}\" y2=\"{cy_bot}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        x2 = x + w,
-        sw = stroke_width,
-    ));
-    // Stereotype label + node name inside the top cap area
-    let label_y = cy_top - 4;
-    let name_y = cy_top + ell_ry + 14;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
-}
-
-/// Render a thick-border rounded rect node — used by `<<aggregate>>`.
-///
-/// Identical to the standard class box but with `stroke-width` tripled to give
-/// a visually "heavier" boundary (DDD aggregate root convention).
-#[allow(clippy::too_many_arguments)]
-fn render_thick_rounded_rect_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    let rx = 4;
-    let thick_sw = (stroke_width * 3.0).min(6.0);
-    let cx = x + w / 2;
-    // Body rect
-    out.push_str(&format!(
-        "<rect class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        sw = thick_sw,
-    ));
-    // Header band
-    let header_h = 28_i32.max(h / 3);
-    out.push_str(&format!(
-        "<rect class=\"{css_class}-header\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{header_h}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{hf}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        hf = header_fill,
-        sw = thick_sw,
-    ));
-    // Square off the bottom corners of the header band
-    let sq_y = y + header_h - rx;
-    out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{sq_y}\" width=\"{w}\" height=\"{rx}\" fill=\"{hf}\" stroke=\"none\"/>",
-        hf = header_fill,
-    ));
-    // Header separator line
-    let hy = y + header_h;
-    out.push_str(&format!(
-        "<line x1=\"{x}\" y1=\"{hy}\" x2=\"{x2}\" y2=\"{hy}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-        x2 = x + w,
-    ));
-    // Stereotype label + node name
-    let label_y = y + 12;
-    let name_y = y + header_h - 6;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
-}
-
-/// Render a double-border rectangle node — used by `<<datatype>>`.
-///
-/// Two concentric rectangles:  the outer one is the standard border; the inner
-/// one is inset by 3 px and uses the same stroke colour, creating a "double
-/// frame" effect (UML datatype convention).
-#[allow(clippy::too_many_arguments)]
-fn render_double_border_rect_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    let cx = x + w / 2;
-    // Outer rect
-    out.push_str(&format!(
-        "<rect class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        sw = stroke_width,
-    ));
-    // Inner rect (inset by 3px on each side)
-    let inset = 3_i32;
-    out.push_str(&format!(
-        "<rect class=\"{css_class}-inner\" x=\"{ix}\" y=\"{iy}\" width=\"{iw}\" height=\"{ih}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        ix = x + inset,
-        iy = y + inset,
-        iw = (w - inset * 2).max(1),
-        ih = (h - inset * 2).max(1),
-        sw = stroke_width,
-    ));
-    // Header band (within the outer rect)
-    let header_h = 28_i32.max(h / 3);
-    out.push_str(&format!(
-        "<rect class=\"{css_class}-header\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{header_h}\" fill=\"{hf}\" stroke=\"none\"/>",
-        hf = header_fill,
-    ));
-    // Header separator line
-    let hy = y + header_h;
-    out.push_str(&format!(
-        "<line x1=\"{x}\" y1=\"{hy}\" x2=\"{x2}\" y2=\"{hy}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-        x2 = x + w,
-    ));
-    // Stereotype label + node name
-    let label_y = y + 12;
-    let name_y = y + header_h - 6;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
-}
-
-/// Render a rectangle with a corner U mark — used by `<<utility>>`.
-///
-/// The corner mark is a small "U" glyph (drawn as a rounded-bottom rect path)
-/// in the top-right corner to signal static/utility semantics.
-#[allow(clippy::too_many_arguments)]
-fn render_corner_u_rect_node(
-    out: &mut String,
-    node_id: &str,
-    display_name: &str,
-    stereotype_label: &str,
-    extra_labels: &[String],
-    css_class: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    header_fill: &str,
-    fill: &str,
-    stroke: &str,
-    stroke_width: f32,
-    font_family: &str,
-    font_color: &str,
-    title_font_size: u32,
-    hide_stereotype: bool,
-) {
-    let cx = x + w / 2;
-    // Body rect
-    out.push_str(&format!(
-        "<rect class=\"uml-node {css_class}\" data-uml-kind=\"class\" data-uml-id=\"{id}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{sw}\"/>",
-        id = escape_text(node_id),
-        sw = stroke_width,
-    ));
-    // Header band
-    let header_h = 28_i32.max(h / 3);
-    out.push_str(&format!(
-        "<rect class=\"{css_class}-header\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{header_h}\" fill=\"{hf}\" stroke=\"none\"/>",
-        hf = header_fill,
-    ));
-    // Header separator line
-    let hy = y + header_h;
-    out.push_str(&format!(
-        "<line x1=\"{x}\" y1=\"{hy}\" x2=\"{x2}\" y2=\"{hy}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-        x2 = x + w,
-    ));
-    // Corner U mark: a small "U" in the top-right area of the header.
-    // Drawn as a path: two vertical lines joined at the bottom by a semicircle.
-    let u_w = 10_i32;
-    let u_h = 10_i32;
-    let u_x = x + w - u_w - 4;
-    let u_y = y + 4;
-    let u_rx = u_w / 2;
-    out.push_str(&format!(
-        "<path class=\"{css_class}-corner-u\" d=\"M {ux},{uy} L {ux},{uy2} A {rx},{rx} 0 0 0 {ux2},{uy2} L {ux2},{uy}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        ux = u_x,
-        uy = u_y,
-        uy2 = u_y + u_h,
-        ux2 = u_x + u_w,
-        rx = u_rx,
-    ));
-    // Stereotype label + node name
-    let label_y = y + 12;
-    let name_y = y + header_h - 6;
-    render_smart_shape_labels(
-        out,
-        display_name,
-        stereotype_label,
-        extra_labels,
-        cx,
-        label_y,
-        name_y,
-        font_family,
-        font_color,
-        title_font_size,
-        hide_stereotype,
-    );
 }
