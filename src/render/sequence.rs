@@ -398,16 +398,34 @@ pub fn render_svg(scene: &Scene) -> String {
             // while still fitting inside the allocated message row.
             let loop_h = 32;
             let head_base_x = m.x1 + 8;
-            // Three-segment UML self-call: right → down → back-left to lifeline.
-            // Stop the bottom segment at the arrowhead base so the head remains
-            // visually distinct instead of collapsing into an open rectangle.
+            // Curved self-message arc (#1319): emit a smooth right-hand loop
+            // using two rounded quadratic-bezier corners instead of the old
+            // hard 90° polyline.  The lifeline-side anchor is `m.x1`; the loop
+            // bulges out to `loop_x2` and returns to the arrowhead just below
+            // the start.  PlantUML renders self-messages with rounded corners
+            // — `q`-style cubics keep that feel while still ending the arrow
+            // exactly on the lifeline so the head tip lands cleanly.
+            let corner_r: i32 = 8;
+            let top_y = line_y;
+            let bot_y = line_y + loop_h;
+            let radius = corner_r.min(loop_h / 2).max(2);
+            // Path segments:
+            //   M x1, top_y                       — start at lifeline
+            //   L (loop_x2 - r), top_y            — horizontal out
+            //   Q loop_x2, top_y  loop_x2, top_y + r  — top-right rounded corner
+            //   L loop_x2, bot_y - r              — vertical down on the right
+            //   Q loop_x2, bot_y  (loop_x2 - r), bot_y — bottom-right corner
+            //   L head_base_x, bot_y              — horizontal back toward lifeline
+            // The result is a clean "D"-shaped arc emerging from the lifeline.
             out.push_str(&format!(
-                "<path{} d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                "<path{} d=\"M {} {} L {} {} Q {} {} {} {} L {} {} Q {} {} {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 style_attrs,
-                m.x1, line_y,
-                loop_x2, line_y,
-                loop_x2, line_y + loop_h,
-                head_base_x, line_y + loop_h,
+                m.x1, top_y,
+                loop_x2 - radius, top_y,
+                loop_x2, top_y, loop_x2, top_y + radius,
+                loop_x2, bot_y - radius,
+                loop_x2, bot_y, loop_x2 - radius, bot_y,
+                head_base_x, bot_y,
                 stroke_color,
                 stroke_width,
                 stroke_dash,

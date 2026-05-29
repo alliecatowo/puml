@@ -118,11 +118,23 @@ impl Router for ChannelRouter {
             src_rank: usize,
             tgt_rank: usize,
             src_x: f64,
+            /// True when the layout-time edge direction is the reverse of the
+            /// original model edge.  The router builds the polyline in the
+            /// layout-time direction (so it always flows from a higher rank to
+            /// a lower one); we flip the path before publishing so consumers
+            /// always see waypoints ordered from the original `from` to the
+            /// original `to`.  Without this flip the endpoint-snap logic in
+            /// `box_grid_edges` / `class_relations` snaps the wrong end of the
+            /// polyline to the source bbox, producing the corner-anchored
+            /// "marker tip floating outside the box" artefact tracked by
+            /// #1318.
+            reversed: bool,
         }
 
         let mut edge_infos: Vec<EdgeInfo> = Vec::new();
         for e in edges {
-            let (src_id, tgt_id) = if reversed_edges.contains(&e.id) {
+            let reversed = reversed_edges.contains(&e.id);
+            let (src_id, tgt_id) = if reversed {
                 (e.to.as_str(), e.from.as_str())
             } else {
                 (e.from.as_str(), e.to.as_str())
@@ -139,6 +151,7 @@ impl Router for ChannelRouter {
                 src_rank,
                 tgt_rank,
                 src_x: sx,
+                reversed,
             });
         }
         edge_infos.sort_by(|a, b| {
@@ -569,6 +582,17 @@ impl Router for ChannelRouter {
                 pts
             };
 
+            // Re-orient the path to match the ORIGINAL edge direction (from →
+            // to in the source model) so that downstream endpoint snapping in
+            // box_grid_edges / class_relations assumes the correct first/last
+            // waypoint corresponds to the model's from / to nodes (#1318).
+            let path = if ei.reversed {
+                let mut rev = path;
+                rev.reverse();
+                rev
+            } else {
+                path
+            };
             paths.insert(ei.edge_id.clone(), path);
         }
 

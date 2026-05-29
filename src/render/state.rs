@@ -415,22 +415,42 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
             let dir = state_direction_attr(t.direction.as_deref());
 
             if t.from == t.to {
-                // Self-loop
-                let loop_rx = 18;
-                let loop_ry = 14;
-                let cpx = x1 + loop_rx;
-                let cpy = y1 - loop_ry;
+                // Self-transition curve (#1319): use the actual node bbox so
+                // the arc visibly loops out of the right side and returns into
+                // the top edge.  PlantUML draws state self-transitions as a
+                // small ◯-shaped arc; emit a cubic Bézier so the loop has body
+                // even when from/to anchors coincide.
+                let from_p = placed.get(&t.from);
+                let (sx, sy, sw_box, sh_box) = from_p
+                    .map(|p| (p.x, p.y, p.w, p.h))
+                    .unwrap_or((x1, y1, 40, 40));
+                let exit_x = sx + sw_box; // right edge
+                let exit_y = sy + sh_box / 3;
+                let enter_x = sx + sw_box - 20.max(sw_box / 4); // top edge
+                let enter_y = sy;
+                let arc_w = 28;
+                let arc_h = 28;
+                let c1x = exit_x + arc_w;
+                let c1y = exit_y;
+                let c2x = enter_x;
+                let c2y = enter_y - arc_h;
                 out.push_str(&format!(
-                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {exit_x} {exit_y} C {c1x} {c1y} {c2x} {c2y} {enter_x} {enter_y}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
                     escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
+                let _ = (x1, y1, x2, y2);
                 if let Some(label) = &t.label {
+                    // Anchor the label just outside the apex of the self-loop
+                    // arc so it sits to the right of the node rather than on
+                    // top of the (now-coincident) source/target anchors.
+                    let apex_x = exit_x + arc_w + 2;
+                    let apex_y = enter_y - arc_h / 2;
                     let layout = place_state_transition_label(
                         label,
-                        x1,
-                        y1,
-                        x2,
-                        y2,
+                        apex_x,
+                        apex_y,
+                        apex_x,
+                        apex_y,
                         &placed,
                         &occupied_label_bounds,
                     );
@@ -442,6 +462,7 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
                     );
                     occupied_label_bounds.push(layout.bounds);
                 }
+                continue;
             } else if has_reverse {
                 // Bidirectional pair: use a curved path offset to the right of the line
                 // so both arrows are visible without overlapping.

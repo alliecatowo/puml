@@ -17,7 +17,10 @@
       "path": "docs/examples/themes/theme_sunlust.puml",
       "family": "sequence",
       "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log success", "log error"],
-      "min_text_elements": 10
+      "min_text_elements": 10,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "sequence self-loop curve change; macOS baseline drifts on Linux; re-bless on Linux"
     },
     {
       "path": "docs/examples/class/01_basic.puml",

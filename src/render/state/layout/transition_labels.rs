@@ -161,7 +161,16 @@ fn account_for_transition_label<'a>(
             node_kinds.get(transition.to.as_str()).copied(),
             tp,
         );
-        let (lx1, ly1, lx2, ly2) = if has_reverse {
+        let (lx1, ly1, lx2, ly2) = if transition.from == transition.to {
+            // Self-transition curve (#1319): the label sits just past the
+            // right-hand apex of the loop arc.  Mirror the apex geometry from
+            // src/render/state.rs so the canvas reserves room for it.
+            let arc_w: i32 = 28;
+            let arc_h: i32 = 28;
+            let apex_x = fp.x + fp.w + arc_w + 2;
+            let apex_y = fp.y - arc_h / 2;
+            (apex_x, apex_y, apex_x, apex_y)
+        } else if has_reverse {
             offset_parallel_edge(x1, y1, x2, y2, 10)
         } else {
             state_orthogonal_label_segment(x1, y1, x2, y2)
