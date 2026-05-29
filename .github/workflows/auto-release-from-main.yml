@@ -1,0 +1,129 @@
+name: Auto Release From Main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release-main-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump-and-tag:
+    name: Bump version and create release tag
+    runs-on: ubuntu-latest
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip release]')
+    steps:
+      - name: Checkout with tags
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git for machine-generated release commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next version
+        id: version
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force --prune
+
+          LAST_TAG="$(git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --abbrev=0 2>/dev/null || true)"
+          if [ -n "$LAST_TAG" ]; then
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            RANGE="$(git rev-list --max-parents=0 HEAD)..HEAD"
+          fi
+
+          BUMP_TYPE="patch"
+          if git log --format=%B "$RANGE" | grep -Eq '^feat(\([^)]+\))?!?:'; then
+            BUMP_TYPE="minor"
+          fi
+
+          CURRENT_VERSION="$(python3 - <<'PY'
+import tomllib
+from pathlib import Path
+
+cfg = tomllib.loads(Path("Cargo.toml").read_text())
+print(cfg["package"]["version"])
+PY
+)"
+
+          MAJOR="$(echo "$CURRENT_VERSION" | cut -d. -f1)"
+          MINOR="$(echo "$CURRENT_VERSION" | cut -d. -f2)"
+          PATCH="$(echo "$CURRENT_VERSION" | cut -d. -f3)"
+
+          if [ "$BUMP_TYPE" = "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+          echo "range=$RANGE" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cargo.toml version
+        run: |
+          set -euo pipefail
+          NEXT_VERSION="${{ steps.version.outputs.next_version }}"
+          python3 - "$NEXT_VERSION" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+next_version = sys.argv[1]
+path = Path("Cargo.toml")
+text = path.read_text()
+
+updated = re.sub(
+    r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"',
+    f'version = "{next_version}"',
+    text,
+    count=1,
+    flags=re.M,
+)
+if updated == text:
+    raise SystemExit("No version line found in Cargo.toml")
+path.write_text(updated)
+PY
+
+          python3 - <<'PY'
+from pathlib import Path
+for line in Path("Cargo.toml").read_text().splitlines():
+    if line.startswith("version = "):
+        print(line)
+        break
+PY
+
+      - name: Create release commit and tag
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          TAG="v${NEXT_VERSION}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; skipping."
+            exit 0
+          fi
+
+          git add Cargo.toml
+          git commit -m "chore(release): v${NEXT_VERSION} [skip ci]"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin HEAD:main "$TAG"
