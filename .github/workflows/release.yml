@@ -71,11 +71,35 @@ jobs:
 
           echo "artifact_path=$ARCHIVE_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Generate SHA-256 checksum
+        id: package_checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ARTIFACT_PATH="${{ steps.package_artifact.outputs.artifact_path }}"
+          CHECKSUM_PATH="${ARTIFACT_PATH}.sha256"
+          python3 - "$ARTIFACT_PATH" "$CHECKSUM_PATH" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+artifact_path = pathlib.Path(sys.argv[1])
+checksum_path = pathlib.Path(sys.argv[2])
+
+digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+checksum_path.write_text(f"{digest}  {artifact_path.name}\n")
+PY
+
+          echo "checksum_path=$CHECKSUM_PATH" >> "$GITHUB_OUTPUT"
+
       - name: Upload artifact to GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name }}
-          files: ${{ steps.package_artifact.outputs.artifact_path }}
+          files: |
+            ${{ steps.package_artifact.outputs.artifact_path }}
+            ${{ steps.package_checksum.outputs.checksum_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
