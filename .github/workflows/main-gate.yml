@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: main-gate-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -28,6 +28,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Free disk space on runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk before reclaim:"
+          df -h /
+          # Remove pre-installed software we don't use on Rust+Python CI.
+          # Reclaims ~25-30 GiB. https://github.com/actions/runner-images/issues/2840
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/lib/android \
+            /usr/share/swift \
+            "$AGENT_TOOLSDIRECTORY" || true
+          # Clean apt + docker caches.
+          sudo apt-get clean
+          docker image prune -af 2>/dev/null || true
+          echo "Disk after reclaim:"
+          df -h /
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,6 +66,15 @@ jobs:
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
+
+      - name: Disk sanity before heavy compile
+        run: |
+          AVAIL=$(df --output=avail / | tail -1)
+          echo "Available: $AVAIL KB"
+          if (( AVAIL < 5000000 )); then
+            echo "::error::Less than 5 GiB available — aborting before SIGBUS"
+            exit 2
+          fi
 
       - name: Full gate
         run: ./scripts/check-all.sh
