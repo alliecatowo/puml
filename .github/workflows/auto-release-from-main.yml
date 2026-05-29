@@ -91,15 +91,24 @@ jobs:
           path = Path("Cargo.toml")
           text = path.read_text()
 
-          updated = re.sub(
-              r'^version\\s*=\\s*"\\d+\\.\\d+\\.\\d+"',
-              f'version = "{next_version}"',
-              text,
-              count=1,
-              flags=re.M,
-          )
-          if updated == text:
-              raise SystemExit("No version line found in Cargo.toml")
+          lines = text.splitlines()
+          in_package = False
+          updated = None
+          for i, line in enumerate(lines):
+              if line.strip() == "[package]":
+                  in_package = True
+                  continue
+              if in_package:
+                  stripped = line.strip()
+                  if stripped.startswith("[") and stripped.endswith("]"):
+                      break
+                  if re.match(r"^\s*version\s*=", line):
+                      lines[i] = f'version = "{next_version}"'
+                      updated = "\n".join(lines) + "\n"
+                      break
+
+          if not updated:
+              raise SystemExit("No version line found in Cargo.toml [package] section")
           path.write_text(updated)
           PY
 
