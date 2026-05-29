@@ -41,6 +41,32 @@ skinparam class {
 
 > Unsupported skinparam keys emit non-fatal warnings on stderr. The deterministic catalog of known-but-unsupported keys lives in the syntax-highlighting spec.
 
+## Edge routing &mdash; `skinparam linetype`
+
+Edges (relations, transitions, dependencies) render in one of three global
+routing modes, selected by `skinparam linetype <value>`:
+
+| Value | Shape | Notes |
+|---|---|---|
+| *(unset)* or `splines` | smooth B&eacute;zier curves | **Default**, matches PlantUML. Long edges sweep, short edges stay near-straight. |
+| `polyline` | straight segments through waypoints | Use when you prefer the routed waypoints unsmoothed. |
+| `ortho` | right-angle elbows | Classic orthogonal routing &mdash; pre-Stage-2 default. Recommended for IE/Chen entity-relation diagrams. |
+
+```puml
+@startuml
+skinparam linetype ortho
+class A
+class B
+A --> B
+@enduml
+```
+
+Values are case-insensitive; `splines` / `Splines` / `SPLINES` are
+equivalent. The mode applies globally to every Graphviz-routed family
+(class, object, use-case, component, deployment, ArchiMate, C4) and is
+ignored by bespoke families that draw their own edge shapes (sequence,
+activity, state, timing, mindmap, WBS, salt).
+
 ## Per-arrow styling
 
 You can color and style individual arrows inline:
