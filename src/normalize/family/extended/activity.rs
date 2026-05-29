@@ -85,6 +85,12 @@ pub(super) fn normalize_activity_step(
     if let Some(ref stereo) = swim_stereotype {
         alias_parts.push(format!("swim_stereotype={stereo}"));
     }
+    // Distinguish `partition Foo { }` block-partition starts (stacked groups)
+    // from `|Lane|` swimlane-marker starts (side-by-side columns) so the
+    // renderer can route nodes into vertical lane columns vs. stacked groups.
+    if partition_block && matches!(step.kind, ActivityStepKind::PartitionStart) {
+        alias_parts.push("partition_block=1".to_string());
+    }
     let alias = alias_parts.join("|");
     nodes.push(FamilyNode {
         kind,

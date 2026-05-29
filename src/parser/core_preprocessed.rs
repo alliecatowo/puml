@@ -552,7 +552,13 @@ pub(crate) fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 continue;
             }
             let trimmed = line.trim();
-            if matches!(trimmed, "{" | "{-" | "---") || trimmed.is_empty() {
+            // Structural delimiters, empty lines, and salt `widget <name>` (#1294) are no-ops.
+            let lower = trimmed.to_ascii_lowercase();
+            if matches!(trimmed, "{" | "{-" | "---")
+                || trimmed.is_empty()
+                || lower == "widget"
+                || lower.starts_with("widget ")
+            {
                 i += 1;
                 continue;
             }

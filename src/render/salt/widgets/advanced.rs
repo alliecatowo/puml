@@ -160,7 +160,7 @@ pub(super) fn render_menu_bar(
         style.border_color
     ));
     let mut item_x = x + pad;
-    for item in items {
+    for (idx, item) in items.iter().enumerate() {
         salt_text(
             out,
             item_x,
@@ -173,6 +173,16 @@ pub(super) fn render_menu_bar(
             &style.text_color,
         );
         item_x += estimate_text_width(item) + 24;
+        // Draw a vertical pipe separator between menu items.
+        if idx + 1 < items.len() {
+            let sep_x = item_x - 12;
+            let sep_top = y + 4;
+            let sep_bot = y + 2 + menu_h - 4;
+            out.push_str(&format!(
+                "<line data-salt-widget=\"menu-separator\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" opacity=\"0.4\"/>",
+                sep_x, sep_top, sep_x, sep_bot, style.border_color
+            ));
+        }
     }
     if items.len() > 4 {
         let dropdown_y = y + 2 + menu_h;
@@ -372,14 +382,15 @@ pub(super) fn render_open_combo(
         y + 2 + combo_h,
         style.border_color
     ));
+    // Two top points + one bottom apex = down-pointing arrow (▼) for dropdown.
     out.push_str(&format!(
         "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
         divider_x + 3,
-        y + 2 + combo_h - 6,
-        divider_x + 9,
-        y + 2 + combo_h - 6,
-        divider_x + 6,
         y + 2 + 5,
+        divider_x + 9,
+        y + 2 + 5,
+        divider_x + 6,
+        y + 2 + combo_h - 6,
         style.border_color,
         style.border_color
     ));

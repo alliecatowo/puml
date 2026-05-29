@@ -37,7 +37,7 @@ pub(super) fn salt_row_layout<'a>(
 }
 
 pub(super) fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
-    let mut saw_dash = false;
+    let mut saw_separator = false;
     for cell in cells {
         match cell {
             SaltCellRender::Label(text) => {
@@ -45,8 +45,12 @@ pub(super) fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
                 if t.is_empty() {
                     continue;
                 }
-                if t.chars().all(|c| c == '-') {
-                    saw_dash = true;
+                // `---`/`--` dash runs, `..` dotted separator, `==` thick separator.
+                if t.chars().all(|c| c == '-')
+                    || t.chars().all(|c| c == '.')
+                    || t.chars().all(|c| c == '=')
+                {
+                    saw_separator = true;
                     continue;
                 }
                 return false;
@@ -54,5 +58,5 @@ pub(super) fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
             _ => return false,
         }
     }
-    saw_dash
+    saw_separator
 }

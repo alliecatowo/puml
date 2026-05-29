@@ -242,10 +242,11 @@ fn render_for_class_family_returns_stub_svg() {
 
 #[test]
 fn render_for_salt_family_returns_stub_svg() {
-    let src = "@startsalt\nwidget submit_button\n@endsalt\n";
+    // Use a button label (not the `widget` keyword — that is consumed as a no-op per #1294).
+    let src = "@startsalt\n{\n  [Submit]\n}\n@endsalt\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
     assert!(svg.starts_with("<svg"));
-    assert!(svg.contains("submit_button"));
+    assert!(svg.contains("Submit"));
 }
 
 #[test]

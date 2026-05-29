@@ -1,4 +1,9 @@
 @startsalt
-widget submit_button
-submit_button --> auth_service : posts credentials
+{
+  Login Form
+  ==
+  Username: | "submit_button"
+  Password: | "****    "
+  [OK] | [Cancel]
+}
 @endsalt

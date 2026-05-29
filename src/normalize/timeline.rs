@@ -17,7 +17,7 @@ pub(super) fn normalize_timeline_baseline(
     document: Document,
 ) -> Result<TimelineDocument, Diagnostic> {
     let mut tasks: Vec<TimelineTask> = Vec::new();
-    let mut milestones = Vec::new();
+    let mut milestones: Vec<TimelineMilestone> = Vec::new();
     let mut separators = Vec::new();
     let mut constraints = Vec::new();
     let mut chronology_events = Vec::new();
@@ -106,11 +106,22 @@ pub(super) fn normalize_timeline_baseline(
                         target: target.clone(),
                     });
                 }
-                milestones.push(TimelineMilestone {
-                    name,
-                    happens_on,
-                    is_critical: false,
-                })
+                // Deduplicate: a milestone may appear more than once in the
+                // source with different `happens at` targets (e.g. first with
+                // an absolute date, then constrained to a task end date).
+                // Only the second (more precise) binding should win; creating
+                // a second row produces phantom duplicate task rows (#1303).
+                if let Some(existing) = milestones.iter_mut().find(|m| m.name == name) {
+                    if happens_on.is_some() {
+                        existing.happens_on = happens_on;
+                    }
+                } else {
+                    milestones.push(TimelineMilestone {
+                        name,
+                        happens_on,
+                        is_critical: false,
+                    });
+                }
             }
             StatementKind::GanttConstraint {
                 subject,

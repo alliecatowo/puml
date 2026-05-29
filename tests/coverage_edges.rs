@@ -171,11 +171,11 @@ fn normalize_reports_destroy_active_for_shortcut() {
 
 #[test]
 fn normalize_family_routes_bootstrap_families_to_stub_model() {
+    // Families that produce both nodes and relations.
     for case in [
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
-        "families/valid_salt_bootstrap.puml",
     ] {
         let src = fs::read_to_string(fixture(case)).expect("fixture should load");
         let doc = parse(&src).expect("parse should succeed");
@@ -189,6 +189,21 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             | NormalizedDocument::Timeline(_)
             | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
+            }
+            _ => panic!("expected family stub model for {case}"),
+        }
+    }
+
+    // Salt fixture: produces nodes (SALT_ROW items) but no relations — salt is a
+    // wireframe layout family with no inter-component wiring in its bootstrap fixture.
+    {
+        let case = "families/valid_salt_bootstrap.puml";
+        let src = fs::read_to_string(fixture(case)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        let normalized = normalize_family(doc).expect("family normalize should succeed");
+        match normalized {
+            NormalizedDocument::Family(model) => {
+                assert!(!model.nodes.is_empty(), "expected nodes for {case}");
             }
             _ => panic!("expected family stub model for {case}"),
         }
@@ -385,12 +400,14 @@ fn parser_rejects_salt_marker_mismatch_fixture() {
 #[test]
 fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
     // Plain (non-pipe) lines in a @startsalt block are encoded as SALT_ROW label nodes.
-    let src = "@startsalt\nwidget title\n@endsalt\n";
+    // Use a plain text label (not the `widget` keyword — that is now consumed as a no-op
+    // per issue #1294 to avoid rendering the keyword itself as text).
+    let src = "@startsalt\nJust a label\n@endsalt\n";
     let doc = parse(src).expect("parse should succeed");
     let normalized = normalize_family(doc).expect("salt normalize should succeed");
     match normalized {
         NormalizedDocument::Family(model) => {
-            assert_eq!(model.nodes.len(), 1, "expected one widget node");
+            assert_eq!(model.nodes.len(), 1, "expected one SALT_ROW node");
             // Salt lines are now encoded as "SALT_ROW\x1fL:<text>" for the wireframe renderer.
             assert!(
                 model.nodes[0].name.starts_with("SALT_ROW\x1f"),
@@ -398,7 +415,7 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
                 model.nodes[0].name
             );
             assert!(
-                model.nodes[0].name.contains("widget title"),
+                model.nodes[0].name.contains("Just a label"),
                 "expected label text, got: {}",
                 model.nodes[0].name
             );
@@ -406,6 +423,25 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
         }
         NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
         NormalizedDocument::Timeline(_) => panic!("expected salt family model"),
+        _ => panic!("expected salt family model"),
+    }
+}
+
+#[test]
+fn normalize_family_salt_widget_keyword_is_consumed_as_noop() {
+    // `widget <name>` is consumed silently — it must not appear as a text node
+    // in the rendered output (#1294).
+    let src = "@startsalt\nwidget submit_button\n@endsalt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("salt normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert_eq!(
+                model.nodes.len(),
+                0,
+                "widget keyword should be consumed, not rendered as text node"
+            );
+        }
         _ => panic!("expected salt family model"),
     }
 }
