@@ -727,7 +727,6 @@ fn artifact_scene_json_fallback() {
 
 #[test]
 fn artifact_scene_empty_artifacts() {
-    use puml::render_artifact_pages_from_model;
     let src = "@startjson\n{\"name\": \"puml\"}\n@endjson";
     let doc = parse(src).expect("parse");
     let model = normalize_family(doc).expect("normalize");
