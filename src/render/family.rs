@@ -13,6 +13,7 @@ mod class_relation_labels;
 mod class_relations;
 mod class_render;
 mod class_routing;
+mod class_smart_shapes;
 mod class_types;
 pub(crate) mod cloud_icons;
 mod family_node_shapes;

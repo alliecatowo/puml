@@ -265,6 +265,11 @@ fn is_user_stereotype_marker(text: &str) -> bool {
 }
 
 fn is_builtin_type_stereotype_marker(text: &str) -> bool {
+    // Only genuine structural-type keywords that affect class shape/semantics
+    // in a way incompatible with user skinparam overrides.
+    // DDD/architectural stereotypes (<<service>>, <<controller>>, etc.) are NOT
+    // included here: they carry smart-default shapes but must remain open to
+    // user skinparam cascade (BackgroundColor<<service>>, etc.) — see #1285.
     matches!(
         text,
         "<<enum>>"

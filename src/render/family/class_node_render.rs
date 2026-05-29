@@ -1,7 +1,7 @@
 use crate::ast::MemberModifier;
 use crate::model::FamilyNodeKind;
 use crate::render::svg::{creole_text, escape_text, render_actor_stick_figure};
-use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle};
+use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle, StyleSource};
 
 use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
@@ -11,6 +11,7 @@ use super::class_members::{
     parse_member_modifiers, parse_visibility_member, render_map_rows, uml_visibility_name,
     MapRenderCtx,
 };
+use super::class_smart_shapes::{ddd_smart_header_color, render_smart_default_shape};
 use super::class_types::ClassNodeGeometry;
 use super::cloud_icons::{find_cloud_stereotype, render_cloud_icon_box};
 use super::family_node_shapes::{
@@ -72,9 +73,8 @@ pub(super) fn render_class_node(
     let font_family = effective_style.font_family.as_str();
     let title_font_size = effective_style.title_font_size;
     let member_font_size = effective_style.member_font_size;
-    // Determine the header fill colour.  For classes we also inspect the
-    // leading type-marker member so that enum / annotation / interface / abstract
-    // classes each get a visually distinct header (fix #769).
+    // Determine the header fill colour — inspect the leading type-marker member so
+    // that enum / annotation / interface / abstract classes get a distinct header (#769).
     let builtin_type_marker = node
         .members
         .first()
@@ -93,6 +93,17 @@ pub(super) fn render_class_node(
             Some("\u{ab}metaclass\u{bb}")
             | Some("\u{ab}stereotype\u{bb}")
             | Some("\u{ab}circle\u{bb}") => "#e2e8f0",
+            // DDD/arch stereotypes (#1285): user override wins; else smart default colour.
+            m if ddd_smart_header_color(m).is_some() => {
+                if matches!(
+                    effective_style.header_color.source(),
+                    StyleSource::Stereotype | StyleSource::StyleBlock
+                ) {
+                    effective_style.header_color.as_str()
+                } else {
+                    ddd_smart_header_color(m).unwrap()
+                }
+            }
             _ => effective_style.header_color.as_str(),
         },
         FamilyNodeKind::Object => "#fef3c7",
@@ -100,6 +111,26 @@ pub(super) fn render_class_node(
         FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
+    // DDD/arch stereotype dispatch (#1285): delegate to specialised SVG shape renderer.
+    if node.kind == FamilyNodeKind::Class
+        && render_smart_default_shape(
+            out,
+            node,
+            geometry,
+            builtin_type_marker,
+            header_fill,
+            fill,
+            stroke,
+            stroke_width,
+            font_family,
+            font_color,
+            title_font_size,
+            namespace_separator,
+            hide_stereotype,
+        )
+    {
+        return;
+    }
 
     if matches!(node.kind, FamilyNodeKind::Diamond) {
         let cx = x + w / 2;
@@ -138,19 +169,14 @@ pub(super) fn render_class_node(
             ));
         }
         match class_style.actor_style {
-            ActorStyle::Stick => {
-                // Canonical stick-figure rendering for actors (issue #715).
-                // Proportions are shared with the sequence renderer via render_actor_stick_figure.
-                render_actor_stick_figure(out, cx, fig_cy, stroke);
-            }
+            // Stick-figure proportions shared with sequence renderer via render_actor_stick_figure (#715).
+            ActorStyle::Stick => render_actor_stick_figure(out, cx, fig_cy, stroke),
             ActorStyle::Awesome => render_actor_awesome_figure(out, cx, fig_cy, stroke),
             ActorStyle::Hollow => render_actor_hollow_figure(out, cx, fig_cy, stroke),
         }
         let name_y = match class_style.actor_style {
-            // Stick-figure feet end at fig_cy + 23; keep the historical 4px gap.
-            ActorStyle::Stick => fig_cy + 27,
-            // The alternative PlantUML actor glyphs are bulkier silhouettes.
-            ActorStyle::Awesome | ActorStyle::Hollow => fig_cy + 42,
+            ActorStyle::Stick => fig_cy + 27, // feet end at fig_cy+23; 4px gap
+            ActorStyle::Awesome | ActorStyle::Hollow => fig_cy + 42, // bulkier silhouette
         };
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
@@ -303,11 +329,9 @@ pub(super) fn render_class_node(
         return;
     }
 
-    // Collect all leading header stereotype labels (built-in type markers + user-defined
-    // <<…>> markers — fix #470 for built-in types, fix #551 for user stereotypes).
-    // These are rendered as guillemet labels in the header, NOT as ordinary member rows.
+    // Collect leading header stereotype labels (built-in + user-defined — fix #470, #551);
+    // rendered as guillemet labels in the header, not as ordinary member rows.
     let header_skip = count_header_stereotype_members(&node.members);
-    // Build the list of guillemet labels to show in the header (top → bottom).
     let mut header_stereotype_labels: Vec<String> = Vec::new();
     if !hide_stereotype {
         for m in &node.members[..header_skip] {
@@ -323,12 +347,9 @@ pub(super) fn render_class_node(
     // Members to display: skip all header stereotype members
     let display_members = &node.members[header_skip..];
 
-    // Corner radius from `skinparam roundcorner <N>`; default keeps the
-    // historical visual of 4px when the skinparam is not specified.
+    // Corner radius from `skinparam roundcorner <N>`; 4px default keeps historical visual.
     let rx = class_style.round_corner.unwrap_or(4);
-    // `skinparam shadowing true` drops a soft shadow under the outer rect.
-    // The header rect is intentionally unshadowed so the band does not
-    // appear to "float" above the body.
+    // `skinparam shadowing true` drops a soft shadow; header rect is intentionally unshadowed.
     let shadow_attr = if class_style.shadowing {
         " filter=\"url(#shadow)\""
     } else {
@@ -422,12 +443,8 @@ pub(super) fn render_class_node(
         return;
     }
 
-    // Members — split by `--` / `..` divider tokens to draw compartment lines (fix #468).
-    // We also auto-insert a divider between the last attribute and the first operation
-    // when there is no explicit divider in the source (fix #468 second compartment).
-    //
-    // Pre-scan: detect whether there are both attributes and operations in display_members
-    // so we know to auto-insert a divider at the transition boundary.
+    // Members — split by `--` / `..` dividers (fix #468); auto-insert divider between
+    // last attribute and first operation when no explicit divider exists (fix #468).
     let has_explicit_divider = display_members
         .iter()
         .any(|m| parse_member_divider(m.text.trim()).is_some());
@@ -457,7 +474,6 @@ pub(super) fn render_class_node(
     };
 
     let mut my = y + effective_header_h + 16;
-    let mut section_started = false; // tracks if we've seen at least one non-divider member
     for (midx, member) in display_members.iter().enumerate() {
         let raw_text = member.text.trim();
         if is_family_style_member(raw_text) {
@@ -470,18 +486,14 @@ pub(super) fn render_class_node(
                 "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                 x2 = x + w
             ));
-            section_started = false;
         }
-        // Detect explicit divider tokens (`--` or `..` compartment separator)
-        // PlantUML 3.8: titled separators `-- Section --`, `== Title ==`, `__ sub __`, `.. note ..`
+        // Detect explicit divider tokens (`--` / `..` / titled separators — fix #468)
         if let Some(div_title) = parse_member_divider(raw_text) {
-            // Draw a horizontal divider line (fix #468)
             let div_y = my - 8;
             out.push_str(&format!(
                 "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                 x2 = x + w
             ));
-            // If the separator has a title, render it centered above the divider
             if let Some(title) = div_title {
                 let title_escaped = crate::render::svg::escape_text(title);
                 let cx = x + w / 2;
@@ -490,9 +502,8 @@ pub(super) fn render_class_node(
                     "<text x=\"{cx}\" y=\"{title_y}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" fill=\"{stroke}\" font-style=\"italic\">{title_escaped}</text>",
                     ff = escape_text(font_family),
                 ));
-                my += 4; // extra vertical space for the title
+                my += 4;
             }
-            section_started = false;
             continue;
         }
         // Skip blank display lines
@@ -500,8 +511,6 @@ pub(super) fn render_class_node(
             my += 16;
             continue;
         }
-        let _ = section_started;
-        section_started = true;
         let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(raw_text);
         let (base_style, text_after_mod) = parse_member_modifiers(rest_after_vis);
         let mut style_attrs = String::from(base_style);

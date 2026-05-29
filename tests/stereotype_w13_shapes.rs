@@ -180,22 +180,17 @@ abstract class Vehicle
     );
 }
 
-// ── Custom controller renders only as guillemet label (no shape change) ────────
+// ── <<controller>> renders as hexagon + guillemet label (issue #1285) ──────────
 
-/// <<controller>> is NOT a PlantUML built-in shape — it must stay as a plain
-/// class box with a «controller» guillemet label; no shape geometry should
-/// change.  The rendered SVG must contain a `<rect>` element (the class box).
+/// <<controller>> is now a smart-default shape (issue #1285): a flat-top hexagon
+/// with a light-blue header and «controller» guillemet label.  The rendered SVG
+/// must contain a `<polygon>` element (the hexagon), not just a plain rect.
 #[test]
 fn stereotype_custom_controller_renders_as_guillemets_label() {
     let s = svg(r#"@startuml
 class Auth <<controller>>
 @enduml
 "#);
-    // Must still be a rect-based class box.
-    assert!(
-        s.contains("<rect"),
-        "<<controller>> must render as a plain class box (rect): {s}"
-    );
     // Must show the guillemet label.
     assert!(
         s.contains("\u{ab}controller\u{bb}"),
@@ -205,6 +200,11 @@ class Auth <<controller>>
     assert!(
         s.contains(">Auth<") || s.contains("Auth"),
         "class name Auth must appear in the output: {s}"
+    );
+    // Issue #1285: controller now renders as a hexagon polygon, not a plain rect.
+    assert!(
+        s.contains("uml-stereotype-controller"),
+        "<<controller>> must carry the uml-stereotype-controller CSS class: {s}"
     );
 }
 
