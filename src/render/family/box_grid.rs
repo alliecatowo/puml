@@ -117,16 +117,22 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .map(|(i, s)| (i, s.as_str()))
         .collect();
 
+    // Deepest parent scope from `A::B::C` — grows ancestor bboxes in compute_group_bounds (#1287).
+    let deepest = |q: &str| -> Option<String> {
+        let p: Vec<&str> = q.split("::").filter(|s| !s.is_empty()).collect();
+        (p.len() >= 2).then(|| p[..p.len() - 1].join("::"))
+    };
     let gl_nodes: Vec<GlNodeSize> = doc
         .nodes
         .iter()
         .map(|n| {
             let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
-            let parent = node_to_group
+            let group_scope = node_to_group
                 .get(&key)
                 .or_else(|| node_to_group.get(&n.name))
                 .and_then(|g_idx| group_scope_map.get(g_idx))
                 .map(|s| s.to_string());
+            let parent = deepest(&n.name).or_else(|| deepest(&key)).or(group_scope);
             GlNodeSize {
                 id: key,
                 width: cell_w as f64,

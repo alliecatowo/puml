@@ -27,16 +27,31 @@ pub(super) fn class_run_layout(
     };
 
     // Build group membership lookup for parent assignment.
+    //
+    // For deeply-nested packages (#1287) a leaf class belongs to multiple
+    // ancestor frames simultaneously; use the DEEPEST scope so the layout
+    // groups siblings within their innermost frame instead of letting a
+    // distant outer frame's bbox swallow them.  Frames are sorted ascending
+    // by depth, so we overwrite earlier (shallower) parents as we go.
     let group_frames_for_gl = collect_render_group_frames(&document.groups);
-    let mut node_to_gl_group: std::collections::BTreeMap<String, String> =
+    let mut node_to_gl_group_depth: std::collections::BTreeMap<String, (usize, String)> =
         std::collections::BTreeMap::new();
     for frame in &group_frames_for_gl {
         for mid in &frame.member_ids {
-            node_to_gl_group
+            node_to_gl_group_depth
                 .entry(mid.clone())
-                .or_insert_with(|| frame.scope.clone());
+                .and_modify(|prev| {
+                    if frame.depth > prev.0 {
+                        *prev = (frame.depth, frame.scope.clone());
+                    }
+                })
+                .or_insert_with(|| (frame.depth, frame.scope.clone()));
         }
     }
+    let node_to_gl_group: std::collections::BTreeMap<String, String> = node_to_gl_group_depth
+        .into_iter()
+        .map(|(k, (_d, scope))| (k, scope))
+        .collect();
 
     let gl_nodes: Vec<GlNodeSize> = document
         .nodes

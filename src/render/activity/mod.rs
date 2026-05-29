@@ -126,7 +126,16 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_x + lane_area_w + 32 + if has_right_notes { side_note_margin } else { 0 };
     let has_named_lanes = lanes.iter().any(|l| l != "default");
-    let has_partition_markers = metas.iter().any(|meta| meta.step_kind == "PartitionStart");
+    // `partition Name { ... }` block-style starts carry `partition_block=1`
+    // in their metadata; raw `|Lane|` swimlane markers do not.  Distinguish
+    // them so that swimlanes render as side-by-side full-height columns
+    // (#1302) while `partition` blocks remain stacked sequential bands.
+    let has_partition_block_markers = metas
+        .iter()
+        .any(|meta| meta.step_kind == "PartitionStart" && meta.partition_block);
+    let has_swimlane_markers = metas
+        .iter()
+        .any(|meta| meta.step_kind == "PartitionStart" && !meta.partition_block);
     let has_partition_blocks = metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
     // `partition Name { ... }` is a stacked group, while open-ended `|Lane|`
     // markers keep their existing lane-column behavior.
@@ -153,7 +162,12 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     };
 
     let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
-    let sequential_partition_lanes = has_named_lanes && has_partition_markers;
+    // Sequential band lanes (each lane spans only the y-range of its members)
+    // apply ONLY to partition-block style (`partition Foo { ... }`).  Raw
+    // `|Lane|` swimlane markers must fall back to the side-by-side
+    // full-height column layout (#1302).
+    let sequential_partition_lanes =
+        has_named_lanes && has_partition_block_markers && !has_swimlane_markers;
 
     let fork_col_w = (lane_w / 2).max(160i32);
     let box_w = (lane_w - 24).clamp(120, 220);

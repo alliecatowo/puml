@@ -18,6 +18,10 @@ pub(in crate::render::activity) struct NodeMeta {
     pub swim_bold: bool,
     /// Stereotype text for the swimlane header (from `|<<role>>Name|`)
     pub swim_stereotype: Option<String>,
+    /// `true` when the `PartitionStart` came from a `partition Name { ... }`
+    /// block (stacked group), `false` for open-ended `|Lane|` swimlane markers
+    /// which must render as side-by-side full-height columns (#1302).
+    pub partition_block: bool,
 }
 
 pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
@@ -32,6 +36,7 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
             let mut note_floating = false;
             let mut swim_bold = false;
             let mut swim_stereotype: Option<String> = None;
+            let mut partition_block = false;
             if let Some(alias) = &node.alias {
                 if let Some(meta) = alias.strip_prefix("activity::") {
                     for (pi, part) in meta.split('|').enumerate() {
@@ -55,6 +60,8 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
                             swim_bold = true;
                         } else if let Some(v) = part.strip_prefix("swim_stereotype=") {
                             swim_stereotype = Some(v.to_string());
+                        } else if part == "partition_block=1" {
+                            partition_block = true;
                         }
                     }
                 }
@@ -70,6 +77,7 @@ pub(in crate::render::activity) fn parse_node_metas(doc: &FamilyDocument) -> Vec
                 note_floating,
                 swim_bold,
                 swim_stereotype,
+                partition_block,
             }
         })
         .collect()
