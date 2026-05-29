@@ -420,7 +420,7 @@ fn port_key(component: &str, port: &str) -> String {
 
 fn text_width(text: &str) -> f64 {
     text.lines()
-        .map(|line| line.chars().count() as f64 * 7.0)
+        .map(|line| crate::render_core::text_metrics::estimate_text_width_f64(line, 14.0))
         .fold(8.0, f64::max)
 }
 

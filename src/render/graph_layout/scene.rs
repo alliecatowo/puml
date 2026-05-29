@@ -1,8 +1,8 @@
 use super::{EdgeSpec, NodeSize};
 use crate::render::layout_constants::PKG_TAB_HEIGHT;
 use crate::render_core::{
-    Anchor, GroupFrame, LabelBox, LabelRole, NodeBox, Point, Polyline, Port, PortSide, Rect,
-    RenderScene, RouteChannel, SceneEdge, SceneGroup, SceneNode,
+    text_metrics::estimate_text_width_f64, Anchor, GroupFrame, LabelBox, LabelRole, NodeBox, Point,
+    Polyline, Port, PortSide, Rect, RenderScene, RouteChannel, SceneEdge, SceneGroup, SceneNode,
 };
 use std::collections::BTreeMap;
 
@@ -64,7 +64,7 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
             bounds: Rect::new(
                 x + 8.0,
                 y + 4.0,
-                (group_id.chars().count() as f64 * 7.0 + 8.0).max(12.0),
+                (estimate_text_width_f64(group_id, 14.0) + 8.0).max(12.0),
                 14.0,
             ),
             owner_id: Some(group_id.clone()),
@@ -176,7 +176,7 @@ fn centered_label(
     owner_id: Option<String>,
     role: LabelRole,
 ) -> LabelBox {
-    let width = (text.chars().count() as f64 * 7.0).max(8.0);
+    let width = estimate_text_width_f64(&text, 14.0).max(8.0);
     let height = 14.0;
     let center = owner_bounds.center();
     LabelBox {
@@ -194,7 +194,7 @@ fn centered_label(
 }
 
 fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
-    let width = (text.chars().count() as f64 * 7.0 + 12.0).max(18.0);
+    let width = (estimate_text_width_f64(text, 14.0) + 12.0).max(18.0);
     let height = 14.0;
     let placement = route
         .segments()

@@ -394,7 +394,8 @@ fn text_attrs(extra_attrs: &str, base_color: &str) -> String {
 }
 
 fn estimate_text_width(text: &str) -> f32 {
-    decode_unicode_escapes(text).chars().count() as f32 * 7.0
+    crate::render_core::text_metrics::estimate_text_width_f64(&decode_unicode_escapes(text), 14.0)
+        as f32
 }
 
 /// Canonical actor stick-figure renderer used across all diagram families.

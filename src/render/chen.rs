@@ -5,7 +5,8 @@ use crate::output::RenderArtifact;
 use crate::render::graph_layout::{layout_hierarchical, EdgeSpec, LayoutOptions, NodeSize};
 use crate::render::svg::escape_text;
 use crate::render_core::{
-    Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline, Rect, RenderScene, SceneEdge, SceneNode,
+    text_metrics::estimate_text_width_f64, Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline,
+    Rect, RenderScene, SceneEdge, SceneNode,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -324,7 +325,8 @@ fn push_scene_edge(
 }
 
 fn push_chen_node(render_nodes: &mut Vec<RenderNode>, node: &ChenNode) {
-    let label_width = (node.label.chars().count() as f64 * 8.0 + 36.0).max(136.0);
+    // 8.0 px/char = 7 px/char at 16 px font (entity labels render at 16 px).
+    let label_width = (estimate_text_width_f64(&node.label, 16.0) + 36.0).max(136.0);
     render_nodes.push(RenderNode {
         id: node.id.clone(),
         label: node.label.clone(),
@@ -354,7 +356,8 @@ fn push_chen_attribute(
     attr: &ChenAttribute,
 ) {
     let id = format!("{owner}::{}", attr.id);
-    let label_width = (attr.label.chars().count() as f64 * 8.0 + 42.0).max(108.0);
+    // 8.0 px/char = 7 px/char at 16 px font (attribute labels render at 16 px).
+    let label_width = (estimate_text_width_f64(&attr.label, 16.0) + 42.0).max(108.0);
     render_nodes.push(RenderNode {
         id: id.clone(),
         label: attr.label.clone(),
@@ -508,7 +511,7 @@ fn render_edge(
     if let Some(label) = label {
         let mx = (x1 + x2) / 2.0;
         let my = (y1 + y2) / 2.0 - 5.0;
-        let label_w = label.chars().count() as f64 * 7.0 + 10.0;
+        let label_w = estimate_text_width_f64(label, 14.0) + 10.0;
         out.push_str(&format!(
             "<rect class=\"chen-cardinality-bg\" x=\"{:.1}\" y=\"{:.1}\" width=\"{label_w:.1}\" height=\"16\" rx=\"3\" fill=\"#ffffff\"/>",
             mx - label_w / 2.0,
