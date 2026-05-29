@@ -256,9 +256,17 @@ pub(super) fn group_horizontal_bounds(
                     .map(|(_, right)| *right)
                     .max()
                     .unwrap_or(options.margin + options.participant_width);
-                let target_width = (max_right - min_left).max(options.participant_width);
+                // Extend ref box by a small horizontal margin on each side so the
+                // rightmost (and leftmost) participant is visually enclosed rather
+                // than sitting exactly on the frame border (closes #1295).
+                const REF_OVER_MARGIN: i32 = 4;
+                let target_width =
+                    (max_right - min_left + REF_OVER_MARGIN * 2).max(options.participant_width);
                 let width = target_width.max(min_content_width);
-                let x = (min_left - ((width - target_width) / 2)).max(options.margin);
+                // Allow x to extend left of the canvas margin by up to REF_OVER_MARGIN so
+                // the glyph edge is always clear of the leftmost participant border.
+                let x_unclamped = min_left - REF_OVER_MARGIN - ((width - target_width) / 2);
+                let x = x_unclamped.max(options.margin - REF_OVER_MARGIN);
                 return (x, width);
             }
         }

@@ -68,7 +68,11 @@ pub(in crate::render::state) fn compute_node_size(
                 let actions_h = (node.internal_actions.len() as i32) * 14;
                 (STATE_NODE_W, STATE_NODE_H + actions_h)
             } else {
-                // Composite state: size from children
+                // Composite state: size from children.
+                // If the composite has internal actions (entry/exit/do), allocate
+                // extra header height so the action text does not overlap children
+                // (closes #1304).
+                let actions_h = (node.internal_actions.len() as i32) * 14;
                 let n_regions = node.regions.len().max(1) as i32;
                 if n_regions > 1 {
                     // Compute children's sizes first so concurrent_region_metrics
@@ -81,7 +85,7 @@ pub(in crate::render::state) fn compute_node_size(
                     let (column_w, content_h) = concurrent_region_metrics(&node.regions, sizes);
                     let content_w = column_w * n_regions + REGION_DIVIDER_GAP * (n_regions - 1);
                     let w = content_w + COMPOSITE_PAD_X * 2;
-                    let h = content_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
+                    let h = content_h + COMPOSITE_PAD_Y + actions_h + COMPOSITE_PAD_BOT;
                     (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
                 } else {
                     let mut total_w = STATE_NODE_W;
@@ -92,7 +96,7 @@ pub(in crate::render::state) fn compute_node_size(
                         total_h += rh;
                     }
                     let w = total_w;
-                    let h = total_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
+                    let h = total_h + COMPOSITE_PAD_Y + actions_h + COMPOSITE_PAD_BOT;
                     (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
                 }
             }
@@ -187,11 +191,13 @@ pub(in crate::render::state) fn place_node(
     let has_children = node.regions.iter().any(|r| !r.is_empty());
     if node.kind == StateNodeKind::Normal && has_children {
         // Place children within the composite box.
-        // Children start after the composite header label area.
+        // Children start after the composite header label area plus any
+        // internal action lines (entry/exit/do actions, closes #1304).
+        let actions_h = (node.internal_actions.len() as i32) * 14;
         if node.regions.len() > 1 {
             let (column_w, _) = concurrent_region_metrics(&node.regions, sizes);
             let mut region_x = x + COMPOSITE_PAD_X;
-            let content_top = y + COMPOSITE_PAD_Y;
+            let content_top = y + COMPOSITE_PAD_Y + actions_h;
             for region in &node.regions {
                 let mut child_y = content_top;
                 for (ci, child) in region.iter().enumerate() {
@@ -210,7 +216,7 @@ pub(in crate::render::state) fn place_node(
                 region_x += column_w + REGION_DIVIDER_GAP;
             }
         } else {
-            let mut child_y = y + COMPOSITE_PAD_Y;
+            let mut child_y = y + COMPOSITE_PAD_Y + actions_h;
             for region in &node.regions {
                 let region_x = x + COMPOSITE_PAD_X;
                 let avail_w = w - COMPOSITE_PAD_X * 2;
