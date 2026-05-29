@@ -3,9 +3,7 @@ use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, PKG_INNER_GAP, PKG_PADDING,
     PKG_TAB_HEIGHT,
 };
-use crate::render::relation::{
-    has_ie_endpoint_marker, render_ie_marker_defs, render_relation_marker_defs,
-};
+use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
 use crate::render::RenderArtifact;
 use crate::render_core::Rect;
@@ -450,17 +448,9 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         escape_text(&comp_style.background_color)
     ));
     render_relation_marker_defs(&mut out, &comp_style.arrow_color);
-    // IE (Information Engineering) crow's-foot markers — only emitted when the
-    // diagram contains at least one IE-notation endpoint (#1293).
-    if doc
-        .relations
-        .iter()
-        .any(|rel| has_ie_endpoint_marker(&rel.arrow))
-    {
-        render_ie_marker_defs(&mut out, &comp_style.arrow_color);
-    }
-    // `skinparam shadowing true` — drop-shadow filter referenced via
-    // filter="url(#shadow)" from component-node rects.
+    render_ie_marker_defs(&mut out, &comp_style.arrow_color); // IE crow's-foot glyphs (#1293)
+                                                              // `skinparam shadowing true` — drop-shadow filter referenced via
+                                                              // filter="url(#shadow)" from component-node rects.
     if comp_style.shadowing {
         out.push_str("<defs><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\"><feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/></filter></defs>");
     }
