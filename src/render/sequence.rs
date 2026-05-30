@@ -149,24 +149,6 @@ pub fn render_svg(scene: &Scene) -> String {
         out.push_str("</g>");
     }
 
-    // `lifelineStrategy nosolid` suppresses activation boxes on the lifeline.
-    if !scene.style.lifeline_nosolid {
-        for a in &scene.activations {
-            let offset = (a.depth as i32) * 6;
-            let x = a.x + offset - 5;
-            let y = a.y1.min(a.y2);
-            let height = (a.y2 - a.y1).abs().max(12);
-            out.push_str(&format!(
-                "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
-                escape_text(&a.participant_id),
-                x,
-                y,
-                height,
-                scene.style.lifeline_border_color
-            ));
-        }
-    }
-
     for g in &scene.groups {
         if g.kind.eq_ignore_ascii_case("box") {
             continue;
@@ -332,6 +314,26 @@ pub fn render_svg(scene: &Scene) -> String {
                     "#333",
                 ));
             }
+        }
+    }
+
+    // Activation bars are drawn after group frames so they appear on top of the
+    // combined-fragment border rather than being covered by it.
+    // `lifelineStrategy nosolid` suppresses activation boxes on the lifeline.
+    if !scene.style.lifeline_nosolid {
+        for a in &scene.activations {
+            let offset = (a.depth as i32) * 6;
+            let x = a.x + offset - 5;
+            let y = a.y1.min(a.y2);
+            let height = (a.y2 - a.y1).abs().max(12);
+            out.push_str(&format!(
+                "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
+                escape_text(&a.participant_id),
+                x,
+                y,
+                height,
+                scene.style.lifeline_border_color
+            ));
         }
     }
 
