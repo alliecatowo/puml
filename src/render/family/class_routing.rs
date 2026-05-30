@@ -141,14 +141,20 @@ pub(super) fn class_nudge_label_y(
     (lx, adjusted_y)
 }
 
-/// Nudge a label's x-coordinate rightward when its centre falls inside a node
-/// box horizontally.
+/// Nudge a label's x-coordinate rightward **only when it would actually collide**
+/// with a node box.
 ///
 /// This is only appropriate for labels on **vertical** edge segments whose x
 /// coordinate coincides with the horizontal centre of the connected node boxes.
 /// It should NOT be called from the fan-out pre-pass (`class_build_label_overrides`)
 /// because those fans already spread labels apart in x; calling it there causes
 /// double-nudging and breaks adjacent-label clearance invariants.
+///
+/// A collision is defined as the label bounding box (centred at `lx`, top at
+/// `ly`, height 14px) overlapping a node bounding box in **both** x and y.
+/// On sparse diagrams the label sits in the gap between two nodes (at the
+/// arclength midpoint of a vertical edge) and therefore does not overlap any
+/// node; the x-push must not fire in that case.
 ///
 /// After nudging, the label's left edge clears the rightmost overlapping box's
 /// right edge by 8 px.
@@ -158,17 +164,21 @@ pub(super) fn class_nudge_label_x(
     label_half_w: i32,
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
 ) -> i32 {
-    // Only trigger when the label CENTRE is strictly inside a box in BOTH x and y.
-    // Labels placed to the right of a vertical edge segment but above or below the
-    // destination node should not be pushed further right merely because the node's
-    // horizontal extent covers the label's x coordinate.  Closes #1367.
+    // The label bounding box: x in [lx - label_half_w, lx + label_half_w],
+    //                         y in [ly - 14, ly + 2]  (14px text, 2px slack).
+    const LABEL_H: i32 = 14;
+    const LABEL_SLACK: i32 = 2;
+    let label_top = ly - LABEL_H;
+    let label_bot = ly + LABEL_SLACK;
     let max_box_right = node_boxes
         .values()
         .filter(|bbox| {
+            // X: label centre must be inside the box horizontally (same check as before)
             lx > bbox.x
                 && lx < bbox.x + bbox.w
-                && ly + 8 >= bbox.y - 8
-                && ly - 8 <= bbox.y + bbox.h + 8
+                // Y: label must actually overlap the box vertically to warrant a push
+                && label_top < bbox.y + bbox.h
+                && label_bot > bbox.y
         })
         .map(|bbox| bbox.x + bbox.w)
         .max();

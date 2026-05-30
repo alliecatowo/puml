@@ -106,10 +106,19 @@ pub(super) fn build_render_scene(input: SceneBuildInput<'_>) -> RenderScene {
         });
         let source_rect = node_rect(&edge.from, &node_by_id, input.node_positions);
         let target_rect = node_rect(&edge.to, &node_by_id, input.node_positions);
+        // Collect node rects for collision testing in edge_label_box.
+        let node_rects: Vec<Rect> = input
+            .nodes
+            .iter()
+            .filter_map(|n| {
+                let &(nx, ny) = input.node_positions.get(&n.id)?;
+                Some(Rect::new(nx, ny, n.width, n.height))
+            })
+            .collect();
         let labels = edge
             .label
             .as_ref()
-            .map(|label| edge_label_box(&edge.id, label, &route))
+            .map(|label| edge_label_box(&edge.id, label, &route, &node_rects))
             .into_iter()
             .collect();
         scene.add_edge(SceneEdge {
@@ -193,7 +202,7 @@ fn centered_label(
     }
 }
 
-fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
+fn edge_label_box(edge_id: &str, text: &str, route: &Polyline, node_rects: &[Rect]) -> LabelBox {
     let width = (estimate_text_width_f64(text, 14.0) + 12.0).max(18.0);
     let height = 14.0;
 
@@ -236,7 +245,23 @@ fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
                 height,
             )
         } else {
-            Rect::new(center.x + 8.0, center.y - height / 2.0, width, height)
+            // For vertical (and diagonal) segments, default to centering the
+            // label on the edge. Only push the label to the right when it would
+            // otherwise overlap an existing node's bounding box — this prevents
+            // the speculative +8px offset from stranding the label far from the
+            // edge on sparse diagrams where no collision would occur.
+            let centered = Rect::new(
+                center.x - width / 2.0,
+                center.y - height / 2.0,
+                width,
+                height,
+            );
+            let collides = node_rects.iter().any(|nr| rects_overlap(centered, *nr));
+            if collides {
+                Rect::new(center.x + 8.0, center.y - height / 2.0, width, height)
+            } else {
+                centered
+            }
         }
     };
     LabelBox {
@@ -246,6 +271,11 @@ fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
         owner_id: Some(edge_id.to_string()),
         role: LabelRole::Edge,
     }
+}
+
+/// Returns `true` when two axis-aligned rectangles overlap (share interior area).
+fn rects_overlap(a: Rect, b: Rect) -> bool {
+    a.min_x() < b.max_x() && a.max_x() > b.min_x() && a.min_y() < b.max_y() && a.max_y() > b.min_y()
 }
 
 fn default_node_ports(node_id: &str, bounds: Rect) -> Vec<Port> {
