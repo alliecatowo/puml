@@ -119,16 +119,18 @@ impl TimingLayout {
         model: &TimingModel<'_>,
         _style: &crate::theme::TimingStyle,
     ) -> Self {
-        let left_pad = 130;
-        let tail_extra = 80;
-        let max_label_half_w = 20;
-        let right_gutter = 20;
-        let row_h = if model.compact_mode { 48 } else { 64 };
-        let wave_top_pad = 10;
-        let wave_bot_pad = 10;
+        // Retune for PlantUML-equivalent density (#1358):
+        // left_pad reduced 130→80, default chart_w reduced 760→280.
+        let left_pad = 80;
+        let tail_extra = 30;
+        let max_label_half_w = 12;
+        let right_gutter = 10;
+        let row_h = if model.compact_mode { 32 } else { 40 };
+        let wave_top_pad = 6;
+        let wave_bot_pad = 6;
         let wave_h = row_h - wave_top_pad - wave_bot_pad;
-        let axis_h = 48;
-        let chart_w = timing_scaled_chart_width(&model.options, model.t_span).unwrap_or(760);
+        let axis_h = 30;
+        let chart_w = timing_scaled_chart_width(&model.options, model.t_span).unwrap_or(280);
         let right_pad =
             (chart_w as f64 * 0.05) as i32 + tail_extra + max_label_half_w + right_gutter;
         let width = left_pad + chart_w + right_pad;
@@ -210,7 +212,7 @@ impl TimingLayout {
     /// to display its label without being clipped at the right edge.
     pub(super) fn waveform_end_t(&self) -> i64 {
         // Ensure the tail is at least `TAIL_EXTRA` canvas pixels past t_max.
-        const TAIL_EXTRA_PX: i64 = 80;
+        const TAIL_EXTRA_PX: i64 = 30; // #1358: dense retune
         let tail_min_t = (TAIL_EXTRA_PX * self.t_span) / (self.chart_w as i64).max(1);
         // Also keep the 5% minimum for cases where chart_w is very large.
         let five_pct_t = (self.t_span as f64 * 0.05) as i64;

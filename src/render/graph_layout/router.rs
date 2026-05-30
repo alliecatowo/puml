@@ -359,10 +359,15 @@ impl Router for ChannelRouter {
             let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
             let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
             let gap = next_top - bot;
+            // Guard against degenerate (zero or negative) gaps from very tight
+            // usecase/dense layouts (#1359): clamp max_half to ≥ 0 so the
+            // subsequent raw.clamp(-max_half, max_half) never panics.
             let max_half = if gap >= 16.0 {
                 (gap - 8.0) / 2.0
-            } else {
+            } else if gap > 0.0 {
                 gap / 2.0
+            } else {
+                0.0
             };
             // Adaptive spacing: only for channels with ≥ 3 tracks (max index ≥ 2).
             let effective_spacing = if n_tracks_idx >= 2 {

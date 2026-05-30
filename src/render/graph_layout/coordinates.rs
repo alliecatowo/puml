@@ -142,8 +142,14 @@ pub(super) fn assign_coordinates(
             };
 
         let min_gap = GROUP_COLLISION_MIN_GAP;
-        // Iterate up to GROUP_COLLISION_MAX_PASSES; in practice 1–2 are enough.
-        for _ in 0..GROUP_COLLISION_MAX_PASSES {
+        let collision_passes = if options.skip_group_collision_resolution {
+            0
+        } else {
+            GROUP_COLLISION_MAX_PASSES
+        };
+        // Iterate up to collision_passes; normally GROUP_COLLISION_MAX_PASSES.
+        // Usecase diagrams set this to 0 to avoid excessive horizontal spread.
+        for _ in 0..collision_passes {
             let bb = compute_bounds(&positions);
             let grouped_span_width = {
                 let min_x = bb.values().map(|(x, _, _, _)| *x).fold(f64::MAX, f64::min);

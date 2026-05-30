@@ -215,6 +215,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         canvas_right_margin: Some(canvas_margin as f64),
         stack_staggered_group_collisions: family == "component"
             && (has_lollipop_endpoint || has_interface_endpoint),
+        skip_group_collision_resolution: false,
     };
 
     // Run hierarchical layout

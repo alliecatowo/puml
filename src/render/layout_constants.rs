@@ -167,18 +167,6 @@ pub const ACTIVITY_STEP_HEIGHT: i32 = 60;
 /// shape bottom for all node types.
 pub const ACTIVITY_ARROW_OUT_OFFSET: i32 = 42;
 
-/// Base width of the activity diagram lane area before branch/fork expansion,
-/// in pixels.  Resized upward when the diagram contains if/else branches or
-/// fork/join parallel sections.
-pub const ACTIVITY_BASE_LANE_WIDTH: i32 = 416;
-
-/// Horizontal offset between the centre column and each if/else branch column,
-/// in pixels.  Controls the visual spread of conditional branches.
-pub const ACTIVITY_BRANCH_X_OFFSET: i32 = 160;
-
-/// Left margin of the swim-lane area within the activity canvas, in pixels.
-pub const ACTIVITY_LANE_AREA_X: i32 = 32;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Compile-time relational invariant assertions.
 //

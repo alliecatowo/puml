@@ -123,24 +123,31 @@ pub(super) fn class_run_layout(
 
     let is_usecase = is_real_usecase_layout(document);
     let rank_separation = if is_usecase {
-        // Keep usecase layouts tighter than class/object while still reserving
-        // enough inter-rank clearance so actors/labels don't collide with
-        // package headers in grouped examples.
+        // Retune for PlantUML-equivalent density (#1359): rank_separation =
+        // max_node_height + row_gap ensures adjacent ranks never overlap
+        // (the layout engine requires gap > 8px between rank bottom and next
+        // rank top).  row_gap=20 gives ~20px inter-rank clearance.
         let max_node_h = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60) as f64;
-        row_gap as f64 + max_node_h * 0.5
+        max_node_h + row_gap as f64
     } else {
         (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60)) as f64
     };
     let gl_options = GlOptions {
         rank_separation,
         node_separation: col_gap as f64,
-        group_padding: 16.0,
+        group_padding: if is_usecase { 8.0 } else { 16.0 },
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
         // Right-side gutter only needs margin_x (32px); canvas_margin also absorbs
         // title height and group-label tabs which are only needed vertically.
         canvas_right_margin: Some(margin_x as f64),
+        // Usecase groups (system boundaries) can stack vertically instead of
+        // spreading horizontally when groups collide at different vertical positions.
         stack_staggered_group_collisions: false,
+        // Skip group collision resolution for usecase: multi-rank groups cause
+        // excessive horizontal spread when collision resolver pushes them apart.
+        // PlantUML allows boundary groups to overlap at edges (#1359).
+        skip_group_collision_resolution: is_usecase,
     };
 
     let mut gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
