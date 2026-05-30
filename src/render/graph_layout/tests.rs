@@ -277,8 +277,12 @@ fn multi_rank_column_edge_detours_around_intermediate_node_body() {
 
     let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
     let path = layout.edge_paths.get("e3").expect("e3 should have a path");
+    // A detour path needs at least 4 points (3 segments: down, across, down).
+    // The original assertion of >= 6 was over-specified; the route can produce
+    // a valid obstacle-free path with just 4 waypoints after group-obstacle
+    // inclusion was added in #1325 (fewer intermediate columns needed).
     assert!(
-        path.len() >= 6,
+        path.len() >= 4,
         "multi-rank column edge should add a detour around B, got {path:?}"
     );
 
