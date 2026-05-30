@@ -12,6 +12,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut note_counter = 0usize;
     let mut projection_counter = 0usize;
     let mut last_transition: Option<(String, String)> = None;
+    let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -157,6 +158,14 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 common.legend(v.clone(), LegendTextMode::Raw);
             }
             StatementKind::SkinParam { key, value } => {
+                if key.trim().eq_ignore_ascii_case("linetype") {
+                    if let Some(mode) =
+                        crate::render::graph_layout::EdgeRouting::parse_linetype(value)
+                    {
+                        edge_routing = mode;
+                    }
+                    continue;
+                }
                 if key.trim().eq_ignore_ascii_case("monochrome") {
                     match classify_sequence_skinparam(key, value) {
                         SequenceSkinParamSupport::SupportedNoop => {}
@@ -361,6 +370,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         state_style,
         hide_empty_description,
         warnings,
+        edge_routing,
     })
 }
 

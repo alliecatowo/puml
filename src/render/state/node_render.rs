@@ -1,3 +1,5 @@
+use crate::render::graph_layout::EdgeRouting;
+
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -22,6 +24,7 @@ pub(super) struct RenderNodeContext<'a> {
     pub all_transitions: &'a [StateTransition],
     pub edge_set: &'a std::collections::BTreeSet<(&'a str, &'a str)>,
     pub node_kinds: &'a std::collections::BTreeMap<&'a str, &'a StateNodeKind>,
+    pub edge_routing: EdgeRouting,
 }
 
 pub(super) fn render_node<'a>(
@@ -515,6 +518,7 @@ pub(super) fn render_node<'a>(
                                     hidden,
                                     dir: &dir,
                                 },
+                                ctx.edge_routing,
                             );
                         }
                         if let Some(label) = &t.label {

@@ -39,6 +39,7 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
     let nodes = &document.nodes;
     let transitions = &document.transitions;
     let state_style = &document.state_style;
+    let edge_routing = document.edge_routing;
 
     // ── Phase 1: compute recursive layout ───────────────────────────────────
     // We use a two-column top-level layout for the outer nodes, then compute
@@ -517,6 +518,7 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
                         hidden,
                         dir: &dir,
                     },
+                    edge_routing,
                 );
             }
 
@@ -545,6 +547,7 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
         all_transitions: transitions,
         edge_set: &edge_set,
         node_kinds: &node_kinds,
+        edge_routing,
     };
 
     // Draw nodes (composites drawn recursively, children inside parent box)

@@ -1,5 +1,6 @@
 use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
+use crate::render::graph_layout::EdgeRouting;
 use crate::theme::StateStyle;
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,9 @@ pub struct StateDocument {
     pub state_style: StateStyle,
     pub hide_empty_description: bool,
     pub warnings: Vec<Diagnostic>,
+    /// Edge-routing mode selected by `skinparam linetype`. Defaults to
+    /// [`EdgeRouting::Polyline`], matching the PUML global default (Stage 2 / PR #1343).
+    pub edge_routing: EdgeRouting,
 }
 
 #[derive(Debug, Clone)]
