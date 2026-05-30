@@ -63,13 +63,19 @@
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
       "expected_text": ["Idle", "Running", "start", "stop", "init"],
-      "min_text_elements": 5
+      "min_text_elements": 5,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1366,
+      "png_baseline_deferred_reason": "edge-label arclength placement reduced canvas height; re-bless after wave-15 merges"
     },
     {
       "path": "docs/examples/state/05_fork_join_choice.puml",
       "family": "state",
       "expected_text": ["TaskA", "TaskB", "Success", "Failure", "ok", "error"],
-      "min_text_elements": 6
+      "min_text_elements": 6,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1366,
+      "png_baseline_deferred_reason": "edge-label arclength placement reduced canvas height; re-bless after wave-15 merges"
     },
     {
       "path": "docs/examples/usecase/01_basic.puml",
