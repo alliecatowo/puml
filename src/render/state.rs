@@ -415,36 +415,43 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
             let dir = state_direction_attr(t.direction.as_deref());
 
             if t.from == t.to {
-                // Self-transition curve (#1319): use the actual node bbox so
-                // the arc visibly loops out of the right side and returns into
-                // the top edge.  PlantUML draws state self-transitions as a
-                // small ◯-shaped arc; emit a cubic Bézier so the loop has body
-                // even when from/to anchors coincide.
+                // Self-transition (#1332): emit a "C"-shaped arc that hugs the
+                // top-right corner of the state box.  Exit from the right edge
+                // at mid-height, swing outward to the right (both control points
+                // strictly past the right edge), and re-enter at the top edge
+                // near the right corner.  This prevents the path from ever
+                // crossing through the node interior.
                 let from_p = placed.get(&t.from);
                 let (sx, sy, sw_box, sh_box) = from_p
                     .map(|p| (p.x, p.y, p.w, p.h))
                     .unwrap_or((x1, y1, 40, 40));
-                let exit_x = sx + sw_box; // right edge
-                let exit_y = sy + sh_box / 3;
-                let enter_x = sx + sw_box - 20.max(sw_box / 4); // top edge
+                // Exit anchor: right edge, at mid-height
+                let exit_x = sx + sw_box;
+                let exit_y = sy + sh_box / 2;
+                // Enter anchor: top edge, within 10 px of the right corner
+                let enter_x = sx + sw_box - 10;
                 let enter_y = sy;
-                let arc_w = 28;
-                let arc_h = 28;
-                let c1x = exit_x + arc_w;
+                // Arc bulge: 40 px ensures the loop is clearly visible even
+                // on compact (40 px tall) state boxes.
+                let arc_r = 40_i32;
+                // C1: same y as exit, arc_r pixels to the right — horizontal
+                // departure that pulls the path away from the box before curving
+                let c1x = exit_x + arc_r;
                 let c1y = exit_y;
-                let c2x = enter_x;
-                let c2y = enter_y - arc_h;
+                // C2: arc_r above the top edge, at the same x as C1 — the
+                // path swings up and inward to land on the top-edge enter point,
+                // forming a visible "C" around the top-right corner
+                let c2x = exit_x + arc_r;
+                let c2y = enter_y - arc_r;
                 out.push_str(&format!(
                     "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {exit_x} {exit_y} C {c1x} {c1y} {c2x} {c2y} {enter_x} {enter_y}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
                     escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
                 let _ = (x1, y1, x2, y2);
                 if let Some(label) = &t.label {
-                    // Anchor the label just outside the apex of the self-loop
-                    // arc so it sits to the right of the node rather than on
-                    // top of the (now-coincident) source/target anchors.
-                    let apex_x = exit_x + arc_w + 2;
-                    let apex_y = enter_y - arc_h / 2;
+                    // Place the label to the right of the arc apex
+                    let apex_x = exit_x + arc_r + 2;
+                    let apex_y = enter_y - arc_r / 2;
                     let layout = place_state_transition_label(
                         label,
                         apex_x,
