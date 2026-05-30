@@ -173,7 +173,7 @@ jobs:
           if [[ "${ACTOR}" == "dependabot[bot]" || "${ACTOR}" == "renovate[bot]" ]]; then
             FAIL_UNDER_FLAG=""
           else
-            FAIL_UNDER_FLAG="--fail-under-lines 87"
+            FAIL_UNDER_FLAG="--fail-under-lines 90"
           fi
           cargo llvm-cov nextest \
             --profile ci \

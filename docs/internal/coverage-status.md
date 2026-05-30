@@ -1,17 +1,17 @@
 # Coverage Status
 
-Last documented measurement: 2026-05-18 (America/Los_Angeles)
+Last documented measurement: 2026-05-29 (America/Los_Angeles)
 
 Current release-gate command:
 
 ```console
-cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
+cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
 ```
 
-Historical result from the prior 85% gate:
-- Total line coverage: 85.79% for scoped support/runtime modules
-- Current target: 87%
-- Current margin from that historical run: -1.21%
+Result from the wave-25 targeted uplift:
+- Total line coverage: 90.35% for scoped support/runtime modules (nextest)
+- Current target: 90%
+- Current margin: +0.35%
 
 Coverage scope excludes entrypoint binaries, library facade, and high-churn parity implementation modules (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`, `src/parser.rs`, `src/preproc.rs`, `src/normalize.rs`, `src/normalize/*.rs`, `src/render.rs`, `src/specialized.rs`, `src/frontend/*.rs`, `src/render/*.rs`) to keep the 87% release gate focused on smaller shared support/runtime modules. Parser, preprocessor, frontend adapter, normalizer, renderer, and specialized family behavior remains protected by deterministic integration, render snapshot, parity harness, SVG bounds, and oracle-smoke gates.
 
