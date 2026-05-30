@@ -38,6 +38,12 @@ ALLOWLIST_REASONS = {
     # tightly coupled to the collision-resolution loop in the same module; extraction
     # would add indirection with no benefit. Split tracked in #590.
     "src/render/family/box_grid.rs": "wave-15 density retune added skip_group_collision_resolution field; split tracked in #590",
+    # Was 594 lines before the wave-15 fork bar clamp fix (#1299); grew to 625 after
+    # the bilateral clamp logic (max_bar_half = min(left_constraint, right_constraint))
+    # was added to the EndFork arm. The geometry is a single tightly-coupled computation
+    # that references local fork geometry variables; extraction would require threading
+    # many parameters. Split tracked in #590.
+    "src/render/activity/layout/flow/mod.rs": "wave-15 fork-bar bilateral clamp added 31 lines; split tracked in #590",
 }
 
 
