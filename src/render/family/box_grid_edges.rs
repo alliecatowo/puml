@@ -175,14 +175,29 @@ pub(super) fn render_box_grid_relations_and_labels(
                     let n = orth_pts.len();
                     let (pnx, pny) = orth_pts[n - 1];
                     let (pmx, pmy) = orth_pts[n - 2];
-                    if !interface_nodes.contains(&to_name) {
+                    if interface_nodes.contains(&to_name) {
+                        // For interface circles, snap endpoint to the actual circle
+                        // edge using the router path's entry direction (not the
+                        // component-center vector, which may pick the wrong side when
+                        // dx == dy).
+                        const IR: i32 = 18;
+                        let cx = tx + tw / 2;
+                        let cy = ty + th / 2;
                         if pmx == pnx {
-                            x2 = pmx.clamp(tx, tx + tw);
-                            y2 = if pmy < pny { ty } else { ty + th };
+                            // Vertical entry: snap to top or bottom of circle.
+                            x2 = cx;
+                            y2 = if pmy < pny { cy - IR } else { cy + IR };
                         } else if pmy == pny {
-                            y2 = pmy.clamp(ty, ty + th);
-                            x2 = if pmx < pnx { tx } else { tx + tw };
+                            // Horizontal entry: snap to left or right of circle.
+                            x2 = if pmx < pnx { cx - IR } else { cx + IR };
+                            y2 = cy;
                         }
+                    } else if pmx == pnx {
+                        x2 = pmx.clamp(tx, tx + tw);
+                        y2 = if pmy < pny { ty } else { ty + th };
+                    } else if pmy == pny {
+                        y2 = pmy.clamp(ty, ty + th);
+                        x2 = if pmx < pnx { tx } else { tx + tw };
                     }
                 }
             }
@@ -191,8 +206,22 @@ pub(super) fn render_box_grid_relations_and_labels(
         if let Some(mut orth_pts) = ortho_path {
             // Endpoint anchors can land on visual top/bottom edges that differ
             // from bbox extents for 3D deployment shapes; use a tolerance.
-            let src_keep_routed_x = (y1 - fy).abs() <= 16 || (y1 - (fy + fh)).abs() <= 16;
-            let tgt_keep_routed_x = (y2 - ty).abs() <= 16 || (y2 - (ty + th)).abs() <= 16;
+            //
+            // #1327: Use the router's own endpoint y to detect top/bottom entry/exit.
+            // pick_port may return center-y for horizontal-dominant edges (when the
+            // horizontal displacement between source and target centers is larger than
+            // the vertical displacement).  In that case y1/y2 land at the vertical
+            // midpoint of the node, which is never within 16 px of the top or bottom
+            // edge, causing tgt_keep_routed_x = false and the snapping to replace the
+            // router's correctly-computed component-midpoint x with pick_port's
+            // left/right-edge x.  Reading the router's own first/last waypoint y
+            // correctly identifies top/bottom entry regardless of pick_port direction.
+            let first_routed_y = orth_pts.first().map(|&(_, y)| y).unwrap_or(y1);
+            let last_routed_y = orth_pts.last().map(|&(_, y)| y).unwrap_or(y2);
+            let src_keep_routed_x =
+                (first_routed_y - fy).abs() <= 16 || (first_routed_y - (fy + fh)).abs() <= 16;
+            let tgt_keep_routed_x =
+                (last_routed_y - ty).abs() <= 16 || (last_routed_y - (ty + th)).abs() <= 16;
             let src_x_min = fx.min(fx + fw);
             let src_x_max = fx.max(fx + fw);
             let tgt_x_min = tx.min(tx + tw);
@@ -204,7 +233,10 @@ pub(super) fn render_box_grid_relations_and_labels(
                 } else {
                     x1
                 };
-                *first = (snapped_x, y1);
+                // When entering top/bottom keep the router's y (the true bbox edge);
+                // fall back to pick_port's y only for left/right horizontal entry.
+                let snapped_y = if src_keep_routed_x { first.1 } else { y1 };
+                *first = (snapped_x, snapped_y);
             }
             if let Some(last) = orth_pts.last_mut() {
                 let snapped_x = if tgt_keep_routed_x {
@@ -212,7 +244,16 @@ pub(super) fn render_box_grid_relations_and_labels(
                 } else {
                     x2
                 };
-                *last = (snapped_x, y2);
+                // When entering top/bottom keep the router's y (the true bbox edge);
+                // fall back to pick_port's y only for left/right horizontal entry.
+                // Exception: interface circle nodes use an anchor adjusted to the
+                // circle edge via adjust_interface_anchor; always honour that y2.
+                let snapped_y = if tgt_keep_routed_x && !interface_nodes.contains(&to_name) {
+                    last.1
+                } else {
+                    y2
+                };
+                *last = (snapped_x, snapped_y);
             }
             let n = orth_pts.len();
             if n >= 3 {
