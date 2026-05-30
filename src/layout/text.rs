@@ -97,6 +97,10 @@ pub(super) fn normalize_label_lines(
 /// markup tags so that `<color:red>`, `</color>`, `<size:18>`, `</size>`,
 /// `<b>`, `</b>`, `<i>`, `</i>`, `<u>`, `</u>`, `<&icon>`, etc. do not
 /// inflate the character count used for line-wrapping decisions.
+///
+/// Bare `&name` OpenIconic sprite references (e.g. `&cloud-upload`) are
+/// counted as 2 visual characters so they stay atomic during word-wrapping
+/// and are never split mid-token by `chunk_text`.
 pub(super) fn visual_char_count(word: &str) -> usize {
     let chars: Vec<char> = word.chars().collect();
     let len = chars.len();
@@ -130,6 +134,22 @@ pub(super) fn visual_char_count(word: &str) -> usize {
             // No closing '>' found within limit — treat '<' as a visual char.
             count += 1;
             i += 1;
+        } else if chars[i] == '&' {
+            // Bare `&name` OpenIconic sprite reference: `&[a-zA-Z0-9_-]+`.
+            // Count the whole token as 2 visual chars (like a `<$...>` sprite)
+            // so that `wrap_line` never chunks the token mid-name.
+            let mut j = i + 1;
+            while j < len && (chars[j].is_ascii_alphanumeric() || matches!(chars[j], '-' | '_')) {
+                j += 1;
+            }
+            if j > i + 1 {
+                // At least one alphanumeric char follows '&' — treat as sprite token.
+                count += 2;
+                i = j;
+            } else {
+                count += 1;
+                i += 1;
+            }
         } else {
             count += 1;
             i += 1;
