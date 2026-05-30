@@ -154,13 +154,29 @@ fn issue_1300_no_arrow_passes_through_decision_diamond() {
     // produces strictly more `<line ` elements than a single straight
     // vertical would.
     let svg = render_svg(&fixture("docs/examples/activity/10_authentication.puml"));
-    let line_count = svg.matches("<line ").count();
+    // Count total rendered path segments across both `<line>` elements (one
+    // segment each) and `<polyline>` elements (n_points - 1 segments each).
+    // Stage-3 EdgeRouting aggregates what were previously separate `<line>`
+    // elements into single `<polyline>` elements with multiple point pairs,
+    // so counting elements rather than segments would produce a false low.
+    let line_segments = svg.matches("<line ").count();
+    let polyline_segments: usize = svg
+        .split("<polyline ")
+        .skip(1)
+        .filter_map(|chunk| {
+            let start = chunk.find("points=\"")? + 8;
+            let end = chunk[start..].find('"')? + start;
+            let pts = chunk[start..end].split_whitespace().count();
+            Some(pts.saturating_sub(1))
+        })
+        .sum();
+    let total_segments = line_segments + polyline_segments;
     // The fixture has 7 decision diamonds and 12+ direct/indirect edges;
-    // an unbroken legacy "straight-through" render produced ≤24 line
+    // an unbroken legacy "straight-through" render produced ≤24 total
     // segments.  The obstacle-avoiding router must produce noticeably more.
     assert!(
-        line_count > 24,
-        "expected obstacle-avoiding routing to emit multi-segment polylines, got {line_count}"
+        total_segments > 24,
+        "expected obstacle-avoiding routing to emit multi-segment polylines, got {total_segments}"
     );
 }
 
