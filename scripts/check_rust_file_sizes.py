@@ -44,6 +44,11 @@ ALLOWLIST_REASONS = {
     # that references local fork geometry variables; extraction would require threading
     # many parameters. Split tracked in #590.
     "src/render/activity/layout/flow/mod.rs": "wave-15 fork-bar bilateral clamp added 31 lines; split tracked in #590",
+    # Was 594 lines before #1327 fix; grew to 613 after computing src_keep_routed_x /
+    # tgt_keep_routed_x from the router's own first/last waypoint y for vertical-entry
+    # endpoint anchoring. Logic is single tightly-coupled port-snapping branch; split
+    # would add indirection without semantic benefit. Tracked in #590.
+    "src/render/family/box_grid_edges.rs": "wave-15 frame-corner anchor fix added 19 lines; split tracked in #590",
 }
 
 
