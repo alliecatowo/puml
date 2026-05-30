@@ -27,6 +27,72 @@ pub(super) fn render_box_grid_relations_and_labels(
 
     let mut pending_labels: Vec<BoxGridPendingLabel> = Vec::new();
 
+    // ── Parallel-edge port fan (#1374) ────────────────────────────────────────
+    // When multiple relations share the same (to_name, port_x, port_y) arrival
+    // point, they overlap and appear as a single edge. Pre-compute a small fan
+    // offset per relation index so each edge arrives at a distinct port position.
+    //
+    // Fan direction: left/right ports (x = tx or tx+tw) → fan along y.
+    //                top/bottom ports (y = ty or ty+th)  → fan along x.
+    const PORT_FAN_SPACING: i32 = 10; // pixels between fan lanes
+    const PORT_FAN_MAX: i32 = 20; // max shift from center port
+
+    // Map (to_name, port_x, port_y) → list of relation indices with that port.
+    let mut tgt_port_groups: BTreeMap<(String, i32, i32), Vec<usize>> = BTreeMap::new();
+    for (rel_idx, rel) in doc.relations.iter().enumerate() {
+        if rel.direction.is_some() || rel.hidden {
+            continue;
+        }
+        let (from_name, to_name, _arrow) =
+            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        if from_name == to_name {
+            continue;
+        }
+        let Some(&(fx, fy, fw, fh)) = positions.get(&from_name) else {
+            continue;
+        };
+        let Some(&(tx, ty, tw, th)) = positions.get(&to_name) else {
+            continue;
+        };
+        let (_, _, x2, y2) = pick_port((fx, fy, fw, fh), (tx, ty, tw, th));
+        tgt_port_groups
+            .entry((to_name, x2, y2))
+            .or_default()
+            .push(rel_idx);
+    }
+
+    // rel_idx → (dx, dy) fan offset to apply to (x2, y2).
+    let mut port_fan_offset: BTreeMap<usize, (i32, i32)> = BTreeMap::new();
+    for ((to_name, port_x, _port_y), group) in &tgt_port_groups {
+        if group.len() <= 1 {
+            continue;
+        }
+        let n = group.len() as i32;
+        // Determine fan axis from which side of the target the port is on.
+        let Some(&(tgt_x, _tgt_y, tgt_w, tgt_h)) = positions.get(to_name) else {
+            continue;
+        };
+        // Port is on the left or right edge → fan along y.
+        // Port is on the top or bottom edge → fan along x.
+        let port_on_side = *port_x == tgt_x || *port_x == tgt_x + tgt_w;
+        for (slot, &rel_idx) in group.iter().enumerate() {
+            let lane = slot as i32 - (n - 1) / 2;
+            let shift = (lane * PORT_FAN_SPACING).clamp(-PORT_FAN_MAX, PORT_FAN_MAX);
+            let (dx, dy) = if port_on_side {
+                // Port is on left or right edge → fan along y.
+                (0, shift)
+            } else {
+                // Port is on top or bottom edge → fan along x.
+                (shift, 0)
+            };
+            // Clamp fan offset so the fanned point stays within the target side.
+            let dy_clamped = dy.clamp(-(tgt_h / 2 - 4), tgt_h / 2 - 4);
+            let dx_clamped = dx.clamp(-(tgt_w / 2 - 4), tgt_w / 2 - 4);
+            port_fan_offset.insert(rel_idx, (dx_clamped, dy_clamped));
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Helper: adjust port anchor for interface circle nodes.
     let adjust_interface_anchor =
         |node_box: (i32, i32, i32, i32), other_box: (i32, i32, i32, i32)| {
@@ -83,6 +149,15 @@ pub(super) fn render_box_grid_relations_and_labels(
             }
             if interface_nodes.contains(&to_name) {
                 (x2, y2) = adjust_interface_anchor((tx, ty, tw, th), (fx, fy, fw, fh));
+            }
+        }
+
+        // Apply parallel-edge port fan offset so edges with the same target
+        // port arrive at distinct positions and are each visually visible (#1374).
+        if rel.direction.is_none() && !rel.hidden {
+            if let Some(&(fdx, fdy)) = port_fan_offset.get(&rel_idx) {
+                x2 += fdx;
+                y2 += fdy;
             }
         }
 
