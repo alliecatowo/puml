@@ -345,9 +345,12 @@ pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
     if !matches!(document.kind, crate::ast::DiagramKind::UseCase) {
         return false;
     }
-
+    // A usecase diagram is "real" (uses actor stick-figures and oval shapes)
+    // when every node is an Actor/UseCase/Note kind.  We intentionally do NOT
+    // check members: UseCase nodes commonly store a display-label member (e.g.
+    // "Browse Catalog" for `usecase "Browse Catalog" as UC1`), which is valid
+    // in usecase diagrams.
     document.nodes.iter().all(|node| {
-        let only_uc_internals = node.members.iter().all(|m| m.text.starts_with("\x1fuc:"));
         matches!(
             node.kind,
             FamilyNodeKind::UseCase
@@ -356,6 +359,6 @@ pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
                 | FamilyNodeKind::BusinessActor
                 | FamilyNodeKind::Person
                 | FamilyNodeKind::Note
-        ) && (node.members.is_empty() || only_uc_internals)
+        )
     })
 }

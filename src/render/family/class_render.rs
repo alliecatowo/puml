@@ -22,8 +22,8 @@ use super::class_relation_labels::{
 use super::class_relations::{render_class_relations, ClassRelationCtx};
 use super::class_types::ClassNodeGeometry;
 use super::group_frames::{
-    collect_render_group_frames, render_class_group_frames, CLASS_GROUP_LABEL_GAP,
-    CLASS_GROUP_TAB_HEIGHT,
+    class_group_frame_rect, collect_render_group_frames, render_class_group_frames,
+    CLASS_GROUP_LABEL_GAP, CLASS_GROUP_TAB_HEIGHT,
 };
 use super::projections::render_family_projection_boxes;
 
@@ -419,6 +419,16 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             .nodes
             .iter()
             .all(|node| matches!(node.kind, FamilyNodeKind::Object));
+    // #1292: Compute group-frame rects for usecase diagrams so the relation
+    // renderer can snap edges to frame boundaries.
+    let group_frame_rects: Vec<_> = if is_usecase {
+        group_frames
+            .iter()
+            .filter_map(|gf| class_group_frame_rect(gf, max_group_depth, &node_boxes))
+            .collect()
+    } else {
+        Vec::new()
+    };
     render_class_relations(
         &mut out,
         &ClassRelationCtx {
@@ -437,6 +447,8 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             svg_width,
             is_object_diagram,
             edge_routing: document.edge_routing,
+            is_usecase_layout: is_usecase,
+            group_frame_rects,
         },
     );
 
