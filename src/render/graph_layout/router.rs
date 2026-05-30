@@ -226,20 +226,25 @@ impl Router for ChannelRouter {
             let assign_fan_offsets =
                 |groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>>,
                  out: &mut BTreeMap<String, f64>,
-                 opposite_group_size: &BTreeMap<String, usize>| {
+                 opposite_group_size: &BTreeMap<String, usize>,
+                 require_bipartite: bool| {
                     for (_, mut group) in groups {
                         if group.len() <= 1 {
                             continue;
                         }
-                        // Apply fan only when every edge in this shared endpoint
-                        // group has a shared opposite endpoint as well. This
-                        // targets true K2,2-style ambiguity and avoids partial
-                        // fan-outs on one-to-many / many-to-one patterns.
-                        let all_bipartite = group.iter().all(|(ei, _)| {
-                            opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) > 1
-                        });
-                        if !all_bipartite {
-                            continue;
+                        // For source-side fans, require the K2,2-bipartite condition:
+                        // every edge in the group must also have a shared opposite
+                        // endpoint. For target-side fans (many-to-one convergence),
+                        // skip this guard — parallel edges from distinct sources that
+                        // all converge at the same target port must always be fanned
+                        // so they arrive as separate visible lines (#1374).
+                        if require_bipartite {
+                            let all_bipartite = group.iter().all(|(ei, _)| {
+                                opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) > 1
+                            });
+                            if !all_bipartite {
+                                continue;
+                            }
                         }
                         group.sort_by(|(ea, xa), (eb, xb)| {
                             xa.partial_cmp(xb)
@@ -255,7 +260,14 @@ impl Router for ChannelRouter {
                         }
                     }
                 };
-            assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx, &src_group_size_by_edge);
+            // Target-side fan: always fan when multiple edges converge at the same
+            // target port, regardless of whether sources are also shared (many-to-one).
+            assign_fan_offsets(
+                tgt_groups,
+                &mut edge_tgt_port_dx,
+                &src_group_size_by_edge,
+                false,
+            );
         }
 
         // channel_next_track[upper_rank] = next available track index
@@ -576,6 +588,47 @@ impl Router for ChannelRouter {
                     let ch_y = soft_clamp_ch_y(ch, raw_ch_y);
                     pts.push((src_port_x, ch_y));
                     pts.push((tgt_port_x, ch_y));
+
+                    // Bug #1373: the final vertical drop (tgt_port_x, ch_y) →
+                    // (tgt_port_x, tgt_port_y) can pierce intermediate nodes that
+                    // lie in the same column as the target (e.g. actor→UC3 passing
+                    // through UC1 and UC2 in a linear use-case chain).  When this
+                    // vertical segment crosses any node obstacle, re-route via the
+                    // last inter-rank channel before the target instead of a
+                    // straight L-bend so the edge travels around the obstacle column.
+                    let drop_route = VerticalRouteCheck {
+                        x: tgt_port_x,
+                        y1: ch_y,
+                        y2: tgt_port_y,
+                        source_id: src_id,
+                        target_id: tgt_id,
+                        nodes,
+                        positions,
+                        group_bounds,
+                    };
+                    if vertical_route_crosses_node(drop_route) {
+                        // The straight drop from ch_y to tgt_port_y pierces an
+                        // intermediate node.  Use a U-detour: go right to a
+                        // clear column, drop to the last inter-rank channel
+                        // before the target, then go left back to tgt_port_x.
+                        //   src_port → (src_x, ch_y0) → (detour_x, ch_y0) →
+                        //   (detour_x, last_ch_y) → (tgt_port_x, last_ch_y) →
+                        //   tgt_port
+                        pts.pop(); // Remove the (tgt_port_x, ch_y) we just pushed.
+                        let detour_x = detour_x_for_vertical_route(
+                            drop_route,
+                            self.options.track_spacing * 2.0,
+                        );
+                        // Compute y for the last channel above the target rank.
+                        let last_ch = max_r - 1;
+                        let last_ch_y = soft_clamp_ch_y(
+                            last_ch,
+                            channel_mid_y(last_ch) + symmetric_offset(last_ch, track),
+                        );
+                        pts.push((detour_x, ch_y));
+                        pts.push((detour_x, last_ch_y));
+                        pts.push((tgt_port_x, last_ch_y));
+                    }
                 }
 
                 pts.push((tgt_port_x, tgt_port_y));
