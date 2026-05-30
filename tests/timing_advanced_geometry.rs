@@ -117,7 +117,8 @@ fn time_to_x_approx(svg: &str, t: i32, total_t: i32) -> i32 {
         let Some(end) = body.find("</text>") else {
             continue;
         };
-        let Ok(tick_t) = body[..end].trim().parse::<i32>() else {
+        // Tick labels may carry an "@" prefix (e.g. "@5"); strip it before parsing.
+        let Ok(tick_t) = body[..end].trim().trim_start_matches('@').parse::<i32>() else {
             continue;
         };
         tick_map.insert(tick_t, x);
