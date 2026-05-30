@@ -10,7 +10,9 @@ use crate::render_core::Rect;
 use crate::theme::ComponentStyle;
 
 use super::box_grid_edges::render_box_grid_relations_and_labels;
-use super::box_grid_frames::{render_box_grid_package_frames, BoxGridPackageFrameInputs};
+use super::box_grid_frames::{
+    render_box_grid_package_frames, render_box_grid_package_header_text, BoxGridPackageFrameInputs,
+};
 use super::box_grid_ports::apply_boundary_port_positions;
 use super::node_shapes::{render_family_node_shape_styled, DeploymentShapeBounds};
 use super::projections::render_family_projection_boxes;
@@ -542,6 +544,16 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         &pkg_frame_boxes,
         &gl_result.edge_paths,
         &comp_style,
+    );
+    // Bug #1374: Re-paint dark package header bands + text AFTER edge-label
+    // backgrounds so white label-bg rects that route through the header area
+    // cannot obscure the white header text.
+    render_box_grid_package_header_text(
+        &mut out,
+        &pkg_layouts,
+        &pkg_frame_widths,
+        pkg_tab,
+        &comp_style.border_color,
     );
     if !doc.json_projections.is_empty() {
         let proj_y = all_pkg_bottom.max(ungrouped_bottom) + 16;
