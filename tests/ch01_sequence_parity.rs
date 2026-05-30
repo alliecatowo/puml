@@ -212,23 +212,23 @@ deactivate Bob
     );
 
     assert!(
-        svg.contains("class=\"sequence-activation\" data-participant=\"Bob\" x=\"239\""),
+        svg.contains("class=\"sequence-activation\" data-participant=\"Bob\" x=\"151\""),
         "Bob activation bar should render around the lifeline"
     );
     assert!(
-        svg.contains("x1=\"84\" y1=\"88\" x2=\"239\" y2=\"88\""),
+        svg.contains("x1=\"56\" y1=\"80\" x2=\"151\" y2=\"80\""),
         "incoming call should stop at Bob's left activation edge"
     );
     assert!(
-        svg.contains("x1=\"249\" y1=\"128\" x2=\"399\" y2=\"128\""),
+        svg.contains("x1=\"161\" y1=\"108\" x2=\"251\" y2=\"108\""),
         "active Bob should send from its right activation edge"
     );
     assert!(
-        svg.contains("x1=\"399\" y1=\"168\" x2=\"249\" y2=\"168\""),
+        svg.contains("x1=\"251\" y1=\"136\" x2=\"161\" y2=\"136\""),
         "return to active Bob should land on its right activation edge"
     );
     assert!(
-        svg.contains("x1=\"239\" y1=\"208\" x2=\"84\" y2=\"208\""),
+        svg.contains("x1=\"151\" y1=\"164\" x2=\"56\" y2=\"164\""),
         "active Bob should reply from its left activation edge"
     );
 }
@@ -305,7 +305,7 @@ Bob --> Alice: done
     );
 
     let group_rect_ix = svg
-        .find("<rect x=\"24\" y=\"120\"")
+        .find("<rect x=\"16\" y=\"156\"")
         .expect("expected par group frame rect");
     let group_tail = &svg[group_rect_ix..];
     let height_attr_ix = group_tail
@@ -319,7 +319,7 @@ Bob --> Alice: done
     let group_height: i32 = svg[height_start..height_end]
         .parse()
         .expect("expected integer group frame height");
-    let group_bottom = 120 + group_height;
+    let group_bottom = 156 + group_height;
 
     let done_line_ix = svg
         .find("done</text>")
@@ -477,21 +477,21 @@ Alice -> Bob2: greet late participant
 Bob2 --> Alice: reply
 @enduml"#,
     );
-    // Alice and Bob header boxes appear at y=24 (the top margin).
+    // Alice and Bob header boxes appear at y=16 (the top margin).
     // Bob2's box must appear at a larger y (below the first message row).
-    // We extract the y-attribute of the rect whose width=120 (participant box width)
+    // We extract the y-attribute of the rect whose width=80 (participant box width)
     // and check that the one for Bob2 is not at the same y as Alice.
 
     let mut alice_y: Option<i32> = None;
     let mut bob2_y: Option<i32> = None;
 
-    // Collect all rect x/y pairs with width=120.
+    // Collect all rect x/y pairs with width=80.
     let mut search = svg.as_str();
     while let Some(rect_pos) = search.find("<rect ") {
         let tail = &search[rect_pos..];
-        // Only consider participant boxes (width="120")
-        if let Some(w_pos) = tail.find("width=\"120\"") {
-            let snippet = &tail[..w_pos + 16];
+        // Only consider participant boxes (width="80")
+        if let Some(w_pos) = tail.find("width=\"80\"") {
+            let snippet = &tail[..w_pos + 15];
             if let (Some(x_pos), Some(y_pos)) = (snippet.rfind("x=\""), snippet.rfind("y=\"")) {
                 let x_start = x_pos + 3;
                 let x_end = snippet[x_start..].find('"').map(|i| x_start + i);
@@ -500,10 +500,10 @@ Bob2 --> Alice: reply
                 if let (Some(xe), Some(ye)) = (x_end, y_end) {
                     let x_val: i32 = snippet[x_start..xe].parse().unwrap_or(-1);
                     let y_val: i32 = snippet[y_start..ye].parse().unwrap_or(-1);
-                    // Alice is at x=24, Bob at x=184, Bob2 at x=344.
-                    if x_val == 24 && alice_y.is_none() {
+                    // Alice is at x=16, Bob at x=116, Bob2 at x=216.
+                    if x_val == 16 && alice_y.is_none() {
                         alice_y = Some(y_val);
-                    } else if x_val == 344 && bob2_y.is_none() {
+                    } else if x_val == 216 && bob2_y.is_none() {
                         bob2_y = Some(y_val);
                     }
                 }
