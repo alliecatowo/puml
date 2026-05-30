@@ -415,6 +415,29 @@ impl Router for ChannelRouter {
 
             let track = *edge_track.get(&ei.edge_id).unwrap_or(&0);
 
+            // ── Side-port selection (#1323, #1327) ──────────────────────────────────
+            //
+            // When source and target share similar Y-coords (within ~30% of the
+            // taller node's height) AND are clearly separated horizontally, prefer
+            // left/right midpoint exits over top/bottom.  This avoids the
+            // unnecessary "exit bottom, loop back up" pattern that appears when
+            // two peer components are side-by-side.
+            //
+            // For package-framed targets (#1327): this logic ensures that the
+            // router snaps to the closest edge-midpoint of the *node* bbox, not
+            // the package frame corner.  When a node is clearly to the left/right
+            // of the source, exiting via the side mid-point is more natural and
+            // avoids anchoring on the package frame boundary.
+            let src_cx = sx + sw / 2.0;
+            let src_cy = sy + sh / 2.0;
+            let tgt_cx = tx + tw / 2.0;
+            let tgt_cy = ty + th / 2.0;
+            let dx = (tgt_cx - src_cx).abs();
+            let dy = (tgt_cy - src_cy).abs();
+            // Threshold: same-rank-ish means |dy| < 0.30 * max(sh, th, 1)
+            let side_threshold = 0.30 * sh.max(th).max(1.0);
+            let prefer_sides = dy < side_threshold && dx > sw.max(tw) * 0.5;
+
             let path = if ei.src_rank == ei.tgt_rank {
                 // Same-rank U-shape: exit bottom of source, route through channel
                 // below rank, enter bottom of target.
@@ -429,6 +452,34 @@ impl Router for ChannelRouter {
                     (tgt_bottom_x, ch_y),
                     (tgt_bottom_x, tgt_bottom_y),
                 ]
+            } else if prefer_sides {
+                // Side-exit routing: source exits via its left or right midpoint,
+                // target enters via its right or left midpoint.  A single horizontal
+                // segment connects them with one optional vertical jog if the midpoints
+                // differ in Y.
+                let (src_port_x, src_port_y) = if tgt_cx > src_cx {
+                    (sx + sw, src_cy) // exit right
+                } else {
+                    (sx, src_cy) // exit left
+                };
+                let (tgt_port_x, tgt_port_y) = if tgt_cx > src_cx {
+                    (tx, tgt_cy) // enter left
+                } else {
+                    (tx + tw, tgt_cy) // enter right
+                };
+                if (src_port_y - tgt_port_y).abs() < 2.0 {
+                    // Fully horizontal — single segment
+                    vec![(src_port_x, src_port_y), (tgt_port_x, tgt_port_y)]
+                } else {
+                    // One horizontal jog at the midpoint x
+                    let mid_x = (src_port_x + tgt_port_x) / 2.0;
+                    vec![
+                        (src_port_x, src_port_y),
+                        (mid_x, src_port_y),
+                        (mid_x, tgt_port_y),
+                        (tgt_port_x, tgt_port_y),
+                    ]
+                }
             } else {
                 // Cross-rank orthogonal path.
                 // Determine direction: downward (src_rank < tgt_rank) or upward.
@@ -440,7 +491,8 @@ impl Router for ChannelRouter {
                 } else {
                     (sx + sw / 2.0, sy)
                 };
-                // Target port: top if going down, bottom if going up.
+                // Target port: top if going down, bottom if going up (#1327: use
+                // node bbox edge midpoint, not package frame corner).
                 let (tgt_port_x, tgt_port_y) = if goes_down {
                     (tx + tw / 2.0, ty)
                 } else {
