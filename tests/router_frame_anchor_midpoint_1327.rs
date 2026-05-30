@@ -88,8 +88,8 @@ const SRC: &str = include_str!("../docs/diagrams/architecture-overview.puml");
 /// component's top edge (ty) or bottom edge (ty+th).
 #[test]
 fn edges_entering_framed_nodes_anchor_to_component_bbox_edge() {
-    let svg = render_source_to_svg(SRC)
-        .expect("architecture-overview.puml should render without error");
+    let svg =
+        render_source_to_svg(SRC).expect("architecture-overview.puml should render without error");
 
     // Edges that cross into package-framed components.
     // (from_alias, to_alias, target_label_text)
