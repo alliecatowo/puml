@@ -1,0 +1,11 @@
+@startuml
+title State Self-Transitions
+[*] --> Idle
+Idle --> Active : start()
+Active --> Active : process()
+Active --> Retrying : fail()
+Retrying --> Retrying : backoff
+Retrying --> Active : retry()
+Active --> Done : complete()
+Done --> [*]
+@enduml
