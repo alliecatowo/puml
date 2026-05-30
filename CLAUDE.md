@@ -457,8 +457,11 @@ Diagnose with coords, then re-verify the fix with PNG Read.
 | `oracle.yml` | Differential conformance against PlantUML JAR |
 
 Notes:
-- `differential-svg-oracle` is currently **NOT** a required check; will become required
-  once oracle JAR pinning is verified — do not treat a red oracle as a merge blocker yet
+- `differential-svg-oracle` is a **required** check; it is listed in `CHECK_CONTEXTS` in
+  `scripts/branch-protection.sh` and enforced via branch protection on main. The oracle
+  JAR is pinned at `PLANTUML_VERSION=1.2026.3` with SHA-256 verification in
+  `.github/workflows/oracle.yml`. A red oracle (exit 2 = <50% match, or exit 3 =
+  promoted fixture regression) is a hard merge blocker.
 - Coverage gate is `--fail-under-lines 85` in `scripts/check-all.sh`; bump it in Flow F
 - Docs drift check runs `python3 scripts/render_check.py --fail-on-doc-drift` without mutating tracked reports by default
 
