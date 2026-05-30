@@ -73,10 +73,10 @@ pub(super) fn state_orthogonal_label_segment(
 
     if y2 < y1 {
         let mid_x = state_upward_elbow_x(x1, x2);
-        longest_state_path_segment(&[(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)])
+        arclength_midpoint_state_path_segment(&[(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)])
     } else {
         let mid_y = y1 + (y2 - y1) / 2;
-        longest_state_path_segment(&[(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)])
+        arclength_midpoint_state_path_segment(&[(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)])
     }
 }
 
@@ -89,18 +89,37 @@ pub(crate) fn state_upward_elbow_x(x1: i32, x2: i32) -> i32 {
     }
 }
 
-pub(super) fn longest_state_path_segment(points: &[(i32, i32); 4]) -> (i32, i32, i32, i32) {
-    points
+/// Find the segment of the polyline that contains the arclength midpoint and
+/// return its endpoints.  `place_state_transition_label` uses the midpoint of
+/// the returned segment as the initial label anchor, so this pins the label to
+/// the visual centre of the full edge rather than to the longest segment.
+pub(super) fn arclength_midpoint_state_path_segment(
+    points: &[(i32, i32); 4],
+) -> (i32, i32, i32, i32) {
+    // Compute the total arclength of the polyline.
+    let seg_lens: Vec<f64> = points
         .windows(2)
-        .map(|segment| {
-            let (sx, sy) = segment[0];
-            let (ex, ey) = segment[1];
-            let len_sq = (ex - sx).pow(2) + (ey - sy).pow(2);
-            (len_sq, sx, sy, ex, ey)
+        .map(|s| {
+            let dx = (s[1].0 - s[0].0) as f64;
+            let dy = (s[1].1 - s[0].1) as f64;
+            (dx * dx + dy * dy).sqrt()
         })
-        .max_by_key(|(len_sq, _, _, _, _)| *len_sq)
-        .map(|(_, sx, sy, ex, ey)| (sx, sy, ex, ey))
-        .unwrap_or((points[0].0, points[0].1, points[3].0, points[3].1))
+        .collect();
+    let total: f64 = seg_lens.iter().sum();
+    if total < f64::EPSILON {
+        return (points[0].0, points[0].1, points[3].0, points[3].1);
+    }
+
+    // Walk segments until the accumulated length reaches the arclength midpoint.
+    let half = total / 2.0;
+    let mut acc = 0.0;
+    for (i, &seg_len) in seg_lens.iter().enumerate() {
+        if acc + seg_len >= half || i == seg_lens.len() - 1 {
+            return (points[i].0, points[i].1, points[i + 1].0, points[i + 1].1);
+        }
+        acc += seg_len;
+    }
+    (points[0].0, points[0].1, points[3].0, points[3].1)
 }
 
 pub(super) fn parse_state_note_on_link_direction(direction: Option<&str>) -> Option<(&str, &str)> {
