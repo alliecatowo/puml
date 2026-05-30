@@ -3518,7 +3518,8 @@ fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
         ("families/valid_object_bootstrap.puml", "Order"),
         ("families/valid_usecase_bootstrap.puml", "Authenticate"),
         ("families/valid_salt_bootstrap.puml", "submit_button"),
-        ("families/valid_class_members_block.puml", "+id: UUID"),
+        // Visibility-icon mode strips the '+' prefix from display text; check member name only.
+        ("families/valid_class_members_block.puml", "id: UUID"),
         ("families/valid_object_members_block.puml", "token = abc123"),
         ("families/valid_usecase_members_block.puml", "Authenticate"),
     ] {
@@ -5496,21 +5497,27 @@ fn class_inheritance_example_renders_fixture_text_and_relations() {
 
     for expected in [
         "Vehicle",
-        "+make: String",
-        "+model: String",
-        "+start()",
+        // Visibility-icon mode strips the '+' prefix from display text — check member name only.
+        "make: String",
+        "model: String",
+        "start()",
         "Car",
-        "+doors: Int",
-        "+drive()",
+        "doors: Int",
+        "drive()",
         "Truck",
-        "+payload: Float",
-        "+haul()",
+        "payload: Float",
+        "haul()",
     ] {
         assert!(
             svg.contains(expected),
             "missing class fixture text {expected}"
         );
     }
+    // Confirm that public visibility attributes are emitted (icon mode is on by default).
+    assert!(
+        svg.contains("data-uml-visibility=\"public\""),
+        "public member visibility attribute should be present in class fixture SVG"
+    );
 
     for (from, to) in [("Vehicle", "Car"), ("Vehicle", "Truck")] {
         assert!(
@@ -5891,17 +5898,11 @@ fn class_hide_options_suppress_circle_and_stereotype() {
         .stderr(predicate::str::is_empty());
 
     let svg = render_source_to_svg(&src).expect("rendered svg");
-    // When hide circle is active, no class-icon `<circle>` outside `<defs>`. Marker
-    // defs for arrowheads (added by wave-10-F: arrow-circle-open / arrow-circle-filled
-    // for IE crow's-foot endpoints) always live inside `<defs>` blocks and are not
-    // visible without a marker reference — they don't count as the suppressed icon.
-    let after_defs: &str = svg
-        .rsplit_once("</defs>")
-        .map(|(_, rest)| rest)
-        .unwrap_or(svg.as_str());
+    // When hide circle is active the class-type badge (uml-class-badge) should be suppressed.
+    // Note: `uml-vis-glyph` circles for member visibility are separate and still rendered.
     assert!(
-        !after_defs.contains("<circle"),
-        "SVG should not contain a class icon circle outside <defs> when hide circle is set"
+        !svg.contains("uml-class-badge"),
+        "SVG should not contain the class-type badge circle when hide circle is set: svg={svg}"
     );
     // When hide stereotype is active, the 'class' keyword label should not appear before node names
     // The node names themselves should still appear
@@ -5922,11 +5923,28 @@ fn class_visibility_markers_render_colored_symbols() {
         .stderr(predicate::str::is_empty());
 
     let svg = render_source_to_svg(&src).expect("rendered svg");
-    // Visibility symbols should appear as colored text elements
-    assert!(svg.contains("+"), "SVG should contain + visibility marker");
-    assert!(svg.contains("-"), "SVG should contain - visibility marker");
-    assert!(svg.contains("#"), "SVG should contain # visibility marker");
-    assert!(svg.contains("~"), "SVG should contain ~ visibility marker");
+    // Visibility-icon mode emits SVG glyph shapes and data-uml-visibility attributes
+    // instead of ASCII prefix characters in text elements.
+    assert!(
+        svg.contains("data-uml-visibility=\"public\""),
+        "SVG should contain public visibility attribute"
+    );
+    assert!(
+        svg.contains("data-uml-visibility=\"private\""),
+        "SVG should contain private visibility attribute"
+    );
+    assert!(
+        svg.contains("data-uml-visibility=\"protected\""),
+        "SVG should contain protected visibility attribute"
+    );
+    assert!(
+        svg.contains("data-uml-visibility=\"package\""),
+        "SVG should contain package visibility attribute"
+    );
+    assert!(
+        svg.contains("class=\"uml-vis-glyph\""),
+        "SVG should contain visibility glyph shapes"
+    );
     // Abstract and static modifiers should produce style attributes
     assert!(
         svg.contains("font-style=\"italic\""),
@@ -5974,8 +5992,9 @@ fn class_ch03_generics_member_refs_and_controls_render() {
 fn class_show_overrides_hidden_methods_for_specific_class() {
     let src = "@startuml\nhide methods\nclass A {\n  +field: int\n  +run()\n}\nclass B {\n  +field: int\n  +run()\n}\nshow B methods\n@enduml\n";
     let svg = render_source_to_svg(src).expect("show override should render");
+    // Visibility-icon mode strips '+' from display text; check member name count instead.
     assert!(
-        svg.matches("+run()").count() == 1,
+        svg.matches(">run()<").count() == 1,
         "only B.run should survive the show override: {svg}"
     );
 }

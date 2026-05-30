@@ -25,6 +25,7 @@ pub(super) fn render_class_node(
     class_style: &ClassStyle,
     namespace_separator: Option<&str>,
     hide_stereotype: bool,
+    hide_circle: bool,
 ) {
     let ClassNodeGeometry {
         x,
@@ -342,18 +343,21 @@ pub(super) fn render_class_node(
         FamilyNodeKind::Object => Some(("O", "#FFD54F", "#F57F17")),
         _ => None,
     };
-    if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
-        let badge_r = 8_i32;
-        let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
-        let badge_cy = name_ty - 4; // vertically centre on the name baseline
-        out.push_str(&format!(
-            "<circle class=\"uml-class-badge\" cx=\"{badge_cx}\" cy=\"{badge_cy}\" r=\"{badge_r}\" fill=\"{badge_fill}\" stroke=\"{badge_stroke}\" stroke-width=\"1\"/>",
-        ));
-        out.push_str(&format!(
-            "<text class=\"uml-class-badge-letter\" x=\"{badge_cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" font-weight=\"700\" fill=\"{badge_stroke}\">{badge_letter}</text>",
-            ty = badge_cy + 3, // +3 px to visually centre letter inside circle
-            ff = escape_text(font_family),
-        ));
+    // Suppress the badge when `hide circle` is active — PlantUML convention.
+    if !hide_circle {
+        if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
+            let badge_r = 8_i32;
+            let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
+            let badge_cy = name_ty - 4; // vertically centre on the name baseline
+            out.push_str(&format!(
+                "<circle class=\"uml-class-badge\" cx=\"{badge_cx}\" cy=\"{badge_cy}\" r=\"{badge_r}\" fill=\"{badge_fill}\" stroke=\"{badge_stroke}\" stroke-width=\"1\"/>",
+            ));
+            out.push_str(&format!(
+                "<text class=\"uml-class-badge-letter\" x=\"{badge_cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" font-weight=\"700\" fill=\"{badge_stroke}\">{badge_letter}</text>",
+                ty = badge_cy + 3, // +3 px to visually centre letter inside circle
+                ff = escape_text(font_family),
+            ));
+        }
     }
 
     out.push_str(&format!(
