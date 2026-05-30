@@ -44,14 +44,20 @@
       "path": "docs/examples/activity/01_simple_flow.puml",
       "family": "activity",
       "expected_text": ["Simple Activity Flow", "Initialize", "Process Data", "Save Results"],
-      "min_text_elements": 5
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "layout density retune (#1346); re-bless on Linux"
     },
     {
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
       "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
       "unexpected_text": ["(else) no", "(endif)"],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "layout density retune (#1346); re-bless on Linux"
     },
     {
       "path": "docs/examples/state/01_basic.puml",
@@ -87,7 +93,7 @@
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
-      "min_text_elements": 5,
+      "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
       "png_baseline_deferred_reason": "Polyline-default + group-frame obstacle re-land (#1343); re-bless on Linux"
@@ -123,7 +129,7 @@
       "path": "docs/examples/component/11_multiline_bracket_description.puml",
       "family": "component",
       "expected_text": ["Line 1", "Line 2"],
-      "min_text_elements": 2,
+      "min_text_elements": 1,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
       "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-component-usecase-visual-depth/11_multiline_bracket_description.png; baseline blessing deferred to Linux CI artifact inspection to avoid macOS raster drift."
@@ -132,7 +138,7 @@
       "path": "docs/examples/component/12_style_stereotype_targets.puml",
       "family": "component",
       "expected_text": ["Component style selectors and stereotypes", "Public API", "Worker", "Events", "HTTPS", "dispatch", "publish", "serve"],
-      "min_text_elements": 10,
+      "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 594,
       "png_baseline_deferred_reason": "PNG inspected at /tmp/puml-style-targets-component.png; new selector fixture is structural until renderer compactness baselines are refreshed consistently."
@@ -150,7 +156,7 @@
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
       "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
-      "min_text_elements": 8,
+      "min_text_elements": 5,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
       "png_baseline_deferred_reason": "Polyline-default routing change (#1343); re-bless on Linux"

@@ -501,27 +501,14 @@ pub(super) fn render_family_node_shape_styled(
         FamilyNodeKind::Interface | FamilyNodeKind::Port => label_last_y + 14,
         _ => y + 14,
     };
-    // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
-    // For `componentStyle rectangle`, suppress the stereotype text entirely.
-    // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
-    // shapes display their label in a tab/header already (fix #549).
-    let is_package_container = matches!(
-        node.kind,
-        FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
-    );
-    let is_rectangle_style_component = node.kind == FamilyNodeKind::Component
-        && comp_style.component_style_mode == ComponentStyleMode::Rectangle;
-    if !is_package_container && !is_rectangle_style_component && !hide_stereotype {
-        let kind_tag_text: std::borrow::Cow<str> = match node.kind {
-            FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
-            FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
-            _ => std::borrow::Cow::Borrowed(kind_label),
-        };
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-            cx, kind_tag_y, escape_text(font_color), escape_text(&kind_tag_text)
-        ));
-    }
+    // PlantUML parity (#1347): suppress the implicit kind-tag caption
+    // ("node", "database", "artifact", «component», «interface», …) entirely.
+    // The shape itself is sufficient signal of the kind, and PlantUML never
+    // emits these tags. User-supplied `<<stereotype>>` members are still
+    // rendered below via `render_node_stereotype_rows`. The previous fixes
+    // #525 (Component → «component») and #549 (suppress on Package/Rectangle/
+    // Folder containers and `componentStyle rectangle` components) are
+    // subsumed by this blanket suppression.
     if !hide_stereotype {
         render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
     }

@@ -1,7 +1,6 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::{creole_text, escape_text};
 
-use super::class_members::family_node_label;
 use super::tree::render_centered_multiline_text;
 
 pub(super) fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
@@ -76,7 +75,6 @@ pub(super) fn render_family_node_shape(
     let cx = x + w / 2;
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
-    let kind_label = family_node_label(node.kind);
     out.push_str(&format!(
         "<desc data-uml-id=\"{}\">{}</desc>",
         escape_text(&node.name),
@@ -275,20 +273,11 @@ pub(super) fn render_family_node_shape(
         | FamilyNodeKind::StateHistory => label_last_y + 14,
         _ => y + 14,
     };
-    // Suppress the kind-tag for package/rectangle/folder container nodes — they already
-    // show their label in a visual header/tab (fix #549).
-    let is_package_container = matches!(
-        node.kind,
-        FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
-    );
-    if !is_package_container && !hide_stereotype {
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
-            cx,
-            kind_tag_y,
-            kind_label
-        ));
-    }
+    // PlantUML parity (#1347): suppress the implicit kind-tag caption entirely.
+    // PlantUML never emits these decorative kind keywords; the shape itself is
+    // sufficient signal of the kind. Subsumes #549 (Package/Rectangle/Folder).
+    // User-supplied `<<stereotype>>` members are still rendered below via
+    // `render_node_stereotype_rows`.
     if !hide_stereotype {
         render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
     }

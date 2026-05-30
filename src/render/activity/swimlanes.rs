@@ -11,6 +11,11 @@ use crate::theme::ActivityStyle;
 /// `sequential_partition_lanes` is true).  When fork branches place a lane's
 /// nodes in an adjacent column, the lane background is extended leftward to
 /// include those nodes so the frame visually contains its children.
+///
+/// `partitions_declared` distinguishes the implicit single-`"default"` lane
+/// (no partition keyword in source) from a real declared lane that happens
+/// to be named "default". When false, the dashed lane-body rect for the
+/// implicit default lane is suppressed for PlantUML parity (#1348).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_lanes(
     out: &mut String,
@@ -29,6 +34,7 @@ pub(super) fn emit_lanes(
     lane_fills: &std::collections::BTreeMap<String, String>,
     lane_bold: &std::collections::BTreeSet<String>,
     lane_stereotypes: &std::collections::BTreeMap<String, String>,
+    partitions_declared: bool,
 ) {
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
@@ -89,15 +95,23 @@ pub(super) fn emit_lanes(
             continue;
         }
 
-        // Lane body (below header)
-        out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-            lx,
-            header_h + lane_header_h,
-            lane_w,
-            height - header_h - lane_header_h - 20,
-            bg
-        ));
+        // Lane body (below header).
+        // PlantUML parity (#1348): suppress the outer dashed bounding rect
+        // for the implicit single "default" lane when the user did not
+        // declare any partitions. A real declared partition named "default"
+        // is rare; for that case `partitions_declared` is true and the rect
+        // is drawn as before.
+        let suppress_default_body = lane == "default" && !partitions_declared;
+        if !suppress_default_body {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                lx,
+                header_h + lane_header_h,
+                lane_w,
+                height - header_h - lane_header_h - 20,
+                bg
+            ));
+        }
         if lane != "default" {
             // Lane header box
             out.push_str(&format!(

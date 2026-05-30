@@ -55,10 +55,13 @@ fn component_style_uml2_is_default() {
         !svg.contains("data-component-style=\"uml1\""),
         "uml2 default should NOT use uml1 style"
     );
-    // The «component» stereotype text should be present.
+    // PlantUML parity (#1347): the implicit «component» kind-tag caption is
+    // suppressed in every style. The shape itself signals the kind, and
+    // PlantUML emits no such caption. Only user-supplied <<stereotype>>
+    // members are rendered.
     assert!(
-        svg.contains("component"),
-        "uml2 default should show «component» stereotype"
+        !svg.contains("«component»") && !svg.contains("&laquo;component&raquo;"),
+        "uml2 default must NOT emit the implicit «component» kind-tag caption (#1347)"
     );
 }
 

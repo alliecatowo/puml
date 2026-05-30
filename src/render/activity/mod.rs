@@ -350,11 +350,19 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             y_cursor += 22;
         }
     }
-    out.push_str(&format!(
-        "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">activity diagram</text>",
-        y_cursor + 2,
-        escape_text(&act_style.font_color)
-    ));
+    // PlantUML parity (#1348): the unconditional "activity diagram" subtitle
+    // emission was removed — PlantUML never draws a family-name caption beneath
+    // the title. The `y_cursor` advance that used to follow is also gone since
+    // no text is written here; the swim-lane block starts directly below the
+    // (possibly empty) title.
+    let _ = y_cursor;
+
+    // PlantUML parity (#1348): only draw the default-lane dashed bounding rect
+    // when the user has explicitly declared at least one partition. With no
+    // declared partitions, `lanes` is exactly `["default"]` (the fallback
+    // inserted above), which PlantUML draws as a clean canvas without any
+    // outer lane frame.
+    let partitions_declared = !(lanes.len() == 1 && lanes[0] == "default");
 
     // Swim-lane backgrounds + headers
     swimlanes::emit_lanes(
@@ -374,6 +382,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         &lane_fills,
         &lane_bold,
         &lane_stereotypes,
+        partitions_declared,
     );
 
     // Pass 2: nodes + arrows

@@ -3453,7 +3453,10 @@ fn extended_family_fixtures_pass_check_and_render_svg() {
         // Wave 3-A (#490 #494) suppressed the leaky "<family> diagram" canvas
         // text. Each marker now asserts on a structural element actually emitted
         // by the renderer for that family.
-        ("families/valid_component.puml", "«component»"),
+        // PlantUML parity (#1347) also suppressed the implicit «component»
+        // kind-tag caption, so the component family marker now asserts on the
+        // styled component-rect class that is always emitted.
+        ("families/valid_component.puml", "uml-component"),
         ("families/valid_deployment.puml", "<polygon"),
         ("families/valid_state.puml", "<rect"),
         ("families/valid_activity.puml", "<rect"),
@@ -6043,8 +6046,12 @@ fn component_family_canvas_keeps_rightmost_nodes_inside_viewbox() {
             .max()
             .unwrap_or(0);
         let rightmost_drawn = rightmost_component.max(rightmost_interface);
+        // After the PlantUML density retune (#1346) the right gutter is
+        // tighter (8px default + per-relation-label allowance). The
+        // viewbox still encloses the rightmost shape with at least a
+        // narrow safety margin; reduced from the pre-#1346 24px slack.
         assert!(
-            svg_width >= rightmost_drawn + 24,
+            svg_width >= rightmost_drawn + 4,
             "rightmost component/interface should keep a right margin"
         );
     }
@@ -6092,12 +6099,15 @@ fn component_same_source_labels_keep_branch_midpoints_when_not_overlapping() {
     .expect("component deployment-style example should render");
     let routes = svg_text_positions(&svg, "routes");
     assert_eq!(routes.len(), 2, "expected two route labels");
+    // After the PlantUML density retune (#1346) the per-branch column centers
+    // shifted leftward; the two labels still sit near their respective
+    // branch midpoints, just at the new coordinates.
     assert!(
-        routes.iter().any(|&(x, _)| (250..=310).contains(&x)),
+        routes.iter().any(|&(x, _)| (190..=260).contains(&x)),
         "left branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
     assert!(
-        routes.iter().any(|&(x, _)| (395..=445).contains(&x)),
+        routes.iter().any(|&(x, _)| (310..=380).contains(&x)),
         "right branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
 }
@@ -6191,7 +6201,12 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 #[test]
 fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
     for (example_path, max_width, max_aspect) in [
-        ("deployment/07_ch08_keyword_parity.puml", 2600, 1.2),
+        // aspect relaxed to 1.4 after the PlantUML density retune (#1346):
+        // tighter rank/node separation compresses the vertical axis more
+        // than the horizontal, naturally widening the aspect ratio without
+        // re-introducing the pathological one-row whitespace shape this
+        // test guards against.
+        ("deployment/07_ch08_keyword_parity.puml", 2600, 1.4),
         // aspect relaxed to 2.1: is_real_usecase_layout now detects this
         // diagram (actors + usecases + rectangle groups) as a usecase layout,
         // reducing row_gap from 64→46 which produces a wider aspect.
