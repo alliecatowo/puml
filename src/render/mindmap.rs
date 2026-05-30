@@ -18,7 +18,7 @@ use labels::{multiline_char_width, prepare_mindmap_label, render_mindmap_node_la
 use nodes::{draw_mindmap_subtree, mindmap_empty_svg};
 use style::mindmap_node_fill_resolved;
 use style::{mindmap_node_border_color, mindmap_node_font_color, mindmap_style};
-use tree::{assign_y_positions, family_tree_child_indices};
+use tree::{assign_y_positions, family_tree_child_indices, subtree_slot_height};
 use wbs::wbs_orientation_attr;
 
 pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
@@ -115,38 +115,19 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
         .filter(|&i| nodes[i].depth == 1 && side[i] == MindMapSide::Left)
         .collect();
 
-    // For each depth-1 subtree, compute total height = number of descendants + self.
-    fn subtree_leaf_count(nodes: &[crate::model::FamilyNode], idx: usize) -> usize {
-        let depth = nodes[idx].depth;
-        let children_count: usize = (idx + 1..nodes.len())
-            .take_while(|&j| nodes[j].depth > depth)
-            .filter(|&j| nodes[j].depth == depth + 1)
-            .count();
-        if children_count == 0 {
-            return 1;
-        }
-        let mut total = 0usize;
-        let mut j = idx + 1;
-        while j < nodes.len() && nodes[j].depth > depth {
-            if nodes[j].depth == depth + 1 {
-                total += subtree_leaf_count(nodes, j);
-            }
-            j += 1;
-        }
-        total
-    }
-
-    // Assign y positions for right-side depth-1 nodes.
-    let total_right_leaves: usize = right_roots
+    // Compute the total vertical slot (in pixels) consumed by each side's
+    // subtrees.  Unlike a simple leaf-count, this accounts for multi-line
+    // labels which require taller slots to avoid node overlap.
+    let total_right_slots: i32 = right_roots
         .iter()
-        .map(|&i| subtree_leaf_count(nodes, i))
+        .map(|&i| subtree_slot_height(nodes, &display_names, i, NODE_H, Y_STEP))
         .sum();
-    let total_left_leaves: usize = left_roots
+    let total_left_slots: i32 = left_roots
         .iter()
-        .map(|&i| subtree_leaf_count(nodes, i))
+        .map(|&i| subtree_slot_height(nodes, &display_names, i, NODE_H, Y_STEP))
         .sum();
-    let max_leaves = total_right_leaves.max(total_left_leaves).max(1);
-    let canvas_h = (max_leaves as i32) * Y_STEP + 2 * MARGIN + NODE_H;
+    let max_slots = total_right_slots.max(total_left_slots).max(Y_STEP);
+    let canvas_h = max_slots + 2 * MARGIN + NODE_H;
 
     // Max text width for nodes — simple heuristic.
     fn node_width(name: &str, maximum_width: Option<i32>) -> i32 {
@@ -183,15 +164,34 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let root_cy = canvas_h / 2;
 
     // Draw nodes recursively — track y-cursors per side.
-    // We assign y by a preorder traversal respecting leaf count.
+    // We assign y by a preorder traversal that uses per-node slot heights so
+    // multi-line labels don't cause sibling overlap.
     let mut y_positions = vec![0i32; n];
     {
-        // Right side
-        let mut y_cursor = root_cy - (total_right_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
-        assign_y_positions(nodes, &right_roots, &mut y_positions, &mut y_cursor, Y_STEP);
-        // Left side
-        y_cursor = root_cy - (total_left_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
-        assign_y_positions(nodes, &left_roots, &mut y_positions, &mut y_cursor, Y_STEP);
+        // Right side: center the block of subtrees around root_cy.
+        let right_start = root_cy - total_right_slots / 2;
+        let mut y_cursor = right_start;
+        assign_y_positions(
+            nodes,
+            &display_names,
+            &right_roots,
+            &mut y_positions,
+            &mut y_cursor,
+            NODE_H,
+            Y_STEP,
+        );
+        // Left side: same centering logic.
+        let left_start = root_cy - total_left_slots / 2;
+        y_cursor = left_start;
+        assign_y_positions(
+            nodes,
+            &display_names,
+            &left_roots,
+            &mut y_positions,
+            &mut y_cursor,
+            NODE_H,
+            Y_STEP,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
