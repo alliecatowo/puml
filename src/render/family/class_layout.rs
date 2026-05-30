@@ -257,6 +257,156 @@ pub(super) fn class_run_layout(
         }
     }
 
+    // Bug #1373 (actors inside system boundary): In usecase diagrams that have
+    // `rectangle` system-boundary groups, actors may land at the same rank as
+    // isolated usecases inside the boundary (e.g. "Apply Promo Code" which has
+    // no incoming actor edge).  The group frame rect is then drawn starting at
+    // or above the actor row, placing actors visually inside the frame.
+    //
+    // Fix (post-layout shift): After populating node_boxes, compute the group
+    // frame rect for each boundary rectangle.  If any actor node box overlaps
+    // with a frame (actor y < frame_bottom), shift ALL non-actor (usecase) node
+    // boxes DOWN by enough to push the frame top below the lowest actor bottom.
+    // This keeps actors at their original positions and moves the frame away.
+    //
+    // Edge paths are re-snapped to node_boxes by class_relations, so the first
+    // and second waypoints are recalculated from the new positions automatically.
+    if is_usecase {
+        // Find all actor node keys.
+        let actor_keys: std::collections::BTreeSet<String> = document
+            .nodes
+            .iter()
+            .filter(|n| {
+                matches!(
+                    n.kind,
+                    FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor | FamilyNodeKind::Person
+                )
+            })
+            .flat_map(|n| {
+                let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+                std::iter::once(key.clone())
+                    .chain(n.alias.as_ref().map(|_| n.name.clone()))
+                    .chain(key.rsplit("::").next().map(|s| s.to_string()))
+            })
+            .collect();
+
+        // Compute actor bottom y (lowest bottom edge among all actor nodes).
+        let actor_bottom_y: i32 = node_boxes
+            .iter()
+            .filter(|(k, _)| actor_keys.contains(*k))
+            .map(|(_, bx)| bx.y + bx.h)
+            .max()
+            .unwrap_or(0);
+
+        // Compute the minimum frame top y across all rectangle groups that
+        // have at least one usecase member in node_boxes.
+        let mut min_frame_top: Option<i32> = None;
+        for group in &document.groups {
+            if group.kind != "rectangle" {
+                continue;
+            }
+            // Build a temporary RenderGroupFrame with only usecase members.
+            let uc_member_ids: Vec<String> = group
+                .member_ids
+                .iter()
+                .filter(|mid| {
+                    let resolved = resolve_gl(mid);
+                    document.nodes.iter().any(|n| {
+                        (n.alias.as_deref() == Some(resolved.as_str()) || n.name == resolved)
+                            && matches!(
+                                n.kind,
+                                FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
+                            )
+                    })
+                })
+                .cloned()
+                .collect();
+            if uc_member_ids.is_empty() {
+                continue;
+            }
+            // Compute the frame top y manually: min(member.y) - pad - label_header.
+            // Use the same constants as class_group_frame_rect.
+            use super::group_frames::{
+                CLASS_GROUP_BASE_PAD, CLASS_GROUP_LABEL_GAP, CLASS_GROUP_TAB_HEIGHT,
+            };
+            let depth = 0usize; // rectangle groups are depth 0
+            let max_group_depth_local = 1usize; // assume depth 0 in a 1-level hierarchy
+            let depth_outset = (max_group_depth_local.saturating_sub(depth) as i32) * 18; // CLASS_GROUP_DEPTH_OUTSET
+            let pad = CLASS_GROUP_BASE_PAD + depth_outset;
+            let label_header = CLASS_GROUP_TAB_HEIGHT + CLASS_GROUP_LABEL_GAP + depth_outset;
+            let gy_min: Option<i32> = uc_member_ids
+                .iter()
+                .filter_map(|mid| {
+                    let resolved = resolve_gl(mid);
+                    node_boxes.get(resolved.as_str()).map(|bx| bx.y)
+                })
+                .min();
+            if let Some(gy) = gy_min {
+                let frame_top = gy - pad - label_header;
+                min_frame_top = Some(min_frame_top.map_or(frame_top, |m: i32| m.min(frame_top)));
+            }
+        }
+
+        // If any actor's bottom is below the frame top (actors inside frame),
+        // shift all non-actor nodes DOWN so the frame top is `margin` pixels
+        // below the lowest actor bottom.
+        const ACTOR_BOUNDARY_MARGIN: i32 = 20;
+        if let Some(frame_top) = min_frame_top {
+            if actor_bottom_y > frame_top {
+                // Needed downward shift for non-actor nodes.
+                let shift = (actor_bottom_y - frame_top) + ACTOR_BOUNDARY_MARGIN;
+                // Collect non-actor primary keys.
+                let non_actor_primary_keys: Vec<String> = document
+                    .nodes
+                    .iter()
+                    .filter(|n| {
+                        !matches!(
+                            n.kind,
+                            FamilyNodeKind::Actor
+                                | FamilyNodeKind::BusinessActor
+                                | FamilyNodeKind::Person
+                        )
+                    })
+                    .map(|n| n.alias.clone().unwrap_or_else(|| n.name.clone()))
+                    .collect();
+                for key in &non_actor_primary_keys {
+                    if let Some(bx) = node_boxes.get_mut(key) {
+                        bx.y += shift;
+                    }
+                    // Also update alias/name secondary keys.
+                    if let Some(node) = document
+                        .nodes
+                        .iter()
+                        .find(|n| n.alias.as_deref() == Some(key.as_str()) || &n.name == key)
+                    {
+                        if let Some(alias) = &node.alias {
+                            if alias != key {
+                                if let Some(bx) = node_boxes.get_mut(alias.as_str()) {
+                                    bx.y += shift;
+                                }
+                            }
+                            if &node.name != key {
+                                if let Some(bx) = node_boxes.get_mut(&node.name) {
+                                    bx.y += shift;
+                                }
+                            }
+                        }
+                        // Unscoped name.
+                        if key.contains("::") {
+                            if let Some(unscoped) = key.rsplit("::").next() {
+                                if let Some(bx) = node_boxes.get_mut(unscoped) {
+                                    bx.y += shift;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Also update gl_result canvas height to accommodate the shift.
+                gl_result.canvas_height += shift as f64;
+            }
+        }
+    }
+
     (gl_result, node_boxes)
 }
 
