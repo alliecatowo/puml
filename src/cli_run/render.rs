@@ -1,7 +1,7 @@
 use super::{
     diagnostics::{
-        diag_err_mapped_label, emit_diagnostics_label, emit_warnings_for_model_label,
-        DiagnosticOutput,
+        diag_err_mapped_label, emit_diagnostics_label, emit_hint_for_message,
+        emit_warnings_for_model_label, DiagnosticOutput,
     },
     input::InputDiagram,
     output::{
@@ -42,12 +42,75 @@ pub(super) fn run_render_mode(
             pluralize_threads(cli.threads)
         );
     }
-    let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        // Short-circuit for specialized families (math, ditaa, etc.) after the
-        // same preprocessor pass used by check/dump routes.
-        // Text modes intentionally route through normalized models instead.
-        if cli.format.uses_svg_renderer() && specialized::is_specialized_source(&source.source) {
-            let preprocessed = preprocess_for_cli(
+    let n = diagrams.len();
+    let emit_progress = !cli.quiet && (n > 1 || from_markdown || cli.verbose);
+    let outputs = diagrams
+        .iter()
+        .enumerate()
+        .try_fold(Vec::new(), |mut all, (idx, source)| {
+            if emit_progress {
+                let label = source
+                    .output_name_hint
+                    .as_deref()
+                    .or(input_label)
+                    .unwrap_or("<stdin>");
+                eprintln!("[{}/{}] rendering {}...", idx + 1, n, label);
+            }
+            // Short-circuit for specialized families (math, ditaa, etc.) after the
+            // same preprocessor pass used by check/dump routes.
+            // Text modes intentionally route through normalized models instead.
+            if cli.format.uses_svg_renderer() && specialized::is_specialized_source(&source.source)
+            {
+                let preprocessed = preprocess_for_cli(
+                    &source.source,
+                    include_root.clone(),
+                    cli.dialect,
+                    cli.compat,
+                    source.frontend_hint,
+                    cli.allow_url_includes,
+                    inject_vars.clone(),
+                )
+                .map_err(|d| {
+                    diag_err_mapped_label(
+                        raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label,
+                    )
+                })?;
+                let result =
+                    specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
+                        (
+                    EXIT_VALIDATION,
+                    "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family"
+                        .to_string(),
+                )
+                    })?;
+                let svg = result.map_err(|d| {
+                    diag_err_mapped_label(
+                        raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label,
+                    )
+                })?;
+                let name_hint = source
+                    .output_name_hint
+                    .as_ref()
+                    .map(|base| format!("{base}.{}", cli.format.extension()));
+                let artifact = puml::render::RenderArtifact::svg_only(svg);
+                all.push(RenderedArtifactOutput {
+                    name_hint,
+                    content: render_artifact_export_content(&artifact, cli.format),
+                    artifact: Some(puml::output::RenderArtifactOutputMetadata::from_artifact(
+                        &artifact,
+                    )),
+                });
+                return Ok(all);
+            }
+            let parse_result = parse_for_cli_with_diagnostics(
                 &source.source,
                 include_root.clone(),
                 cli.dialect,
@@ -59,83 +122,52 @@ pub(super) fn run_render_mode(
             .map_err(|d| {
                 diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
             })?;
-            let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
-                (
-                    EXIT_VALIDATION,
-                    "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family"
-                        .to_string(),
-                )
-            })?;
-            let svg = result.map_err(|d| {
-                diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
-            })?;
-            let name_hint = source
-                .output_name_hint
-                .as_ref()
-                .map(|base| format!("{base}.{}", cli.format.extension()));
-            let artifact = puml::render::RenderArtifact::svg_only(svg);
-            all.push(RenderedArtifactOutput {
-                name_hint,
-                content: render_artifact_export_content(&artifact, cli.format),
-                artifact: Some(puml::output::RenderArtifactOutputMetadata::from_artifact(
-                    &artifact,
-                )),
-            });
-            return Ok(all);
-        }
-        let parse_result = parse_for_cli_with_diagnostics(
-            &source.source,
-            include_root.clone(),
-            cli.dialect,
-            cli.compat,
-            source.frontend_hint,
-            cli.allow_url_includes,
-            inject_vars.clone(),
-        )
-        .map_err(|d| {
-            diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
+            let model =
+                normalize_for_cli(parse_result.document, include_root.clone()).map_err(|d| {
+                    diag_err_mapped_label(
+                        raw,
+                        source.source_span,
+                        d,
+                        diagnostics_output,
+                        input_label,
+                    )
+                })?;
+            emit_diagnostics_label(
+                &parse_result.diagnostics,
+                raw,
+                source.source_span,
+                diagnostics_output,
+                input_label,
+            );
+            emit_warnings_for_model_label(
+                &model,
+                raw,
+                source.source_span,
+                diagnostics_output,
+                input_label,
+            );
+            let pages = render_pages_from_model(&model, cli.format);
+            let page_count = pages.len();
+            for (page_idx, mut output) in pages.into_iter().enumerate() {
+                output.name_hint = source.output_name_hint.as_ref().map(|base| {
+                    if page_count == 1 {
+                        format!("{base}.{}", cli.format.extension())
+                    } else {
+                        format!("{base}-{}.{}", page_idx + 1, cli.format.extension())
+                    }
+                });
+                all.push(output);
+            }
+            Ok::<_, (u8, String)>(all)
         })?;
-        let model =
-            normalize_for_cli(parse_result.document, include_root.clone()).map_err(|d| {
-                diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
-            })?;
-        emit_diagnostics_label(
-            &parse_result.diagnostics,
-            raw,
-            source.source_span,
-            diagnostics_output,
-            input_label,
-        );
-        emit_warnings_for_model_label(
-            &model,
-            raw,
-            source.source_span,
-            diagnostics_output,
-            input_label,
-        );
-        let pages = render_pages_from_model(&model, cli.format);
-        let page_count = pages.len();
-        for (page_idx, mut output) in pages.into_iter().enumerate() {
-            output.name_hint = source.output_name_hint.as_ref().map(|base| {
-                if page_count == 1 {
-                    format!("{base}.{}", cli.format.extension())
-                } else {
-                    format!("{base}-{}.{}", page_idx + 1, cli.format.extension())
-                }
-            });
-            all.push(output);
-        }
-        Ok::<_, (u8, String)>(all)
-    })?;
     if cli.verbose {
         eprintln!("[verbose] rendered {} output artifact(s)", outputs.len());
     }
 
     if input_path.is_none() && outputs.len() > 1 && !cli.multi {
-        return Err((
-            EXIT_VALIDATION,
-            "multiple pages detected; rerun with --multi".to_string(),
-        ));
+        let msg = "multiple pages detected; rerun with --multi";
+        emit_hint_for_message(msg, diagnostics_output);
+        return Err((EXIT_VALIDATION, msg.to_string()));
     }
 
     if input_path.is_none() && outputs.len() > 1 {

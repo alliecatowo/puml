@@ -20,6 +20,35 @@ Unsupported parity formats such as `-tlatex` and `-tlatex:nopreamble` are parsed
 and exit with code `2` using a deterministic diagnostic that lists the supported
 formats.
 
+## Color and output control
+
+`puml` supports ANSI color in human-readable diagnostic output.
+
+```bash
+puml --color auto   # default: color when stderr is a TTY and NO_COLOR is unset
+puml --color always # force color even when piped
+puml --color never  # suppress color unconditionally
+```
+
+Setting the environment variable `NO_COLOR=1` has the same effect as `--color never`
+when `--color auto` (the default) is in use. JSON (`--diagnostics json`) and stdrpt
+(`--stdrpt`) output are never colored regardless of `--color`.
+
+When rendering multiple diagrams (from a multi-block input, `--multi`, or a Markdown
+file with `--from-markdown`), progress lines are written to stderr:
+
+```
+[1/3] rendering diagram_snippet_1...
+[2/3] rendering diagram_snippet_2...
+[3/3] rendering diagram_snippet_3...
+```
+
+For common errors, `puml` emits a `hint:` line suggesting a corrective flag:
+
+- When URL includes are rejected: `hint: rerun with --allow-url-includes to permit URL includes`
+- When multiple `@startuml` blocks are found on stdin without `--multi`: hint to add `--multi`
+- When a Markdown file has no recognized fence block: hint to wrap source in ` ```puml ``` `
+
 Compatibility flags:
 
 | Flag | Behavior |

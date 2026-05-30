@@ -22,6 +22,40 @@ pub(super) struct DiagnosticOutput {
     pub(super) color_enabled: bool,
 }
 
+/// Diagnostic hint codes that trigger an actionable suggestion in human output.
+const HINT_URL_DISABLED: &[&str] = &["E_INCLUDE_URL_DISABLED", "E_IMPORT_URL_DISABLED"];
+
+/// Return an optional hint string for a diagnostic message.
+/// Hints are shown only in human format, appended after the main diagnostic.
+pub(super) fn hint_for_diagnostic(message: &str) -> Option<&'static str> {
+    // URL include rejection → suggest --allow-url-includes
+    for code in HINT_URL_DISABLED {
+        if message.contains(code) {
+            return Some("hint: rerun with --allow-url-includes to permit URL includes");
+        }
+    }
+    // Multiple diagrams or pages on stdin → suggest --multi
+    if message.contains("multiple diagrams detected")
+        || message.contains("multiple pages detected")
+        || message.contains("rerun with --multi")
+    {
+        return Some("hint: rerun with --multi to allow multiple @startuml blocks or pages");
+    }
+    None
+}
+
+/// Return an optional hint string for a plain (non-Diagnostic) error message.
+/// Used for higher-level error strings that are not wrapped in a Diagnostic.
+pub(super) fn hint_for_error_message(message: &str) -> Option<&'static str> {
+    // No markdown fences found → suggest wrapping in a fence block
+    if message.contains("no supported markdown diagram fences found") {
+        return Some(
+            "hint: wrap diagram source in a fenced code block, e.g. ```puml ... ``` (or plantuml, uml, mermaid)"
+        );
+    }
+    hint_for_diagnostic(message)
+}
+
 pub(super) fn should_color_human_diagnostics(choice: CliColorChoice) -> bool {
     match choice {
         CliColorChoice::Always => true,
@@ -39,12 +73,38 @@ pub(super) fn diag_err_with_source_label(
     file_label: Option<&str>,
 ) -> (u8, String) {
     match output.format {
-        DiagnosticsFormat::Human => (
-            EXIT_VALIDATION,
-            render_human_diagnostic_label(&d, source, output.color_enabled, file_label),
-        ),
+        DiagnosticsFormat::Human => {
+            let mut rendered =
+                render_human_diagnostic_label(&d, source, output.color_enabled, file_label);
+            if let Some(hint) = hint_for_diagnostic(&d.message) {
+                let hint_line = if output.color_enabled {
+                    ansi(hint, "2")
+                } else {
+                    hint.to_string()
+                };
+                rendered.push('\n');
+                rendered.push_str(&hint_line);
+            }
+            (EXIT_VALIDATION, rendered)
+        }
         DiagnosticsFormat::Json => (EXIT_VALIDATION, diagnostics_json_payload(vec![d], source)),
         DiagnosticsFormat::Stdrpt => (EXIT_VALIDATION, diagnostic_stdrpt(&d, source)),
+    }
+}
+
+/// Emit a hint line to stderr in human-format output.
+/// Only emits when the output format is Human and there is a hint for the given message.
+pub(super) fn emit_hint_for_message(message: &str, output: DiagnosticOutput) {
+    if output.format != DiagnosticsFormat::Human {
+        return;
+    }
+    if let Some(hint) = hint_for_diagnostic(message) {
+        let hint_line = if output.color_enabled {
+            ansi(hint, "2")
+        } else {
+            hint.to_string()
+        };
+        eprintln!("{hint_line}");
     }
 }
 
