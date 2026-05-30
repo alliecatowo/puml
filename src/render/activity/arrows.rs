@@ -538,6 +538,7 @@ pub(super) fn emit_activity_arrow_with_style_routed(
 /// arrow path uses [`emit_activity_arrow_with_style_routed`] instead), but
 /// retained so it is available for future call sites and tests.
 #[allow(dead_code)] // pub(super) API available for tests; not currently wired into mod.rs
+#[allow(clippy::too_many_arguments)] // coordinates + color + bboxes + routing; mirrors emit_activity_arrow_with_style_routed signature
 pub(super) fn emit_activity_arrow_routed(
     out: &mut String,
     x1: i32,
