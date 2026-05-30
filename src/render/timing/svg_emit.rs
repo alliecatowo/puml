@@ -52,9 +52,8 @@ pub(super) fn render_timing_svg_header(
             ty += 22;
         }
     }
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#94a3b8\">timing diagram</text>",
-    ));
+    // Kind-tag suppression (#1372): PlantUML does not render "timing diagram"
+    // as an auto-subtitle, so we suppress it.
     out
 }
 

@@ -98,7 +98,10 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
     } else {
         52
     };
-    let height = 92 + network_height + top_level_row_height;
+    // When there is no explicit title the 24px title-band is suppressed, so
+    // reduce the canvas height accordingly.
+    let title_h = if document.title.is_some() { 24 } else { 0 };
+    let height = 68 + title_h + network_height + top_level_row_height;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
@@ -106,12 +109,17 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
     let mut y = 28;
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
-        y,
-        escape_text(document.title.as_deref().unwrap_or("Network diagram"))
-    ));
-    y += 24;
+    // Kind-tag suppression (#1372): only render the title band when the user
+    // explicitly set a title via `title …`.  PlantUML does not emit "Network
+    // diagram" as an auto-subtitle, so we suppress the default.
+    if let Some(title_text) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+            y,
+            escape_text(title_text)
+        ));
+        y += 24;
+    }
     let shared_node_spans = shared_node_spans(document, &column_x, &column_widths, y);
     let mut network_lanes = Vec::new();
 

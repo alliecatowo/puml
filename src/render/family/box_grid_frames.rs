@@ -129,7 +129,14 @@ pub(super) fn render_box_grid_package_frames(
             let fy = gy_min - pad - label_h;
             let fw = gx_max - gx_min + pad * 2;
             let fh = gy_max - gy_min + pad * 2 + label_h;
-            let sub_label = frame.display_label();
+            // Kind-tag suppression (#1372): use label-only (no "package " prefix)
+            // for sub-frame headers in component/deployment diagrams.
+            let sub_label = frame
+                .label
+                .as_deref()
+                .filter(|l| !l.is_empty())
+                .unwrap_or(frame.kind.as_str())
+                .to_string();
             out.push_str(&format!(
             "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
             escape_text(&frame.scope),

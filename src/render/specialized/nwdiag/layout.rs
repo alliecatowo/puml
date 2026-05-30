@@ -72,12 +72,15 @@ pub(super) fn network_geometry(
 }
 
 pub(super) fn network_label(network: &NwdiagNetwork) -> String {
+    // Kind-tag suppression (#1372): omit the "network " prefix from segment
+    // titles.  PlantUML renders only the segment name (plus CIDR on the bar),
+    // not the "network" keyword.
     let name = network.label.as_deref().unwrap_or(&network.name).trim();
     match (name.is_empty(), network.address.as_deref()) {
-        (true, Some(address)) => format!("network ({address})"),
-        (true, None) => "network".to_string(),
-        (false, Some(address)) => format!("network {name} ({address})"),
-        (false, None) => format!("network {name}"),
+        (true, Some(address)) => format!("({address})"),
+        (true, None) => String::new(),
+        (false, Some(address)) => format!("{name} ({address})"),
+        (false, None) => name.to_string(),
     }
 }
 
