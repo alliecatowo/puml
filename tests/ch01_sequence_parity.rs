@@ -531,22 +531,22 @@ Alice -> Bob2: greet
 Bob2 --> Alice: reply
 @enduml"#,
     );
-    // Bob2's lifeline is the vertical dashed line at x=404.
+    // Bob2's lifeline is the vertical dashed line at x=256 (post-density-retune slot).
     // It should start below the participant_top + participant_height zone.
-    // The standard lifeline start for Alice/Bob would be y=56 (24+32).
-    // Bob2's should be higher than that.
+    // The standard lifeline start for Alice/Bob would be y=48 (16+32).
+    // Bob2's lifeline starts after the creation row, not at the top.
     let svg_lower = svg.to_ascii_lowercase();
-    // Ensure Bob2 still has a lifeline (dashed line at x=404).
+    // Ensure Bob2 still has a lifeline (dashed line at x=256).
     assert!(
-        svg.contains("x1=\"404\"") && svg.contains("stroke-dasharray"),
+        svg.contains("x1=\"256\"") && svg.contains("stroke-dasharray"),
         "Bob2 should have a dashed lifeline"
     );
-    // The lifeline line starting at y=56 should NOT be present for x=404
-    // (that would mean Bob2's lifeline started from the top).
-    let top_lifeline = "x1=\"404\" y1=\"56\"";
+    // The lifeline line starting at y=48 should NOT be present for x=256
+    // (that would mean Bob2's lifeline started from the top header row).
+    let top_lifeline = "x1=\"256\" y1=\"48\"";
     assert!(
         !svg.contains(top_lifeline),
-        "Bob2 lifeline should not start from the top header row (y=56)"
+        "Bob2 lifeline should not start from the top header row (y=48)"
     );
     // Suppress the unused variable warning for svg_lower.
     let _ = svg_lower;
