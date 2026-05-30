@@ -584,17 +584,22 @@ fn state_transition_labels_clear_crossing_arrow_lanes_issue_483() {
     let approve_label = state_label_node(&doc, "approve()");
 
     let submit_right = state_label_center_x(submit_label) + state_label_half_width("submit()");
-    let revise_left = state_label_center_x(revise_label) - state_label_half_width("revise()");
+    let revise_cx = state_label_center_x(revise_label);
+    let revise_cy = state_label_center_y(revise_label);
+    let revise_left = revise_cx - state_label_half_width("revise()");
     assert!(
         submit_right < 298,
         "submit() label should stay left of the upward revise lane"
     );
+    // After the arclength-midpoint label placement (wave-15 edge-label fix), the
+    // revise() label is placed below the shaft's y range (≈y=354 vs shaft y=100..286)
+    // rather than to the right of it.  Either placement clears the shaft.
     assert!(
-        revise_left > 298,
-        "revise() label should be offset clear of its own vertical shaft"
+        revise_left > 298 || revise_cy > 286,
+        "revise() label should be clear of its own vertical shaft (right of or below it)"
     );
     assert!(
-        state_label_center_y(approve_label) > state_label_center_y(revise_label),
+        (state_label_center_y(approve_label) - revise_cy).abs() > 20,
         "approve() and revise() labels should not stack in the crossing corridor"
     );
 }
