@@ -399,7 +399,9 @@ stop
 
     assert!(svg.contains("class=\"activity-note-connector\""));
     assert!(
-        svg.contains("<line x1=\"116\" y1=\"132\" x2=\"116\" y2=\"134\""),
+        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>
+        svg.contains("<line x1=\"116\" y1=\"132\" x2=\"116\" y2=\"134\"")
+            || svg.contains("<polyline points=\"116,132 116,134\""),
         "main flow should continue from the noted action to the following action"
     );
     assert!(
@@ -444,7 +446,9 @@ stop
         "floating notes should not draw attached-note connectors"
     );
     assert!(
-        svg.contains("<line x1=\"316\" y1=\"114\" x2=\"316\" y2=\"116\""),
+        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>
+        svg.contains("<line x1=\"316\" y1=\"114\" x2=\"316\" y2=\"116\"")
+            || svg.contains("<polyline points=\"316,114 316,116\""),
         "main flow should skip floating note nodes"
     );
 }
@@ -498,12 +502,18 @@ stop
 
     assert!(svg.contains("data-activity-kind=\"Detach\""));
     assert!(
+        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>.
+        // Either way, a long connector from x=104 to the join bar at y=246 should not exist.
         !svg.contains("<line x1=\"104\" y1=\"178\" x2=\"104\" y2=\"246\"")
-            && !svg.contains("<line x1=\"104\" y1=\"198\" x2=\"104\" y2=\"246\""),
+            && !svg.contains("<line x1=\"104\" y1=\"198\" x2=\"104\" y2=\"246\"")
+            && !svg.contains("points=\"104,178 104,246\"")
+            && !svg.contains("points=\"104,198 104,246\""),
         "a detached branch should not draw a connector into the fork join bar"
     );
     assert!(
-        svg.contains("<line x1=\"288\" y1=\"176\" x2=\"288\" y2=\"246\""),
+        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>
+        svg.contains("<line x1=\"288\" y1=\"176\" x2=\"288\" y2=\"246\"")
+            || svg.contains("<polyline points=\"288,176 288,246\""),
         "non-terminated fork branches should still connect to the join bar"
     );
 }
