@@ -87,7 +87,10 @@
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
-      "min_text_elements": 5
+      "min_text_elements": 5,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "Polyline-default + group-frame obstacle re-land (#1343); re-bless on Linux"
     },
     {
       "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
@@ -147,7 +150,10 @@
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
       "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
-      "min_text_elements": 8
+      "min_text_elements": 8,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "Polyline-default routing change (#1343); re-bless on Linux"
     },
     {
       "path": "docs/examples/deployment/03_cloud.puml",
@@ -161,7 +167,10 @@
         "stores",
         "reads"
       ],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "Polyline-default + header-band clamp re-land (#1343); re-bless on Linux"
     },
     {
       "path": "docs/examples/gantt/01_basic.puml",
@@ -449,7 +458,10 @@
         "Renderer",
         "SVG / PNG / Text"
       ],
-      "min_text_elements": 17
+      "min_text_elements": 17,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "Polyline-default + obstacles + header-band re-land (#1343); re-bless on Linux"
     }
   ]
 }

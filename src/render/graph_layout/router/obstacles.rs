@@ -11,27 +11,57 @@ pub(super) struct VerticalRouteCheck<'a> {
     pub(super) target_id: &'a str,
     pub(super) nodes: &'a [NodeSize],
     pub(super) positions: &'a BTreeMap<String, (f64, f64)>,
+    /// Group/package bounding boxes included in obstacle detection (#1325).
+    /// Every group frame is an opaque obstacle that a straight vertical route
+    /// must not pierce — even when the route's endpoints are leaf nodes that
+    /// live outside the group.
+    pub(super) group_bounds: &'a BTreeMap<String, (f64, f64, f64, f64)>,
 }
 
+/// Returns `true` when a straight vertical route at `check.x` from `check.y1`
+/// to `check.y2` would pierce any visible bbox — both leaf nodes AND group/
+/// package frames at every nesting depth (#1325).
 pub(super) fn vertical_route_crosses_node(check: VerticalRouteCheck<'_>) -> bool {
     let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
-    check.nodes.iter().any(|node| {
+    // Check leaf-node obstacles.
+    let crosses_leaf = check.nodes.iter().any(|node| {
         node.id != check.source_id
             && node.id != check.target_id
             && node_rect(node, check.positions)
                 .is_some_and(|rect| segment_crosses_rect(route, rect))
-    })
+    });
+    if crosses_leaf {
+        return true;
+    }
+    // Check group/package frame obstacles: include every group frame whose
+    // bounding box the vertical segment would cross.  Frames that fully
+    // contain both endpoints are skipped — the route is *inside* that package,
+    // which is not a pierce.
+    check
+        .group_bounds
+        .values()
+        .any(|&(gx, gy, gw, gh)| segment_crosses_rect(route, Rect::new(gx, gy, gw, gh)))
 }
 
 pub(super) fn detour_x_for_vertical_route(check: VerticalRouteCheck<'_>, clearance: f64) -> f64 {
     let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
-    check
+    // Collect right edges of all pierced leaf-node obstacles.
+    let leaf_right = check
         .nodes
         .iter()
         .filter(|node| node.id != check.source_id && node.id != check.target_id)
         .filter_map(|node| node_rect(node, check.positions))
         .filter(|rect| segment_crosses_rect(route, *rect))
-        .map(|rect| rect.max_x() + clearance)
+        .map(|rect| rect.max_x() + clearance);
+    // Collect right edges of all pierced group/package frame obstacles.
+    let group_right = check
+        .group_bounds
+        .values()
+        .map(|&(gx, gy, gw, gh)| Rect::new(gx, gy, gw, gh))
+        .filter(|rect| segment_crosses_rect(route, *rect))
+        .map(|rect| rect.max_x() + clearance);
+    leaf_right
+        .chain(group_right)
         .fold(check.x + clearance, f64::max)
 }
 

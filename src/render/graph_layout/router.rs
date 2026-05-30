@@ -467,21 +467,19 @@ impl Router for ChannelRouter {
                         // Normal gap: allow any value strictly within the gap.
                         raw.clamp(bot + 4.0, next_top - 4.0)
                     };
-                    // Package-header avoidance: push the channel y below any package
-                    // header band whose frame top (gy) lies within this inter-rank
-                    // channel [bot, next_top].  When gy is inside the channel, the
-                    // vertical entry shaft from ch_y to the first node inside the
-                    // package crosses [gy, gy + PKG_HEADER_ROUTING_CLEARANCE], so we must
-                    // ensure ch_y >= gy + PKG_HEADER_ROUTING_CLEARANCE + 4 to keep arrow shafts
-                    // out of the package label text.
+                    // Package-header avoidance (#1326): push the channel y below
+                    // any package header band that the channel y would intersect.
+                    // The header band of a package is [gy, gy + PKG_HEADER_ROUTING_CLEARANCE].
+                    // We push whenever the current `result` falls within that band,
+                    // regardless of whether `gy` itself is inside [bot, next_top].
+                    // This handles the case where a tall package frame straddles the
+                    // inter-rank boundary — the frame top (gy) may be above `bot` yet
+                    // the header band still crosses the channel region.
                     let mut result = clamped;
                     for &(_, gy, _, _) in group_bounds.values() {
-                        // Only act on packages whose frame top falls in this channel.
-                        if gy < bot || gy > next_top {
-                            continue;
-                        }
                         let header_bottom = gy + self.options.package_header_clearance;
-                        if result < header_bottom {
+                        // Push whenever result lies within the header band [gy, header_bottom].
+                        if result > gy && result < header_bottom {
                             // Push below the header band; re-clamp to the inter-rank
                             // gap ceiling so we don't overshoot the target row.
                             let pushed = (header_bottom + 4.0).min(next_top - 4.0);
@@ -515,6 +513,7 @@ impl Router for ChannelRouter {
                     target_id: tgt_id,
                     nodes,
                     positions,
+                    group_bounds,
                 };
                 let blocked_vertical = vertical_route_crosses_node(vertical_route);
 

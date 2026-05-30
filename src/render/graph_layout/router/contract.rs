@@ -8,10 +8,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// PlantUML exposes exactly three routing modes (mapped 1-to-1 onto Graphviz's
 /// `splines=` attribute):
 ///
-/// - [`EdgeRouting::Splines`] — smooth B-spline curves, PlantUML's *and* our
-///   default. Long sweeping arcs for distant endpoints, gentle near-straights
-///   for short ones. Source: `splines=true` (no directive emitted by upstream
-///   `DotStringFactory`).
+/// - [`EdgeRouting::Splines`] — smooth B-spline curves, PlantUML's upstream
+///   default; opt-in in PUML via `skinparam linetype splines`. Long sweeping
+///   arcs for distant endpoints, gentle near-straights for short ones.
+///   Source: `splines=true` (no directive emitted by upstream `DotStringFactory`).
 /// - [`EdgeRouting::Polyline`] — straight line segments through the routed
 ///   waypoints, no smoothing. Source: `splines=polyline`.
 /// - [`EdgeRouting::Ortho`] — pure orthogonal right-angle elbows. Source:
@@ -22,10 +22,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// upstream Java references.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum EdgeRouting {
-    /// Smooth B-spline curves — PlantUML default.
-    #[default]
+    /// Smooth B-spline curves — opt-in via `skinparam linetype splines`.
     Splines,
-    /// Straight line segments through waypoints.
+    /// Straight line segments through waypoints — PUML default.
+    #[default]
     Polyline,
     /// Orthogonal right-angle elbows.
     Ortho,
