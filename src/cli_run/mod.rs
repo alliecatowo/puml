@@ -14,7 +14,8 @@ use crate::cli_dump_ast::ast_to_json;
 use crate::{cli_count, cli_env, cli_hash, cli_stats, cli_watch};
 use diagnostics::{
     diag_err_mapped_label, diag_err_with_source_label, emit_diagnostics_label,
-    emit_warnings_for_model_label, should_color_human_diagnostics, DiagnosticOutput,
+    emit_hint_for_message, emit_warnings_for_model_label, hint_for_error_message,
+    should_color_human_diagnostics, DiagnosticOutput,
 };
 use encodesprite::run_encodesprite;
 use extract::run_extract_mode;
@@ -190,21 +191,23 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
 
     if diagrams.is_empty() {
         if from_markdown {
-            return Err((
-                EXIT_VALIDATION,
-                format!(
-                    "no supported markdown diagram fences found; expected one of: {SUPPORTED_MARKDOWN_FENCES}"
-                ),
-            ));
+            let msg = format!(
+                "no supported markdown diagram fences found; expected one of: {SUPPORTED_MARKDOWN_FENCES}"
+            );
+            if let Some(hint) = hint_for_error_message(&msg) {
+                if diagnostics_output.format == crate::cli::DiagnosticsFormat::Human {
+                    eprintln!("{hint}");
+                }
+            }
+            return Err((EXIT_VALIDATION, msg));
         }
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
     if input_path.is_none() && diagrams.len() > 1 && !cli.multi && !cli.metadata && !cli.extract {
-        return Err((
-            EXIT_VALIDATION,
-            "multiple diagrams detected; rerun with --multi".to_string(),
-        ));
+        let msg = "multiple diagrams detected; rerun with --multi";
+        emit_hint_for_message(msg, diagnostics_output);
+        return Err((EXIT_VALIDATION, msg.to_string()));
     }
 
     if cli.extract {
