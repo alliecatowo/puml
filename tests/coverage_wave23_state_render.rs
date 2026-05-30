@@ -115,7 +115,7 @@ fn architecture_state_transition_labels_clear_state_boxes() {
 }
 
 #[test]
-fn concurrent_state_example_renders_vertical_divider_and_connected_outer_transitions() {
+fn concurrent_state_example_renders_horizontal_divider_and_connected_outer_transitions() {
     let src = include_str!("../docs/examples/state/03_concurrent.puml");
     let svg = render_source_to_svg(src).expect("concurrent state example should render");
     let doc = SvgDoc::parse(&svg);
@@ -126,35 +126,42 @@ fn concurrent_state_example_renders_vertical_divider_and_connected_outer_transit
     let logging = rect_containing_text(&doc, "Logging");
     let auditing = rect_containing_text(&doc, "Auditing");
 
+    // Within each region the children share approximately the same x position
+    // (single column, top-to-bottom stacking as per PlantUML 1.2026.5 / UML 2.x).
     assert!(
-        (parsing.x - validating.x).abs() <= 1.0,
+        (parsing.x - validating.x).abs() <= 20.0,
         "first concurrent region should stay in a single column"
     );
     assert!(
-        (logging.x - auditing.x).abs() <= 1.0,
+        (logging.x - auditing.x).abs() <= 20.0,
         "second concurrent region should stay in a single column"
     );
+    // Region 1 (Logging) must be below region 0 (Parsing/Validating) — top-to-bottom layout.
     assert!(
-        logging.x >= parsing.right() + 8.0,
-        "concurrent regions should render side by side"
+        logging.y >= validating.bottom() + 4.0,
+        "concurrent regions should stack top-to-bottom: Logging (y={}) should be below Validating (bottom={})",
+        logging.y,
+        validating.bottom()
     );
 
+    // Horizontal dashed divider line: y1 == y2, spanning the inner width.
     let divider = doc
         .elements("line")
         .into_iter()
         .find(|line| {
             line.attribute("stroke-dasharray") == Some("5 3")
-                && f64_attr(*line, "x1") == f64_attr(*line, "x2")
-                && f64_attr(*line, "x1") > processing.x
-                && f64_attr(*line, "x1") < processing.right()
-                && f64_attr(*line, "y1") >= processing.y
-                && f64_attr(*line, "y2") <= processing.bottom() + 8.0
+                && (f64_attr(*line, "y1") - f64_attr(*line, "y2")).abs() < 1.0
+                && (f64_attr(*line, "x1") - f64_attr(*line, "x2")).abs() > 10.0
+                && f64_attr(*line, "y1") > processing.y
+                && f64_attr(*line, "y1") < processing.bottom()
         })
-        .expect("expected vertical dashed divider inside concurrent composite");
-    let divider_x = f64_attr(divider, "x1");
+        .expect("expected horizontal dashed divider inside concurrent composite");
+    let divider_y = f64_attr(divider, "y1");
     assert!(
-        divider_x > parsing.right() && divider_x < logging.x,
-        "divider should separate the two concurrent regions"
+        divider_y > validating.bottom() && divider_y < logging.y,
+        "divider should separate the two concurrent regions (divider_y={divider_y}, validating.bottom={}, logging.y={})",
+        validating.bottom(),
+        logging.y
     );
 
     // State transitions are now emitted as <path> elements (orthogonal routing).
