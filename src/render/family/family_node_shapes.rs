@@ -1,7 +1,7 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::{creole_text, escape_text};
 
-use super::class_members::{family_node_label, is_family_style_member, is_user_stereotype};
+use super::class_members::{is_family_style_member, is_user_stereotype};
 use super::tree::render_centered_multiline_text;
 
 pub(super) fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
