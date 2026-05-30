@@ -11,14 +11,59 @@ use super::{
     pipeline::{normalize_for_cli, parse_for_cli_with_diagnostics, preprocess_for_cli},
     EXIT_INTERNAL, EXIT_IO, EXIT_VALIDATION,
 };
-use crate::cli::{Cli, OutputFormat};
+use crate::cli::{Cli, OutputFormat, StyleMode};
+use puml::model::FamilyStyle;
 use puml::output::{
     render_artifact_export_content, render_artifact_output_bytes, RenderedArtifactOutput,
 };
 use puml::specialized;
+use puml::theme::StyleMode as ThemeStyleMode;
+use puml::NormalizedDocument;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+/// Apply the CLI `--style` mode to the normalized model's class/component style.
+///
+/// When `style == StyleMode::Plantuml`, the `ClassStyle.style_mode` on every
+/// `Family` / `FamilyPages` variant is set to `ThemeStyleMode::Plantuml` so the
+/// renderer suppresses PUML-enhanced chrome (yellow object header, type badges,
+/// UML 2.x visibility glyphs). Layout coordinates are never touched.
+fn apply_style_mode(model: &mut NormalizedDocument, style: StyleMode) {
+    if style == StyleMode::Puml {
+        return; // default — nothing to override
+    }
+    let theme_mode = ThemeStyleMode::Plantuml;
+    match model {
+        NormalizedDocument::Family(doc) => {
+            if let Some(FamilyStyle::Class(ref mut cs)) = doc.family_style {
+                cs.style_mode = theme_mode;
+            } else if doc.family_style.is_none() {
+                // Inject a default ClassStyle with the requested mode so the renderer
+                // picks it up even when no skinparam block was present.
+                let cs = puml::theme::ClassStyle {
+                    style_mode: theme_mode,
+                    ..Default::default()
+                };
+                doc.family_style = Some(FamilyStyle::Class(cs));
+            }
+        }
+        NormalizedDocument::FamilyPages(pages) => {
+            for doc in pages.iter_mut() {
+                if let Some(FamilyStyle::Class(ref mut cs)) = doc.family_style {
+                    cs.style_mode = theme_mode;
+                } else if doc.family_style.is_none() {
+                    let cs = puml::theme::ClassStyle {
+                        style_mode: theme_mode,
+                        ..Default::default()
+                    };
+                    doc.family_style = Some(FamilyStyle::Class(cs));
+                }
+            }
+        }
+        _ => {} // other families don't yet carry chrome that needs mode-gating
+    }
+}
 
 // Rendering crosses the CLI/input/output boundary, so this helper keeps the
 // distinct command state explicit instead of hiding it behind a transient bag.
@@ -122,8 +167,8 @@ pub(super) fn run_render_mode(
             .map_err(|d| {
                 diag_err_mapped_label(raw, source.source_span, d, diagnostics_output, input_label)
             })?;
-            let model =
-                normalize_for_cli(parse_result.document, include_root.clone()).map_err(|d| {
+            let mut model = normalize_for_cli(parse_result.document, include_root.clone())
+                .map_err(|d| {
                     diag_err_mapped_label(
                         raw,
                         source.source_span,
@@ -132,6 +177,9 @@ pub(super) fn run_render_mode(
                         input_label,
                     )
                 })?;
+            // Apply chrome style mode before rendering — only paint is affected,
+            // layout coordinates are never mutated.
+            apply_style_mode(&mut model, cli.style);
             emit_diagnostics_label(
                 &parse_result.diagnostics,
                 raw,

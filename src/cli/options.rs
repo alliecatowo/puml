@@ -84,6 +84,25 @@ pub enum CompatMode {
     Extended,
 }
 
+/// Chrome rendering mode for diagram output.
+///
+/// `Puml` (default) enables PUML-native chrome enhancements:
+/// rich header fills, class/object type badges, UML 2.x visibility
+/// glyphs, and drop shadows when shadowing is on.
+///
+/// `Plantuml` suppresses PUML-specific chrome so diagrams visually
+/// match PlantUML's neutral default look: flat gray object headers,
+/// no type badges, ASCII visibility prefixes.
+/// **Layout is always identical between modes** — only paint differs.
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq, Default)]
+pub enum StyleMode {
+    /// PUML-enhanced chrome (default): richer fills, badges, UML glyphs.
+    #[default]
+    Puml,
+    /// PlantUML-compatible neutral chrome: flat fills, no badges, ASCII visibility.
+    Plantuml,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

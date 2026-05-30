@@ -5,7 +5,7 @@ use std::path::PathBuf;
 mod options;
 pub use options::{
     parse_define, parse_dpi, parse_threads, ColorChoice, CompatMode, DiagnosticsFormat, Dialect,
-    DumpKind, LintReportFormat,
+    DumpKind, LintReportFormat, StyleMode,
 };
 
 // Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
@@ -278,6 +278,18 @@ pub struct Cli {
     /// flag; URL includes are already disabled unless `--allow-url-includes` is passed.
     #[arg(long, action = ArgAction::SetTrue)]
     pub no_url_includes: bool,
+
+    /// Chrome rendering mode.
+    ///
+    /// `puml` (default): PUML-enhanced output with richer header fills, type
+    /// badges (C/O/I/E circles), UML 2.x visibility glyphs, and drop shadows.
+    ///
+    /// `plantuml`: neutral output that matches PlantUML's default look — flat
+    /// gray object headers, no type badges, ASCII visibility prefixes.
+    ///
+    /// **Layout is always identical between modes** — only paint differs.
+    #[arg(long, value_enum, default_value_t = StyleMode::Puml)]
+    pub style: StyleMode,
 }
 
 #[derive(Debug, Clone, Subcommand)]

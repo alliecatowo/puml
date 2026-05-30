@@ -35,6 +35,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
                 .map(|_| StyleSource::ThemePreset)
                 .unwrap_or_default(),
         },
+        style_mode: StyleMode::default(),
     }
 }
 

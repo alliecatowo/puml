@@ -30,6 +30,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 
 ```text
 --format svg|png             output format (default: svg)
+--style puml|plantuml        chrome style mode (default: puml)
 --dpi FLOAT                  PNG rasterization DPI (default: 96)
 --check                      parse + normalize only, no render output
 --check-syntax               PlantUML-compatible alias for --check
