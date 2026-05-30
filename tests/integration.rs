@@ -5595,8 +5595,11 @@ fn component_and_deployment_groups_render_labeled_frames_and_nested_members() {
     let component_src = "@startuml\nskinparam ComponentBorderColor #0f766e\npackage \"Core Services\" {\n  component \"Public API\" as API\n  node \"Runtime Zone\" {\n    component Worker\n  }\n}\nAPI --> Worker : dispatches\n@enduml\n";
     let component_svg =
         render_source_to_svg(component_src).expect("component group svg should render");
+    // Kind-tag suppression (pass 2) strips the "package " prefix from component
+    // package frame labels so only the user-supplied name is shown, matching
+    // upstream PlantUML behaviour.
     assert!(
-        component_svg.contains(">package Core Services<"),
+        component_svg.contains(">Core Services<"),
         "component package frame label should render"
     );
     assert!(
@@ -5619,8 +5622,10 @@ fn component_and_deployment_groups_render_labeled_frames_and_nested_members() {
     let deployment_src = "@startuml\nnode \"Edge Site\" {\n  artifact App\n  database Cache\n}\nApp --> Cache : warms\n@enduml\n";
     let deployment_svg =
         render_source_to_svg(deployment_src).expect("deployment group svg should render");
+    // Kind-tag suppression (pass 2) strips the "node " prefix from deployment
+    // node frame labels, matching upstream PlantUML behaviour.
     assert!(
-        deployment_svg.contains(">node Edge Site<"),
+        deployment_svg.contains(">Edge Site<"),
         "deployment node frame label should render"
     );
     assert!(
