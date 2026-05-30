@@ -12,7 +12,7 @@ macro_rules! item {
 }
 
 pub(super) fn extra_completion_specs() -> &'static [CompletionItem] {
-    use CompletionItemKind::{Keyword, Operator};
+    use CompletionItemKind::{Keyword, Operator, Snippet};
     &[
         item!("!if", Keyword, "Preprocessor", "Start a preprocessor conditional block."),
         item!("!elseif", Keyword, "Preprocessor", "Start an alternate preprocessor conditional branch."),
@@ -31,6 +31,9 @@ pub(super) fn extra_completion_specs() -> &'static [CompletionItem] {
         item!("endpartition", Keyword, "Activity Diagram", "End an activity partition or swimlane."),
         item!("detach", Keyword, "Activity Diagram", "Detach the current activity flow."),
         item!("kill", Keyword, "Activity Diagram", "Terminate the current activity flow."),
+        item!(":action;", Snippet, "Activity Diagram", "Activity action step. Wrap the label in `:` and `;`."),
+        item!("usecase", Keyword, "Use Case Diagram", "Declare a use-case node."),
+        item!("object", Keyword, "Object Diagram", "Declare an object instance."),
         item!("--", Operator, "State Diagram", "State diagram transition separator."),
         item!("<|--", Operator, "Class Relation", "Generalization or inheritance relation."),
         item!("*--", Operator, "Class Relation", "Composition relation."),

@@ -182,6 +182,31 @@ pub fn syntax_token_specs() -> &'static [SyntaxTokenSpec] {
             families: &["activity"],
         },
         SyntaxTokenSpec {
+            lexeme: "detach",
+            kind: Keyword,
+            families: &["activity"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "kill",
+            kind: Keyword,
+            families: &["activity"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "usecase",
+            kind: Keyword,
+            families: &["usecase"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "object",
+            kind: Keyword,
+            families: &["object"],
+        },
+        SyntaxTokenSpec {
+            lexeme: "abstract",
+            kind: Keyword,
+            families: &["class"],
+        },
+        SyntaxTokenSpec {
             lexeme: "component",
             kind: Keyword,
             families: &["component"],
