@@ -412,6 +412,47 @@ pub(super) fn render_class_node(
         ""
     };
     let name_ty = y + effective_header_h - 9;
+
+    // ── Class-type badge (#1350) ──────────────────────────────────────────────
+    // PlantUML renders a small coloured circle with a letter in the header-left
+    // area of every class box to visually indicate the node kind.
+    // Badge letter:
+    //   FamilyNodeKind::Class + <<abstract>>  → 'A' (green circle)
+    //   FamilyNodeKind::Class + <<interface>> → 'I' (blue circle)
+    //   FamilyNodeKind::Class + <<enum>>      → 'E' (yellow circle)
+    //   FamilyNodeKind::Class (plain)         → 'C' (green circle)
+    //   FamilyNodeKind::Object                → 'O' (amber circle)
+    // Interface/Enum/Abstract are routed through FamilyNodeKind::Class with a
+    // leading builtin-type stereotype marker — checked via builtin_type_marker.
+    let badge_info: Option<(&str, &str, &str)> = match node.kind {
+        FamilyNodeKind::Class => {
+            let (letter, fill, stroke_c) = match builtin_type_marker {
+                Some("\u{ab}abstract\u{bb}") => ("A", "#A2D5A2", "#2E7D32"),
+                Some("\u{ab}interface\u{bb}") => ("I", "#90CAF9", "#1565C0"),
+                Some("\u{ab}enumeration\u{bb}") => ("E", "#FFF176", "#F9A825"),
+                Some("\u{ab}annotation\u{bb}") => ("@", "#FFCC80", "#E65100"),
+                // DDD/arch and other stereotype flavours still get the green C.
+                _ => ("C", "#A2D5A2", "#2E7D32"),
+            };
+            Some((letter, fill, stroke_c))
+        }
+        FamilyNodeKind::Object => Some(("O", "#FFD54F", "#F57F17")),
+        _ => None,
+    };
+    if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
+        let badge_r = 8_i32;
+        let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
+        let badge_cy = name_ty - 4; // vertically centre on the name baseline
+        out.push_str(&format!(
+            "<circle class=\"uml-class-badge\" cx=\"{badge_cx}\" cy=\"{badge_cy}\" r=\"{badge_r}\" fill=\"{badge_fill}\" stroke=\"{badge_stroke}\" stroke-width=\"1\"/>",
+        ));
+        out.push_str(&format!(
+            "<text x=\"{badge_cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" font-weight=\"700\" fill=\"{badge_stroke}\">{badge_letter}</text>",
+            ty = badge_cy + 3, // +3 px to visually centre letter inside circle
+            ff = escape_text(font_family),
+        ));
+    }
+
     out.push_str(&format!(
         "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}{cv}>{txt}</text>",
         ff = escape_text(font_family),
