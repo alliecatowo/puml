@@ -166,6 +166,68 @@ impl Router for ChannelRouter {
                 .then_with(|| a.edge_id.cmp(&b.edge_id))
         });
 
+        // ── Multi-out source-port spread (#1324) ────────────────────────────────
+        //
+        // When a node has N ≥ 2 outgoing (downward) edges to DIFFERENT targets in
+        // the channel below, spread the departure x positions at fractional
+        // positions (i+1)/(N+1) across the node width so each edge leaves from a
+        // distinct point along the bottom edge.  Without this all N arrows stack
+        // on the same center point and their arrowheads overlap.
+        //
+        // Only applied to cross-rank (non-same-rank) edges.  The dx is stored as
+        // an absolute x position (not a delta) keyed by edge_id so path generation
+        // can override `src_port_x` directly.
+        let mut edge_src_port_x_override: BTreeMap<String, f64> = BTreeMap::new();
+        {
+            // Group edges by (src_id, src_rank) for downward edges.
+            let mut src_out_groups: BTreeMap<(String, usize), Vec<&EdgeInfo>> = BTreeMap::new();
+            for ei in &edge_infos {
+                if ei.src_rank == ei.tgt_rank || ei.src_rank >= ei.tgt_rank {
+                    // Only genuine downward cross-rank edges.
+                    continue;
+                }
+                src_out_groups
+                    .entry((ei.src_id.clone(), ei.src_rank))
+                    .or_default()
+                    .push(ei);
+            }
+            for (src_key, mut group) in src_out_groups {
+                if group.len() < 2 {
+                    continue;
+                }
+                // Sort by target x for determinism (left-to-right port order).
+                group.sort_by(|a, b| {
+                    let ax = positions
+                        .get(a.tgt_id.as_str())
+                        .map(|(x, _)| *x)
+                        .unwrap_or(0.0);
+                    let bx = positions
+                        .get(b.tgt_id.as_str())
+                        .map(|(x, _)| *x)
+                        .unwrap_or(0.0);
+                    ax.partial_cmp(&bx)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.edge_id.cmp(&b.edge_id))
+                });
+                let (src_id, _) = &src_key;
+                let sw = node_by_id
+                    .get(src_id.as_str())
+                    .map(|n| n.width)
+                    .unwrap_or(COMPONENT_BOX_WIDTH as f64);
+                let sx = positions
+                    .get(src_id.as_str())
+                    .map(|(x, _)| *x)
+                    .unwrap_or(0.0);
+                let n = group.len() as f64;
+                for (idx, ei) in group.iter().enumerate() {
+                    // Fractional position along bottom edge: (i+1)/(N+1)
+                    let frac = (idx as f64 + 1.0) / (n + 1.0);
+                    let port_x = sx + frac * sw;
+                    edge_src_port_x_override.insert(ei.edge_id.clone(), port_x);
+                }
+            }
+        }
+
         // ── Endpoint port fan (adjacent-rank only) ───────────────────────────────
         //
         // When multiple edges share the same endpoint port in one inter-rank
@@ -486,8 +548,14 @@ impl Router for ChannelRouter {
                 let goes_down = ei.src_rank < ei.tgt_rank;
 
                 // Source port: bottom if going down, top if going up.
+                // When a multi-out spread override exists for this edge (#1324),
+                // use it to fan the departure point across the bottom edge.
                 let (src_port_x, src_port_y) = if goes_down {
-                    (sx + sw / 2.0, sy + sh)
+                    let override_x = edge_src_port_x_override
+                        .get(&ei.edge_id)
+                        .copied()
+                        .unwrap_or(sx + sw / 2.0);
+                    (override_x, sy + sh)
                 } else {
                     (sx + sw / 2.0, sy)
                 };
