@@ -44,7 +44,7 @@ pub(in crate::render::activity) fn previous_activity_flow_node(
 
 pub(super) fn unpack_layout_params(
     params: &LayoutParams<'_>,
-) -> (i32, i32, i32, i32, i32, i32, i32) {
+) -> (i32, i32, i32, i32, i32, i32, i32, i32) {
     (
         params.header_h,
         params.lane_header_h,
@@ -53,6 +53,7 @@ pub(super) fn unpack_layout_params(
         params.fork_col_w,
         params.lane_w,
         params.min_fork_col_w,
+        params.lane_area_x,
     )
 }
 

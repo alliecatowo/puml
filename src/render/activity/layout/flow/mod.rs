@@ -19,8 +19,16 @@ pub(in crate::render::activity) fn compute_layout(
     params: &LayoutParams<'_>,
 ) -> LayoutResult {
     let lane_center_x = params.lane_center_x;
-    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w, min_fork_col_w) =
-        unpack_layout_params(params);
+    let (
+        header_h,
+        lane_header_h,
+        step_h,
+        branch_x_offset,
+        fork_col_w,
+        lane_w,
+        min_fork_col_w,
+        lane_area_x,
+    ) = unpack_layout_params(params);
     const ARROW_OUT: i32 = ACTIVITY_ARROW_OUT_OFFSET;
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
@@ -369,13 +377,36 @@ pub(in crate::render::activity) fn compute_layout(
                 // node-box half-width derived from `min_fork_col_w`) which keeps
                 // the bar reading as a single unit without engulfing the
                 // surrounding frame.
+                //
+                // After the pad is applied, additionally clamp so that the bar
+                // stays ≥24 px inside the enclosing partition frame (#1299).
+                //
+                // The partition's `effective_lx` (computed later in swimlanes.rs)
+                // extends leftward to cover branch node boxes when they push past
+                // `lane_area_x`.  To avoid computing that here, we approximate the
+                // effective left edge as the leftmost branch node's left boundary
+                // (leftmost column center − half box width − 16 px gap), clamped at
+                // 0 (the SVG canvas edge).  The bar must clear this boundary by ≥24.
                 let box_half_w_est = ((min_fork_col_w - 24) / 2).max(60);
                 let bar_pad = (effective_col_w / 3).min(box_half_w_est).max(24);
+                let leftmost_col_cx_for_clamp =
+                    fork_branch_cx(fork_cx, 0, n_branches, effective_col_w);
+                let effective_left_edge = (leftmost_col_cx_for_clamp - box_half_w_est - 16).max(0);
+                // Lane right boundary: lane_area_x + lane_w (partition width never
+                // expands rightward, only leftward via effective_lx).
+                let lane_right = lane_area_x + lane_w;
+                // Maximum half-width that keeps both left and right bar edges ≥24 px
+                // inside the partition boundary (#1299 regression guard):
+                //   left:  fork_cx - max_bar_half >= effective_left_edge + 24
+                //   right: fork_cx + max_bar_half <= lane_right              - 24
+                let max_bar_half = (fork_cx - effective_left_edge - 24)
+                    .min(lane_right - fork_cx - 24)
+                    .max(0);
                 let bar_span_half = if n_branches > 1 {
                     let leftmost_cx = fork_branch_cx(fork_cx, 0, n_branches, effective_col_w);
                     let rightmost_cx =
                         fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w);
-                    (rightmost_cx - leftmost_cx) / 2 + bar_pad
+                    ((rightmost_cx - leftmost_cx) / 2 + bar_pad).min(max_bar_half)
                 } else {
                     (lane_w - 24).clamp(60, 110)
                 };
@@ -389,7 +420,7 @@ pub(in crate::render::activity) fn compute_layout(
                             fork_branch_cx(fork_cx, first, n_branches, effective_col_w);
                         let rightmost_cx =
                             fork_branch_cx(fork_cx, last, n_branches, effective_col_w);
-                        (rightmost_cx - leftmost_cx) / 2 + bar_pad
+                        ((rightmost_cx - leftmost_cx) / 2 + bar_pad).min(max_bar_half)
                     }
                 };
                 fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);

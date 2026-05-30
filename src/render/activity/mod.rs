@@ -189,6 +189,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             branch_x_offset,
             fork_col_w,
             lane_w,
+            lane_area_x,
             lane_center_x: &lane_center_x,
             min_fork_col_w,
         },
