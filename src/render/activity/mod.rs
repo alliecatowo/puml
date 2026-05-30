@@ -30,6 +30,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         Some(FamilyStyle::Activity(s)) => s.clone(),
         _ => ActivityStyle::default(),
     };
+    let edge_routing = doc.edge_routing;
 
     let step_h = 44; // #1360: dense retune (was ACTIVITY_STEP_HEIGHT=60)
     let title_lines = doc
@@ -399,7 +400,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             box_w,
         );
 
-        nodes::emit_predecessor_arrow(
+        nodes::emit_predecessor_arrow_routed(
             &mut out,
             doc,
             i,
@@ -408,26 +409,29 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             &suppress_prev_arrow,
             &act_style,
             &node_bboxes,
+            edge_routing,
         );
 
         // Extra arrows for if-branching that target this node
         let layout = &node_layouts[i];
-        arrows::emit_extra_arrows(
+        arrows::emit_extra_arrows_routed(
             &mut out,
             &redirected_extra_arrows,
             layout.cx,
             layout.slot_y,
             &act_style.arrow_color,
             &node_bboxes,
+            edge_routing,
         );
     }
 
     // Direct arrows: fork-bar→branch and branch→join-bar
-    arrows::emit_direct_arrows(
+    arrows::emit_direct_arrows_routed(
         &mut out,
         &direct_arrows,
         &act_style.arrow_color,
         &node_bboxes,
+        edge_routing,
     );
 
     out.push_str("</svg>");
