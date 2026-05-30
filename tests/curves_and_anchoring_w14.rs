@@ -312,7 +312,9 @@ stop
     )
     .expect("while-loop activity should render");
 
-    // At least one upward <line> segment (y2 < y1).
+    // At least one upward segment (y2 < y1 for <line>, or a decreasing y pair
+    // for <polyline>).  Stage-3 EdgeRouting may emit the back-edge as a single
+    // <polyline> instead of separate <line> and <path> elements.
     let has_upward_line = svg
         .split('<')
         .filter(|el| el.starts_with("line"))
@@ -329,12 +331,27 @@ stop
                 .and_then(|s| s.parse::<i32>().ok());
             matches!((y1, y2), (Some(a), Some(b)) if b < a)
         });
+    let has_upward_polyline = svg.split("<polyline ").skip(1).any(|chunk| {
+        let Some(start) = chunk.find("points=\"") else {
+            return false;
+        };
+        let rest = &chunk[start + 8..];
+        let Some(end) = rest.find('"') else {
+            return false;
+        };
+        let ys: Vec<i32> = rest[..end]
+            .split_whitespace()
+            .filter_map(|pair| pair.split_once(',').and_then(|(_, y)| y.parse().ok()))
+            .collect();
+        ys.windows(2).any(|w| w[1] < w[0])
+    });
     assert!(
-        has_upward_line,
-        "while-loop back-edge must keep one upward <line> segment for tooling",
+        has_upward_line || has_upward_polyline,
+        "while-loop back-edge must have one upward segment for tooling",
     );
 
-    // At least one corner-arc <path> with a Q command.
+    // At least one corner-arc <path> with a Q command, OR a multi-point
+    // <polyline> with a corner turn (Stage-3 emits polylines instead of paths).
     let q_corner_count = svg
         .split('<')
         .filter(|el| {
@@ -345,8 +362,22 @@ stop
                 && !el.contains("data-uml-from")
         })
         .count();
+    let multi_point_polyline_count = svg
+        .split("<polyline ")
+        .skip(1)
+        .filter(|chunk| {
+            let Some(start) = chunk.find("points=\"") else {
+                return false;
+            };
+            let rest = &chunk[start + 8..];
+            let Some(end) = rest.find('"') else {
+                return false;
+            };
+            rest[..end].split_whitespace().count() >= 3
+        })
+        .count();
     assert!(
-        q_corner_count >= 2,
-        "back-edge should emit ≥2 rounded corner arcs, got {q_corner_count}",
+        q_corner_count >= 2 || multi_point_polyline_count >= 1,
+        "back-edge should emit corner arcs or multi-segment polylines; q_corners={q_corner_count} polylines={multi_point_polyline_count}",
     );
 }
