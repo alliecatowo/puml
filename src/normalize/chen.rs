@@ -67,8 +67,16 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
             StatementKind::Title(value) => common.title(value),
             StatementKind::Caption(value) => common.caption(value),
             StatementKind::Legend(value) => common.legend(value, LegendTextMode::Raw),
+            StatementKind::Theme(value) => {
+                warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_THEME_UNSUPPORTED] Chen ER renderer does not apply theme `{value}`; \
+                         theme directives have no effect in Chen diagrams"
+                    ))
+                    .with_span(stmt.span),
+                );
+            }
             StatementKind::Pragma(_)
-            | StatementKind::Theme(_)
             | StatementKind::SkinParam { .. }
             | StatementKind::Include(_)
             | StatementKind::Define { .. }

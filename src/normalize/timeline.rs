@@ -276,9 +276,17 @@ pub(super) fn normalize_timeline_baseline(
             StatementKind::Footbox(show) => {
                 hide_footbox = !show;
             }
+            StatementKind::Theme(value) => {
+                warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_THEME_UNSUPPORTED] Gantt/Chronology renderer does not apply theme \
+                         `{value}`; theme directives have no effect in timeline diagrams"
+                    ))
+                    .with_span(stmt.span),
+                );
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::StyleParam { .. }
-            | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::AllowMixing
             | StatementKind::LegendPos(_)
