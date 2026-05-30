@@ -1,13 +1,37 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::escape_text;
 
+const C4_DESC_PREFIX: &str = "\x1fc4:desc:";
+
+/// Extract the C4 description string from a node's member list.
+///
+/// Two sources are supported:
+/// - Native parser: encoded as `\x1fc4:desc:<text>` via `parse_parenthesized_c4_decl`
+/// - Stdlib expansion: plain text member from a block `{ $descr }` in C4 stdlib procedures
+///
+/// Internal-only members (those starting with `\x1f`) that are NOT `c4:desc:` are skipped.
+fn c4_node_description(node: &FamilyNode) -> Option<&str> {
+    for member in &node.members {
+        let text = member.text.as_str();
+        if let Some(desc) = text.strip_prefix(C4_DESC_PREFIX) {
+            return Some(desc);
+        }
+        // Plain text member from stdlib block expansion — skip any \x1f-prefixed internal
+        // markers but accept ordinary description strings.
+        if !text.starts_with('\x1f') && !text.is_empty() {
+            return Some(text);
+        }
+    }
+    None
+}
+
 /// Ensure C4 and Actor nodes have enough minimum height to render their visual elements.
 pub(super) fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
     match kind {
-        // Person nodes need space for stick figure (44px) + body rect (≥50px)
-        FamilyNodeKind::C4Person | FamilyNodeKind::C4PersonExt => computed.max(94),
-        // All other C4 nodes need at least 60px for the label + type label
-        k if is_c4_kind(k) => computed.max(60),
+        // Person nodes need space for stick figure (44px) + body rect (≥60px for name+type+desc)
+        FamilyNodeKind::C4Person | FamilyNodeKind::C4PersonExt => computed.max(104),
+        // All other C4 nodes need at least 70px for name + type label + description line
+        k if is_c4_kind(k) => computed.max(70),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
         FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor | FamilyNodeKind::Person => {
             computed.max(64)
@@ -262,35 +286,36 @@ pub(super) fn render_c4_node(out: &mut String, node: &FamilyNode, x: i32, y: i32
          font-size=\"10\" fill=\"{text_color}\">{type_label}</text>",
         sub_y = name_y + 14
     ));
-    // Description (from members[0] if any, shown as italic)
-    if let Some(desc) = node.members.first() {
+    // Description — read from member list, shown as italic text below the type label.
+    if let Some(desc) = c4_node_description(node) {
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{desc_y}\" text-anchor=\"middle\" font-family=\"monospace\" \
              font-size=\"9\" font-style=\"italic\" fill=\"{text_color}\">{desc}</text>",
             desc_y = name_y + 26,
-            desc = escape_text(&desc.text)
+            desc = escape_text(desc)
         ));
     }
 }
 
-/// Return the `[Type]` sub-label for a C4 kind.
+/// Return the stereotype sub-label for a C4 kind.
+/// Uses «guillemet» notation to match the C4-PlantUML visual convention.
 fn c4_type_label(kind: FamilyNodeKind) -> &'static str {
     match kind {
-        FamilyNodeKind::C4Person => "[Person]",
-        FamilyNodeKind::C4PersonExt => "[Person, ext]",
-        FamilyNodeKind::C4System => "[System]",
-        FamilyNodeKind::C4SystemExt => "[System, ext]",
-        FamilyNodeKind::C4SystemDb => "[Database]",
-        FamilyNodeKind::C4SystemQueue => "[Queue]",
-        FamilyNodeKind::C4Container => "[Container]",
-        FamilyNodeKind::C4ContainerExt => "[Container, ext]",
-        FamilyNodeKind::C4ContainerDb => "[Database]",
-        FamilyNodeKind::C4ContainerQueue => "[Queue]",
-        FamilyNodeKind::C4Component => "[Component]",
-        FamilyNodeKind::C4ComponentExt => "[Component, ext]",
-        FamilyNodeKind::C4ComponentDb => "[Database]",
-        FamilyNodeKind::C4ComponentQueue => "[Queue]",
-        FamilyNodeKind::C4Boundary => "[Boundary]",
+        FamilyNodeKind::C4Person => "\u{00ab}person\u{00bb}",
+        FamilyNodeKind::C4PersonExt => "\u{00ab}external_person\u{00bb}",
+        FamilyNodeKind::C4System => "\u{00ab}system\u{00bb}",
+        FamilyNodeKind::C4SystemExt => "\u{00ab}external_system\u{00bb}",
+        FamilyNodeKind::C4SystemDb => "\u{00ab}system_db\u{00bb}",
+        FamilyNodeKind::C4SystemQueue => "\u{00ab}system_queue\u{00bb}",
+        FamilyNodeKind::C4Container => "\u{00ab}container\u{00bb}",
+        FamilyNodeKind::C4ContainerExt => "\u{00ab}external_container\u{00bb}",
+        FamilyNodeKind::C4ContainerDb => "\u{00ab}container_db\u{00bb}",
+        FamilyNodeKind::C4ContainerQueue => "\u{00ab}container_queue\u{00bb}",
+        FamilyNodeKind::C4Component => "\u{00ab}component\u{00bb}",
+        FamilyNodeKind::C4ComponentExt => "\u{00ab}external_component\u{00bb}",
+        FamilyNodeKind::C4ComponentDb => "\u{00ab}component_db\u{00bb}",
+        FamilyNodeKind::C4ComponentQueue => "\u{00ab}component_queue\u{00bb}",
+        FamilyNodeKind::C4Boundary => "\u{00ab}boundary\u{00bb}",
         _ => "",
     }
 }
@@ -302,12 +327,12 @@ fn c4_sublabel(out: &mut String, cx: i32, y: i32, node: &crate::model::FamilyNod
         "<text x=\"{cx}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" \
          font-size=\"10\" fill=\"{color}\">{type_label}</text>",
     ));
-    if let Some(desc) = node.members.first() {
+    if let Some(desc) = c4_node_description(node) {
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{dy}\" text-anchor=\"middle\" font-family=\"monospace\" \
              font-size=\"9\" font-style=\"italic\" fill=\"{color}\">{desc}</text>",
             dy = y + 12,
-            desc = escape_text(&desc.text)
+            desc = escape_text(desc)
         ));
     }
 }
