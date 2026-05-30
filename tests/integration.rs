@@ -1117,7 +1117,11 @@ fn old_style_activity_renders_flow_nodes_instead_of_raw_source() {
     assert!(svg.contains("data-activity-kind=\"Stop\""));
     assert!(svg.contains(">Step1<"));
     assert!(svg.contains(">Step2<"));
-    assert!(svg.contains("<line "));
+    // Stage-3 EdgeRouting may emit <polyline> instead of <line> for activity flow arrows.
+    assert!(
+        svg.contains("<line ") || svg.contains("<polyline "),
+        "activity flow should emit line or polyline elements"
+    );
     assert!(!svg.contains("(*) --&gt;"));
 }
 
