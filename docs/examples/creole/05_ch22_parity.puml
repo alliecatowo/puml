@@ -9,6 +9,7 @@ note over Alice, Bob
 ** Nested bullet with //italic//
 # Numbered item
 .. section ..
+========== section ==========
 |= Key |<#FF8080> Value |
 <#yellow>| row | color |
 |_ root

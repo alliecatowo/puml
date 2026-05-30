@@ -202,6 +202,17 @@ fn has_creole_block_line(label: &str) -> bool {
         if trimmed.len() >= 4 && trimmed.starts_with("..") && trimmed.ends_with("..") {
             return true;
         }
+        // `====+ Title ====+` titled section divider: 3+ equals on each side.
+        {
+            let leading = trimmed.chars().take_while(|&ch| ch == '=').count();
+            if leading >= 3 {
+                let rest = &trimmed[leading..];
+                let trailing = rest.chars().rev().take_while(|&ch| ch == '=').count();
+                if trailing >= 3 && !rest[..rest.len() - trailing].trim().is_empty() {
+                    return true;
+                }
+            }
+        }
 
         let marker = trimmed_start.chars().next();
         if matches!(marker, Some('*' | '#')) {

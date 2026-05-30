@@ -149,9 +149,13 @@ fn is_plain_horizontal_rule(line: &str) -> bool {
         && line.bytes().all(|b| b == line.as_bytes()[0])
 }
 
-/// Returns `Some(text)` for the `.. Title ..` section-rule syntax that keeps a
-/// text-based representation.
+/// Returns `Some(text)` for titled section-rule syntaxes that keep a
+/// text-based representation:
+///   `.. Title ..`  — dot-dot fencing
+///   `==+ Title ==+` — five or more equals signs on each side (PlantUML
+///                     Chapter 22 titled divider, e.g. `=== Section ===`)
 fn parse_titled_rule_line(line: &str) -> Option<String> {
+    // `.. Title ..` variant.
     if line.len() >= 4 && line.starts_with("..") && line.ends_with("..") {
         let title = line[2..line.len() - 2].trim();
         if title.is_empty() {
@@ -159,6 +163,22 @@ fn parse_titled_rule_line(line: &str) -> Option<String> {
         }
         return Some(format!("---------- {title} ----------"));
     }
+
+    // `====+ Title ====+` variant: 5+ equals signs as fences (but NOT a plain
+    // HR — those are all-equals lines with no text).  At least 3 `=` on each
+    // side and a non-empty title in between.
+    let leading = line.chars().take_while(|&ch| ch == '=').count();
+    if leading >= 3 {
+        let rest = &line[leading..];
+        let trailing = rest.chars().rev().take_while(|&ch| ch == '=').count();
+        if trailing >= 3 {
+            let title = rest[..rest.len() - trailing].trim();
+            if !title.is_empty() {
+                return Some(format!("---------- {title} ----------"));
+            }
+        }
+    }
+
     None
 }
 
