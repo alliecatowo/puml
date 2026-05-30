@@ -1,4 +1,6 @@
-use super::geometry::{extract_relation_segments, segment_crosses_rect, PackageFrame, Segment};
+use super::geometry::{
+    extract_package_frames, extract_relation_segments, segment_crosses_rect, PackageFrame, Segment,
+};
 use super::svg_hooks::{
     extract_text_elements, parse_viewbox, sync_svg_dimensions, TextAnchor, CHAR_WIDTH_PX,
     TEXT_ASCENT_PX, TEXT_DESCENT_PX,
@@ -90,10 +92,19 @@ const MIN_LABEL_CLEARANCE_PX: i32 = 4;
 ///
 /// When `mode == AutoCorrect::Apply`, a white background rect is spliced into
 /// the SVG immediately before each offending `<text>` element.
+///
+/// The inserted rect is pushed below any group-header band it would otherwise
+/// paint over (fixes #1344: white bg rects on navy package headers).
 pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<InvariantViolation> {
     let relations = extract_relation_segments(svg);
     let texts = extract_text_elements(svg);
     let has_marked_edge_labels = texts.iter().any(|text| text.is_edge_label);
+    // Extract package frames once so we can avoid placing bg rects over headers.
+    let package_frames = if matches!(mode, AutoCorrect::Apply) {
+        extract_package_frames(svg)
+    } else {
+        Vec::new()
+    };
     let mut violations = Vec::new();
     let mut inserts: Vec<(usize, String)> = Vec::new(); // (char-pos-in-svg, rect-svg)
 
@@ -138,12 +149,27 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                     if matches!(mode, AutoCorrect::Apply) {
                         // Queue a white background rect to be inserted before
                         // the text element in the SVG.
+                        let rx = label_x1 - 2;
+                        let mut ry = label_y1 - 1;
+                        let rw = (label_x2 - label_x1) + 4;
+                        let rh = (label_y2 - label_y1) + 2;
+                        // Push rect below any group-header band it would paint over.
+                        // Header band occupies [frame.y, frame.y + header_height).
+                        // If the rect overlaps the band horizontally AND vertically,
+                        // shift ry to just below the header bottom (#1344).
+                        for frame in &package_frames {
+                            let header_top = frame.y;
+                            let header_bot = frame.y + frame.header_height;
+                            let rect_bot = ry + rh;
+                            let overlaps_x = rx < frame.x + frame.width && rx + rw > frame.x;
+                            let overlaps_y = ry < header_bot && rect_bot > header_top;
+                            if overlaps_x && overlaps_y {
+                                ry = header_bot + 1;
+                            }
+                        }
                         let rect = format!(
                             "<rect class=\"uml-edge-label-bg\" data-uml-label-role=\"edge-background\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" opacity=\"0.85\"/>",
-                            label_x1 - 2,
-                            label_y1 - 1,
-                            (label_x2 - label_x1) + 4,
-                            (label_y2 - label_y1) + 2
+                            rx, ry, rw, rh
                         );
                         // Find the position of this text in the SVG to insert before it.
                         if let Some(pos) = find_text_element_pos(svg, text.x, text.y) {

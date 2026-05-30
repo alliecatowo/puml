@@ -106,29 +106,35 @@ pub(super) fn place_state_transition_label(
     };
 
     let mut best = label_bounds_from_center(mx.round() as i32, (my - 18.0).round() as i32, w, h);
+    // Track square-distance from midpoint so the fallback `best` picks the
+    // CLOSEST position when no clear slot exists — prevents gutter drift.
+    let mut best_dist2 = i64::MAX;
     let t_positions = [0.3, 0.4, 0.5, 0.6, 0.7];
     let along_offsets = [
         0.0, -18.0, 18.0, -36.0, 36.0, -56.0, 56.0, -76.0, 76.0, -96.0, 96.0, -120.0, 120.0,
     ];
-    let label_half_extent_on_normal = nx.abs() * (w as f64 / 2.0) + ny.abs() * (h as f64 / 2.0);
-    let min_normal_offset = (label_half_extent_on_normal + 8.0).max(18.0);
-    let normal_offsets = [
-        min_normal_offset,
-        min_normal_offset + 12.0,
-        min_normal_offset + 24.0,
-        min_normal_offset + 38.0,
-        min_normal_offset + 54.0,
-        min_normal_offset + 74.0,
-        min_normal_offset + 98.0,
-        min_normal_offset + 122.0,
-        min_normal_offset + 150.0,
-    ];
+    // Normal offsets: start close to the edge (8 px gap) and escalate gradually.
+    // The old formula pre-computed the label half-extent and required ALL candidates
+    // to start at half-extent+8, pushing labels into the gutter when nodes are
+    // large or edges are short.  Starting from 8 px lets the collision check
+    // find a non-overlapping slot before escalating to large displacements.
+    //
+    // The maximum offset is capped at half the edge length + the label half-width
+    // so labels never escape their source/target container.
+    let max_normal = (len / 2.0 + w as f64 / 2.0 + 8.0).max(40.0);
+    let normal_offsets = [8.0_f64, 20.0, 32.0, 46.0, 62.0, 80.0, 100.0, 124.0, 150.0];
+    let normal_offsets: Vec<f64> = normal_offsets
+        .iter()
+        .copied()
+        .filter(|&n| n <= max_normal)
+        .collect();
 
     for t in t_positions {
         let base_x = x1 as f64 + dx * t;
         let base_y = y1 as f64 + dy * t;
         for normal_sign in [1.0, -1.0] {
-            for normal in normal_offsets {
+            for normal in &normal_offsets {
+                let normal = *normal;
                 for along in along_offsets {
                     let cx = base_x + nx * normal * normal_sign + tx * along;
                     let cy = base_y + ny * normal * normal_sign + ty * along;
@@ -144,10 +150,14 @@ pub(super) fn place_state_transition_label(
                             bounds: candidate,
                         };
                     }
-                    if state_label_candidate_score(candidate, placed, occupied)
-                        > state_label_candidate_score(best, placed, occupied)
-                    {
+                    // Prefer the closest candidate as fallback — keeps labels near
+                    // the edge even when the search space is fully occupied.
+                    let ccx = (candidate.x + candidate.w / 2) as i64;
+                    let ccy = (candidate.y + candidate.h / 2) as i64;
+                    let dist2 = (ccx - mx.round() as i64).pow(2) + (ccy - my.round() as i64).pow(2);
+                    if dist2 < best_dist2 {
                         best = candidate;
+                        best_dist2 = dist2;
                     }
                 }
             }
@@ -185,22 +195,6 @@ pub(super) fn state_label_hits_other_label(label: LabelBounds, occupied: &[Label
         .iter()
         .copied()
         .any(|other| bounds_overlap(label, other, STATE_LABEL_LABEL_CLEARANCE))
-}
-
-pub(super) fn state_label_candidate_score(
-    label: LabelBounds,
-    placed: &std::collections::BTreeMap<String, PlacedNode>,
-    occupied: &[LabelBounds],
-) -> i32 {
-    let node_hits = placed
-        .values()
-        .filter(|node| bounds_overlap(label, node_bounds(node), STATE_LABEL_NODE_CLEARANCE))
-        .count() as i32;
-    let label_hits = occupied
-        .iter()
-        .filter(|other| bounds_overlap(label, **other, STATE_LABEL_LABEL_CLEARANCE))
-        .count() as i32;
-    -(node_hits * 100 + label_hits * 150)
 }
 
 pub(super) fn node_bounds(node: &PlacedNode) -> LabelBounds {
