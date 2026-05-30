@@ -1,19 +1,47 @@
 ' Merged C4 Context compatibility surface.
+' Descriptions are emitted as block members so the C4 renderer can display them
+' as italic text below the node name.  Tech tags are appended to the Rel label in
+' [brackets], matching the PlantUML C4 visual convention.
+' %unquote() strips the outer quotes from quoted string args before expansion.
 
 !procedure Person($alias, $label, $descr="")
-object $label as $alias <<person>>
+!if $descr != ""
+object %unquote($label) as $alias <<person>> {
+%unquote($descr)
+}
+!else
+object %unquote($label) as $alias <<person>>
+!endif
 !endprocedure
 
 !procedure Person_Ext($alias, $label, $descr="")
-object $label as $alias <<external-person>>
+!if $descr != ""
+object %unquote($label) as $alias <<external-person>> {
+%unquote($descr)
+}
+!else
+object %unquote($label) as $alias <<external-person>>
+!endif
 !endprocedure
 
 !procedure System($alias, $label, $descr="")
-object $label as $alias <<system>>
+!if $descr != ""
+object %unquote($label) as $alias <<system>> {
+%unquote($descr)
+}
+!else
+object %unquote($label) as $alias <<system>>
+!endif
 !endprocedure
 
 !procedure System_Ext($alias, $label, $descr="")
-object $label as $alias <<external-system>>
+!if $descr != ""
+object %unquote($label) as $alias <<external-system>> {
+%unquote($descr)
+}
+!else
+object %unquote($label) as $alias <<external-system>>
+!endif
 !endprocedure
 
 !procedure Boundary($alias, $label)
@@ -26,23 +54,43 @@ object $label as $alias <<external-system>>
 !endprocedure
 
 !procedure Rel($from, $to, $label, $tech="")
-$from --> $to : $label
+!if $tech != ""
+$from --> $to : %unquote($label) [%unquote($tech)]
+!else
+$from --> $to : %unquote($label)
+!endif
 !endprocedure
 
 !procedure Rel_U($from, $to, $label, $tech="")
-$from --> $to : $label
+!if $tech != ""
+$from --> $to : %unquote($label) [%unquote($tech)]
+!else
+$from --> $to : %unquote($label)
+!endif
 !endprocedure
 
 !procedure Rel_D($from, $to, $label, $tech="")
-$from --> $to : $label
+!if $tech != ""
+$from --> $to : %unquote($label) [%unquote($tech)]
+!else
+$from --> $to : %unquote($label)
+!endif
 !endprocedure
 
 !procedure Rel_L($from, $to, $label, $tech="")
-$from --> $to : $label
+!if $tech != ""
+$from --> $to : %unquote($label) [%unquote($tech)]
+!else
+$from --> $to : %unquote($label)
+!endif
 !endprocedure
 
 !procedure Rel_R($from, $to, $label, $tech="")
-$from --> $to : $label
+!if $tech != ""
+$from --> $to : %unquote($label) [%unquote($tech)]
+!else
+$from --> $to : %unquote($label)
+!endif
 !endprocedure
 
 !procedure UpdateRelStyle($from, $to, $textColor, $lineColor)
