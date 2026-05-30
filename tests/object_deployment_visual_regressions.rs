@@ -39,25 +39,53 @@ fn attr_value_in_next_tag_after(haystack: &str, marker: &str, tag_prefix: &str, 
 
 fn polyline_points_after(haystack: &str, marker: &str) -> Vec<(i32, i32)> {
     let marker_idx = haystack.find(marker).expect("marker should exist");
+    // Try <polyline points="..."> first (Polyline/Ortho routing modes).
     let points_key = "points=\"";
-    let points_start = haystack[marker_idx..]
-        .find(points_key)
-        .map(|idx| marker_idx + idx + points_key.len())
-        .expect("points attribute should exist");
-    let rest = &haystack[points_start..];
-    let points_end = rest.find('"').expect("points attribute should terminate");
-    rest[..points_end]
-        .split_whitespace()
-        .map(|pair| {
-            let (x, y) = pair
-                .split_once(',')
-                .expect("polyline point should contain comma");
-            (
-                x.parse::<i32>().expect("x coordinate should parse"),
-                y.parse::<i32>().expect("y coordinate should parse"),
-            )
-        })
-        .collect()
+    if let Some(rel_idx) = haystack[marker_idx..].find(points_key) {
+        let points_start = marker_idx + rel_idx + points_key.len();
+        let rest = &haystack[points_start..];
+        let points_end = rest.find('"').expect("points attribute should terminate");
+        return rest[..points_end]
+            .split_whitespace()
+            .map(|pair| {
+                let (x, y) = pair
+                    .split_once(',')
+                    .expect("polyline point should contain comma");
+                (
+                    x.parse::<i32>().expect("x coordinate should parse"),
+                    y.parse::<i32>().expect("y coordinate should parse"),
+                )
+            })
+            .collect();
+    }
+    // Fall back to <path d="..."> (Splines routing mode / cubic Bézier).
+    // Extract all explicit (x,y) coordinate pairs by stripping SVG command
+    // letters and collecting consecutive numeric token pairs.
+    let d_key = "d=\"";
+    let d_idx = haystack[marker_idx..]
+        .find(d_key)
+        .map(|idx| marker_idx + idx + d_key.len())
+        .expect("path d attribute should exist");
+    let rest = &haystack[d_idx..];
+    let d_end = rest.find('"').expect("d attribute should terminate");
+    let d = &rest[..d_end];
+    let mut result: Vec<(i32, i32)> = Vec::new();
+    let mut pending: Vec<f64> = Vec::new();
+    for tok in d.split(|c: char| c == ',' || c.is_whitespace()) {
+        if tok.is_empty() {
+            continue;
+        }
+        if let Ok(n) = tok.parse::<f64>() {
+            pending.push(n);
+            if pending.len() == 2 {
+                result.push((pending[0].round() as i32, pending[1].round() as i32));
+                pending.clear();
+            }
+        } else {
+            pending.clear();
+        }
+    }
+    result
 }
 
 #[test]
