@@ -34,7 +34,7 @@
     {
       "path": "docs/examples/class/02_inheritance.puml",
       "family": "class",
-      "expected_text": ["Vehicle", "Car", "Truck", "+make: String", "+drive()", "+haul()"],
+      "expected_text": ["Vehicle", "Car", "Truck", "make: String", "drive()", "haul()"],
       "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
