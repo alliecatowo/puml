@@ -81,10 +81,7 @@ B --> C
 A --> C
 @enduml
 "#);
-    assert!(
-        s.contains("<svg"),
-        "SVG output must be present, got:\n{s}"
-    );
+    assert!(s.contains("<svg"), "SVG output must be present, got:\n{s}");
     assert_eq!(
         count_relations(&s),
         3,
