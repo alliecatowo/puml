@@ -539,8 +539,11 @@ pub(super) fn render_class_node(
         } else {
             member_color
         };
-        // Reconstruct display text: keep visibility prefix + remaining text
-        let display_text = if vis_sym.is_some() {
+        // When rendering glyphs, strip the ASCII prefix from display text.
+        // When icons are off, keep the prefix (legacy ASCII behaviour).
+        let display_text = if vis_sym.is_some() && render_visibility_icons {
+            text_after_mod.to_string()
+        } else if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
         } else {
             text_after_mod.to_string()
@@ -556,13 +559,85 @@ pub(super) fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
+
+        // Emit UML 2.x visibility glyph (SVG shape) before member text (#1349).
+        // Hollow vs filled encodes field vs method:
+        //   - method: modifier == Method, OR text contains '(' (operation signature)
+        //   - field: everything else
+        // Shapes: public=circle, private=diamond, protected=diamond, package=triangle
+        let glyph_x_offset = if render_visibility_icons && vis_sym.is_some() {
+            let gx = x + 10; // left margin
+            let gy = my - 5; // vertically centred on the text baseline (~5px above)
+            let color = vis_color;
+            let is_method = matches!(member.modifier, Some(MemberModifier::Method))
+                || text_after_mod.contains('(');
+            match vis_sym {
+                Some("+") => {
+                    // Public: hollow circle (field) or filled circle (method)
+                    if is_method {
+                        out.push_str(&format!(
+                            "<circle class=\"uml-vis-glyph\" cx=\"{cx}\" cy=\"{cy}\" r=\"4\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"1\"/>",
+                            cx = gx + 4,
+                            cy = gy,
+                        ));
+                    } else {
+                        out.push_str(&format!(
+                            "<circle class=\"uml-vis-glyph\" cx=\"{cx}\" cy=\"{cy}\" r=\"4\" fill=\"none\" stroke=\"{color}\" stroke-width=\"1.5\"/>",
+                            cx = gx + 4,
+                            cy = gy,
+                        ));
+                    }
+                }
+                Some("-") => {
+                    // Private: filled diamond (same for field and method)
+                    let cx = gx + 4;
+                    let cy = gy;
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-vis-glyph\" points=\"{},{} {},{} {},{} {},{}\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"0.5\"/>",
+                        cx, cy - 5,
+                        cx + 4, cy,
+                        cx, cy + 5,
+                        cx - 4, cy,
+                    ));
+                }
+                Some("#") => {
+                    // Protected: hollow diamond
+                    let cx = gx + 4;
+                    let cy = gy;
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-vis-glyph\" points=\"{},{} {},{} {},{} {},{}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"1.5\"/>",
+                        cx, cy - 5,
+                        cx + 4, cy,
+                        cx, cy + 5,
+                        cx - 4, cy,
+                    ));
+                }
+                Some("~") => {
+                    // Package: filled triangle pointing up
+                    let cx = gx + 4;
+                    let cy = gy;
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-vis-glyph\" points=\"{},{} {},{} {},{}\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"0.5\"/>",
+                        cx, cy - 5,
+                        cx + 5, cy + 4,
+                        cx - 5, cy + 4,
+                    ));
+                }
+                _ => {}
+            }
+            // Glyphs are ~10px wide; shift text right by 14px.
+            14
+        } else {
+            0
+        };
+
         if let Some(required_text) = display_text.strip_prefix('*') {
             out.push_str(&format!(
                 "<text class=\"uml-member uml-ie-member\" data-uml-ie-mandatory=\"true\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>\
                  <tspan font-weight=\"700\">*</tspan><tspan dx=\"4\">{m}</tspan></text>",
                 ff = escape_text(font_family),
                 fs = member_font_size,
-                tx = x + 10,
+                tx = x + 10 + glyph_x_offset,
                 vc = effective_color,
                 sa = style_attrs,
                 m = escape_text(required_text.trim_start())
@@ -570,7 +645,7 @@ pub(super) fn render_class_node(
         } else {
             if display_text.contains("<$") {
                 out.push_str(&creole_text(
-                    x + 10,
+                    x + 10 + glyph_x_offset,
                     my,
                     &format!(
                         "class=\"uml-member\"{visibility_attr}{modifier_attr} font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}",
@@ -587,7 +662,7 @@ pub(super) fn render_class_node(
                     "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
                     ff = escape_text(font_family),
                     fs = member_font_size,
-                    tx = x + 10,
+                    tx = x + 10 + glyph_x_offset,
                     vc = effective_color,
                     sa = style_attrs,
                     m = escape_text(&display_text)
