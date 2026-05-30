@@ -36,13 +36,20 @@ fn main() -> ExitCode {
         }
     };
 
+    let failfast2 = cli.failfast2;
     match cli_run::run(cli) {
         Ok(()) => ExitCode::from(EXIT_OK),
         Err((code, msg)) => {
             if !msg.is_empty() {
                 eprintln!("{msg}");
             }
-            ExitCode::from(code)
+            // --failfast2: remap validation exit code 1 → 2 to match PlantUML convention.
+            let final_code = if failfast2 && code == EXIT_VALIDATION {
+                2
+            } else {
+                code
+            };
+            ExitCode::from(final_code)
         }
     }
 }
