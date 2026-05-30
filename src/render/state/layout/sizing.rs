@@ -82,10 +82,12 @@ pub(in crate::render::state) fn compute_node_size(
                     for region in &node.regions {
                         compute_region_size(region, sizes);
                     }
-                    let (column_w, content_h) = concurrent_region_metrics(&node.regions, sizes);
-                    let content_w = column_w * n_regions + REGION_DIVIDER_GAP * (n_regions - 1);
+                    // Top-to-bottom layout: row_w is max child width (all regions share
+                    // one column), row_h includes per-region heights + divider gaps.
+                    let (row_w, row_h) = concurrent_region_metrics(&node.regions, sizes);
+                    let content_w = row_w;
                     let w = content_w + COMPOSITE_PAD_X * 2;
-                    let h = content_h + COMPOSITE_PAD_Y + actions_h + COMPOSITE_PAD_BOT;
+                    let h = row_h + COMPOSITE_PAD_Y + actions_h + COMPOSITE_PAD_BOT;
                     (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
                 } else {
                     let mut total_w = STATE_NODE_W;
@@ -139,20 +141,32 @@ pub(in crate::render::state) fn node_display_lines(node: &StateNode) -> Vec<Stri
     }
 }
 
+/// Returns `(row_w, row_h)` — the dimensions needed to lay out concurrent regions
+/// **top-to-bottom** (UML 2.x convention).
+///
+/// `row_w`  = max width across all child nodes in all regions (all regions share the
+///            same available width, centred within the composite state).
+/// `row_h`  = sum of each region's own content height + gaps between regions.
 pub(in crate::render::state) fn concurrent_region_metrics(
     regions: &[Vec<StateNode>],
     sizes: &std::collections::BTreeMap<String, (i32, i32)>,
 ) -> (i32, i32) {
-    let column_w = regions
+    // Width: widest child node across all regions (all rows are the same width).
+    let row_w = regions
         .iter()
         .flat_map(|region| region.iter())
         .filter_map(|child| sizes.get(&child.name).copied())
         .map(|(w, _)| w)
         .max()
         .unwrap_or(STATE_NODE_W);
-    let content_h = regions
+
+    // Height: sum of per-region heights (each region is a vertical stack of children)
+    // plus REGION_DIVIDER_GAP between adjacent regions.
+    let n_regions = regions.len().max(1) as i32;
+    let total_h: i32 = regions
         .iter()
         .map(|region| {
+            // Each region stacks its children vertically.
             region
                 .iter()
                 .enumerate()
@@ -168,10 +182,11 @@ pub(in crate::render::state) fn concurrent_region_metrics(
                     }
                 })
                 .sum::<i32>()
+                .max(STATE_NODE_H)
         })
-        .max()
-        .unwrap_or(STATE_NODE_H);
-    (column_w, content_h)
+        .sum();
+    let row_h = total_h + REGION_DIVIDER_GAP * (n_regions - 1);
+    (row_w, row_h)
 }
 
 /// Place a node and all its children into the `placed` map.
@@ -195,17 +210,23 @@ pub(in crate::render::state) fn place_node(
         // internal action lines (entry/exit/do actions, closes #1304).
         let actions_h = (node.internal_actions.len() as i32) * 14;
         if node.regions.len() > 1 {
-            let (column_w, _) = concurrent_region_metrics(&node.regions, sizes);
-            let mut region_x = x + COMPOSITE_PAD_X;
-            let content_top = y + COMPOSITE_PAD_Y + actions_h;
+            // Top-to-bottom layout: all regions share the same horizontal span,
+            // each region is stacked below the previous with REGION_DIVIDER_GAP
+            // between them (where the horizontal dashed divider is drawn).
+            let (row_w, _) = concurrent_region_metrics(&node.regions, sizes);
+            let region_x = x + COMPOSITE_PAD_X;
+            let avail_w = w - COMPOSITE_PAD_X * 2;
+            let mut region_top = y + COMPOSITE_PAD_Y + actions_h;
             for region in &node.regions {
-                let mut child_y = content_top;
+                let mut child_y = region_top;
                 for (ci, child) in region.iter().enumerate() {
                     let (cw, ch) = sizes
                         .get(&child.name)
                         .copied()
                         .unwrap_or((STATE_NODE_W, STATE_NODE_H));
-                    let cx = region_x + (column_w - cw) / 2;
+                    // Centre each child horizontally within the available width.
+                    let cx = x + COMPOSITE_PAD_X + (avail_w - cw) / 2;
+                    let cx = cx.max(region_x);
                     let cx = boundary_point_x(child, x, w, cx, cw);
                     place_node(child, cx, child_y, cw, ch, sizes, placed);
                     child_y += ch;
@@ -213,7 +234,25 @@ pub(in crate::render::state) fn place_node(
                         child_y += STATE_NODE_GAP_Y;
                     }
                 }
-                region_x += column_w + REGION_DIVIDER_GAP;
+                // Height consumed by this region's children.
+                let region_h: i32 = region
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, child)| {
+                        let (_, ch) = sizes
+                            .get(&child.name)
+                            .copied()
+                            .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+                        if idx + 1 < region.len() {
+                            ch + STATE_NODE_GAP_Y
+                        } else {
+                            ch
+                        }
+                    })
+                    .sum::<i32>()
+                    .max(STATE_NODE_H);
+                region_top += region_h + REGION_DIVIDER_GAP;
+                let _ = row_w; // used for sizing; avail_w drives placement
             }
         } else {
             let mut child_y = y + COMPOSITE_PAD_Y + actions_h;
