@@ -366,10 +366,18 @@ remove @unlinked
 #[test]
 fn hide_at_unlinked_removes_isolated_nodes() {
     let svg = puml::render_source_to_svg(HIDE_UNLINKED_SRC).expect("render hide @unlinked");
-    assert!(svg.contains(">A<"), "A should be visible (linked)");
-    assert!(svg.contains(">B<"), "B should be visible (linked)");
+    // Use data-uml-id to identify class boxes — badge letters like 'C' may appear on
+    // other nodes and must not be confused with the class node named "C".
     assert!(
-        !svg.contains(">C<"),
+        svg.contains("data-uml-id=\"A\""),
+        "A should be visible (linked)"
+    );
+    assert!(
+        svg.contains("data-uml-id=\"B\""),
+        "B should be visible (linked)"
+    );
+    assert!(
+        !svg.contains("data-uml-id=\"C\""),
         "C should be hidden (unlinked): svg={svg}"
     );
 }
@@ -377,10 +385,16 @@ fn hide_at_unlinked_removes_isolated_nodes() {
 #[test]
 fn remove_at_unlinked_removes_isolated_nodes() {
     let svg = puml::render_source_to_svg(REMOVE_UNLINKED_SRC).expect("render remove @unlinked");
-    assert!(svg.contains(">A<"), "A should be visible (linked)");
-    assert!(svg.contains(">B<"), "B should be visible (linked)");
     assert!(
-        !svg.contains(">C<"),
+        svg.contains("data-uml-id=\"A\""),
+        "A should be visible (linked)"
+    );
+    assert!(
+        svg.contains("data-uml-id=\"B\""),
+        "B should be visible (linked)"
+    );
+    assert!(
+        !svg.contains("data-uml-id=\"C\""),
         "C should be removed (unlinked): svg={svg}"
     );
 }
@@ -422,17 +436,25 @@ remove C
 #[test]
 fn hide_classname_removes_that_class() {
     let svg = puml::render_source_to_svg(HIDE_CLASS_SRC).expect("render hide classname");
-    assert!(svg.contains(">A<"), "A should be visible");
-    assert!(svg.contains(">B<"), "B should be visible");
-    assert!(!svg.contains(">C<"), "C should be hidden: svg={svg}");
+    // Use data-uml-id to identify class boxes — badge letters like 'C' may appear on
+    // other nodes and must not be confused with the class node named "C".
+    assert!(svg.contains("data-uml-id=\"A\""), "A should be visible");
+    assert!(svg.contains("data-uml-id=\"B\""), "B should be visible");
+    assert!(
+        !svg.contains("data-uml-id=\"C\""),
+        "C should be hidden: svg={svg}"
+    );
 }
 
 #[test]
 fn remove_classname_removes_that_class() {
     let svg = puml::render_source_to_svg(REMOVE_CLASS_SRC).expect("render remove classname");
-    assert!(svg.contains(">A<"), "A should be visible");
-    assert!(svg.contains(">B<"), "B should be visible");
-    assert!(!svg.contains(">C<"), "C should be removed: svg={svg}");
+    assert!(svg.contains("data-uml-id=\"A\""), "A should be visible");
+    assert!(svg.contains("data-uml-id=\"B\""), "B should be visible");
+    assert!(
+        !svg.contains("data-uml-id=\"C\""),
+        "C should be removed: svg={svg}"
+    );
 }
 
 // ─── 3.6 Escaped leading visibility markers ─────────────────────────────────
@@ -482,9 +504,11 @@ fn escaped_visibility_members_render_as_literal_text() {
         .filter(|node| node.attribute("data-uml-visibility").is_some())
         .filter_map(|node| node.text().map(str::trim).map(str::to_string))
         .collect::<Vec<_>>();
+    // When visibility-icon mode is active the '+' prefix is stripped from display text
+    // (the glyph shape replaces it); the raw member text thus appears without prefix.
     assert_eq!(
         actual_visibility_members,
-        vec!["+actualPublic"],
+        vec!["actualPublic"],
         "only the unescaped member should receive visibility styling"
     );
 }

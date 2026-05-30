@@ -1,6 +1,7 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::{creole_text, escape_text};
 
+use super::class_members::{family_node_label, is_family_style_member, is_user_stereotype};
 use super::tree::render_centered_multiline_text;
 
 pub(super) fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
@@ -352,5 +353,145 @@ pub(crate) fn render_note_card(out: &mut String, x: i32, y: i32, w: i32, h: i32,
             escape_text(line)
         ));
         ty += 15;
+    }
+}
+
+/// Render a UseCase or BusinessUseCase node as an ellipse / rounded-rect (#578, #1349).
+///
+/// Call sites in `class_node_render` call this instead of inlining the block, so that
+/// `class_node_render.rs` stays within the 600-LOC file-size guardrail.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn render_usecase_node(
+    out: &mut String,
+    node: &FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    fill: &str,
+    stroke: &str,
+    stroke_width: f32,
+    stroke_dash: &str,
+    font_family: &str,
+    font_color: &str,
+    member_color: &str,
+    title_font_size: u32,
+    member_font_size: u32,
+    hide_stereotype: bool,
+) {
+    let cx = x + w / 2;
+    let cy = y + h / 2;
+    let rx = w / 2;
+    let ry = h / 2;
+    if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
+        out.push_str(&format!(
+            "<rect class=\"uml-business-usecase\" data-uml-kind=\"business-usecase\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
+        ));
+    } else {
+        out.push_str(&format!(
+            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
+        ));
+    }
+    // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
+    // the human-readable label as members[0] when the parser embeds `as DisplayName`
+    // inside a group. Detect this by checking that members[0] is plain text (not a
+    // UML modifier line) and use it as the displayed label (fix #578).
+    let (uc_display_name, uc_member_skip): (&str, usize) = if node.name.contains("::") {
+        let first_member_is_label = node.members.first().is_some_and(|m| {
+            let t = m.text.trim();
+            !t.is_empty()
+                && !t.starts_with("<<")
+                && !t.starts_with('+')
+                && !t.starts_with('-')
+                && !t.starts_with('#')
+                && !t.starts_with('~')
+                && !t.starts_with('{')
+                && !t.starts_with('\x1f')
+                && !t.contains(':')
+                && !t.contains('(')
+        });
+        if first_member_is_label {
+            (node.members[0].text.trim(), 1)
+        } else {
+            let short = node.name.rsplit("::").next().unwrap_or(&node.name);
+            (short, 0)
+        }
+    } else {
+        (node.name.as_str(), 0)
+    };
+    // Collect extension point names (encoded as `\x1fuc:ext-point:NAME` members).
+    // These are rendered as a horizontal divider + list inside the oval.
+    let ext_points: Vec<&str> = node
+        .members
+        .iter()
+        .filter_map(|m| m.text.strip_prefix("\x1fuc:ext-point:"))
+        .collect();
+    let has_ext_points = !ext_points.is_empty()
+        || node
+            .members
+            .iter()
+            .any(|m| m.text == "\x1fuc:ext-points-header");
+
+    // Name centered — the alias is the internal id only; do NOT display it (fix #478).
+    // When extension points are present, shift the name upward so the divider
+    // and point list fit inside the oval below it.
+    let name_ty = if has_ext_points {
+        cy - (ry / 3).max(8)
+    } else {
+        cy + 4
+    };
+    out.push_str(&format!(
+        "<text x=\"{cx}\" y=\"{name_ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+        escape_text(font_family),
+        title_font_size,
+        escape_text(font_color),
+        name = escape_text(uc_display_name)
+    ));
+
+    // Render extension-points section inside the ellipse.
+    if has_ext_points {
+        // Dividing line across the interior of the oval at ~40% from top.
+        let div_y = cy - (ry / 6).max(4);
+        // Half-chord width at div_y: w_chord = rx * sqrt(1 - ((div_y-cy)/ry)^2)
+        let dy_frac = (div_y - cy) as f64 / ry as f64;
+        let chord_half = (rx as f64 * (1.0 - dy_frac * dy_frac).max(0.0).sqrt()) as i32;
+        let line_x1 = cx - chord_half + 4;
+        let line_x2 = cx + chord_half - 4;
+        out.push_str(&format!(
+            "<line class=\"uml-usecase-ext-divider\" x1=\"{line_x1}\" y1=\"{div_y}\" x2=\"{line_x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+        ));
+        // Extension point names listed below the divider.
+        let mut ep_y = div_y + 13;
+        for ep_name in &ext_points {
+            out.push_str(&format!(
+                "<text class=\"uml-usecase-ext-point\" x=\"{cx}\" y=\"{ep_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"9\" fill=\"{}\">{txt}</text>",
+                escape_text(font_family),
+                escape_text(member_color),
+                txt = escape_text(ep_name)
+            ));
+            ep_y += 12;
+        }
+    }
+
+    // Members rendered below the ellipse (rare for usecases), skipping display-label slot.
+    // Skip internal uc: members — those are rendered inside the oval above.
+    let mut my = y + h + 14;
+    for member in node.members.iter().skip(uc_member_skip) {
+        let text = member.text.trim();
+        if is_family_style_member(text)
+            || text.starts_with("\x1fuc:")
+            || (hide_stereotype && is_user_stereotype(text))
+        {
+            continue;
+        }
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
+            escape_text(font_family),
+            member_font_size,
+            tx = x + w / 2,
+            mc = member_color,
+            m = escape_text(text)
+        ));
+        my += 14;
     }
 }

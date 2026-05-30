@@ -340,3 +340,76 @@ pub(super) fn class_node_visibility_symbol(
         }
     })
 }
+
+/// Emit a UML 2.x visibility glyph SVG shape before the member text (#1349).
+///
+/// Returns the x-offset to add to the text position (14 when a glyph is emitted, 0 otherwise).
+///
+/// Hollow vs filled encodes field vs method:
+/// - method: `is_method == true` (modifier == Method or text contains '(')
+/// - field: everything else
+///   Shapes: public=circle, private/protected=diamond, package=triangle.
+pub(super) fn emit_visibility_glyph(
+    out: &mut String,
+    vis_sym: Option<&str>,
+    color: &str,
+    gx: i32,
+    gy: i32,
+    is_method: bool,
+) -> i32 {
+    let Some(sym) = vis_sym else {
+        return 0;
+    };
+    match sym {
+        "+" => {
+            // Public: hollow circle (field) or filled circle (method)
+            if is_method {
+                out.push_str(&format!(
+                    "<circle class=\"uml-vis-glyph\" cx=\"{cx}\" cy=\"{gy}\" r=\"4\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"1\"/>",
+                    cx = gx + 4,
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<circle class=\"uml-vis-glyph\" cx=\"{cx}\" cy=\"{gy}\" r=\"4\" fill=\"none\" stroke=\"{color}\" stroke-width=\"1.5\"/>",
+                    cx = gx + 4,
+                ));
+            }
+        }
+        "-" => {
+            // Private: filled diamond (same for field and method)
+            let cx = gx + 4;
+            out.push_str(&format!(
+                "<polygon class=\"uml-vis-glyph\" points=\"{cx},{y0} {x1},{gy} {cx},{y2} {x2},{gy}\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"0.5\"/>",
+                y0 = gy - 5,
+                x1 = cx + 4,
+                y2 = gy + 5,
+                x2 = cx - 4,
+            ));
+        }
+        "#" => {
+            // Protected: hollow diamond
+            let cx = gx + 4;
+            out.push_str(&format!(
+                "<polygon class=\"uml-vis-glyph\" points=\"{cx},{y0} {x1},{gy} {cx},{y2} {x2},{gy}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"1.5\"/>",
+                y0 = gy - 5,
+                x1 = cx + 4,
+                y2 = gy + 5,
+                x2 = cx - 4,
+            ));
+        }
+        "~" => {
+            // Package: filled triangle pointing up
+            let cx = gx + 4;
+            out.push_str(&format!(
+                "<polygon class=\"uml-vis-glyph\" points=\"{cx},{y0} {x1},{y2} {x2},{y2}\" fill=\"{color}\" stroke=\"{color}\" stroke-width=\"0.5\"/>",
+                y0 = gy - 5,
+                x1 = cx + 5,
+                y2 = gy + 4,
+                x2 = cx - 5,
+            ));
+        }
+        _ => {}
+    }
+    // Glyphs are ~10px wide; shift text right by 14px.
+    14
+}
