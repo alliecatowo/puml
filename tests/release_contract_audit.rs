@@ -47,7 +47,7 @@ fn release_docs_capture_release_gate_contract() {
         "release checklist must include release build validation"
     );
     assert!(
-        checklist.contains("cargo llvm-cov --all-features --workspace --fail-under-lines 87"),
+        checklist.contains("cargo llvm-cov --all-features --workspace --fail-under-lines 90"),
         "release checklist must include coverage gate command"
     );
     assert!(

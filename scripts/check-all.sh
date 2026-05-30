@@ -106,8 +106,8 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
-  echo "[gate] cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean"
-  cargo llvm-cov --all-features --package puml --fail-under-lines 87 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
+  echo "[gate] cargo llvm-cov --all-features --package puml --fail-under-lines 90 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}' --no-clean"
+  cargo llvm-cov --all-features --package puml --fail-under-lines 90 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}" --no-clean
 
   if [[ "$SKIP_RELEASE_BUILD" -eq 1 ]]; then
     echo "[gate] --no-release-build: skipping cargo build --release (handled by binary_size job)"
