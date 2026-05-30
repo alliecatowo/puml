@@ -515,6 +515,7 @@ impl Router for ChannelRouter {
                     target_id: tgt_id,
                     nodes,
                     positions,
+                    group_bounds,
                 };
                 let blocked_vertical = vertical_route_crosses_node(vertical_route);
 
