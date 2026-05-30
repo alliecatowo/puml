@@ -175,14 +175,29 @@ pub(super) fn render_box_grid_relations_and_labels(
                     let n = orth_pts.len();
                     let (pnx, pny) = orth_pts[n - 1];
                     let (pmx, pmy) = orth_pts[n - 2];
-                    if !interface_nodes.contains(&to_name) {
+                    if interface_nodes.contains(&to_name) {
+                        // For interface circles, snap endpoint to the actual circle
+                        // edge using the router path's entry direction (not the
+                        // component-center vector, which may pick the wrong side when
+                        // dx == dy).
+                        const IR: i32 = 18;
+                        let cx = tx + tw / 2;
+                        let cy = ty + th / 2;
                         if pmx == pnx {
-                            x2 = pmx.clamp(tx, tx + tw);
-                            y2 = if pmy < pny { ty } else { ty + th };
+                            // Vertical entry: snap to top or bottom of circle.
+                            x2 = cx;
+                            y2 = if pmy < pny { cy - IR } else { cy + IR };
                         } else if pmy == pny {
-                            y2 = pmy.clamp(ty, ty + th);
-                            x2 = if pmx < pnx { tx } else { tx + tw };
+                            // Horizontal entry: snap to left or right of circle.
+                            x2 = if pmx < pnx { cx - IR } else { cx + IR };
+                            y2 = cy;
                         }
+                    } else if pmx == pnx {
+                        x2 = pmx.clamp(tx, tx + tw);
+                        y2 = if pmy < pny { ty } else { ty + th };
+                    } else if pmy == pny {
+                        y2 = pmy.clamp(ty, ty + th);
+                        x2 = if pmx < pnx { tx } else { tx + tw };
                     }
                 }
             }
@@ -231,7 +246,13 @@ pub(super) fn render_box_grid_relations_and_labels(
                 };
                 // When entering top/bottom keep the router's y (the true bbox edge);
                 // fall back to pick_port's y only for left/right horizontal entry.
-                let snapped_y = if tgt_keep_routed_x { last.1 } else { y2 };
+                // Exception: interface circle nodes use an anchor adjusted to the
+                // circle edge via adjust_interface_anchor; always honour that y2.
+                let snapped_y = if tgt_keep_routed_x && !interface_nodes.contains(&to_name) {
+                    last.1
+                } else {
+                    y2
+                };
                 *last = (snapped_x, snapped_y);
             }
             let n = orth_pts.len();
