@@ -64,6 +64,9 @@ pub(in crate::render::activity) struct LayoutParams<'a> {
     pub branch_x_offset: i32,
     pub fork_col_w: i32,
     pub lane_w: i32,
+    /// Left edge of the lane area within the canvas. Fork bars must not extend
+    /// left of this coordinate (used to clamp bar_span_half; #1299).
+    pub lane_area_x: i32,
     pub lane_center_x: &'a dyn Fn(&str) -> i32,
     /// Minimum column width per branch: box_w + inter-node gap so adjacent
     /// fork-branch boxes never overlap each other.

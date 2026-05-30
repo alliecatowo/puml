@@ -81,7 +81,14 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             .map(|m| crate::render::text_metrics::monospace_width(&m.text, 7) + 24)
             .max()
             .unwrap_or(0);
-        name_px.max(member_px).clamp(160, 600)
+        let base_w = name_px.max(member_px).clamp(160, 600);
+        // Retune for usecase density (#1359): ovals are much smaller than class
+        // boxes; cap usecase node width at 120 to match PlantUML oval sizing.
+        if is_real_usecase_layout(document) {
+            base_w.min(120)
+        } else {
+            base_w
+        }
     };
     // Reserve enough horizontal gap for the longest relation label so object
     // edge labels stay clear of adjacent box borders (#564, #484).
@@ -103,9 +110,17 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         })
         .max()
         .unwrap_or(0);
-    let col_gap: i32 = 80.max(relation_label_gap);
     let is_usecase = is_real_usecase_layout(document);
-    let row_gap: i32 = if is_usecase { 46 } else { 64 };
+    // Retune for PlantUML-equivalent density (#1359): usecase diagrams use
+    // much tighter spacing than class/object.  col_gap reduced 80→30 and
+    // row_gap reduced 46→20 to match PlantUML's ~30px node separation.
+    // Relation labels in usecase diagrams don't drive horizontal node spacing.
+    let col_gap: i32 = if is_usecase {
+        30
+    } else {
+        80.max(relation_label_gap)
+    };
+    let row_gap: i32 = if is_usecase { 20 } else { 64 };
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;

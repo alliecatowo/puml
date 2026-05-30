@@ -107,6 +107,11 @@ pub struct LayoutOptions {
     /// out of lollipop/interface routing channels without changing deployment
     /// layouts that already have blessed artifacts.
     pub stack_staggered_group_collisions: bool,
+    /// Skip the post-layout group-bounding-box collision resolution pass
+    /// entirely.  Use for diagram families (e.g. usecase) where groups span
+    /// multiple ranks and the collision resolver would otherwise push groups
+    /// far to the right instead of allowing natural overlap at the boundary.
+    pub skip_group_collision_resolution: bool,
 }
 
 impl Default for LayoutOptions {
@@ -119,6 +124,7 @@ impl Default for LayoutOptions {
             canvas_margin: DEFAULT_CANVAS_MARGIN,
             canvas_right_margin: None,
             stack_staggered_group_collisions: false,
+            skip_group_collision_resolution: false,
         }
     }
 }

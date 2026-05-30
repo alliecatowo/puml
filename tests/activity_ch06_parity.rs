@@ -399,7 +399,7 @@ stop
 
     assert!(svg.contains("class=\"activity-note-connector\""));
     assert!(
-        svg.contains("<line x1=\"240\" y1=\"164\" x2=\"240\" y2=\"182\""),
+        svg.contains("<line x1=\"116\" y1=\"132\" x2=\"116\" y2=\"134\""),
         "main flow should continue from the noted action to the following action"
     );
     assert!(
@@ -444,7 +444,7 @@ stop
         "floating notes should not draw attached-note connectors"
     );
     assert!(
-        svg.contains("<line x1=\"500\" y1=\"142\" x2=\"500\" y2=\"160\""),
+        svg.contains("<line x1=\"316\" y1=\"114\" x2=\"316\" y2=\"116\""),
         "main flow should skip floating note nodes"
     );
 }
@@ -498,12 +498,12 @@ stop
 
     assert!(svg.contains("data-activity-kind=\"Detach\""));
     assert!(
-        !svg.contains("<line x1=\"216\" y1=\"262\" x2=\"216\" y2=\"326\"")
-            && !svg.contains("<line x1=\"216\" y1=\"284\" x2=\"216\" y2=\"326\""),
+        !svg.contains("<line x1=\"104\" y1=\"178\" x2=\"104\" y2=\"246\"")
+            && !svg.contains("<line x1=\"104\" y1=\"198\" x2=\"104\" y2=\"246\""),
         "a detached branch should not draw a connector into the fork join bar"
     );
     assert!(
-        svg.contains("<line x1=\"584\" y1=\"224\" x2=\"584\" y2=\"326\""),
+        svg.contains("<line x1=\"288\" y1=\"176\" x2=\"288\" y2=\"246\""),
         "non-terminated fork branches should still connect to the join bar"
     );
 }

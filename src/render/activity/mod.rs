@@ -1,6 +1,5 @@
-use super::layout_constants::{
-    ACTIVITY_BASE_LANE_WIDTH, ACTIVITY_BRANCH_X_OFFSET, ACTIVITY_LANE_AREA_X, ACTIVITY_STEP_HEIGHT,
-};
+// Activity density constants are inlined as literals for PlantUML parity (#1360).
+// The universal layout_constants values were too large for activity diagrams.
 use super::svg::escape_text;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
 use crate::output::RenderArtifact;
@@ -32,13 +31,13 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         _ => ActivityStyle::default(),
     };
 
-    let step_h = ACTIVITY_STEP_HEIGHT;
+    let step_h = 44; // #1360: dense retune (was ACTIVITY_STEP_HEIGHT=60)
     let title_lines = doc
         .title
         .as_deref()
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
-    let header_h = 40 + title_lines * 22;
+    let header_h = 28 + title_lines * 18; // #1360: dense retune
 
     // -----------------------------------------------------------------------
     // 2. Pass 0 — parse node metadata
@@ -110,9 +109,9 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             }
         }
     }
-    let branch_x_offset = ACTIVITY_BRANCH_X_OFFSET;
+    let branch_x_offset = 80; // #1360: dense retune (was ACTIVITY_BRANCH_X_OFFSET=160)
     let extra_branch_width = 2 * branch_x_offset * max_if_depth;
-    let extra_fork_width = (max_fork_branches * ACTIVITY_BRANCH_X_OFFSET).max(0);
+    let extra_fork_width = (max_fork_branches * 80).max(0); // #1360: dense retune
 
     let has_left_notes = metas
         .iter()
@@ -120,9 +119,9 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let has_right_notes = metas
         .iter()
         .any(|meta| meta.step_kind == "Note" && meta.note_side.as_deref() != Some("left"));
-    let side_note_margin = 260;
-    let lane_area_x = ACTIVITY_LANE_AREA_X + if has_left_notes { side_note_margin } else { 0 };
-    let base_lane_area_w = ACTIVITY_BASE_LANE_WIDTH;
+    let side_note_margin = 200; // #1360: dense retune
+    let lane_area_x = 16 + if has_left_notes { side_note_margin } else { 0 }; // #1360: dense (was ACTIVITY_LANE_AREA_X=32)
+    let base_lane_area_w = 200; // #1360: dense retune (was ACTIVITY_BASE_LANE_WIDTH=416)
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_x + lane_area_w + 32 + if has_right_notes { side_note_margin } else { 0 };
     let has_named_lanes = lanes.iter().any(|l| l != "default");
@@ -169,8 +168,8 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let sequential_partition_lanes =
         has_named_lanes && has_partition_block_markers && !has_swimlane_markers;
 
-    let fork_col_w = (lane_w / 2).max(160i32);
-    let box_w = (lane_w - 24).clamp(120, 220);
+    let fork_col_w = (lane_w / 2).max(100i32); // #1360: dense retune
+    let box_w = (lane_w - 24).clamp(80, 160); // #1360: dense retune
 
     // -----------------------------------------------------------------------
     // 5. Pass 1 — layout
@@ -190,6 +189,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
             branch_x_offset,
             fork_col_w,
             lane_w,
+            lane_area_x,
             lane_center_x: &lane_center_x,
             min_fork_col_w,
         },
@@ -222,7 +222,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
         .map(|l| l.next_slot_y)
         .max()
         .unwrap_or(header_h + step_h)
-        + 60;
+        + 40; // #1360: dense retune
 
     // Re-derive canvas width from actual node positions so that forks whose
     // effective_col_w exceeds the originally-budgeted fork_col_w don't clip
@@ -277,7 +277,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
                     left: cx - box_w / 2,
                     top: y + 4,
                     right: cx + box_w / 2,
-                    bottom: y + 40,
+                    bottom: y + 34, // #1360: dense retune (was 40)
                 }),
                 FamilyNodeKind::Note => Some(arrows::NodeBbox {
                     left: cx - box_w / 2,
@@ -290,10 +290,10 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
                         ),
                 }),
                 FamilyNodeKind::ActivityDecision => Some(arrows::NodeBbox {
-                    left: cx - 100,
+                    left: cx - 80,
                     top: y + 2,
-                    right: cx + 100,
-                    bottom: y + 46,
+                    right: cx + 80,
+                    bottom: y + 38, // #1360: dense retune
                 }),
                 FamilyNodeKind::ActivityStart => Some(arrows::NodeBbox {
                     left: cx - 12,
@@ -305,7 +305,7 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
                     left: cx - 14,
                     top: y + 6,
                     right: cx + 14,
-                    bottom: y + 34,
+                    bottom: y + 30, // #1360: dense retune
                 }),
                 FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                     if meta.step_kind.contains("ForkAgain") {
@@ -338,16 +338,16 @@ pub fn render_activity_artifact(doc: &FamilyDocument) -> RenderArtifact {
     ));
 
     // Title block
-    let mut y_cursor = 28;
+    let mut y_cursor = 22;
     if let Some(title) = &doc.title {
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"{}\">{}</text>",
                 y_cursor,
                 escape_text(&act_style.font_color),
                 escape_text(line)
             ));
-            y_cursor += 22;
+            y_cursor += 18;
         }
     }
     // PlantUML parity (#1348): the unconditional "activity diagram" subtitle
