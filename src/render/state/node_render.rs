@@ -317,27 +317,29 @@ pub(super) fn render_node<'a>(
                 // Internal actions (entry/exit/do) in composite header band (closes #1304)
                 push_internal_actions(out, node, x, w, y + 28, state_style);
 
-                // Draw concurrent region dividers (dashed vertical lines)
+                // Draw concurrent region dividers (dashed horizontal lines).
+                // Regions are stacked top-to-bottom; dividers sit between adjacent
+                // regions, spanning the full inner width of the composite state.
                 if node.regions.len() > 1 {
                     for ri in 0..node.regions.len() - 1 {
-                        let prev_right = node.regions[ri]
+                        let prev_bot = node.regions[ri]
                             .iter()
                             .filter_map(|child| ctx.placed.get(&child.name))
-                            .map(|child| child.x + child.w)
+                            .map(|child| child.y + child.h)
                             .max();
-                        let next_left = node.regions[ri + 1]
+                        let next_top = node.regions[ri + 1]
                             .iter()
                             .filter_map(|child| ctx.placed.get(&child.name))
-                            .map(|child| child.x)
+                            .map(|child| child.y)
                             .min();
-                        if let (Some(prev_right), Some(next_left)) = (prev_right, next_left) {
-                            let div_x = (prev_right + next_left) / 2;
-                            let div_top = y + COMPOSITE_PAD_Y - 8;
-                            let div_bot = y + h - COMPOSITE_PAD_BOT + 4;
-                            if div_top < div_bot {
+                        if let (Some(prev_bot), Some(next_top)) = (prev_bot, next_top) {
+                            let div_y = (prev_bot + next_top) / 2;
+                            let div_left = x + COMPOSITE_PAD_X - 8;
+                            let div_right = x + w - COMPOSITE_PAD_X + 8;
+                            if div_left < div_right {
                                 out.push_str(&format!(
                                     "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"5 3\"/>",
-                                    div_x, div_top, div_x, div_bot, state_style.border_color
+                                    div_left, div_y, div_right, div_y, state_style.border_color
                                 ));
                             }
                         }
