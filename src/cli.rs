@@ -109,6 +109,18 @@ pub struct Cli {
     )]
     pub metadata: bool,
 
+    /// Write JSON metadata to the given file path instead of stdout.
+    ///
+    /// When combined with `--metadata`, the JSON metadata is written to FILE
+    /// instead of stdout. Mirrors PlantUML `--metadata <file>` convention.
+    #[arg(
+        long = "metadata-output",
+        value_name = "FILE",
+        conflicts_with_all = ["check", "check_syntax", "dump"],
+        requires = "metadata"
+    )]
+    pub metadata_output: Option<PathBuf>,
+
     /// Lint/check mode inputs (repeatable file paths).
     #[arg(
         long,
@@ -190,7 +202,10 @@ pub struct Cli {
     #[arg(long, value_name = "N", default_value_t = 1, value_parser = parse_threads)]
     pub threads: usize,
 
-    /// No-op PlantUML compatibility flag; this CLI already stops on the first fatal error.
+    /// Exit with code 2 (instead of 1) on the first parse or validation error.
+    ///
+    /// PlantUML uses exit code 2 for diagram errors when `--failfast2` is passed.
+    /// Without this flag, parse/validation errors use exit code 1.
     #[arg(long, action = ArgAction::SetTrue)]
     pub failfast2: bool,
 

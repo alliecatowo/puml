@@ -52,10 +52,15 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --quiet / -q                 suppress non-error stderr
 --verbose / -v               emit per-stage parse/normalize/render timings
 --fail-on-warn               exit 1 if any warnings are emitted
+--failfast2                  remap validation exit code 1 → 2 (PlantUML diagram-error convention)
 --overwrite                  no-op (outputs are always overwritten)
 --htmlcss                    no-op PlantUML compatibility flag for HTML output
 --charset UTF-8              no-op (only UTF-8 is supported)
 --output / -o PATH           write to PATH instead of the derived path
+--metadata                   print JSON metadata (title, family, page count) to stdout
+--metadata-output FILE       write --metadata JSON to FILE instead of stdout
+--extract                    split multi-diagram .puml into one file per @startuml block
+--pattern REGEX              filter lint/check file selection by regex over resolved paths
 ```
 
 ## Frontend dialects

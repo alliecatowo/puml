@@ -28,9 +28,10 @@ Compatibility flags:
 | `--check-syntax` | Alias for `--check`. |
 | `--preproc` | Print preprocessed source after include and macro expansion. |
 | `--htmlcss` | No-op; HTML output is already self-contained. |
-| `--metadata` | Print structured JSON metadata after parse and normalization. |
+| `--metadata` | Print structured JSON metadata after parse and normalization; combine with `--metadata-output FILE` to write to a file instead of stdout. |
+| `--metadata-output FILE` | Write `--metadata` JSON to FILE instead of stdout (requires `--metadata`). |
 | `--threads N` | Accepted as a worker-count hint; output ordering remains deterministic. |
-| `--failfast2` | Accepted no-op; fatal CLI errors already stop the run. |
+| `--failfast2` | Remap validation exit code 1 → 2 to match PlantUML convention for diagram errors. |
 | `--extract` | Split a multi-diagram input into deterministic `.puml` source files; stdin writes split sources to stdout. |
 | `--pattern REGEX` | Filter lint/check file selection by regex over resolved paths. |
 

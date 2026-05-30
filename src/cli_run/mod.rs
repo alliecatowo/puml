@@ -287,22 +287,35 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        if values.len() == 1 {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&values[0]).map_err(|e| (
+        let json = if values.len() == 1 {
+            serde_json::to_string_pretty(&values[0]).map_err(|e| {
+                (
                     EXIT_INTERNAL,
-                    format!("failed to serialize metadata output: {e}")
-                ))?
-            );
+                    format!("failed to serialize metadata output: {e}"),
+                )
+            })?
         } else {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&values).map_err(|e| (
+            serde_json::to_string_pretty(&values).map_err(|e| {
+                (
                     EXIT_INTERNAL,
-                    format!("failed to serialize metadata output: {e}")
-                ))?
-            );
+                    format!("failed to serialize metadata output: {e}"),
+                )
+            })?
+        };
+
+        if let Some(out_path) = &cli.metadata_output {
+            // --metadata-output <file>: write JSON to the specified file.
+            fs::write(out_path, format!("{json}\n")).map_err(|e| {
+                (
+                    EXIT_IO,
+                    format!("failed to write metadata to '{}': {e}", out_path.display()),
+                )
+            })?;
+            if cli.verbose {
+                eprintln!("[verbose] metadata written to '{}'", out_path.display());
+            }
+        } else {
+            println!("{json}");
         }
         return Ok(());
     }
