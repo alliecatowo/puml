@@ -44,14 +44,20 @@
       "path": "docs/examples/activity/01_simple_flow.puml",
       "family": "activity",
       "expected_text": ["Simple Activity Flow", "Initialize", "Process Data", "Save Results"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "layout density retune (#1346); re-bless on Linux"
     },
     {
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
       "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
       "unexpected_text": ["(else) no", "(endif)"],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "png_baseline_required": false,
+      "png_baseline_issue": 434,
+      "png_baseline_deferred_reason": "layout density retune (#1346); re-bless on Linux"
     },
     {
       "path": "docs/examples/state/01_basic.puml",
