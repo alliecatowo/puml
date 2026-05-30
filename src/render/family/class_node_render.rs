@@ -7,15 +7,15 @@ use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
 use super::class_members::{
     builtin_type_stereotype_label, class_node_visibility_symbol, count_header_stereotype_members,
-    is_family_style_member, is_user_stereotype, member_modifier_name, parse_member_divider,
-    parse_member_modifiers, parse_visibility_member, render_map_rows, uml_visibility_name,
-    MapRenderCtx,
+    emit_visibility_glyph, is_family_style_member, is_user_stereotype, member_modifier_name,
+    parse_member_divider, parse_member_modifiers, parse_visibility_member, render_map_rows,
+    uml_visibility_name, MapRenderCtx,
 };
 use super::class_smart_shapes::{ddd_smart_header_color, render_smart_default_shape};
 use super::class_types::ClassNodeGeometry;
 use super::cloud_icons::{find_cloud_stereotype, render_cloud_icon_box};
 use super::family_node_shapes::{
-    render_actor_awesome_figure, render_actor_hollow_figure, render_note_card,
+    render_actor_awesome_figure, render_actor_hollow_figure, render_note_card, render_usecase_node,
 };
 
 pub(super) fn render_class_node(
@@ -25,6 +25,7 @@ pub(super) fn render_class_node(
     class_style: &ClassStyle,
     namespace_separator: Option<&str>,
     hide_stereotype: bool,
+    hide_circle: bool,
 ) {
     let ClassNodeGeometry {
         x,
@@ -210,122 +211,24 @@ pub(super) fn render_class_node(
         node.kind,
         FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
     ) {
-        let cx = x + w / 2;
-        let cy = y + h / 2;
-        let rx = w / 2;
-        let ry = h / 2;
-        if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
-            out.push_str(&format!(
-                "<rect class=\"uml-business-usecase\" data-uml-kind=\"business-usecase\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
-            ));
-        } else {
-            out.push_str(&format!(
-                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}/>",
-            ));
-        }
-        // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
-        // the human-readable label as members[0] when the parser embeds `as DisplayName`
-        // inside a group. Detect this by checking that members[0] is plain text (not a
-        // UML modifier line) and use it as the displayed label (fix #578).
-        let (uc_display_name, uc_member_skip): (&str, usize) = if node.name.contains("::") {
-            let first_member_is_label = node.members.first().is_some_and(|m| {
-                let t = m.text.trim();
-                !t.is_empty()
-                    && !t.starts_with("<<")
-                    && !t.starts_with('+')
-                    && !t.starts_with('-')
-                    && !t.starts_with('#')
-                    && !t.starts_with('~')
-                    && !t.starts_with('{')
-                    && !t.starts_with('\x1f')
-                    && !t.contains(':')
-                    && !t.contains('(')
-            });
-            if first_member_is_label {
-                (node.members[0].text.trim(), 1)
-            } else {
-                let short = node.name.rsplit("::").next().unwrap_or(&node.name);
-                (short, 0)
-            }
-        } else {
-            (node.name.as_str(), 0)
-        };
-        // Collect extension point names (encoded as `\x1fuc:ext-point:NAME` members).
-        // These are rendered as a horizontal divider + list inside the oval.
-        let ext_points: Vec<&str> = node
-            .members
-            .iter()
-            .filter_map(|m| m.text.strip_prefix("\x1fuc:ext-point:"))
-            .collect();
-        let has_ext_points = !ext_points.is_empty()
-            || node
-                .members
-                .iter()
-                .any(|m| m.text == "\x1fuc:ext-points-header");
-
-        // Name centered — the alias is the internal id only; do NOT display it (fix #478).
-        // When extension points are present, shift the name upward so the divider
-        // and point list fit inside the oval below it.
-        let name_ty = if has_ext_points {
-            // Position the name in the upper portion of the ellipse.
-            cy - (ry / 3).max(8)
-        } else {
-            cy + 4
-        };
-        out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{name_ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
-            escape_text(font_family),
+        render_usecase_node(
+            out,
+            node,
+            x,
+            y,
+            w,
+            h,
+            fill,
+            stroke,
+            stroke_width,
+            stroke_dash,
+            font_family,
+            font_color,
+            member_color,
             title_font_size,
-            escape_text(font_color),
-            name = escape_text(uc_display_name)
-        ));
-
-        // Render extension-points section inside the ellipse.
-        if has_ext_points {
-            // Dividing line across the interior of the oval at ~40% from top.
-            let div_y = cy - (ry / 6).max(4);
-            // Half-chord width at div_y: w_chord = rx * sqrt(1 - ((div_y-cy)/ry)^2)
-            let dy_frac = (div_y - cy) as f64 / ry as f64;
-            let chord_half = (rx as f64 * (1.0 - dy_frac * dy_frac).max(0.0).sqrt()) as i32;
-            let line_x1 = cx - chord_half + 4;
-            let line_x2 = cx + chord_half - 4;
-            out.push_str(&format!(
-                "<line class=\"uml-usecase-ext-divider\" x1=\"{line_x1}\" y1=\"{div_y}\" x2=\"{line_x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-            ));
-            // Extension point names listed below the divider.
-            let mut ep_y = div_y + 13;
-            for ep_name in &ext_points {
-                out.push_str(&format!(
-                    "<text class=\"uml-usecase-ext-point\" x=\"{cx}\" y=\"{ep_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"9\" fill=\"{}\">{txt}</text>",
-                    escape_text(font_family),
-                    escape_text(member_color),
-                    txt = escape_text(ep_name)
-                ));
-                ep_y += 12;
-            }
-        }
-
-        // Members rendered below the ellipse (rare for usecases), skipping display-label slot.
-        // Skip internal uc: members — those are rendered inside the oval above.
-        let mut my = y + h + 14;
-        for member in node.members.iter().skip(uc_member_skip) {
-            let text = member.text.trim();
-            if is_family_style_member(text)
-                || text.starts_with("\x1fuc:")
-                || (hide_stereotype && is_user_stereotype(text))
-            {
-                continue;
-            }
-            out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
-                escape_text(font_family),
-                member_font_size,
-                tx = x + w / 2,
-                mc = member_color,
-                m = escape_text(text)
-            ));
-            my += 14;
-        }
+            member_font_size,
+            hide_stereotype,
+        );
         return;
     }
 
@@ -355,9 +258,10 @@ pub(super) fn render_class_node(
     } else {
         ""
     };
-    // Outer rect
+    // Outer rect — carries data-uml-id for test and tooling identification
+    let node_id = escape_text(node.alias.as_deref().unwrap_or(&node.name));
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}{shadow_attr}/>",
+        "<rect class=\"uml-node uml-class\" data-uml-id=\"{node_id}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"{rx}\" ry=\"{rx}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{stroke_width}\"{stroke_dash}{shadow_attr}/>",
     ));
     // Header band — taller when we display stereotype labels (14px per label — fix #470, #551)
     let stereotype_extra = (header_stereotype_labels.len() as i32) * 14;
@@ -412,6 +316,50 @@ pub(super) fn render_class_node(
         ""
     };
     let name_ty = y + effective_header_h - 9;
+
+    // ── Class-type badge (#1350) ──────────────────────────────────────────────
+    // PlantUML renders a small coloured circle with a letter in the header-left
+    // area of every class box to visually indicate the node kind.
+    // Badge letter:
+    //   FamilyNodeKind::Class + <<abstract>>  → 'A' (green circle)
+    //   FamilyNodeKind::Class + <<interface>> → 'I' (blue circle)
+    //   FamilyNodeKind::Class + <<enum>>      → 'E' (yellow circle)
+    //   FamilyNodeKind::Class (plain)         → 'C' (green circle)
+    //   FamilyNodeKind::Object                → 'O' (amber circle)
+    // Interface/Enum/Abstract are routed through FamilyNodeKind::Class with a
+    // leading builtin-type stereotype marker — checked via builtin_type_marker.
+    let badge_info: Option<(&str, &str, &str)> = match node.kind {
+        FamilyNodeKind::Class => {
+            let (letter, fill, stroke_c) = match builtin_type_marker {
+                Some("\u{ab}abstract\u{bb}") => ("A", "#A2D5A2", "#2E7D32"),
+                Some("\u{ab}interface\u{bb}") => ("I", "#90CAF9", "#1565C0"),
+                Some("\u{ab}enumeration\u{bb}") => ("E", "#FFF176", "#F9A825"),
+                Some("\u{ab}annotation\u{bb}") => ("@", "#FFCC80", "#E65100"),
+                // DDD/arch and other stereotype flavours still get the green C.
+                _ => ("C", "#A2D5A2", "#2E7D32"),
+            };
+            Some((letter, fill, stroke_c))
+        }
+        FamilyNodeKind::Object => Some(("O", "#FFD54F", "#F57F17")),
+        _ => None,
+    };
+    // Suppress the badge when `hide circle` is active — PlantUML convention.
+    if !hide_circle {
+        if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
+            let badge_r = 8_i32;
+            let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
+            let badge_cy = name_ty - 4; // vertically centre on the name baseline
+            out.push_str(&format!(
+                "<circle class=\"uml-class-badge\" cx=\"{badge_cx}\" cy=\"{badge_cy}\" r=\"{badge_r}\" fill=\"{badge_fill}\" stroke=\"{badge_stroke}\" stroke-width=\"1\"/>",
+            ));
+            out.push_str(&format!(
+                "<text class=\"uml-class-badge-letter\" x=\"{badge_cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" font-weight=\"700\" fill=\"{badge_stroke}\">{badge_letter}</text>",
+                ty = badge_cy + 3, // +3 px to visually centre letter inside circle
+                ff = escape_text(font_family),
+            ));
+        }
+    }
+
     out.push_str(&format!(
         "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}{cv}>{txt}</text>",
         ff = escape_text(font_family),
@@ -539,8 +487,11 @@ pub(super) fn render_class_node(
         } else {
             member_color
         };
-        // Reconstruct display text: keep visibility prefix + remaining text
-        let display_text = if vis_sym.is_some() {
+        // When rendering glyphs, strip the ASCII prefix from display text.
+        // When icons are off, keep the prefix (legacy ASCII behaviour).
+        let display_text = if vis_sym.is_some() && render_visibility_icons {
+            text_after_mod.to_string()
+        } else if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
         } else {
             text_after_mod.to_string()
@@ -556,13 +507,25 @@ pub(super) fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
+
+        // Emit UML 2.x visibility glyph (SVG shape) before member text (#1349).
+        let glyph_x_offset = if render_visibility_icons && vis_sym.is_some() {
+            let gx = x + 10; // left margin
+            let gy = my - 5; // vertically centred on the text baseline (~5px above)
+            let is_method = matches!(member.modifier, Some(MemberModifier::Method))
+                || text_after_mod.contains('(');
+            emit_visibility_glyph(out, vis_sym, vis_color, gx, gy, is_method)
+        } else {
+            0
+        };
+
         if let Some(required_text) = display_text.strip_prefix('*') {
             out.push_str(&format!(
                 "<text class=\"uml-member uml-ie-member\" data-uml-ie-mandatory=\"true\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>\
                  <tspan font-weight=\"700\">*</tspan><tspan dx=\"4\">{m}</tspan></text>",
                 ff = escape_text(font_family),
                 fs = member_font_size,
-                tx = x + 10,
+                tx = x + 10 + glyph_x_offset,
                 vc = effective_color,
                 sa = style_attrs,
                 m = escape_text(required_text.trim_start())
@@ -570,7 +533,7 @@ pub(super) fn render_class_node(
         } else {
             if display_text.contains("<$") {
                 out.push_str(&creole_text(
-                    x + 10,
+                    x + 10 + glyph_x_offset,
                     my,
                     &format!(
                         "class=\"uml-member\"{visibility_attr}{modifier_attr} font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}",
@@ -587,7 +550,7 @@ pub(super) fn render_class_node(
                     "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
                     ff = escape_text(font_family),
                     fs = member_font_size,
-                    tx = x + 10,
+                    tx = x + 10 + glyph_x_offset,
                     vc = effective_color,
                     sa = style_attrs,
                     m = escape_text(&display_text)

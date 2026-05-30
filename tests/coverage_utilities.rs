@@ -256,7 +256,16 @@ fn class_family_scope_and_hide_controls_affect_stub_output() {
     // The `class` keyword is not part of the display label — only the identifier appears.
     assert!(svg.contains("Domain::Core::User"));
     assert!(!svg.contains("class Domain::Core::User"));
-    assert!(svg.contains("+id: UUID"));
+    // When visibility-icon mode is active, the '+' prefix is rendered as a glyph shape and
+    // the text element carries the member name without the prefix character.
+    assert!(
+        svg.contains("id: UUID"),
+        "member text should appear without the visibility prefix (glyph mode): svg={svg}"
+    );
+    assert!(
+        svg.contains("data-uml-visibility=\"public\""),
+        "public visibility attribute should be emitted for +id member: svg={svg}"
+    );
     assert!(!svg.contains("&lt;&lt;Entity&gt;&gt;"));
     assert!(!svg.contains("()"));
 }

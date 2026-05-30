@@ -444,13 +444,15 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
             "Vehicle",
             "Car",
             "Truck",
-            "+make: String",
-            "+model: String",
-            "+start()",
-            "+doors: Int",
-            "+drive()",
-            "+payload: Float",
-            "+haul()",
+            // Visibility prefix is now a glyph icon, not literal ASCII '+'.
+            // The member text is emitted without the '+' character.
+            "make: String",
+            "model: String",
+            "start()",
+            "doors: Int",
+            "drive()",
+            "payload: Float",
+            "haul()",
         ],
     },
     FocusedTextFixture {

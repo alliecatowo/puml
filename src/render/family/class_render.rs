@@ -475,6 +475,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             &class_style,
             document.namespace_separator.as_deref(),
             document.hide_options.contains("stereotype"),
+            document.hide_options.contains("circle"),
         );
     }
 
