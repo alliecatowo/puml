@@ -5,13 +5,13 @@
 //! Graphviz's `splines=` attribute (see
 //! `src/main/java/net/sourceforge/plantuml/skin/SkinParam.java#getDotSplines()`):
 //!
-//! - default (no directive) → `splines=true` → smooth B-spline curves
+//! - default (no directive) → PUML default is `Polyline` (straight segments).
+//!   PlantUML upstream uses splines, but we diverge intentionally (#1341):
+//!   splines override the channel router's geometry and produce arcs that pierce
+//!   package frames. Polyline is stable and correct with the channel layout engine.
 //! - `polyline` → `splines=polyline` → straight segments through waypoints
 //! - `ortho` → `splines=ortho` → orthogonal right-angle elbows
-//!
-//! We mirror this contract: the renderer emits `<path d="…C…"/>` for the
-//! smooth-spline default, `<polyline points="…"/>` for both `polyline` and
-//! `ortho`, and the underlying waypoint set is the same in all three modes.
+//! - `splines` (opt-in) → smooth B-spline curves, available but not the default
 //!
 //! Reference: `docs/internal/architecture/edge-routing.md` and
 //! `docs/internal/architecture/edge-curve-research-2026-05-29.md`.
@@ -35,25 +35,20 @@ A --> C
 @enduml";
 
 #[test]
-fn default_routing_is_splines() {
-    // No `skinparam linetype` is set → the renderer must emit smooth
-    // cubic Bézier paths, matching PlantUML's default behavior. Each
-    // relation must appear as a `<path … d="M … C …"/>` element with
-    // at least one `C` (cubic Bézier) command.
+fn default_routing_is_polyline() {
+    // No `skinparam linetype` is set → the renderer must emit straight
+    // polyline segments (PUML default since #1341 revert). Each relation
+    // must appear as a `<polyline … points="…"/>` element with no cubic
+    // Bézier `C` command inside a uml-relation path.
     let svg = render_svg(MINIMAL_CLASS_DIAGRAM);
     assert!(
-        svg.contains("<path class=\"uml-relation\""),
-        "default mode must emit <path> elements for relations, got: {svg}"
+        svg.contains("<polyline class=\"uml-relation\""),
+        "default mode must emit <polyline> elements for relations, got: {svg}"
     );
-    // Cubic Bézier signature: a `C ` token inside one of the path d-attrs.
+    // No spline-curved relations under the default mode.
     assert!(
-        svg.matches("<path class=\"uml-relation\"").count() == 3 && svg.contains(" C "),
-        "default mode must emit Bézier curves (C command), got: {svg}"
-    );
-    // No polyline-shaped relations under the default mode.
-    assert!(
-        !svg.contains("<polyline class=\"uml-relation\""),
-        "default mode must NOT emit polyline relations, got: {svg}"
+        !svg.contains("<path class=\"uml-relation\""),
+        "default mode must NOT emit <path> (spline) relations, got: {svg}"
     );
 }
 
@@ -207,7 +202,7 @@ A --> B
 
 #[test]
 fn skinparam_linetype_unknown_value_falls_back_to_default() {
-    // Unknown values are silently ignored — the default (splines) wins.
+    // Unknown values are silently ignored — the default (Polyline) wins (#1341).
     let src = "@startuml
 skinparam linetype bezier3
 class A
@@ -216,7 +211,11 @@ A --> B
 @enduml";
     let svg = render_svg(src);
     assert!(
-        svg.contains("<path class=\"uml-relation\""),
-        "unknown linetype must fall back to splines default, got: {svg}"
+        svg.contains("<polyline class=\"uml-relation\""),
+        "unknown linetype must fall back to polyline default, got: {svg}"
+    );
+    assert!(
+        !svg.contains("<path class=\"uml-relation\""),
+        "unknown linetype must NOT emit spline <path> relations, got: {svg}"
     );
 }
