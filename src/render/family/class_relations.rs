@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::model::FamilyRelationEndpointMarker;
 use crate::render::geometry::{compute_edge_anchors_for_direction, pick_port};
 use crate::render::relation::{
     arrow_style, normalize_relation_endpoints, render_lollipop_endpoint, usecase_dependency_label,
@@ -12,6 +13,7 @@ use super::class_routing::{
     class_port_side_from_box_anchor, class_route_with_row_ports, qualified_row_anchor,
 };
 use super::class_types::{ClassEndpointAnchor, ClassNodeBox};
+use super::group_frames::ClassGroupFrameRect;
 
 /// Context passed to `render_class_relations` — groups the many read-only
 /// inputs that the relation-rendering loop needs from `render_class_svg`.
@@ -38,6 +40,107 @@ pub(super) struct ClassRelationCtx<'a> {
     /// and straight-segment `<polyline>` emission
     /// ([`EdgeRouting::Polyline`] / [`EdgeRouting::Ortho`]).
     pub(super) edge_routing: crate::render::graph_layout::EdgeRouting,
+    /// True for usecase diagrams -- enables actor-specific port overrides and
+    /// frame-boundary edge snapping (#1291, #1292).
+    pub(super) is_usecase_layout: bool,
+    /// Computed group-frame rectangles (system-boundary `rectangle` groups in
+    /// usecase diagrams).  Used for frame-boundary entry/exit snapping (#1292).
+    pub(super) group_frame_rects: Vec<ClassGroupFrameRect>,
+}
+
+// #1291: actor-generalization port override
+
+/// Returns true when the given node kind is a usecase actor shape (stick
+/// figure).  Used to apply actor-specific port overrides (#1291).
+fn is_actor_kind(kind: crate::model::FamilyNodeKind) -> bool {
+    matches!(
+        kind,
+        crate::model::FamilyNodeKind::Actor | crate::model::FamilyNodeKind::BusinessActor
+    )
+}
+
+/// For usecase diagrams: when both endpoints are Actor nodes AND the relation
+/// carries a hollow-triangle (generalization) marker, override the port
+/// selection to use vertical ports only (bottom of parent to top of child).
+///
+/// Actor stick figures look wrong when generalization edges exit from the side
+/// because the connection appears to pierce the stickman's body; vertical
+/// routing (feet to head or head to feet) is always cleaner (#1291).
+fn actor_generalization_pick_port(
+    from: &ClassNodeBox,
+    to: &ClassNodeBox,
+    normalized_arrow: &crate::model::FamilyRelationArrow,
+    nodes: &[crate::model::FamilyNode],
+    from_name: &str,
+    to_name: &str,
+) -> Option<(i32, i32, i32, i32)> {
+    // Only override for generalization (hollow triangle) relations.
+    let has_triangle = matches!(
+        normalized_arrow.start_marker(),
+        Some(FamilyRelationEndpointMarker::Triangle)
+    ) || matches!(
+        normalized_arrow.end_marker(),
+        Some(FamilyRelationEndpointMarker::Triangle)
+    );
+    if !has_triangle {
+        return None;
+    }
+    // Both endpoints must be Actor/BusinessActor.
+    let from_node_kind = nodes
+        .iter()
+        .find(|n| n.alias.as_deref().unwrap_or(&n.name) == from_name || n.name == from_name)
+        .map(|n| n.kind);
+    let to_node_kind = nodes
+        .iter()
+        .find(|n| n.alias.as_deref().unwrap_or(&n.name) == to_name || n.name == to_name)
+        .map(|n| n.kind);
+    if !from_node_kind.map(is_actor_kind).unwrap_or(false)
+        || !to_node_kind.map(is_actor_kind).unwrap_or(false)
+    {
+        return None;
+    }
+    // Use vertical ports: marker-start is at FROM (the hollow-triangle end).
+    // If TO is below FROM: exit FROM's bottom, enter TO's top.
+    // If TO is above FROM: exit FROM's top, enter TO's bottom.
+    let from_cx = from.x + from.w / 2;
+    let to_cx = to.x + to.w / 2;
+    if to.y >= from.y {
+        // TO is below or same level: bottom of FROM to top of TO
+        Some((from_cx, from.y + from.h, to_cx, to.y))
+    } else {
+        // TO is above: top of FROM to bottom of TO
+        Some((from_cx, from.y, to_cx, to.y + to.h))
+    }
+}
+
+// #1292: system-boundary frame entry/exit snap
+
+/// For usecase diagrams: when an ortho path segment crosses a group-frame
+/// top boundary (entering the frame from above), snap the crossing point so
+/// the visible edge line meets the frame border cleanly (#1292).
+fn snap_path_to_frame_boundaries(pts: &mut [(i32, i32)], frame_rects: &[ClassGroupFrameRect]) {
+    if frame_rects.is_empty() || pts.len() < 3 {
+        return;
+    }
+    let n = pts.len();
+    for i in 0..n.saturating_sub(1) {
+        let (_ax, ay) = pts[i];
+        let (_bx, by) = pts[i + 1];
+        // Only downward vertical segments (from outside the frame into it).
+        if pts[i].0 != pts[i + 1].0 || by <= ay {
+            continue;
+        }
+        for frame in frame_rects {
+            let frame_top = frame.y;
+            if ay < frame_top && by > frame_top {
+                pts[i + 1].1 = frame_top;
+                if i + 2 < n {
+                    pts[i + 2].1 = frame_top;
+                }
+                break;
+            }
+        }
+    }
 }
 
 /// Render all edges (relations) for a class/object/usecase SVG diagram.
@@ -59,8 +162,7 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         // Self-association curve (#1319): when the relation refers to the
         // same class box on both ends, the orthogonal router produces a
         // degenerate zero-length line.  Emit a small "C"-shaped arc hugging
-        // the top-right corner instead — this is the PlantUML convention for
-        // class self-association (ch 3 of the language reference).
+        // the top-right corner instead.
         if render_from_name == render_to_name {
             let style = arrow_style(&normalized_arrow);
             let relation_color = relation.line_color.as_deref().unwrap_or(ctx.arrow_stroke);
@@ -82,10 +184,6 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             if let Some(start) = style.start_marker {
                 markers.push_str(&format!(" marker-start=\"url(#{start})\""));
             }
-            // Arc anchors: exit the top edge ~20px left of the right corner,
-            // bulge up-and-right by `arc_w` × `arc_h`, and return into the
-            // right edge ~20px below the top corner.  Two quadratic-bezier
-            // corners give the classic looped self-pointer shape.
             let arc_w: i32 = 28;
             let arc_h: i32 = 28;
             let exit_x = from.x + from.w - 20;
@@ -126,12 +224,38 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 style.end_marker = Some("arrow-open");
             }
         }
+        // #1291: Track whether the actor-generalization port override fired so
+        // we can later discard the pre-computed ortho path.
+        let actor_gen_override = ctx.is_usecase_layout
+            && actor_generalization_pick_port(
+                from,
+                to,
+                &normalized_arrow,
+                ctx.nodes,
+                &render_from_name,
+                &render_to_name,
+            )
+            .is_some();
         let (mut x1, mut y1, mut x2, mut y2) = if relation.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (from.x, from.y, from.w, from.h),
                 (to.x, to.y, to.w, to.h),
                 relation.direction.as_deref(),
             )
+        } else if ctx.is_usecase_layout {
+            // #1291: For actor-to-actor generalization edges in usecase diagrams,
+            // override port selection to use vertical (top/bottom) ports.
+            actor_generalization_pick_port(
+                from,
+                to,
+                &normalized_arrow,
+                ctx.nodes,
+                &render_from_name,
+                &render_to_name,
+            )
+            .unwrap_or_else(|| {
+                pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
+            })
         } else {
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
@@ -219,14 +343,19 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         {
             ortho_pts = Some(row_port_pts);
         }
+        // #1291: If the actor-generalization port override fired, discard the
+        // pre-computed ortho path.  The layout engine routed the edge using the
+        // old lateral ports, so its waypoints are wrong for the new vertical
+        // head/feet routing.  Dropping ortho_pts causes the fallback <line>
+        // branch below to be used, drawing a clean straight vertical line.
+        if actor_gen_override {
+            ortho_pts = None;
+        }
 
         let (label_mx, label_my);
 
         if let Some(ref mut pts) = ortho_pts {
-            // Snap path endpoints to the actual rendered node ports so arrows
-            // attach correctly when layout coordinates differ from box anchors
-            // (e.g. rounding, lateral offsets).  Also realign the adjacent
-            // waypoints so the entry/exit segments stay axis-aligned.
+            // Snap path endpoints to the actual rendered node ports.
             if let Some(first) = pts.first_mut() {
                 *first = (x1, y1);
             }
@@ -240,6 +369,11 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                     pts[cn - 2].0 = x2;
                 }
             }
+            // #1292: For usecase diagrams, snap edge paths that cross system-boundary
+            // frame top borders.
+            if ctx.is_usecase_layout {
+                snap_path_to_frame_boundaries(pts, &ctx.group_frame_rects);
+            }
             let (tag, geom_attr) =
                 crate::render::edge_smoothing::edge_geometry_attr(ctx.edge_routing, pts);
             out.push_str(&format!(
@@ -251,11 +385,6 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 relation_color, stroke_width,
                 stroke_dash, visibility, direction_attr, markers
             ));
-            // Use the longest non-degenerate segment as the label anchor.
-            // We do NOT prefer the horizontal leg exclusively: in parallel-edge
-            // routes the horizontal bend is often very short and near a node
-            // boundary, so anchoring to it causes labels to land inside node
-            // boxes and get nudged far off course (#1258).
             let longest_seg = pts
                 .windows(2)
                 .filter(|seg| seg[0] != seg[1])
@@ -396,22 +525,10 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 &ctx.class_style.member_color,
             ));
         } else if let Some(label) = relation.label.as_deref() {
-            // Regular relation label: place at edge midpoint.
-            // `label_override` provides de-collided positions when multiple
-            // labels would otherwise overlap (#1258, #1261).  Fall back to the
-            // edge-path midpoint (`label_mx/label_my`) for single-edge cases.
-            //
-            // `label_on_vertical_edge` tracks whether this specific placement
-            // came from a vertical segment (dy > dx).  In that case we apply an
-            // additional x-nudge after the y-nudge so the label clears the
-            // adjacent class boxes horizontally (#1258 clearance invariant).
             let (lx, ly, label_on_vertical_edge) =
                 if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
-                    // De-collided override already accounts for box clearance.
                     (ox, oy, false)
                 } else if ortho_pts.is_some() {
-                    // No override: use label_mx/label_my from the longest-segment
-                    // midpoint (already computed above from the actual edge path).
                     if edge_dy.abs() > edge_dx.abs() {
                         (label_mx + 14, label_my, true)
                     } else {
@@ -444,13 +561,6 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
-            // For vertical-edge labels only: push rightward out of any node box
-            // so the label clears adjacent class boxes (#1258 clearance invariant).
-            // This is intentionally NOT applied to fan-out overrides (those already
-            // spread labels apart) or to horizontal-edge labels (those clear boxes
-            // vertically via the y-nudge above).
-            // Suppressed for object diagrams where labels are expected to stay
-            // centred on the vertical edge, not pushed to the side.
             let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
                 class_nudge_label_x(lx, label_half_w, ctx.node_boxes)
             } else {
