@@ -194,38 +194,53 @@ pub(super) fn class_build_label_overrides(
             None
         };
         let (lx, ly) = if let Some(ref pts) = ortho_pts {
-            // Find the longest non-degenerate segment overall to use as the
-            // label anchor.  Skip zero-length degenerate waypoints.  For
-            // horizontal segments, place the label slightly above the segment
-            // (y - 12); for vertical/diagonal segments use the midpoint with
-            // a small y offset.
+            // Pin the label to the ARCLENGTH midpoint of the full polyline so it
+            // stays visually centred on the edge, even when one segment is much
+            // longer than the others (which caused labels to drift into the canvas
+            // gutter, #1352).
             //
-            // We do NOT prefer horizontal legs exclusively because the horizontal
-            // bend in a parallel-edge route is often very short (a few pixels)
-            // and close to a node boundary, which causes the label to land inside
-            // a node box and get nudged far off course (#1258).
-            let longest_seg = pts
-                .windows(2)
-                .filter(|seg| seg[0] != seg[1])
-                .max_by_key(|seg| {
+            // Walk segments accumulating length until we reach half the total;
+            // interpolate within that segment for the exact midpoint.
+            let non_degen: Vec<&[_]> = pts.windows(2).filter(|seg| seg[0] != seg[1]).collect();
+            let total_len: f64 = non_degen
+                .iter()
+                .map(|seg| {
                     let (ax, ay) = seg[0];
                     let (bx, by_) = seg[1];
-                    (bx - ax).pow(2) + (by_ - ay).pow(2)
-                });
-            match longest_seg {
-                Some(seg) => {
-                    let mx = (seg[0].0 + seg[1].0) / 2;
-                    let my = (seg[0].1 + seg[1].1) / 2;
-                    if seg[0].1 == seg[1].1 {
-                        // Horizontal segment: label above the line.
-                        (mx, my - 12)
-                    } else {
-                        // Vertical or diagonal: label at midpoint (nudge will
-                        // move it clear of any overlapping node box).
-                        (mx, my - 12)
+                    let dx = (bx - ax) as f64;
+                    let dy = (by_ - ay) as f64;
+                    (dx * dx + dy * dy).sqrt()
+                })
+                .sum();
+            if total_len < f64::EPSILON || non_degen.is_empty() {
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+            } else {
+                let half = total_len / 2.0;
+                let mut acc = 0.0;
+                let mut mid_seg = non_degen[0];
+                let mut t = 0.5_f64;
+                for seg in &non_degen {
+                    let (ax, ay) = seg[0];
+                    let (bx, by_) = seg[1];
+                    let dx = (bx - ax) as f64;
+                    let dy = (by_ - ay) as f64;
+                    let seg_len = (dx * dx + dy * dy).sqrt();
+                    if acc + seg_len >= half {
+                        mid_seg = seg;
+                        t = if seg_len < f64::EPSILON {
+                            0.5
+                        } else {
+                            (half - acc) / seg_len
+                        };
+                        break;
                     }
+                    acc += seg_len;
                 }
-                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                let mx =
+                    (mid_seg[0].0 as f64 + t * (mid_seg[1].0 - mid_seg[0].0) as f64).round() as i32;
+                let my =
+                    (mid_seg[0].1 as f64 + t * (mid_seg[1].1 - mid_seg[0].1) as f64).round() as i32;
+                (mx, my - 12)
             }
         } else {
             ((x1 + x2) / 2, (y1 + y2) / 2 - 12)

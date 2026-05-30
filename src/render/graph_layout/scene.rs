@@ -196,31 +196,49 @@ fn centered_label(
 fn edge_label_box(edge_id: &str, text: &str, route: &Polyline) -> LabelBox {
     let width = (estimate_text_width_f64(text, 14.0) + 12.0).max(18.0);
     let height = 14.0;
-    let placement = route
-        .segments()
-        .into_iter()
-        .max_by(|a, b| {
-            a.length()
-                .partial_cmp(&b.length())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .map(|segment| {
-            let center = Point::new(
-                (segment.start.x + segment.end.x) / 2.0,
-                (segment.start.y + segment.end.y) / 2.0,
-            );
-            if segment.is_horizontal() {
-                Rect::new(
-                    center.x - width / 2.0,
-                    center.y - height - 8.0,
-                    width,
-                    height,
-                )
-            } else {
-                Rect::new(center.x + 8.0, center.y - height / 2.0, width, height)
+
+    // Pin the label to the ARCLENGTH midpoint of the full polyline so it stays
+    // visually centred on the edge, even when one segment is much longer than
+    // the others (which caused labels to drift into the canvas gutter).
+    let segments = route.segments();
+    let total_len: f64 = segments.iter().map(|s| s.length()).sum();
+    let placement = if total_len < f64::EPSILON || segments.is_empty() {
+        Rect::new(0.0, 0.0, width, height)
+    } else {
+        let half = total_len / 2.0;
+        let mut acc = 0.0;
+        // Find the segment that straddles the arclength midpoint, then
+        // interpolate within it to get the exact midpoint position.
+        let mut mid_seg = segments[0];
+        let mut t = 0.5;
+        for seg in &segments {
+            let seg_len = seg.length();
+            if acc + seg_len >= half {
+                mid_seg = *seg;
+                t = if seg_len < f64::EPSILON {
+                    0.5
+                } else {
+                    (half - acc) / seg_len
+                };
+                break;
             }
-        })
-        .unwrap_or_else(|| Rect::new(0.0, 0.0, width, height));
+            acc += seg_len;
+        }
+        let center = Point::new(
+            mid_seg.start.x + t * (mid_seg.end.x - mid_seg.start.x),
+            mid_seg.start.y + t * (mid_seg.end.y - mid_seg.start.y),
+        );
+        if mid_seg.is_horizontal() {
+            Rect::new(
+                center.x - width / 2.0,
+                center.y - height - 8.0,
+                width,
+                height,
+            )
+        } else {
+            Rect::new(center.x + 8.0, center.y - height / 2.0, width, height)
+        }
+    };
     LabelBox {
         id: format!("edge:{edge_id}:label"),
         text: text.to_string(),
