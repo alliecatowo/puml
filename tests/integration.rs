@@ -6333,7 +6333,15 @@ fn class_association_tuple_inside_packages_keeps_class_boxes() {
         !svg.contains("<ellipse"),
         "association-class example should render class boxes, not usecase ellipses"
     );
-    assert!(svg.contains(">+connection: String<"));
+    // Visibility-icon mode strips the ASCII '+' prefix from display text (glyph replaces it).
+    assert!(
+        svg.contains(">connection: String<"),
+        "member text should appear without visibility prefix in icon mode"
+    );
+    assert!(
+        svg.contains("data-uml-visibility=\"public\""),
+        "public visibility attribute should be emitted for +connection member"
+    );
 }
 
 #[test]

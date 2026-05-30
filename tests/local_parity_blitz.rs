@@ -34,8 +34,16 @@ Account --> Ledger : posts
     )
     .expect("class render should succeed");
     assert_eq!(class_svg.matches(">Account<").count(), 1);
-    assert!(class_svg.contains("+id: UUID"));
-    assert!(class_svg.contains("+close()"));
+    // Visibility-icon mode strips the ASCII prefix from display text (replaced by glyph shapes).
+    assert!(
+        class_svg.contains("id: UUID"),
+        "member text without visibility prefix"
+    );
+    assert!(
+        class_svg.contains("data-uml-visibility=\"public\""),
+        "public visibility attribute emitted for +id member"
+    );
+    assert!(class_svg.contains("close()"), "method text without prefix");
 
     let object_svg = puml::render_source_to_svg(
         r#"@startuml
