@@ -9,7 +9,7 @@
 //!          cross a frame's top boundary are snapped to terminate at the border.
 
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model,
+    normalize_family, parse_with_pipeline_options, render_artifact_pages_from_model,
     ParsePipelineOptions,
 };
 
@@ -17,8 +17,12 @@ fn render(src: &str) -> String {
     let opts = ParsePipelineOptions::default();
     let document = parse_with_pipeline_options(src, &opts).expect("source should parse");
     let model = normalize_family(document).expect("source should normalize");
-    let pages = render_svg_pages_from_model(&model);
-    pages.into_iter().next().unwrap_or_default()
+    let artifacts = render_artifact_pages_from_model(&model);
+    artifacts
+        .into_iter()
+        .next()
+        .map(|a| a.svg)
+        .unwrap_or_default()
 }
 
 // ── #1291: actor-generalization uses straight lines (no ortho lateral routing) ─

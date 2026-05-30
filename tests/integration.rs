@@ -6192,7 +6192,11 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
     for (example_path, max_width, max_aspect) in [
         ("deployment/07_ch08_keyword_parity.puml", 2600, 1.2),
-        ("usecase/06_multi_system_boundary.puml", 2700, 1.8),
+        // aspect relaxed to 2.1: is_real_usecase_layout now detects this
+        // diagram (actors + usecases + rectangle groups) as a usecase layout,
+        // reducing row_gap from 64→46 which produces a wider aspect.
+        // Still well below a pathological one-row whitespace layout.
+        ("usecase/06_multi_system_boundary.puml", 2700, 2.1),
     ] {
         let svg = render_source_to_svg(&fs::read_to_string(example(example_path)).unwrap())
             .expect("grouped hierarchy example should render");
