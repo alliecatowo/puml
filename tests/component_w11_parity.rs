@@ -209,9 +209,12 @@ component "Server" [
         "relation destination should be Frontend"
     );
 
-    // A polyline (the actual edge) should be present
+    // A relation edge (polyline OR path, depending on EdgeRouting mode)
+    // should be present. Default is `Splines` -> <path>; `Polyline` and
+    // `Ortho` modes produce <polyline>.
     assert!(
-        svg.contains("<polyline class=\"uml-relation\""),
-        "a relation polyline should be rendered"
+        svg.contains("<polyline class=\"uml-relation\"")
+            || svg.contains("<path class=\"uml-relation\""),
+        "a relation edge (polyline or path) should be rendered"
     );
 }

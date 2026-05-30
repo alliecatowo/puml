@@ -16,6 +16,8 @@ mod rank;
 mod router;
 mod scene;
 
+pub use router::EdgeRouting;
+
 #[cfg(test)]
 mod tests;
 

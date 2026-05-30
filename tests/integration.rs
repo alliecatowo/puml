@@ -5313,6 +5313,33 @@ fn svg_relation_end(element: &str) -> Option<(i32, i32)> {
         let (x, y) = last.split_once(',')?;
         return Some((x.parse().ok()?, y.parse().ok()?));
     }
+    if let Some((_, d_rest)) = element.split_once("d=\"") {
+        // SVG path under EdgeRouting::Splines: extract the last (x,y) pair
+        // after the final command letter. The renderer always ends paths
+        // with a coordinate pair (Bézier endpoint or `L` target), so we
+        // strip command letters and split on whitespace + commas.
+        let d = d_rest.split_once('"')?.0;
+        let mut last_x: Option<f64> = None;
+        let mut last_y: Option<f64> = None;
+        let mut pending: Vec<f64> = Vec::new();
+        for tok in d.split(|c: char| c.is_whitespace() || c == ',') {
+            if tok.is_empty() {
+                continue;
+            }
+            if let Ok(n) = tok.parse::<f64>() {
+                pending.push(n);
+                if pending.len() == 2 {
+                    last_x = Some(pending[0]);
+                    last_y = Some(pending[1]);
+                    pending.clear();
+                }
+            } else {
+                // Command letter resets the implicit-coord pair tracking.
+                pending.clear();
+            }
+        }
+        return Some((last_x?.round() as i32, last_y?.round() as i32));
+    }
     Some((svg_attr_i32(element, "x2")?, svg_attr_i32(element, "y2")?))
 }
 

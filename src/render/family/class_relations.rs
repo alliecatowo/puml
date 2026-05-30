@@ -33,6 +33,11 @@ pub(super) struct ClassRelationCtx<'a> {
     /// relation labels are expected to stay near the edge midpoint (centred on
     /// the vertical line), so the box-clearance x-nudge is suppressed.
     pub(super) is_object_diagram: bool,
+    /// Global edge-routing mode (mirrors PlantUML's `skinparam linetype`).
+    /// Selects between cubic-Bézier `<path>` emission ([`EdgeRouting::Splines`])
+    /// and straight-segment `<polyline>` emission
+    /// ([`EdgeRouting::Polyline`] / [`EdgeRouting::Ortho`]).
+    pub(super) edge_routing: crate::render::graph_layout::EdgeRouting,
 }
 
 /// Render all edges (relations) for a class/object/usecase SVG diagram.
@@ -235,17 +240,14 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                     pts[cn - 2].0 = x2;
                 }
             }
-            let pts_str: String = pts
-                .iter()
-                .map(|(px, py)| format!("{px},{py}"))
-                .collect::<Vec<_>>()
-                .join(" ");
+            let (tag, geom_attr) =
+                crate::render::edge_smoothing::edge_geometry_attr(ctx.edge_routing, pts);
             out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
                 escape_text(&relation.from),
                 escape_text(&relation.to),
                 escape_text(normalized_arrow.as_str()),
-                pts_str,
+                geom_attr,
                 relation_color, stroke_width,
                 stroke_dash, visibility, direction_attr, markers
             ));

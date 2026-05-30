@@ -44,40 +44,66 @@ C --* A : composed
     .expect("component-6 should render");
 
     // The composition arrow goes C → A, with the filled diamond at A.
-    // After the router-order fix, the polyline starts on C's TOP edge
+    // After the router-order fix, the relation starts on C's TOP edge
     // (not its top-LEFT corner) and ends on A's BOTTOM edge midpoint.
-    // Find the polyline element with from=C and to=A (must scan SVG as
+    // Find the relation element with from=C and to=A (must scan SVG as
     // one stream; svg has no newlines in single-file output).
+    // Under EdgeRouting::Splines (default) the element is a <path>; under
+    // Polyline/Ortho it is a <polyline>.  Accept both.
     let from_c_idx = svg
         .match_indices("data-uml-from=\"C\"")
         .find(|(idx, _)| {
-            // Filter: the surrounding tag must be a <polyline class="uml-relation">.
             let lookbehind = &svg[idx.saturating_sub(120)..*idx];
             lookbehind.contains("polyline class=\"uml-relation\"")
+                || lookbehind.contains("path class=\"uml-relation\"")
         })
         .map(|(idx, _)| idx)
-        .expect("expected polyline.uml-relation with data-uml-from=C");
+        .expect("expected uml-relation element with data-uml-from=C");
     let tag_end = svg[from_c_idx..]
         .find("/>")
         .map(|off| from_c_idx + off)
-        .expect("polyline self-close");
-    let polyline = &svg[from_c_idx..tag_end];
+        .expect("relation element self-close");
+    let rel_el = &svg[from_c_idx..tag_end];
     assert!(
-        polyline.contains("data-uml-to=\"A\""),
-        "C→A polyline should target A, got: {polyline}",
+        rel_el.contains("data-uml-to=\"A\""),
+        "C→A relation should target A, got: {rel_el}",
     );
-    let pts_attr = polyline
-        .split("points=\"")
-        .nth(1)
-        .and_then(|s| s.split('"').next())
-        .expect("polyline should carry a points attribute");
-    let coords: Vec<(i32, i32)> = pts_attr
-        .split_whitespace()
-        .filter_map(|tok| {
-            let mut it = tok.split(',');
-            Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
-        })
-        .collect();
+    // Extract coordinates from either `points="..."` (polyline) or `d="..."` (path).
+    let coords: Vec<(i32, i32)> = if let Some(rest) = rel_el.split("points=\"").nth(1) {
+        let pts_attr = rest.split('"').next().expect("points attr close quote");
+        pts_attr
+            .split_whitespace()
+            .filter_map(|tok| {
+                let mut it = tok.split(',');
+                Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
+            })
+            .collect()
+    } else {
+        // Parse coordinate pairs from SVG path d="..." data.
+        // Command letters (M/C/L/Z) are stripped; consecutive float pairs become waypoints.
+        let d_attr = rel_el
+            .split("d=\"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .expect("path d attribute");
+        let mut result: Vec<(i32, i32)> = Vec::new();
+        let mut pending: Vec<f64> = Vec::new();
+        for tok in d_attr.split(|c: char| c == ',' || c.is_whitespace()) {
+            if tok.is_empty() {
+                continue;
+            }
+            if let Ok(n) = tok.parse::<f64>() {
+                pending.push(n);
+                if pending.len() == 2 {
+                    result.push((pending[0].round() as i32, pending[1].round() as i32));
+                    pending.clear();
+                }
+            } else {
+                pending.clear();
+            }
+        }
+        result
+    };
     assert!(
         coords.len() >= 3,
         "composition relation should have at least 3 waypoints, got {coords:?}",

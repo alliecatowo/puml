@@ -5,6 +5,7 @@ use std::ops::Deref;
 use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{MetadataHAlign, ScaleSpec};
+use crate::render::graph_layout::EdgeRouting;
 use crate::scene::TextOverflowPolicy;
 use crate::sprites::SpriteRegistry;
 use crate::theme::{
@@ -66,6 +67,14 @@ pub struct FamilyDocument {
     pub maximum_width: Option<i32>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
+    /// Global edge-routing mode selected by `skinparam linetype <value>`.
+    /// Defaults to [`EdgeRouting::Splines`] (smooth B-spline curves), matching
+    /// upstream PlantUML's `splines=true` default. Renderers consult this to
+    /// decide whether to emit smoothed `<path>` Bézier curves
+    /// ([`EdgeRouting::Splines`]), straight-segment `<polyline>` waypoints
+    /// ([`EdgeRouting::Polyline`]), or orthogonal right-angle elbows
+    /// ([`EdgeRouting::Ortho`]).
+    pub edge_routing: EdgeRouting,
     pub warnings: Vec<Diagnostic>,
 }
 

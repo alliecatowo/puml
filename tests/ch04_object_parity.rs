@@ -233,7 +233,12 @@ fn svg_relation_tag_with<'a>(svg: &'a str, needle: &str) -> Option<&'a str> {
     let idx = svg.find(needle)?;
     let line_start = svg[..idx].rfind("<line ");
     let polyline_start = svg[..idx].rfind("<polyline ");
-    let start = line_start.into_iter().chain(polyline_start).max()?;
+    let path_start = svg[..idx].rfind("<path ");
+    let start = line_start
+        .into_iter()
+        .chain(polyline_start)
+        .chain(path_start)
+        .max()?;
     let end = svg[idx..].find("/>")?;
     Some(&svg[start..idx + end + 2])
 }
@@ -279,24 +284,64 @@ fn svg_relation_points(tag: &str) -> Vec<(i32, i32)> {
             (svg_attr_i32(tag, "x2"), svg_attr_i32(tag, "y2")),
         ];
     }
-    tag.split("points=\"")
-        .nth(1)
-        .and_then(|rest| rest.split('"').next())
-        .unwrap_or_else(|| panic!("missing points attr in {tag}"))
-        .split_whitespace()
-        .map(|point| {
-            let mut coords = point.split(',');
-            let x = coords
-                .next()
-                .and_then(|value| value.parse::<i32>().ok())
-                .unwrap_or_else(|| panic!("missing point x in {tag}"));
-            let y = coords
-                .next()
-                .and_then(|value| value.parse::<i32>().ok())
-                .unwrap_or_else(|| panic!("missing point y in {tag}"));
-            (x, y)
-        })
-        .collect()
+    // Handle <polyline points="x1,y1 x2,y2 ...">
+    if let Some(rest) = tag.split("points=\"").nth(1) {
+        let points_str = rest
+            .split('"')
+            .next()
+            .unwrap_or_else(|| panic!("malformed points attr in {tag}"));
+        return points_str
+            .split_whitespace()
+            .map(|point| {
+                let mut coords = point.split(',');
+                let x = coords
+                    .next()
+                    .and_then(|value| value.parse::<i32>().ok())
+                    .unwrap_or_else(|| panic!("missing point x in {tag}"));
+                let y = coords
+                    .next()
+                    .and_then(|value| value.parse::<i32>().ok())
+                    .unwrap_or_else(|| panic!("missing point y in {tag}"));
+                (x, y)
+            })
+            .collect();
+    }
+    // Handle <path d="M x,y C/L x,y ..."> (EdgeRouting::Splines cubic Bézier paths).
+    // Extract every explicit (x,y) coordinate pair from the path data. Command letters
+    // M/C/L are stripped; each pair of consecutive numbers becomes a waypoint.
+    // For horizontal/vertical segment detection we record all named endpoints, which
+    // for a cubic Bézier segment means (cp1x,cp1y, cp2x,cp2y, ex,ey) — the actual
+    // endpoint is every third pair after a C command, but for the directional tests
+    // we only need the first and last explicit coordinate pairs.
+    if let Some(rest) = tag.split("d=\"").nth(1) {
+        let d = rest
+            .split('"')
+            .next()
+            .unwrap_or_else(|| panic!("malformed d attr in {tag}"));
+        let mut coords: Vec<f64> = Vec::new();
+        let mut pending: Vec<f64> = Vec::new();
+        for tok in d.split(|c: char| c == ',' || c.is_whitespace()) {
+            if tok.is_empty() {
+                continue;
+            }
+            if let Ok(n) = tok.parse::<f64>() {
+                pending.push(n);
+                if pending.len() == 2 {
+                    coords.push(pending[0]);
+                    coords.push(pending[1]);
+                    pending.clear();
+                }
+            } else {
+                // Command letter: flush any incomplete pair, reset pending.
+                pending.clear();
+            }
+        }
+        return coords
+            .chunks(2)
+            .map(|pair| (pair[0].round() as i32, pair[1].round() as i32))
+            .collect();
+    }
+    panic!("unsupported relation element (no points or d attr): {tag}")
 }
 
 fn svg_attr_i32(tag: &str, attr: &str) -> i32 {

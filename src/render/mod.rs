@@ -14,6 +14,7 @@ mod activity;
 mod board_files;
 mod chen;
 mod data;
+pub(crate) mod edge_smoothing;
 mod family;
 mod geometry;
 pub(crate) mod graph_layout;

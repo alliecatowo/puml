@@ -36,6 +36,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut orientation = FamilyOrientation::TopToBottom;
+    let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -373,6 +374,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
+                super::directives::handle_family_linetype_skinparam(
+                    &key,
+                    &value,
+                    &mut edge_routing,
+                );
                 family_styles.handle_skinparam(
                     family_kind,
                     &key,
@@ -542,6 +548,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         maximum_width: None,
         sprites,
         list_sprites,
+        edge_routing,
         warnings: ext_warnings,
         groups,
         json_projections,

@@ -436,6 +436,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             margin_top,
             svg_width,
             is_object_diagram,
+            edge_routing: document.edge_routing,
         },
     );
 

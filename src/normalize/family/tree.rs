@@ -463,6 +463,10 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         maximum_width,
         sprites,
         list_sprites,
+        // Tree-layout families (MindMap, WBS, family tree) don't use the
+        // Graphviz-style channel router, so the global edge-routing mode is
+        // irrelevant; default keeps behavior identical to pre-Stage-2.
+        edge_routing: crate::render::graph_layout::EdgeRouting::default(),
         warnings,
         groups: Vec::new(),
         json_projections: Vec::new(),

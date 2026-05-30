@@ -11,6 +11,7 @@ mod obstacles;
 use channels::{
     build_route_channels, collect_channel_edge_owners, ChannelEdgeOwner, RouteChannelBuildInput,
 };
+pub use contract::EdgeRouting;
 #[cfg(test)]
 pub(super) use contract::RouteOptions;
 pub(super) use contract::{route_edges, ChannelRouter, RouteRequest, Router, RoutingResult};

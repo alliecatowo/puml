@@ -41,6 +41,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut list_sprites = false;
     let mut last_relation: Option<(String, String)> = None;
     let mut orientation = FamilyOrientation::TopToBottom;
+    let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -51,6 +52,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 list_sprites = true;
             }
             StatementKind::SkinParam { key, value } => {
+                handle_family_linetype_skinparam(&key, &value, &mut edge_routing);
                 if family_kind == DiagramKind::Salt {
                     salt_style.apply_key(&key, &value);
                     continue;
@@ -589,6 +591,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         maximum_width: None,
         sprites,
         list_sprites,
+        edge_routing,
         warnings,
     })
 }
