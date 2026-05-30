@@ -49,6 +49,18 @@ ALLOWLIST_REASONS = {
     # endpoint anchoring. Logic is single tightly-coupled port-snapping branch; split
     # would add indirection without semantic benefit. Tracked in #590.
     "src/render/family/box_grid_edges.rs": "wave-15 frame-corner anchor fix added 19 lines; split tracked in #590",
+    # Was 537 lines before #1333 Stage 3; grew to 672 with collect_activity_arrow_waypoints
+    # + emit_activity_arrow_with_style_routed + 3 sibling _routed variants implementing
+    # Splines/Polyline/Ortho dispatch via edge_smoothing::edge_geometry_attr. The new
+    # collect/emit helpers are tightly paired with the existing arrow-render branches
+    # and a sub-module split would require threading routing state through all callers.
+    # Split tracked in #590.
+    "src/render/activity/arrows.rs": "wave-15 Stage 3 EdgeRouting dispatch added 135 lines; split tracked in #590",
+    # Was 547 lines before #1333 Stage 3; grew to 630 after wiring EdgeRouting field
+    # through composite-state child-transition rendering and threading routing into the
+    # node-render context. Nodes module is the dispatch boundary for the routing field
+    # and an extraction would not reduce coupling. Split tracked in #590.
+    "src/render/activity/nodes.rs": "wave-15 Stage 3 EdgeRouting field threading added 83 lines; split tracked in #590",
 }
 
 
