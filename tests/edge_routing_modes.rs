@@ -53,9 +53,10 @@ fn default_routing_is_polyline() {
 }
 
 #[test]
-fn skinparam_linetype_splines_emits_curves_explicitly() {
-    // Explicit `skinparam linetype splines` must produce the same shape
-    // as the default. Verified by re-running the default assertions.
+fn skinparam_linetype_splines_emits_rounded_corner_paths() {
+    // Explicit `skinparam linetype splines` must produce rounded-corner paths
+    // using `Q` (quadratic arc) commands. The old Catmull-Rom cubic Bézier `C`
+    // is replaced by the rounded-corner renderer (issue #1389).
     let src = "@startuml
 skinparam linetype splines
 class A
@@ -71,8 +72,8 @@ A --> C
         "explicit splines mode must emit <path> elements, got: {svg}"
     );
     assert!(
-        svg.contains(" C "),
-        "explicit splines mode must emit cubic Bézier curves, got: {svg}"
+        svg.contains(" Q "),
+        "explicit splines mode must emit rounded-corner Q arc commands, got: {svg}"
     );
     assert!(
         !svg.contains("<polyline class=\"uml-relation\""),

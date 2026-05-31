@@ -39,13 +39,15 @@ fn state_default_routing_emits_path_elements() {
 }
 
 #[test]
-fn state_linetype_splines_emits_cubic_bezier() {
-    // `skinparam linetype splines` must produce `<path d="M … C …">` with
-    // cubic Bézier curves (the `C` command) for state transitions.
+fn state_linetype_splines_emits_rounded_corner_path() {
+    // `skinparam linetype splines` must produce `<path d="M … Q …">` with
+    // rounded-corner quadratic arcs (the `Q` command) for state transitions.
+    // The old Catmull-Rom implementation emitted `C`; it is now replaced by
+    // the rounded-corner renderer (issue #1389).
     let svg = render_svg(&state_with_linetype("splines"));
     assert!(
-        svg.contains(" C "),
-        "state splines mode must emit cubic Bézier 'C' commands, got: {svg}"
+        svg.contains(" Q "),
+        "state splines mode must emit rounded-corner 'Q' arc commands, got: {svg}"
     );
     // The element must still carry the state-transition class so downstream
     // tooling (e.g. the language service hover) can identify transitions.
@@ -144,16 +146,18 @@ fn activity_linetype_polyline_emits_polyline_elements() {
 }
 
 #[test]
-fn activity_linetype_splines_emits_bezier_path() {
-    // `skinparam linetype splines` must emit `<path d="M … C …">` elements with
-    // cubic Bézier curves for multi-waypoint (L-shaped) arrows.
+fn activity_linetype_splines_emits_rounded_corner_path() {
+    // `skinparam linetype splines` must emit `<path d="M … Q …">` elements with
+    // rounded-corner quadratic arcs for multi-waypoint (L-shaped) arrows.
     // A branched diagram guarantees x1 != x2 for branch arrows → 4 waypoints →
-    // cubic_bezier_path_d emits at least one `C` command.
+    // rounded_corner_path_d emits at least one `Q` command.
+    // The old Catmull-Rom `C` command is replaced by the rounded-corner renderer
+    // (issue #1389).
     let svg = render_svg(&activity_with_linetype("splines"));
-    // A path with `C` cubic-Bézier command must be present (branch arrow body).
+    // A path with `Q` quadratic-arc command must be present (branch arrow body).
     assert!(
-        svg.contains(" C "),
-        "activity splines mode must emit cubic Bézier 'C' commands (branch arrows have 4 waypoints), got: {svg}"
+        svg.contains(" Q "),
+        "activity splines mode must emit rounded-corner 'Q' arc commands (branch arrows have 4 waypoints), got: {svg}"
     );
 }
 
