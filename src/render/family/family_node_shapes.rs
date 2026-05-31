@@ -1,7 +1,7 @@
 use crate::model::{FamilyNode, FamilyNodeKind};
 use crate::render::svg::{creole_text, escape_text};
 
-use super::class_members::{is_family_style_member, is_user_stereotype};
+use super::class_members::{is_family_style_member, is_user_stereotype, parse_spot_member};
 use super::tree::render_centered_multiline_text;
 
 pub(super) fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
@@ -298,6 +298,8 @@ pub(super) fn render_node_stereotype_rows(
             text.starts_with("<<")
                 && text.ends_with(">>")
                 && !matches!(text, "<<portin>>" | "<<portout>>")
+                // Spot stereotype encoding (#1398) is rendered as a badge, not a text row.
+                && parse_spot_member(text).is_none()
         })
         .take(4)
         .enumerate()
@@ -480,6 +482,7 @@ pub(super) fn render_usecase_node(
         let text = member.text.trim();
         if is_family_style_member(text)
             || text.starts_with("\x1fuc:")
+            || parse_spot_member(text).is_some()
             || (hide_stereotype && is_user_stereotype(text))
         {
             continue;

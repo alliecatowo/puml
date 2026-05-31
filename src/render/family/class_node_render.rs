@@ -8,8 +8,8 @@ use super::class_layout::class_node_display_name;
 use super::class_members::{
     builtin_type_stereotype_label, class_node_visibility_symbol, count_header_stereotype_members,
     emit_visibility_glyph, is_family_style_member, is_user_stereotype, member_modifier_name,
-    parse_member_divider, parse_member_modifiers, parse_visibility_member, render_map_rows,
-    uml_visibility_name, MapRenderCtx,
+    parse_member_divider, parse_member_modifiers, parse_spot_member, parse_visibility_member,
+    render_map_rows, uml_visibility_name, MapRenderCtx,
 };
 use super::class_smart_shapes::{ddd_smart_header_color, render_smart_default_shape};
 use super::class_types::ClassNodeGeometry;
@@ -200,6 +200,10 @@ pub(super) fn render_class_node(
             if text.is_empty() || is_family_style_member(text) {
                 continue;
             }
+            // Always suppress spot stereotype encoding (badge is separate, not a text member).
+            if parse_spot_member(text).is_some() {
+                continue;
+            }
             if hide_stereotype && is_user_stereotype(text) {
                 continue;
             }
@@ -239,14 +243,25 @@ pub(super) fn render_class_node(
         return;
     }
 
-    // Collect leading header stereotype labels (built-in + user-defined — fix #470, #551);
+    // Collect leading header stereotype labels (built-in + user-defined + spot — fix #470, #551);
     // rendered as guillemet labels in the header, not as ordinary member rows.
+    // Spot stereotypes (#1398) also contribute a label row when they carry a non-empty label.
     let header_skip = count_header_stereotype_members(&node.members);
     let mut header_stereotype_labels: Vec<String> = Vec::new();
+    // Spot badge override: first <<spot:…>> member wins over the kind-default badge.
+    // We extract it now so the badge section below can use it.
+    let spot_override: Option<(char, String)> = node.members[..header_skip]
+        .iter()
+        .find_map(|m| parse_spot_member(&m.text).map(|(l, c, _)| (l, c)));
     if !hide_stereotype {
         for m in &node.members[..header_skip] {
             if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
                 header_stereotype_labels.push(builtin.to_string());
+            } else if let Some((_letter, _color, label)) = parse_spot_member(&m.text) {
+                // Spot stereotype: render label text as «Label» when non-empty.
+                if !label.is_empty() {
+                    header_stereotype_labels.push(format!("\u{ab}{label}\u{bb}"));
+                }
             } else if is_user_stereotype(&m.text) {
                 // Convert <<foo>> → «foo»
                 let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
@@ -324,10 +339,10 @@ pub(super) fn render_class_node(
     };
     let name_ty = y + effective_header_h - 9;
 
-    // ── Class-type badge (#1350) ──────────────────────────────────────────────
+    // ── Class-type badge (#1350, #1398) ──────────────────────────────────────
     // PlantUML renders a small coloured circle with a letter in the header-left
     // area of every class box to visually indicate the node kind.
-    // Badge letter:
+    // Badge letter (kind-default, overridden by explicit spot stereotype — #1398):
     //   FamilyNodeKind::Class + <<abstract>>  → 'A' (green circle)
     //   FamilyNodeKind::Class + <<interface>> → 'I' (blue circle)
     //   FamilyNodeKind::Class + <<enum>>      → 'E' (yellow circle)
@@ -335,7 +350,11 @@ pub(super) fn render_class_node(
     //   FamilyNodeKind::Object                → 'O' (amber circle)
     // Interface/Enum/Abstract are routed through FamilyNodeKind::Class with a
     // leading builtin-type stereotype marker — checked via builtin_type_marker.
-    let badge_info: Option<(&str, &str, &str)> = match node.kind {
+    //
+    // Spot stereotypes `<<(L,#color) Label>>` (encoded as <<spot:L:#color:Label>>)
+    // override the kind-default badge letter AND colour (#1398).  Spot badges are
+    // shown in BOTH PUML and PlantUML style modes (PlantUML itself renders them).
+    let kind_default_badge: Option<(&str, &str, &str)> = match node.kind {
         FamilyNodeKind::Class => {
             let (letter, fill, stroke_c) = match builtin_type_marker {
                 Some("\u{ab}abstract\u{bb}") => ("A", "#A2D5A2", "#2E7D32"),
@@ -350,11 +369,29 @@ pub(super) fn render_class_node(
         FamilyNodeKind::Object => Some(("O", "#FFD54F", "#F57F17")),
         _ => None,
     };
-    // Suppress the badge when `hide circle` is active or in PlantUML style mode.
-    // PlantUML does not render type-indicator circles; they are PUML-enhanced chrome.
-    let show_badge = !hide_circle && class_style.style_mode == StyleMode::Puml;
-    if show_badge {
-        if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
+    // Suppress kind-default badges when `hide circle` is active or in PlantUML style
+    // mode.  Spot badges always show when not hidden via `hide circle` (PlantUML parity).
+    let show_kind_badge = !hide_circle && class_style.style_mode == StyleMode::Puml;
+    let show_spot_badge = !hide_circle;
+
+    if let Some((spot_letter, ref spot_color)) = spot_override {
+        // Spot badge: user-specified letter + color.  White letter text over the spot color.
+        if show_spot_badge {
+            let badge_r = 8_i32;
+            let badge_cx = x + badge_r + 4;
+            let badge_cy = name_ty - 4;
+            let letter_str = spot_letter.to_string();
+            out.push_str(&format!(
+                "<circle class=\"uml-class-badge uml-spot-badge\" cx=\"{badge_cx}\" cy=\"{badge_cy}\" r=\"{badge_r}\" fill=\"{spot_color}\" stroke=\"{spot_color}\" stroke-width=\"1\"/>",
+            ));
+            out.push_str(&format!(
+                "<text class=\"uml-class-badge-letter uml-spot-badge-letter\" x=\"{badge_cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"9\" font-weight=\"700\" fill=\"#ffffff\">{letter_str}</text>",
+                ty = badge_cy + 3,
+                ff = escape_text(font_family),
+            ));
+        }
+    } else if show_kind_badge {
+        if let Some((badge_letter, badge_fill, badge_stroke)) = kind_default_badge {
             let badge_r = 8_i32;
             let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
             let badge_cy = name_ty - 4; // vertically centre on the name baseline

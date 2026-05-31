@@ -1,0 +1,9 @@
+@startuml
+class Service <<(S,#FF7700) Service>>
+class Controller <<(C,#0066CC) Controller>>
+class Repository <<(R,#009900) Repository>>
+class ValueObject <<(V,#9933CC) Value>>
+Service --> Controller
+Controller --> Repository
+Repository --> ValueObject
+@enduml

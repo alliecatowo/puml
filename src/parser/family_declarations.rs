@@ -479,6 +479,39 @@ pub(crate) fn parse_family_decl_inline_style_token(token: &str) -> Option<Family
     (style.fill_color.is_some() || !style.members.is_empty()).then_some(style)
 }
 
+/// Parse a spot-stereotype inner value — the text between `<<` and `>>` — and
+/// return `Some((letter, color, label))` when it matches `(L,#color) Label` or
+/// `(L,#color)` (label-less form).  `letter` is a single ASCII char (any case),
+/// `color` is the raw `#xxxxxx` or `#name` token, and `label` may be empty.
+///
+/// Examples:
+///   `(S,#FF7700) Service`  → Some(('S', "#FF7700", "Service"))
+///   `(C,#0066CC) Controller` → Some(('C', "#0066CC", "Controller"))
+///   `(R,#009900)`          → Some(('R', "#009900", ""))
+pub(crate) fn parse_spot_stereotype(value: &str) -> Option<(char, &str, &str)> {
+    let v = value.trim();
+    let rest = v.strip_prefix('(')?;
+    // letter must be exactly one non-space char
+    let mut chars = rest.chars();
+    let letter = chars.next()?;
+    if letter.is_whitespace() {
+        return None;
+    }
+    let after_letter = chars.as_str();
+    // must be followed by comma (with optional spaces)
+    let after_letter = after_letter.trim_start();
+    let after_comma = after_letter.strip_prefix(',')?;
+    // color: trim leading spaces, then read up to ')'
+    let color_part = after_comma.trim_start();
+    let close = color_part.find(')')?;
+    let color = color_part[..close].trim();
+    if !color.starts_with('#') {
+        return None;
+    }
+    let label = color_part[close + 1..].trim();
+    Some((letter, color, label))
+}
+
 pub(crate) fn declaration_marker_members(
     marker: Option<&str>,
     stereotypes: Vec<String>,
@@ -491,8 +524,16 @@ pub(crate) fn declaration_marker_members(
         });
     }
     for stereotype in stereotypes {
+        // Detect spot stereotype: `(L,#color) Label` → encode as `<<spot:L:#color:Label>>`
+        // so the renderer can extract letter + color without re-parsing.
+        let text = if let Some((letter, color, label)) = parse_spot_stereotype(stereotype.as_str())
+        {
+            format!("<<spot:{letter}:{color}:{label}>>")
+        } else {
+            format!("<<{stereotype}>>")
+        };
         members.push(ClassMember {
-            text: format!("<<{stereotype}>>"),
+            text,
             modifier: None,
         });
     }
