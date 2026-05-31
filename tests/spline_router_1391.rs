@@ -208,8 +208,14 @@ fn spline_endpoints_pin_to_source_and_target_anchors() {
     let last_token = last_segment.split(' ').last().unwrap();
     let (ex, ey) = parse_pair(last_token);
     // Endpoint coords must be finite real numbers in canvas space.
-    assert!(mx.is_finite() && my.is_finite(), "M coords finite: {mx},{my}");
-    assert!(ex.is_finite() && ey.is_finite(), "End coords finite: {ex},{ey}");
+    assert!(
+        mx.is_finite() && my.is_finite(),
+        "M coords finite: {mx},{my}"
+    );
+    assert!(
+        ex.is_finite() && ey.is_finite(),
+        "End coords finite: {ex},{ey}"
+    );
     // M and end must differ (otherwise it's a degenerate zero-length curve).
     assert!(
         (mx - ex).hypot(my - ey) > 1.0,

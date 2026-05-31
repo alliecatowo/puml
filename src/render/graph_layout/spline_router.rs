@@ -273,11 +273,7 @@ fn single_cubic(
         tgt.0 - handle_len * tgt_tangent.0,
         tgt.1 - handle_len * tgt_tangent.1,
     );
-    CubicSegment {
-        cp1,
-        cp2,
-        end: tgt,
-    }
+    CubicSegment { cp1, cp2, end: tgt }
 }
 
 /// Drop obstacles that are the source or target bbox themselves (identified
@@ -512,11 +508,7 @@ pub fn tangent_from_orth_path(pts: &[(f64, f64)], reverse: bool) -> (f64, f64) {
         return (0.0, 1.0);
     }
     let (ax, ay) = if reverse { pts[pts.len() - 1] } else { pts[0] };
-    let (bx, by) = if reverse {
-        pts[pts.len() - 2]
-    } else {
-        pts[1]
-    };
+    let (bx, by) = if reverse { pts[pts.len() - 2] } else { pts[1] };
     let dx = bx - ax;
     let dy = by - ay;
     let len = dx.hypot(dy);

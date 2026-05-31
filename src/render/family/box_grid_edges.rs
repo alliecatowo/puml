@@ -71,10 +71,7 @@ pub(super) fn render_box_grid_relations_and_labels(
             .entry(from_name.clone())
             .or_default()
             .push(rel_idx);
-        tgt_fan_groups
-            .entry(to_name)
-            .or_default()
-            .push(rel_idx);
+        tgt_fan_groups.entry(to_name).or_default().push(rel_idx);
     }
 
     // rel_idx → (dx, dy) fan offset to apply to (x2, y2).
@@ -142,7 +139,8 @@ pub(super) fn render_box_grid_relations_and_labels(
             let lane = slot as f64 - (n - 1.0) / 2.0;
             // Reverse sign at the target end so the converging curves mirror
             // the diverging-source pattern symmetrically.
-            let theta = -(lane * SPLINE_FAN_STEP_RAD).clamp(-SPLINE_FAN_MAX_RAD, SPLINE_FAN_MAX_RAD);
+            let theta =
+                -(lane * SPLINE_FAN_STEP_RAD).clamp(-SPLINE_FAN_MAX_RAD, SPLINE_FAN_MAX_RAD);
             spline_tgt_jitter.insert(rel_idx, theta);
         }
     }
@@ -438,8 +436,8 @@ pub(super) fn render_box_grid_relations_and_labels(
                 // direction); fall back to the orthogonal path's first
                 // segment direction when the anchor doesn't sit cleanly on a
                 // side (e.g. interface circles).
-                let src_tangent = tangent_from_bbox_side(src_anchor, src_bbox, 4.0)
-                    .unwrap_or_else(|| {
+                let src_tangent =
+                    tangent_from_bbox_side(src_anchor, src_bbox, 4.0).unwrap_or_else(|| {
                         let (ax, ay) = orth_pts[0];
                         let (bx, by) = orth_pts[1];
                         let dx = (bx - ax) as f64;
@@ -450,8 +448,8 @@ pub(super) fn render_box_grid_relations_and_labels(
                 // Target tangent points INTO the target (the curve enters the
                 // target along this direction). Outward normal at the target
                 // anchor, then negate, is equivalent to inward normal.
-                let tgt_outward = tangent_from_bbox_side(tgt_anchor, tgt_bbox, 4.0)
-                    .unwrap_or_else(|| {
+                let tgt_outward =
+                    tangent_from_bbox_side(tgt_anchor, tgt_bbox, 4.0).unwrap_or_else(|| {
                         let n = orth_pts.len();
                         let (ax, ay) = orth_pts[n - 1];
                         let (bx, by) = orth_pts[n - 2];
@@ -473,14 +471,8 @@ pub(super) fn render_box_grid_relations_and_labels(
                     src_tangent,
                     tgt_tangent,
                     obstacles,
-                    src_tangent_jitter: spline_src_jitter
-                        .get(&rel_idx)
-                        .copied()
-                        .unwrap_or(0.0),
-                    tgt_tangent_jitter: spline_tgt_jitter
-                        .get(&rel_idx)
-                        .copied()
-                        .unwrap_or(0.0),
+                    src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                    tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
                 };
                 if let Some(spline) = generate_spline_path(input) {
                     let d = spline.to_svg_d();
@@ -592,14 +584,8 @@ pub(super) fn render_box_grid_relations_and_labels(
                         src_tangent,
                         tgt_tangent,
                         obstacles,
-                        src_tangent_jitter: spline_src_jitter
-                            .get(&rel_idx)
-                            .copied()
-                            .unwrap_or(0.0),
-                        tgt_tangent_jitter: spline_tgt_jitter
-                            .get(&rel_idx)
-                            .copied()
-                            .unwrap_or(0.0),
+                        src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                        tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
                     };
                     if let Some(spline) = generate_spline_path(input) {
                         let d = spline.to_svg_d();
@@ -775,14 +761,8 @@ pub(super) fn render_box_grid_relations_and_labels(
                         src_tangent,
                         tgt_tangent,
                         obstacles,
-                        src_tangent_jitter: spline_src_jitter
-                            .get(&rel_idx)
-                            .copied()
-                            .unwrap_or(0.0),
-                        tgt_tangent_jitter: spline_tgt_jitter
-                            .get(&rel_idx)
-                            .copied()
-                            .unwrap_or(0.0),
+                        src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                        tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
                     };
                     if let Some(spline) = generate_spline_path(input) {
                         let d = spline.to_svg_d();
