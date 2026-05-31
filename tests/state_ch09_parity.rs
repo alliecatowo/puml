@@ -562,20 +562,29 @@ fn state_transition_labels_clear_crossing_arrow_lanes_issue_483() {
     let revise_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("Rejected")
                 && node.attribute("data-state-to") == Some("Draft")
         })
         .expect("Rejected -> Draft edge should render");
+    // Stage 3 EdgeRouting renders state transitions as <polyline points=ââ¦â> while
+    // Splines mode uses <path d=ââ¦â>. Accept either format.
     let revise_path = revise_edge
         .attribute("d")
-        .expect("Rejected -> Draft edge should have path data");
+        .or_else(|| revise_edge.attribute("points"))
+        .expect("Rejected -> Draft edge should have path or points data");
+    // polyline uses "x,y" notation; path uses "L x y" notation -- check both forms.
+    let has_lane_coord = revise_path.contains("298,100") || revise_path.contains("L 298 100");
     assert!(
-        revise_path.contains("L 298 100"),
-        "upward diagonal transition should use the target-side lane; d={revise_path:?}"
+        has_lane_coord,
+        "upward diagonal transition should use the target-side lane; path={revise_path:?}"
     );
+    // Ensure the Rejected -> Draft edge does not reuse the Submitted -> Approved
+    // horizontal lane (y=193 in polyline notation, or "L 170 193 L 310 193" in path).
+    let reuses_approve_lane =
+        revise_path.contains("170,193") || revise_path.contains("L 170 193 L 310 193");
     assert!(
-        !revise_path.contains("L 170 193 L 310 193"),
+        !reuses_approve_lane,
         "Rejected -> Draft must not reuse the Submitted -> Approved horizontal lane"
     );
 
