@@ -15,7 +15,7 @@
 //! 2. A diagram with no `skinparam linetype` directive renders `<polyline>`
 //!    relations (not `<path … C …>` Bézier curves).
 //! 3. `skinparam linetype splines` remains available as an explicit opt-in and
-//!    does produce Bézier curves when requested.
+//!    does produce rounded-corner path curves when requested (Q arcs, not C cubics).
 //! 4. The architecture-overview fixture (a multi-package component diagram)
 //!    renders with polyline relations by default and zero cubic-Bézier relation
 //!    paths, confirming no spline bleed-through on real-world diagrams.
@@ -106,9 +106,10 @@ fn default_diagram_has_no_cubic_bezier_in_relation_paths() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn skinparam_linetype_splines_still_emits_bezier_curves() {
+fn skinparam_linetype_splines_still_emits_rounded_corner_paths() {
     // Splines must remain functional as an explicit opt-in. Diagrams that
-    // set `skinparam linetype splines` should still get curved paths.
+    // set `skinparam linetype splines` should get rounded-corner <path> elements.
+    // The new renderer emits Q (quadratic arc) commands, not C (cubic Bézier).
     let src = "@startuml
 skinparam linetype splines
 class A
@@ -123,9 +124,10 @@ A --> C
         svg.contains("<path class=\"uml-relation\""),
         "explicit 'skinparam linetype splines' must emit <path> elements; got:\n{svg}"
     );
+    // Rounded-corner renderer uses Q arcs, not C cubics (Catmull-Rom is removed).
     assert!(
-        svg.contains(" C "),
-        "explicit 'skinparam linetype splines' must emit cubic Bézier curves; got:\n{svg}"
+        svg.contains(" Q "),
+        "explicit 'skinparam linetype splines' must emit Q (quadratic arc) commands; got:\n{svg}"
     );
     assert!(
         !svg.contains("<polyline class=\"uml-relation\""),
