@@ -67,9 +67,19 @@ pub(super) fn declaration_stereotype_members(
 ) -> Vec<crate::ast::ClassMember> {
     stereotypes
         .into_iter()
-        .map(|stereotype| crate::ast::ClassMember {
-            text: format!("<<{stereotype}>>"),
-            modifier: None,
+        .map(|stereotype| {
+            // Detect spot stereotype: `(L,#color) Label` → encode as `<<spot:L:#color:Label>>`.
+            let text = if let Some((letter, color, label)) =
+                crate::parser::parse_spot_stereotype(&stereotype)
+            {
+                format!("<<spot:{letter}:{color}:{label}>>")
+            } else {
+                format!("<<{stereotype}>>")
+            };
+            crate::ast::ClassMember {
+                text,
+                modifier: None,
+            }
         })
         .collect()
 }

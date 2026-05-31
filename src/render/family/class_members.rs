@@ -192,15 +192,43 @@ pub(super) fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> 
 }
 
 /// Return true if `text` is an arbitrary user-defined stereotype marker
-/// (any `<<…>>` value that is NOT one of the built-in type keywords).
+/// (any `<<…>>` value that is NOT one of the built-in type keywords and NOT a
+/// spot stereotype encoded form).
 pub(super) fn is_user_stereotype(text: &str) -> bool {
-    text.starts_with("<<") && text.ends_with(">>") && builtin_type_stereotype_label(text).is_none()
+    text.starts_with("<<")
+        && text.ends_with(">>")
+        && builtin_type_stereotype_label(text).is_none()
+        && parse_spot_member(text).is_none()
+}
+
+/// Parse a spot-stereotype member encoded as `<<spot:L:#color:Label>>`.
+/// Returns `(letter_char, color_str, label_str)` on match, `None` otherwise.
+///
+/// This is the renderer-side counterpart of `parse_spot_stereotype` in the parser.
+/// The parser emits `<<spot:L:#color:Label>>` (label may be empty) and this function
+/// decodes it back so the renderer can draw the colored badge.
+pub(super) fn parse_spot_member(text: &str) -> Option<(char, String, String)> {
+    // Expected form: <<spot:L:#color:Label>> where label may be empty.
+    let inner = text.strip_prefix("<<spot:")?.strip_suffix(">>")?;
+    // First colon separates letter from the rest.
+    let (letter_str, rest) = inner.split_once(':')?;
+    let letter = letter_str.chars().next()?;
+    if letter_str.len() != letter.len_utf8() {
+        // More than one char before the colon — not a valid spot member.
+        return None;
+    }
+    // Second colon separates color from label.
+    let (color, label) = rest.split_once(':')?;
+    if !color.starts_with('#') {
+        return None;
+    }
+    Some((letter, color.to_string(), label.to_string()))
 }
 
 /// Count how many leading members of `members` are header stereotypes that
 /// should be rendered in the class-box header rather than as member rows.
 /// This includes the optional built-in type marker (first position) plus any
-/// consecutive user-defined stereotype markers that immediately follow it.
+/// consecutive user-defined or spot stereotype markers that immediately follow it.
 pub(super) fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize {
     let mut skip = 0;
     // First member may be a built-in type marker (e.g. <<enum>>).
@@ -210,9 +238,13 @@ pub(super) fn count_header_stereotype_members(members: &[crate::ast::ClassMember
     {
         skip += 1;
     }
-    // Any consecutive user-defined <<…>> members directly after the type marker
-    // (or at the start if there was no type marker) are also header stereotypes.
-    while skip < members.len() && is_user_stereotype(&members[skip].text) {
+    // Any consecutive user-defined <<…>> or spot <<spot:…>> members directly after
+    // the type marker (or at the start if there was no type marker) are also header
+    // stereotypes.
+    while skip < members.len()
+        && (is_user_stereotype(&members[skip].text)
+            || parse_spot_member(&members[skip].text).is_some())
+    {
         skip += 1;
     }
     skip

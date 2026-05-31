@@ -261,7 +261,12 @@ pub fn effective_mindmap_node_style(
 }
 
 fn is_user_stereotype_marker(text: &str) -> bool {
-    text.starts_with("<<") && text.ends_with(">>") && !is_builtin_type_stereotype_marker(text)
+    // Exclude encoded spot stereotypes (<<spot:L:#color:Label>>) — these are
+    // internal encoding artefacts (#1398), not user-defined stereotype names.
+    text.starts_with("<<")
+        && text.ends_with(">>")
+        && !text.starts_with("<<spot:")
+        && !is_builtin_type_stereotype_marker(text)
 }
 
 fn is_builtin_type_stereotype_marker(text: &str) -> bool {
