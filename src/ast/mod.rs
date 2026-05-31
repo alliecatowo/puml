@@ -474,6 +474,8 @@ pub struct FamilyRelation {
     pub left_role: Option<String>,
     pub right_role: Option<String>,
     pub line_color: Option<String>,
+    /// Text color for relation labels (`text:<color>` in tail-style syntax).
+    pub label_color: Option<String>,
     pub dashed: bool,
     pub hidden: bool,
     pub thickness: Option<u8>,

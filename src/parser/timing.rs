@@ -288,6 +288,7 @@ pub(crate) fn parse_timing_relation(line: &str) -> Option<StatementKind> {
                 left_role: None,
                 right_role: None,
                 line_color: None,
+                label_color: None,
                 dashed: arrow.contains("--"),
                 hidden: false,
                 thickness: None,

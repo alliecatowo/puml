@@ -140,6 +140,14 @@ pub(super) fn model_relation_from_ast(
                 .map_err(|msg| Diagnostic::error(format!("[E_FAMILY_RELATION_COLOR] {msg}")))
         })
         .transpose()?;
+    let label_color = rel
+        .label_color
+        .as_deref()
+        .map(|color| {
+            crate::model::FamilyRelationColor::parse(color)
+                .map_err(|msg| Diagnostic::error(format!("[E_FAMILY_RELATION_LABEL_COLOR] {msg}")))
+        })
+        .transpose()?;
 
     Ok(ModelFamilyRelation {
         from: rel.from,
@@ -152,6 +160,7 @@ pub(super) fn model_relation_from_ast(
         left_role: rel.left_role,
         right_role: rel.right_role,
         line_color,
+        label_color,
         dashed: rel.dashed,
         hidden: rel.hidden,
         thickness: rel.thickness,
@@ -178,6 +187,7 @@ pub(super) fn simple_family_relation(
         left_role: None,
         right_role: None,
         line_color: None,
+        label_color: None,
         dashed: false,
         hidden: false,
         thickness: None,
@@ -220,6 +230,7 @@ pub(super) fn build_family_tree_relations(
                 left_role: None,
                 right_role: None,
                 line_color: None,
+                label_color: None,
                 dashed: false,
                 hidden: false,
                 thickness: None,
