@@ -260,13 +260,13 @@ impl Router for ChannelRouter {
                         }
                     }
                 };
-            // Target-side fan: always fan when multiple edges converge at the same
-            // target port, regardless of whether sources are also shared (many-to-one).
+            // Target-side fan: restore bipartite guard to avoid fanned endpoints that
+            // do not match declared node ports (class diagram geometry regression #1374).
             assign_fan_offsets(
                 tgt_groups,
                 &mut edge_tgt_port_dx,
                 &src_group_size_by_edge,
-                false,
+                true,
             );
         }
 
