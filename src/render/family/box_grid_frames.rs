@@ -145,3 +145,39 @@ pub(super) fn render_box_grid_package_frames(
         }
     }
 }
+
+/// Re-paint the dark header band and label text for each top-level package frame,
+/// called AFTER edge-label backgrounds are drawn so the dark band appears on top
+/// and the white text stays readable. (#1374 Bug 2)
+pub(super) fn render_box_grid_package_header_text(
+    out: &mut String,
+    pkg_layouts: &[PackageLayout],
+    pkg_frame_widths: &[i32],
+    pkg_tab: i32,
+    border_color: &str,
+) {
+    for (i, pkg) in pkg_layouts.iter().enumerate() {
+        let fw = pkg_frame_widths[i];
+        if fw < 16 {
+            continue;
+        }
+        let fx = pkg.abs_x;
+        let fy = pkg.abs_y;
+        // Re-paint rounded top of header band
+        out.push_str(&format!(
+            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{pkg_tab}\" rx=\"8\" ry=\"8\" fill=\"{border_color}\" stroke=\"none\"/>",
+        ));
+        // Square off bottom 8px of the header band
+        out.push_str(&format!(
+            "<rect x=\"{fx}\" y=\"{}\" width=\"{fw}\" height=\"8\" fill=\"{border_color}\" stroke=\"none\"/>",
+            fy + pkg_tab - 8,
+        ));
+        // Re-draw header label text (white, on top of the re-painted dark band)
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#ffffff\">{}</text>",
+            fx + 8,
+            fy + pkg_tab - 8,
+            escape_text(&pkg.label)
+        ));
+    }
+}
