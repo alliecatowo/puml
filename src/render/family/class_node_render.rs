@@ -1,7 +1,7 @@
 use crate::ast::MemberModifier;
 use crate::model::FamilyNodeKind;
 use crate::render::svg::{creole_text, escape_text, render_actor_stick_figure};
-use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle, StyleSource};
+use crate::theme::{effective_class_node_style, ActorStyle, ClassStyle, StyleMode, StyleSource};
 
 use super::c4_nodes::{is_c4_kind, render_c4_node};
 use super::class_layout::class_node_display_name;
@@ -107,7 +107,14 @@ pub(super) fn render_class_node(
             }
             _ => effective_style.header_color.as_str(),
         },
-        FamilyNodeKind::Object => "#fef3c7",
+        FamilyNodeKind::Object => {
+            // PlantUML mode: neutral gray header (no yellow chrome).
+            if class_style.style_mode == StyleMode::Plantuml {
+                "#e2e8f0"
+            } else {
+                "#fef3c7"
+            }
+        }
         FamilyNodeKind::Map => "#fef3c7",
         FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
@@ -343,8 +350,10 @@ pub(super) fn render_class_node(
         FamilyNodeKind::Object => Some(("O", "#FFD54F", "#F57F17")),
         _ => None,
     };
-    // Suppress the badge when `hide circle` is active — PlantUML convention.
-    if !hide_circle {
+    // Suppress the badge when `hide circle` is active or in PlantUML style mode.
+    // PlantUML does not render type-indicator circles; they are PUML-enhanced chrome.
+    let show_badge = !hide_circle && class_style.style_mode == StyleMode::Puml;
+    if show_badge {
         if let Some((badge_letter, badge_fill, badge_stroke)) = badge_info {
             let badge_r = 8_i32;
             let badge_cx = x + badge_r + 4; // 4 px from the left inner edge
@@ -480,7 +489,10 @@ pub(super) fn render_class_node(
                 }
             }
         }
-        let render_visibility_icons = class_style.attribute_icons;
+        // In PlantUML mode, suppress UML 2.x SVG glyphs and fall back to ASCII
+        // prefixes (+/-/#/~) — this matches PlantUML's default behaviour.
+        let render_visibility_icons =
+            class_style.attribute_icons && class_style.style_mode == StyleMode::Puml;
         // If no explicit visibility color, fall back to member_color from style.
         let effective_color = if vis_sym.is_some() && render_visibility_icons {
             vis_color
@@ -509,12 +521,22 @@ pub(super) fn render_class_node(
             .unwrap_or_default();
 
         // Emit UML 2.x visibility glyph (SVG shape) before member text (#1349).
-        let glyph_x_offset = if render_visibility_icons && vis_sym.is_some() {
-            let gx = x + 10; // left margin
-            let gy = my - 5; // vertically centred on the text baseline (~5px above)
-            let is_method = matches!(member.modifier, Some(MemberModifier::Method))
-                || text_after_mod.contains('(');
-            emit_visibility_glyph(out, vis_sym, vis_color, gx, gy, is_method)
+        // LAYOUT INVARIANT: always reserve the same glyph indent (14 px) when a
+        // visibility symbol is present — even in PlantUML mode where the glyph is
+        // suppressed.  This keeps text-x byte-identical across style modes so that
+        // only paint differs (the circle/diamond/triangle SVG shape), not position.
+        let glyph_x_offset = if vis_sym.is_some() {
+            if render_visibility_icons {
+                let gx = x + 10; // left margin
+                let gy = my - 5; // vertically centred on the text baseline (~5px above)
+                let is_method = matches!(member.modifier, Some(MemberModifier::Method))
+                    || text_after_mod.contains('(');
+                emit_visibility_glyph(out, vis_sym, vis_color, gx, gy, is_method)
+            } else {
+                // No glyph emitted, but reserve the same 14-px indent so layout
+                // coordinates match PUML mode exactly.
+                14
+            }
         } else {
             0
         };

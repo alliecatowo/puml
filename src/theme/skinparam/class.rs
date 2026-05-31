@@ -7,6 +7,20 @@ use std::collections::BTreeMap;
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
 
+/// Chrome rendering mode carried through the class/object render chain.
+///
+/// Set via the CLI `--style puml|plantuml` flag. The default is `Puml`.
+/// Only paint differs between modes — layout (positions, sizes, edge paths) is
+/// always identical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StyleMode {
+    /// PUML-enhanced chrome: richer fills, type badges, UML 2.x glyphs.
+    #[default]
+    Puml,
+    /// PlantUML-compatible neutral chrome: flat fills, no badges, ASCII visibility.
+    Plantuml,
+}
+
 /// Style overrides for class/object/usecase diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassStyle {
@@ -28,6 +42,10 @@ pub struct ClassStyle {
     pub shadowing: bool,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
     pub sources: ClassStyleSources,
+    /// Chrome rendering mode: `Puml` (default) keeps PUML-enhanced output;
+    /// `Plantuml` renders a neutral look matching PlantUML's defaults.
+    /// Only paint is affected — layout is always identical.
+    pub style_mode: StyleMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -84,6 +102,7 @@ impl Default for ClassStyle {
             shadowing: false,
             stereotype_styles: BTreeMap::new(),
             sources: ClassStyleSources::default(),
+            style_mode: StyleMode::default(),
         }
     }
 }
