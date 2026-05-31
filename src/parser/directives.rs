@@ -112,11 +112,40 @@ pub(crate) fn parse_style_block(
     if !line.eq_ignore_ascii_case("<style>") {
         return Ok(None);
     }
+
+    // -----------------------------------------------------------------------
+    // Phase A: Collect the raw body text between <style> and </style>, then
+    // run the new recursive-descent parser to produce a typed StyleBlock AST.
+    // The legacy flat StyleParam path below continues to run (compat shim).
+    // -----------------------------------------------------------------------
+    let mut body_lines: Vec<&str> = Vec::new();
+    let mut close_idx: Option<usize> = None;
+    for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+        if strip_inline_plantuml_comment(raw)
+            .trim()
+            .eq_ignore_ascii_case("</style>")
+        {
+            close_idx = Some(idx);
+            break;
+        }
+        body_lines.push(raw);
+    }
+    let body_text = body_lines.join("\n");
+    let (style_block_ast, _compat_triples) =
+        crate::parser::style_block::parse_style_block_body(&body_text);
+    // NOTE: _compat_triples are intentionally unused here — the legacy code
+    // path below independently emits StyleParam triples via `target.skinparam_key`.
+    // Phase E will wire these up and remove the legacy path.
+
     let Some(target) = style_block_target(lines, start_idx) else {
         // Preserve unsupported style blocks as raw lines so family-specific
         // style handling (e.g. mindmap depth styles) can consume them without
         // generic top-level keyword parsing rewriting inner declarations.
-        let mut kinds = vec![StatementKind::DeferredRaw(line.to_string())];
+        // Also emit the new StyleBlock so Phase B can start consuming it.
+        let mut kinds = vec![
+            StatementKind::StyleBlock(style_block_ast),
+            StatementKind::DeferredRaw(line.to_string()),
+        ];
         for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
             kinds.push(StatementKind::DeferredRaw((*raw).to_string()));
             if strip_inline_plantuml_comment(raw)
@@ -132,7 +161,8 @@ pub(crate) fn parse_style_block(
         .with_span(lines[start_idx].1));
     };
 
-    let mut kinds: Vec<StatementKind> = Vec::new();
+    // Emit the typed StyleBlock AST first, then the legacy flat triples.
+    let mut kinds: Vec<StatementKind> = vec![StatementKind::StyleBlock(style_block_ast)];
     let mut in_target = false;
     let mut nested_selector: Option<String> = None;
     let mut salt_external_selector = false;
@@ -199,6 +229,12 @@ pub(crate) fn parse_style_block(
             key,
             value: value.to_string(),
         });
+    }
+
+    // If we reach here, we never saw </style> — use the close_idx we found earlier
+    // for the early-return path; otherwise fall through to the error.
+    if let Some(end_idx) = close_idx {
+        return Ok(Some((kinds, end_idx)));
     }
 
     Err(

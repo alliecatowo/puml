@@ -57,6 +57,7 @@ mod sequence_participants;
 mod shared_ident;
 mod sprites;
 mod state;
+pub mod style_block;
 mod timing;
 
 // Bring all submodule items into the parser module's flat namespace.
