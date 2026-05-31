@@ -245,9 +245,12 @@ pub(super) fn render_class_node(
 
     // Collect leading header stereotype labels (built-in + user-defined + spot — fix #470, #551);
     // rendered as guillemet labels in the header, not as ordinary member rows.
+    // Each entry is `(label, is_sprite_ref)`: sprite stereotypes (`<<$foo>>`) are
+    // rendered via creole_text so the inline-sprite path draws the actual pixel icon;
+    // all other stereotypes are rendered as guillemet «…» plain text.
     // Spot stereotypes (#1398) also contribute a label row when they carry a non-empty label.
     let header_skip = count_header_stereotype_members(&node.members);
-    let mut header_stereotype_labels: Vec<String> = Vec::new();
+    let mut header_stereotype_labels: Vec<(String, bool)> = Vec::new();
     // Spot badge override: first <<spot:…>> member wins over the kind-default badge.
     // We extract it now so the badge section below can use it.
     let spot_override: Option<(char, String)> = node.members[..header_skip]
@@ -256,16 +259,22 @@ pub(super) fn render_class_node(
     if !hide_stereotype {
         for m in &node.members[..header_skip] {
             if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
-                header_stereotype_labels.push(builtin.to_string());
+                header_stereotype_labels.push((builtin.to_string(), false));
             } else if let Some((_letter, _color, label)) = parse_spot_member(&m.text) {
                 // Spot stereotype: render label text as «Label» when non-empty.
                 if !label.is_empty() {
-                    header_stereotype_labels.push(format!("\u{ab}{label}\u{bb}"));
+                    header_stereotype_labels.push((format!("\u{ab}{label}\u{bb}"), false));
                 }
             } else if is_user_stereotype(&m.text) {
-                // Convert <<foo>> → «foo»
                 let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
-                header_stereotype_labels.push(format!("\u{ab}{inner}\u{bb}"));
+                if inner.starts_with('$') {
+                    // Sprite stereotype: store as `<$name>` for creole_text to render
+                    // as an actual sprite icon (#1401 — inline sprite definition support).
+                    header_stereotype_labels.push((format!("<{inner}>"), true));
+                } else {
+                    // Convert <<foo>> → «foo»
+                    header_stereotype_labels.push((format!("\u{ab}{inner}\u{bb}"), false));
+                }
             }
         }
     }
@@ -299,16 +308,32 @@ pub(super) fn render_class_node(
         x2 = x + w
     ));
 
-    // Render each stereotype label above the class name in the header (fix #470, #551)
-    for (i, label) in header_stereotype_labels.iter().enumerate() {
-        out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
-            tx = x + w / 2,
-            ty = y + 13 + (i as i32) * 14,
-            ff = escape_text(font_family),
-            fc = escape_text(font_color),
-            lbl = escape_text(label)
-        ));
+    // Render each stereotype label above the class name in the header (fix #470, #551).
+    // Sprite stereotypes (`is_sprite == true`) go through creole_text so the inline-sprite
+    // path draws the actual pixel icon; all other labels are plain guillemet text.
+    for (i, (label, is_sprite)) in header_stereotype_labels.iter().enumerate() {
+        let ty = y + 13 + (i as i32) * 14;
+        let tx = x + w / 2;
+        if *is_sprite {
+            out.push_str(&creole_text(
+                tx - 8,
+                ty,
+                &format!(
+                    "font-family=\"{}\" font-size=\"10\" fill=\"{}\"",
+                    escape_text(font_family),
+                    escape_text(font_color)
+                ),
+                label,
+                font_color,
+            ));
+        } else {
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
+                ff = escape_text(font_family),
+                fc = escape_text(font_color),
+                lbl = escape_text(label)
+            ));
+        }
     }
 
     // Header text: class name or object instance label (`name : Type`).

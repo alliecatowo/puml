@@ -118,20 +118,33 @@ pub fn parse_svg_sprite(name: &str, source: &str) -> Result<SpriteDefinition, Di
 
 pub fn parse_sprite_header_spec(raw: &str) -> Option<(u32, u32, u8, bool)> {
     let spec = raw.trim().strip_prefix('[')?.strip_suffix(']')?;
-    let (size, depth) = spec.split_once('/')?;
-    let (w, h) = size.split_once('x').or_else(|| size.split_once('X'))?;
-    let width = w.trim().parse::<u32>().ok()?;
-    let height = h.trim().parse::<u32>().ok()?;
-    let depth = depth.trim();
-    let compressed = depth.ends_with('z') || depth.ends_with('Z');
-    let level_text = if compressed {
-        &depth[..depth.len().saturating_sub(1)]
+    // Support both `[WxH/N]` (with depth) and `[WxH]` (monochrome — PlantUML LRG §23.2).
+    if let Some((size, depth)) = spec.split_once('/') {
+        let (w, h) = size.split_once('x').or_else(|| size.split_once('X'))?;
+        let width = w.trim().parse::<u32>().ok()?;
+        let height = h.trim().parse::<u32>().ok()?;
+        let depth = depth.trim();
+        let compressed = depth.ends_with('z') || depth.ends_with('Z');
+        let level_text = if compressed {
+            &depth[..depth.len().saturating_sub(1)]
+        } else {
+            depth
+        };
+        let levels = level_text.parse::<u8>().ok()?;
+        validate_gray_levels(levels).ok()?;
+        Some((width, height, levels, compressed))
     } else {
-        depth
-    };
-    let levels = level_text.parse::<u8>().ok()?;
-    validate_gray_levels(levels).ok()?;
-    Some((width, height, levels, compressed))
+        // `[WxH]` — binary monochrome (no depth suffix): hex digits map to 0..=15
+        // gray values, same as `/16`.  PlantUML LRG §23.2 describes this as the
+        // default one-byte-per-pixel hex-grid form used when depth is omitted.
+        let (w, h) = spec.split_once('x').or_else(|| spec.split_once('X'))?;
+        let width = w.trim().parse::<u32>().ok()?;
+        let height = h.trim().parse::<u32>().ok()?;
+        if width == 0 || height == 0 {
+            return None;
+        }
+        Some((width, height, 16, false))
+    }
 }
 
 pub(super) fn validate_gray_levels(levels: u8) -> Result<u8, Diagnostic> {
