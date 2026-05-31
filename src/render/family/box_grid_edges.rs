@@ -154,12 +154,13 @@ pub(super) fn render_box_grid_relations_and_labels(
 
         // Apply parallel-edge port fan offset so edges with the same target
         // port arrive at distinct positions and are each visually visible (#1374).
-        if rel.direction.is_none() && !rel.hidden {
-            if let Some(&(fdx, fdy)) = port_fan_offset.get(&rel_idx) {
-                x2 += fdx;
-                y2 += fdy;
-            }
-        }
+        let fan_offset: (i32, i32) = if rel.direction.is_none() && !rel.hidden {
+            port_fan_offset.get(&rel_idx).copied().unwrap_or((0, 0))
+        } else {
+            (0, 0)
+        };
+        x2 += fan_offset.0;
+        y2 += fan_offset.1;
 
         let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
@@ -315,18 +316,23 @@ pub(super) fn render_box_grid_relations_and_labels(
             }
             if let Some(last) = orth_pts.last_mut() {
                 let snapped_x = if tgt_keep_routed_x {
-                    last.0.clamp(tgt_x_min, tgt_x_max)
+                    // Top/bottom entry: use router x, then apply fan offset along x
+                    // so parallel edges with the same target port get distinct x.
+                    (last.0 + fan_offset.0).clamp(tgt_x_min, tgt_x_max)
                 } else {
-                    x2
+                    x2 // x2 already has fan_offset.0 applied
                 };
                 // When entering top/bottom keep the router's y (the true bbox edge);
                 // fall back to pick_port's y only for left/right horizontal entry.
                 // Exception: interface circle nodes use an anchor adjusted to the
                 // circle edge via adjust_interface_anchor; always honour that y2.
                 let snapped_y = if tgt_keep_routed_x && !interface_nodes.contains(&to_name) {
-                    last.1
+                    // Top/bottom entry: apply fan offset along y (for side ports fan
+                    // is along y, but top/bottom fan is along x — fan_offset.1 is 0
+                    // for top/bottom ports).
+                    last.1 + fan_offset.1
                 } else {
-                    y2
+                    y2 // y2 already has fan_offset.1 applied
                 };
                 *last = (snapped_x, snapped_y);
             }
