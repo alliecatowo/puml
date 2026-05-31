@@ -315,10 +315,18 @@ pub(super) fn render_box_grid_relations_and_labels(
                 *first = (snapped_x, snapped_y);
             }
             if let Some(last) = orth_pts.last_mut() {
-                let snapped_x = if tgt_keep_routed_x {
-                    // Top/bottom entry: use router x, then apply fan offset along x
+                // For interface circle targets, the endpoint was already adjusted by
+                // adjust_interface_anchor (and re-set in the interface-alignment block
+                // above). Never apply fan offset to interface circles — it would move
+                // the endpoint off the circle edge and break precision assertions.
+                let is_interface_tgt = interface_nodes.contains(&to_name);
+                let snapped_x = if tgt_keep_routed_x && !is_interface_tgt {
+                    // Top/bottom entry into a regular component: apply fan offset along x
                     // so parallel edges with the same target port get distinct x.
                     (last.0 + fan_offset.0).clamp(tgt_x_min, tgt_x_max)
+                } else if tgt_keep_routed_x {
+                    // Interface circle: use router x, no fan offset.
+                    last.0.clamp(tgt_x_min, tgt_x_max)
                 } else {
                     x2 // x2 already has fan_offset.0 applied
                 };
@@ -326,13 +334,12 @@ pub(super) fn render_box_grid_relations_and_labels(
                 // fall back to pick_port's y only for left/right horizontal entry.
                 // Exception: interface circle nodes use an anchor adjusted to the
                 // circle edge via adjust_interface_anchor; always honour that y2.
-                let snapped_y = if tgt_keep_routed_x && !interface_nodes.contains(&to_name) {
-                    // Top/bottom entry: apply fan offset along y (for side ports fan
-                    // is along y, but top/bottom fan is along x — fan_offset.1 is 0
-                    // for top/bottom ports).
+                let snapped_y = if tgt_keep_routed_x && !is_interface_tgt {
+                    // Top/bottom entry into regular component: apply fan offset along y.
+                    // For top/bottom ports fan is along x so fan_offset.1 is 0 here.
                     last.1 + fan_offset.1
                 } else {
-                    y2 // y2 already has fan_offset.1 applied
+                    y2 // y2 already has fan_offset.1 applied (or is interface-adjusted)
                 };
                 *last = (snapped_x, snapped_y);
             }
