@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-30T16:31:36Z",
+  "generated_at_utc": "2026-05-31T20:25:56Z",
   "summary": {
     "total": 342,
-    "passed": 339,
+    "passed": 330,
     "excluded": 3,
-    "failed": 0
+    "failed": 9
   },
   "entries": [
     {
@@ -519,22 +519,26 @@
       "source_ref": "docs/examples/c4/11_system_landscape.puml",
       "artifact_svg": "docs/examples/c4/11_system_landscape.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/c4/12_container_with_databases.puml",
       "artifact_svg": "docs/examples/c4/12_container_with_databases.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -893,11 +897,13 @@
       "source_ref": "docs/examples/class/18_pattern_factory.puml",
       "artifact_svg": "docs/examples/class/18_pattern_factory.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -1047,11 +1053,13 @@
       "source_ref": "docs/examples/class/32_association_class_deep_packages.puml",
       "artifact_svg": "docs/examples/class/32_association_class_deep_packages.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -1280,55 +1288,65 @@
       "source_ref": "docs/examples/deployment/03_cloud.puml",
       "artifact_svg": "docs/examples/deployment/03_cloud.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/deployment/04_mixed.puml",
       "artifact_svg": "docs/examples/deployment/04_mixed.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/deployment/05_three_tier_cloud_onprem.puml",
       "artifact_svg": "docs/examples/deployment/05_three_tier_cloud_onprem.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/deployment/06_kubernetes_pods_containers.puml",
       "artifact_svg": "docs/examples/deployment/06_kubernetes_pods_containers.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/deployment/07_ch08_keyword_parity.puml",
       "artifact_svg": "docs/examples/deployment/07_ch08_keyword_parity.svg",
       "artifact_exists": true,
-      "artifact_up_to_date": true,
+      "artifact_up_to_date": false,
       "excluded": false,
       "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "status": "fail",
+      "notes": [
+        "artifact content does not match current renderer output"
+      ]
     },
     {
       "source_kind": "source_file",
