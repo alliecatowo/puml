@@ -374,18 +374,23 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Mainframe(v) => common.mainframe(v),
             StatementKind::SkinParam { key, value } => {
-                super::directives::handle_family_linetype_skinparam(
+                let is_linetype = super::directives::handle_family_linetype_skinparam(
                     &key,
                     &value,
                     &mut edge_routing,
                 );
-                family_styles.handle_skinparam(
-                    family_kind,
-                    &key,
-                    &value,
-                    stmt.span,
-                    &mut ext_warnings,
-                );
+                // `linetype` is a global routing knob, not a family-specific
+                // skinparam — skip the family classifier to avoid a
+                // W_SKINPARAM_UNSUPPORTED warning for a supported directive.
+                if !is_linetype {
+                    family_styles.handle_skinparam(
+                        family_kind,
+                        &key,
+                        &value,
+                        stmt.span,
+                        &mut ext_warnings,
+                    );
+                }
             }
             StatementKind::StyleParam {
                 selector,

@@ -331,6 +331,120 @@ pub(super) fn emit_predecessor_arrow(
     }
 }
 
+/// Routing-aware variant of [`emit_predecessor_arrow`].
+///
+/// Delegates to `emit_predecessor_arrow` for `Ortho` (legacy `<line>` segments);
+/// uses `emit_activity_arrow_with_style_routed` for `Splines` and `Polyline`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_predecessor_arrow_routed(
+    out: &mut String,
+    doc: &FamilyDocument,
+    i: usize,
+    node_layouts: &[NodeLayout],
+    metas: &[NodeMeta],
+    suppress_prev_arrow: &std::collections::BTreeSet<usize>,
+    act_style: &ActivityStyle,
+    bboxes: &[NodeBbox],
+    routing: crate::render::graph_layout::EdgeRouting,
+) {
+    use crate::render::graph_layout::EdgeRouting;
+    match routing {
+        EdgeRouting::Ortho => {
+            emit_predecessor_arrow(
+                out,
+                doc,
+                i,
+                node_layouts,
+                metas,
+                suppress_prev_arrow,
+                act_style,
+                bboxes,
+            );
+        }
+        _ => {
+            // Reproduce the same skip logic as emit_predecessor_arrow.
+            if i == 0 {
+                return;
+            }
+            if suppress_prev_arrow.contains(&i) {
+                return;
+            }
+            if matches!(
+                metas[i - 1].step_kind.as_str(),
+                "Else" | "EndIf" | "EndWhile"
+            ) {
+                return;
+            }
+
+            let layout = &node_layouts[i];
+            let cx = layout.cx;
+            let y = layout.slot_y;
+
+            let mut prev_idx = i - 1;
+            while prev_idx > 0 {
+                let is_invisible_control =
+                    super::layout::is_activity_flow_neutral_node(doc, metas, prev_idx);
+                if !is_invisible_control {
+                    break;
+                }
+                prev_idx -= 1;
+            }
+
+            let current_is_note = matches!(doc.nodes[i].kind, FamilyNodeKind::Note);
+            if !current_is_note
+                && matches!(
+                    metas[prev_idx].step_kind.as_str(),
+                    "Stop" | "End" | "Kill" | "Detach"
+                )
+            {
+                return;
+            }
+
+            let arrow_style = (prev_idx + 1..i)
+                .rev()
+                .find_map(|idx| metas[idx].arrow_style.as_ref());
+            let branch_guard_style;
+            let arrow_style = if arrow_style.is_none() && metas[prev_idx].step_kind == "IfStart" {
+                branch_guard_style =
+                    first_else_guard_for_if(doc, metas, prev_idx).map(|label| ActivityArrowStyle {
+                        label: Some(label.to_string()),
+                        ..ActivityArrowStyle::default()
+                    });
+                branch_guard_style.as_ref()
+            } else {
+                arrow_style
+            };
+            let prev = &node_layouts[prev_idx];
+            let (from_x, from_y) = if metas[prev_idx].step_kind == "IfStart" && prev.cx != cx {
+                let side_x = if cx < prev.cx {
+                    prev.cx - 100
+                } else {
+                    prev.cx + 100
+                };
+                (side_x, prev.slot_y + 24)
+            } else {
+                (prev.cx, prev.arrow_out_y)
+            };
+            if from_x != cx || from_y != y {
+                let eff_style = arrow_style
+                    .cloned()
+                    .unwrap_or_else(ActivityArrowStyle::default);
+                super::arrows::emit_activity_arrow_with_style_routed(
+                    out,
+                    from_x,
+                    from_y,
+                    cx,
+                    y,
+                    &act_style.arrow_color,
+                    &eff_style,
+                    bboxes,
+                    routing,
+                );
+            }
+        }
+    }
+}
+
 fn render_activity_note_connector(
     out: &mut String,
     doc: &FamilyDocument,

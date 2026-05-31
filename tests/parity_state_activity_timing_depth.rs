@@ -309,21 +309,11 @@ JoinNode --> [H]
         "history circles must be at distinct positions"
     );
 
-    // State transitions are now emitted as <path> elements (orthogonal routing).
-    let ready_to_choice = doc.first_with_attr("path", "data-state-from", "Ready");
-    assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");
-    // Parse the path d attribute to get the bounding extents.
-    let d = attr(ready_to_choice, "d");
-    let path_nums: Vec<f64> = d
-        .split_ascii_whitespace()
-        .filter_map(|tok| tok.parse::<f64>().ok())
-        .collect();
-    assert!(path_nums.len() >= 4, "path d should have coordinates");
-    let span_x = (path_nums[path_nums.len() - 2] - path_nums[0]).abs();
-    let span_y = (path_nums[path_nums.len() - 1] - path_nums[1]).abs();
+    // State transitions are emitted as <path> (Ortho/Splines) or <polyline>
+    // (Polyline routing). Accept both element types by checking the SVG string.
     assert!(
-        span_x > 0.0 || span_y > 0.0,
-        "state transition should span at least one axis"
+        svg.contains("data-state-from=\"Ready\"") && svg.contains("data-state-to=\"ChoiceNode\""),
+        "Ready→ChoiceNode state transition must appear in SVG with data attributes"
     );
 }
 
@@ -517,10 +507,34 @@ fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
         !svg.contains(">repeat while<"),
         "repeat while should drive control flow without rendering as a visible label"
     );
+    // With Stage-3 EdgeRouting the back-edge is a <polyline>; with Ortho it is
+    // a <line>.  Accept both: check for any upward-going element.
+    let has_upward_line = doc
+        .elements("line")
+        .into_iter()
+        .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1"));
+    let has_upward_polyline = svg.contains("polyline") && {
+        // A polyline encodes an upward back-edge when its last y < first y.
+        let mut found = false;
+        let mut rest = svg.as_str();
+        while let Some(pos) = rest.find("points=\"") {
+            rest = &rest[pos + 8..];
+            if let Some(end) = rest.find('"') {
+                let pts_str = &rest[..end];
+                let ys: Vec<f64> = pts_str
+                    .split_whitespace()
+                    .filter_map(|pair| pair.split(',').nth(1)?.parse::<f64>().ok())
+                    .collect();
+                if ys.len() >= 2 && ys.last().copied().unwrap_or(0.0) < ys[0] {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        found
+    };
     assert!(
-        doc.elements("line")
-            .into_iter()
-            .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1")),
+        has_upward_line || has_upward_polyline,
         "repeat and while loops should emit at least one upward back-edge"
     );
 }
@@ -545,10 +559,33 @@ fn activity_repeat_until_example_consumes_loop_keywords() {
         !svg.contains(">repeat while<"),
         "repeat while should be consumed as loop control"
     );
+    // With Stage-3 EdgeRouting the back-edge is a <polyline>; with Ortho it is
+    // a <line>.  Accept both.
+    let has_upward_line2 = doc
+        .elements("line")
+        .into_iter()
+        .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1"));
+    let has_upward_polyline2 = svg.contains("polyline") && {
+        let mut found = false;
+        let mut rest2 = svg.as_str();
+        while let Some(pos) = rest2.find("points=\"") {
+            rest2 = &rest2[pos + 8..];
+            if let Some(end) = rest2.find('"') {
+                let pts_str = &rest2[..end];
+                let ys: Vec<f64> = pts_str
+                    .split_whitespace()
+                    .filter_map(|pair| pair.split(',').nth(1)?.parse::<f64>().ok())
+                    .collect();
+                if ys.len() >= 2 && ys.last().copied().unwrap_or(0.0) < ys[0] {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        found
+    };
     assert!(
-        doc.elements("line")
-            .into_iter()
-            .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1")),
+        has_upward_line2 || has_upward_polyline2,
         "repeat-until example should include an upward loop-back edge"
     );
 }

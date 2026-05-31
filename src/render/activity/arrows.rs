@@ -386,9 +386,190 @@ pub(super) fn emit_activity_arrow_with_style(
     }
 }
 
+/// Collect the ordered waypoints that `emit_activity_arrow_with_style` would
+/// route for a given arrow, without emitting any SVG.
+///
+/// Used by the routing-aware wrappers ([`emit_activity_arrow_with_style_routed`],
+/// etc.) to obtain waypoints for `Splines` / `Polyline` rendering modes.
+/// For back-edge bypass arrows the waypoints approximate the cubic-bezier
+/// control-point route (they follow the same orthogonal corners).
+pub(super) fn collect_activity_arrow_waypoints(
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    bboxes: &[NodeBbox],
+) -> Vec<(i32, i32)> {
+    if x1 == x2 {
+        if let Some(side_x) = choose_vert_bypass_x(x1, y1, y2, bboxes) {
+            // Bypass corners (same geometry used for both forward and back-edge)
+            vec![(x1, y1), (side_x, y1), (side_x, y2), (x2, y2)]
+        } else {
+            vec![(x1, y1), (x2, y2)]
+        }
+    } else {
+        let mid_y = choose_mid_y(x1, y1, x2, y2, bboxes);
+        if let Some(bypass_x) = choose_vert_bypass_x(x1, y1, mid_y, bboxes) {
+            // 5-segment bypass
+            vec![
+                (x1, y1),
+                (bypass_x, y1),
+                (bypass_x, mid_y),
+                (x2, mid_y),
+                (x2, y2),
+            ]
+        } else {
+            // Normal L-bend
+            vec![(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)]
+        }
+    }
+}
+
+/// Emit an activity arrow with explicit [`EdgeRouting`] control.
+///
+/// - [`EdgeRouting::Ortho`] — delegates to the legacy `<line>`-segment emitter.
+/// - [`EdgeRouting::Polyline`] — emits a single `<polyline>` along the same waypoints.
+/// - [`EdgeRouting::Splines`] — emits a smooth Catmull-Rom cubic Bézier `<path>`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_activity_arrow_with_style_routed(
+    out: &mut String,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    default_color: &str,
+    style: &ActivityArrowStyle,
+    bboxes: &[NodeBbox],
+    routing: crate::render::graph_layout::EdgeRouting,
+) {
+    use crate::render::graph_layout::EdgeRouting;
+    match routing {
+        // Ortho: keep the existing multi-segment `<line>` emission unchanged.
+        EdgeRouting::Ortho => {
+            emit_activity_arrow_with_style(out, x1, y1, x2, y2, default_color, style, bboxes);
+        }
+        EdgeRouting::Polyline | EdgeRouting::Splines => {
+            if style.hidden {
+                return;
+            }
+            let color = style.color.as_deref().unwrap_or(default_color);
+            let stroke_width = if style.bold { "2.5" } else { "1.5" };
+            let dash = if style.dashed {
+                " stroke-dasharray=\"6 4\""
+            } else {
+                ""
+            };
+
+            let pts = collect_activity_arrow_waypoints(x1, y1, x2, y2, bboxes);
+
+            if routing == EdgeRouting::Splines {
+                let d = crate::render::edge_smoothing::cubic_bezier_path_d(&pts);
+                // Arrowhead direction: last two waypoints.
+                let n = pts.len();
+                let (ax, ay) = pts[n - 1];
+                let (_bx, by) = pts[n - 2];
+                let dy = ay - by;
+                let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
+                let base_y = ay as f64 - uy * 8.0;
+                if !style.no_head {
+                    out.push_str(&format!(
+                        "<path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{stroke_width}\"{dash}/>",
+                    ));
+                    out.push_str(&format!(
+                        "<polygon points=\"{ax},{ay} {},{} {},{}\" fill=\"{color}\"/>",
+                        ax - 4,
+                        base_y.round() as i32,
+                        ax + 4,
+                        base_y.round() as i32,
+                    ));
+                } else {
+                    out.push_str(&format!(
+                        "<path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{stroke_width}\"{dash}/>",
+                    ));
+                }
+                let mid = pts[pts.len() / 2];
+                if let Some(label) = &style.label {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"{color}\">{}</text>",
+                        mid.0 + 6,
+                        mid.1,
+                        crate::render::svg::escape_text(label)
+                    ));
+                }
+            } else {
+                // Polyline
+                let pts_str = crate::render::edge_smoothing::polyline_points_attr(&pts);
+                let n = pts.len();
+                let (ax, ay) = pts[n - 1];
+                let (_, by) = pts[n - 2];
+                let dy = ay - by;
+                let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
+                let base_y = ay as f64 - uy * 8.0;
+                out.push_str(&format!(
+                    "<polyline points=\"{pts_str}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{stroke_width}\"{dash}/>",
+                ));
+                if !style.no_head {
+                    out.push_str(&format!(
+                        "<polygon points=\"{ax},{ay} {},{} {},{}\" fill=\"{color}\"/>",
+                        ax - 4,
+                        base_y.round() as i32,
+                        ax + 4,
+                        base_y.round() as i32,
+                    ));
+                }
+                let mid = pts[pts.len() / 2];
+                if let Some(label) = &style.label {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"{color}\">{}</text>",
+                        mid.0 + 6,
+                        mid.1,
+                        crate::render::svg::escape_text(label)
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Routing-aware variant of [`emit_activity_arrow`].
+///
+/// Kept as a convenience wrapper for callers that have a routing mode but no
+/// explicit style.  Not called from `mod.rs` directly (the routed predecessor-
+/// arrow path uses [`emit_activity_arrow_with_style_routed`] instead), but
+/// retained so it is available for future call sites and tests.
+#[allow(dead_code)] // pub(super) API available for tests; not currently wired into mod.rs
+#[allow(clippy::too_many_arguments)] // coordinates + color + bboxes + routing; mirrors emit_activity_arrow_with_style_routed signature
+pub(super) fn emit_activity_arrow_routed(
+    out: &mut String,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    color: &str,
+    bboxes: &[NodeBbox],
+    routing: crate::render::graph_layout::EdgeRouting,
+) {
+    emit_activity_arrow_with_style_routed(
+        out,
+        x1,
+        y1,
+        x2,
+        y2,
+        color,
+        &ActivityArrowStyle::default(),
+        bboxes,
+        routing,
+    );
+}
+
 /// Emit extra arrows stored as (x1, y1, x2, y2) tuples.
 ///
 /// Only those arrows whose destination matches `(dst_cx, dst_y)` are emitted.
+///
+/// Kept as the non-routing (Ortho-only) fallback referenced by the
+/// [`emit_extra_arrows_routed`] doc comment.  Not called from `mod.rs` —
+/// the routed variant is used there — but retained for reference.
+#[allow(dead_code)] // superseded by emit_extra_arrows_routed; kept for doc reference
 pub(super) fn emit_extra_arrows(
     out: &mut String,
     extra_arrows: &[super::layout::ActivityRoute],
@@ -414,7 +595,40 @@ pub(super) fn emit_extra_arrows(
     }
 }
 
+/// Routing-aware variant of [`emit_extra_arrows`].
+pub(super) fn emit_extra_arrows_routed(
+    out: &mut String,
+    extra_arrows: &[super::layout::ActivityRoute],
+    dst_cx: i32,
+    dst_y: i32,
+    color: &str,
+    bboxes: &[NodeBbox],
+    routing: crate::render::graph_layout::EdgeRouting,
+) {
+    for route in extra_arrows
+        .iter()
+        .filter(|route| route.x2 == dst_cx && route.y2 == dst_y)
+    {
+        emit_activity_arrow_with_style_routed(
+            out,
+            route.x1,
+            route.y1,
+            route.x2,
+            route.y2,
+            color,
+            &route.style,
+            bboxes,
+            routing,
+        );
+    }
+}
+
 /// Emit direct arrows (fork-bar→branch, branch→join-bar).
+///
+/// Kept as the non-routing (Ortho-only) fallback referenced by the
+/// [`emit_direct_arrows_routed`] doc comment.  Not called from `mod.rs` —
+/// the routed variant is used there — but retained for reference.
+#[allow(dead_code)] // superseded by emit_direct_arrows_routed; kept for doc reference
 pub(super) fn emit_direct_arrows(
     out: &mut String,
     direct_arrows: &[super::layout::ActivityRoute],
@@ -431,6 +645,29 @@ pub(super) fn emit_direct_arrows(
             color,
             &route.style,
             bboxes,
+        );
+    }
+}
+
+/// Routing-aware variant of [`emit_direct_arrows`].
+pub(super) fn emit_direct_arrows_routed(
+    out: &mut String,
+    direct_arrows: &[super::layout::ActivityRoute],
+    color: &str,
+    bboxes: &[NodeBbox],
+    routing: crate::render::graph_layout::EdgeRouting,
+) {
+    for route in direct_arrows {
+        emit_activity_arrow_with_style_routed(
+            out,
+            route.x1,
+            route.y1,
+            route.x2,
+            route.y2,
+            color,
+            &route.style,
+            bboxes,
+            routing,
         );
     }
 }

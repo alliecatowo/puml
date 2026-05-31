@@ -164,29 +164,52 @@ fn concurrent_state_example_renders_horizontal_divider_and_connected_outer_trans
         logging.y
     );
 
-    // State transitions are now emitted as <path> elements (orthogonal routing).
-    // We look up the path by its data-state-from/to attributes and extract the
-    // start (x1,y1) and end (x2,y2) coordinates by parsing the first and last
-    // coordinate pairs in the SVG path `d` attribute.
-    fn path_coords(d: &str) -> (f64, f64, f64, f64) {
-        // Collect all numeric tokens (may be "M x y L x y ..." or "M x y L x1 y1 L x2 y2 L x3 y3")
-        let nums: Vec<f64> = d
-            .split_ascii_whitespace()
-            .filter_map(|tok| tok.parse::<f64>().ok())
-            .collect();
-        assert!(
-            nums.len() >= 4,
-            "expected at least two coordinate pairs in path d={d:?}"
-        );
-        let (x1, y1) = (nums[0], nums[1]);
-        let (x2, y2) = (nums[nums.len() - 2], nums[nums.len() - 1]);
-        (x1, y1, x2, y2)
+    // State transitions are emitted as <path> elements (orthogonal routing) or
+    // as <polyline> elements (Stage-3 EdgeRouting).  Extract start/end coordinates
+    // by parsing either the `d` attribute (path) or `points` attribute (polyline).
+    fn transition_endpoints(node: roxmltree::Node<'_, '_>) -> (f64, f64, f64, f64) {
+        if let Some(d) = node.attribute("d") {
+            // <path d="M x y L x y ..."> — collect numeric tokens
+            let nums: Vec<f64> = d
+                .split_ascii_whitespace()
+                .filter_map(|tok| tok.parse::<f64>().ok())
+                .collect();
+            assert!(
+                nums.len() >= 4,
+                "expected at least two coordinate pairs in path d={d:?}"
+            );
+            return (nums[0], nums[1], nums[nums.len() - 2], nums[nums.len() - 1]);
+        }
+        if let Some(pts) = node.attribute("points") {
+            // <polyline points="x1,y1 x2,y2 ..."> — parse coordinate pairs
+            let pairs: Vec<(f64, f64)> = pts
+                .split_whitespace()
+                .filter_map(|p| {
+                    let (x, y) = p.split_once(',')?;
+                    Some((x.parse().ok()?, y.parse().ok()?))
+                })
+                .collect();
+            assert!(
+                pairs.len() >= 2,
+                "expected at least two coordinate pairs in polyline points={pts:?}"
+            );
+            let (x1, y1) = pairs[0];
+            let (x2, y2) = pairs[pairs.len() - 1];
+            return (x1, y1, x2, y2);
+        }
+        panic!("transition element has neither 'd' nor 'points' attribute");
     }
 
+    // Look up transitions as either <path> or <polyline> elements.
     let start_transition = doc
         .elements_with_attr("path", "data-state-from", "[*]")
         .into_iter()
         .find(|p| p.attribute("data-state-to") == Some("Processing"))
+        .or_else(|| {
+            doc.elements_with_attr("polyline", "data-state-from", "[*]")
+                .into_iter()
+                .find(|p| p.attribute("data-state-to") == Some("Processing"))
+        })
         .expect("expected outer initial transition into Processing");
     let end_transition = doc
         .elements_with_attr("path", "data-state-from", "Processing")
@@ -195,16 +218,18 @@ fn concurrent_state_example_renders_horizontal_divider_and_connected_outer_trans
             p.attribute("data-state-to")
                 .is_some_and(|target| target == "[*]" || target.starts_with("[*]__end"))
         })
+        .or_else(|| {
+            doc.elements_with_attr("polyline", "data-state-from", "Processing")
+                .into_iter()
+                .find(|p| {
+                    p.attribute("data-state-to")
+                        .is_some_and(|target| target == "[*]" || target.starts_with("[*]__end"))
+                })
+        })
         .expect("expected outer exit transition from Processing");
 
-    let start_d = start_transition
-        .attribute("d")
-        .expect("start transition path should have d attribute");
-    let end_d = end_transition
-        .attribute("d")
-        .expect("end transition path should have d attribute");
-    let (_, _, st_x2, st_y2) = path_coords(start_d);
-    let (et_x1, et_y1, _, _) = path_coords(end_d);
+    let (_, _, st_x2, st_y2) = transition_endpoints(start_transition);
+    let (et_x1, et_y1, _, _) = transition_endpoints(end_transition);
 
     assert!(
         st_x2 >= processing.x && st_x2 <= processing.right(),

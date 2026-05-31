@@ -104,10 +104,13 @@ stop
     )
     .expect("while loop should render");
 
-    // Verify that at least one upward-going line segment exists (back-edge).
-    let has_upward_arrow = parse_svg_lines(&svg).any(|(_, y1, _, y2)| y2 < y1);
+    // Verify that at least one upward-going segment exists (back-edge).
+    // Stage-3 EdgeRouting may emit `<polyline>` instead of `<line>` for the
+    // back-edge arrow, so check both element types.
+    let has_upward_line = parse_svg_lines(&svg).any(|(_, y1, _, y2)| y2 < y1);
+    let has_upward_polyline = svg_polylines_have_upward_segment(&svg);
     assert!(
-        has_upward_arrow,
+        has_upward_line || has_upward_polyline,
         "while loop must emit at least one upward back-edge line segment"
     );
 
@@ -395,4 +398,29 @@ fn parse_svg_lines(svg: &str) -> impl Iterator<Item = (i32, i32, i32, i32)> + '_
         };
         Some((attr("x1")?, attr("y1")?, attr("x2")?, attr("y2")?))
     })
+}
+
+/// Return `true` if any `<polyline points="...">` in the SVG contains at least
+/// one upward-going segment (i.e. a consecutive y-coordinate pair where y[i+1] < y[i]).
+/// Stage-3 EdgeRouting emits `<polyline>` instead of `<line>` for activity back-edges.
+fn svg_polylines_have_upward_segment(svg: &str) -> bool {
+    for segment in svg.split("<polyline ").skip(1) {
+        let Some(points_start) = segment.find("points=\"") else {
+            continue;
+        };
+        let rest = &segment[points_start + 8..];
+        let Some(points_end) = rest.find('"') else {
+            continue;
+        };
+        let points_str = &rest[..points_end];
+        // points format: "x1,y1 x2,y2 ..."
+        let ys: Vec<i32> = points_str
+            .split_whitespace()
+            .filter_map(|pair| pair.split_once(',').and_then(|(_, y)| y.parse().ok()))
+            .collect();
+        if ys.windows(2).any(|w| w[1] < w[0]) {
+            return true;
+        }
+    }
+    false
 }

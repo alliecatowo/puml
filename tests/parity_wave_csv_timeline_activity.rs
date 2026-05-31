@@ -1128,15 +1128,33 @@ stop
 
     // There must be at least two distinct x-coordinates in the arrows, proving
     // that the diagram is not purely linear (i.e., branching exists).
+    // With Stage-3 EdgeRouting arrows may be <line x1="..."> (Ortho) or
+    // <polyline points="x,y ..."> (Polyline/Splines). Collect distinct x
+    // coordinates from both element types to verify branching.
     let arrow_xs: std::collections::HashSet<i32> = {
         let mut xs = std::collections::HashSet::new();
-        // Match <line x1="..." and x2="..."
         let mut rest = svg.as_str();
+        // Collect x1 from <line x1="..."> elements
         while let Some(pos) = rest.find("<line x1=\"") {
             rest = &rest[pos + 10..];
             if let Some(end) = rest.find('"') {
                 if let Ok(v) = rest[..end].parse::<i32>() {
                     xs.insert(v);
+                }
+            }
+        }
+        // Collect first x from <polyline points="x,y ..."> elements
+        let mut rest2 = svg.as_str();
+        while let Some(pos) = rest2.find("points=\"") {
+            rest2 = &rest2[pos + 8..];
+            if let Some(end) = rest2.find('"') {
+                let pts_str = &rest2[..end];
+                if let Some(first_pair) = pts_str.split_whitespace().next() {
+                    if let Some(x_str) = first_pair.split(',').next() {
+                        if let Ok(v) = x_str.parse::<i32>() {
+                            xs.insert(v);
+                        }
+                    }
                 }
             }
         }

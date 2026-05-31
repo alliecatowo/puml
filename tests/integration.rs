@@ -1117,7 +1117,11 @@ fn old_style_activity_renders_flow_nodes_instead_of_raw_source() {
     assert!(svg.contains("data-activity-kind=\"Stop\""));
     assert!(svg.contains(">Step1<"));
     assert!(svg.contains(">Step2<"));
-    assert!(svg.contains("<line "));
+    // Stage-3 EdgeRouting may emit <polyline> instead of <line> for activity flow arrows.
+    assert!(
+        svg.contains("<line ") || svg.contains("<polyline "),
+        "activity flow should emit line or polyline elements"
+    );
     assert!(!svg.contains("(*) --&gt;"));
 }
 
@@ -7653,26 +7657,44 @@ fn state_svg_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
     }
 }
 
-/// Extract start (x1,y1) and end (x2,y2) coordinates from a state transition `<path>`
-/// element. The `d` attribute has the form `M x y [L x y]*`.
+/// Extract start (x1,y1) and end (x2,y2) coordinates from a state transition element.
+/// Handles both `<path d="M x y [L x y]*">` (orthogonal routing) and
+/// `<polyline points="x,y x,y ...">` (Stage-3 EdgeRouting).
 /// Returns (x1, y1, x2, y2) — the first and last coordinate pairs.
 fn state_path_endpoints(node: roxmltree::Node<'_, '_>) -> (i32, i32, i32, i32) {
-    let d = node
-        .attribute("d")
-        .unwrap_or_else(|| panic!("state transition path should have d attribute"));
-    let nums: Vec<i32> = d
-        .split_ascii_whitespace()
-        .filter_map(|tok| tok.parse::<i32>().ok())
-        .collect();
-    assert!(
-        nums.len() >= 4,
-        "state transition path d should have at least two coordinate pairs; d={d:?}"
-    );
-    let x1 = nums[0];
-    let y1 = nums[1];
-    let x2 = nums[nums.len() - 2];
-    let y2 = nums[nums.len() - 1];
-    (x1, y1, x2, y2)
+    if let Some(d) = node.attribute("d") {
+        let nums: Vec<i32> = d
+            .split_ascii_whitespace()
+            .filter_map(|tok| tok.parse::<i32>().ok())
+            .collect();
+        assert!(
+            nums.len() >= 4,
+            "state transition path d should have at least two coordinate pairs; d={d:?}"
+        );
+        let x1 = nums[0];
+        let y1 = nums[1];
+        let x2 = nums[nums.len() - 2];
+        let y2 = nums[nums.len() - 1];
+        return (x1, y1, x2, y2);
+    }
+    if let Some(pts) = node.attribute("points") {
+        // points="x1,y1 x2,y2 ..."
+        let pairs: Vec<(i32, i32)> = pts
+            .split_whitespace()
+            .filter_map(|p| {
+                let (x, y) = p.split_once(',')?;
+                Some((x.parse::<i32>().ok()?, y.parse::<i32>().ok()?))
+            })
+            .collect();
+        assert!(
+            pairs.len() >= 2,
+            "state transition polyline points should have at least two pairs; points={pts:?}"
+        );
+        let (x1, y1) = pairs[0];
+        let (x2, y2) = pairs[pairs.len() - 1];
+        return (x1, y1, x2, y2);
+    }
+    panic!("state transition element has neither 'd' nor 'points' attribute");
 }
 
 #[test]
@@ -7702,11 +7724,12 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         );
     }
 
-    // State transitions are now <path> elements (orthogonal routing).
+    // State transitions are <path> elements (orthogonal routing) or
+    // <polyline> elements (Stage-3 EdgeRouting).
     let confirm_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("Pending")
                 && node.attribute("data-state-to") == Some("fork1")
         })
@@ -7728,7 +7751,7 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
     let instock_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("choice1")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -7789,11 +7812,12 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
         "join bar should span both task columns"
     );
 
-    // State transitions are now <path> elements (orthogonal routing).
+    // State transitions are <path> elements (orthogonal routing) or
+    // <polyline> elements (Stage-3 EdgeRouting).
     let fork_to_a = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskA")
         })
@@ -7801,7 +7825,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let fork_to_b = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskB")
         })
@@ -7809,7 +7833,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_a_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("TaskA")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -7817,7 +7841,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_b_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("path")
+            (node.has_tag_name("path") || node.has_tag_name("polyline"))
                 && node.attribute("data-state-from") == Some("TaskB")
                 && node.attribute("data-state-to") == Some("join1")
         })

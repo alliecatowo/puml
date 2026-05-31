@@ -1,3 +1,8 @@
+use crate::render::{
+    edge_smoothing::{cubic_bezier_path_d, polyline_points_attr},
+    graph_layout::EdgeRouting,
+};
+
 use super::*;
 
 pub(super) struct StateEdgeStyle<'a> {
@@ -8,16 +13,29 @@ pub(super) struct StateEdgeStyle<'a> {
     pub(super) dir: &'a str,
 }
 
-/// Emit an SVG `<path>` element that routes a state transition orthogonally
-/// (L-shaped / Z-shaped elbow) rather than as a straight diagonal.
+/// Build the waypoint list for the orthogonal elbow route between two anchors.
 ///
-/// Routing rules (same logic as the activity renderer):
-/// - Same X or same Y: emit a straight line segment.
-/// - Otherwise: route via a symmetric mid-point bend
-///   `(x1,y1) → (x1,mid_y) → (x2,mid_y) → (x2,y2)`.
+/// Returns the ordered `(x, y)` corners used by [`emit_state_orthogonal_path`]
+/// for Splines / Polyline rendering and by [`state_orthogonal_path_data`] for
+/// the legacy Ortho `d` string. Must stay in sync with `state_orthogonal_path_data`.
+pub(super) fn state_orthogonal_waypoints(x1: i32, y1: i32, x2: i32, y2: i32) -> Vec<(i32, i32)> {
+    if x1 == x2 || y1 == y2 {
+        vec![(x1, y1), (x2, y2)]
+    } else if y2 < y1 {
+        let mid_x = state_upward_elbow_x(x1, x2);
+        vec![(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)]
+    } else {
+        let mid_y = y1 + (y2 - y1) / 2;
+        vec![(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)]
+    }
+}
+
+/// Emit an SVG edge element for a state transition, choosing the element type
+/// and geometry based on `routing`:
 ///
-/// The path carries the same SVG attributes (stroke, stroke-width, dash, hidden,
-/// direction, data-* labels, marker-end) as the old `<line>` element.
+/// - [`EdgeRouting::Splines`] — smooth Catmull-Rom cubic Bézier `<path>`.
+/// - [`EdgeRouting::Polyline`] — straight-segment `<polyline>`.
+/// - [`EdgeRouting::Ortho`] — orthogonal elbow `<path>` (pre-Stage-3 behaviour).
 // Style attrs are already grouped into `StateEdgeStyle`; the remaining args are
 // the mandatory out-buffer, two name strings, and four coordinate scalars — there
 // is no meaningful grouping that would reduce the count further without obfuscating
@@ -32,19 +50,53 @@ pub(super) fn emit_state_orthogonal_path(
     x2: i32,
     y2: i32,
     style: &StateEdgeStyle<'_>,
+    routing: EdgeRouting,
 ) {
-    let d = state_orthogonal_path_data(x1, y1, x2, y2);
-    out.push_str(&format!(
-        "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
-        escape_text(from_name),
-        escape_text(to_name),
-        d,
-        style.stroke,
-        style.sw,
-        style.dash,
-        style.hidden,
-        style.dir
-    ));
+    let waypoints = state_orthogonal_waypoints(x1, y1, x2, y2);
+    match routing {
+        EdgeRouting::Splines => {
+            let d = cubic_bezier_path_d(&waypoints);
+            out.push_str(&format!(
+                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                escape_text(from_name),
+                escape_text(to_name),
+                d,
+                style.stroke,
+                style.sw,
+                style.dash,
+                style.hidden,
+                style.dir
+            ));
+        }
+        EdgeRouting::Polyline => {
+            let pts = polyline_points_attr(&waypoints);
+            out.push_str(&format!(
+                "<polyline class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                escape_text(from_name),
+                escape_text(to_name),
+                pts,
+                style.stroke,
+                style.sw,
+                style.dash,
+                style.hidden,
+                style.dir
+            ));
+        }
+        EdgeRouting::Ortho => {
+            let d = state_orthogonal_path_data(x1, y1, x2, y2);
+            out.push_str(&format!(
+                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                escape_text(from_name),
+                escape_text(to_name),
+                d,
+                style.stroke,
+                style.sw,
+                style.dash,
+                style.hidden,
+                style.dir
+            ));
+        }
+    }
 }
 
 pub(super) fn state_orthogonal_path_data(x1: i32, y1: i32, x2: i32, y2: i32) -> String {
