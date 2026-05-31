@@ -67,6 +67,12 @@ ALLOWLIST_REASONS = {
     # existing edge-anchor geometry; extraction would require threading anchor state.
     # Split tracked in #590.
     "src/render/chen.rs": "wave-16 linetype ortho for chen-ie added 147 lines; split tracked in #590",
+    # Was 584 lines before #1398; grew to 621 after adding spot-stereotype badge
+    # rendering (colored-circle SVG element, white-letter overlay, guillemet label row,
+    # spot-override of the kind-default C/I/E/O badge). The badge geometry is
+    # tightly coupled to the existing class-header rendering path; extraction would
+    # require threading spot fields through all header-render callers. Split tracked in #590.
+    "src/render/family/class_node_render.rs": "wave-16 spot-stereotype badge added 37 lines; split tracked in #590",
 }
 
 
