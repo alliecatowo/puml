@@ -77,11 +77,7 @@ A --> B #line:blue
 @enduml
 "#,
     );
-    assert_contains(
-        &svg,
-        "stroke=\"#0000ff\"",
-        "line:blue → blue stroke",
-    );
+    assert_contains(&svg, "stroke=\"#0000ff\"", "line:blue → blue stroke");
     assert_contains(&svg, ">B<", "node B present");
 }
 
@@ -138,11 +134,7 @@ A --> B #text:blue : my label
 "#,
     );
     // The label text element must carry the overridden fill color.
-    assert_contains(
-        &svg,
-        "fill=\"#0000ff\"",
-        "text:blue → blue label fill",
-    );
+    assert_contains(&svg, "fill=\"#0000ff\"", "text:blue → blue label fill");
     assert_contains(&svg, "my label", "label text rendered");
 }
 
@@ -199,11 +191,7 @@ fn test_component_family_tail_style() {
 @enduml
 "#,
     );
-    assert_contains(
-        &svg,
-        "stroke=\"#ff0000\"",
-        "component family → red stroke",
-    );
+    assert_contains(&svg, "stroke=\"#ff0000\"", "component family → red stroke");
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -221,11 +209,7 @@ User --> UC #blue
 @enduml
 "#,
     );
-    assert_contains(
-        &svg,
-        "stroke=\"#0000ff\"",
-        "usecase family → blue stroke",
-    );
+    assert_contains(&svg, "stroke=\"#0000ff\"", "usecase family → blue stroke");
 }
 
 // ──────────────────────────────────────────────────────────────────
