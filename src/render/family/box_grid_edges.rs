@@ -363,12 +363,27 @@ pub(super) fn render_box_grid_relations_and_labels(
                 geom_attr, relation_color, stroke_width,
                 dash_attr, visibility_attr, direction_attr, style_attr, markers
             ));
-            let longest_horiz = orth_pts
-                .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            let (lmx, lmy) = match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+            // Place the label at the midpoint of the longest segment (horizontal or
+            // vertical).  Using only horizontal segments caused labels to land on
+            // short stubs for mostly-vertical edges (e.g. usecase "triggers" on a
+            // downward arc), then get pushed far right by the obstacle avoider.
+            // Closes #1367.
+            let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
+                let dx = (seg[1].0 - seg[0].0).abs();
+                let dy = (seg[1].1 - seg[0].1).abs();
+                dx.max(dy)
+            });
+            let (lmx, lmy) = match longest_seg {
+                Some(seg) => {
+                    let is_horiz = (seg[1].1 - seg[0].1).abs() <= (seg[1].0 - seg[0].0).abs();
+                    let mx = (seg[0].0 + seg[1].0) / 2;
+                    let my = (seg[0].1 + seg[1].1) / 2;
+                    if is_horiz {
+                        (mx, my - 12)
+                    } else {
+                        (mx + 12, my)
+                    }
+                }
                 None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
             };
             label_mx = lmx;

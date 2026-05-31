@@ -530,7 +530,10 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                     (ox, oy, false)
                 } else if ortho_pts.is_some() {
                     if edge_dy.abs() > edge_dx.abs() {
-                        (label_mx + 14, label_my, true)
+                        // Vertical ortho edge: start at the arclength midpoint, centred
+                        // on the edge. class_nudge_label_x will push right only if the
+                        // label would actually overlap a node box.
+                        (label_mx, label_my, true)
                     } else {
                         (label_mx, label_my - 14, false)
                     }
@@ -548,7 +551,9 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                         let raw_x = x1 + dx * t_num / edge_len;
                         let raw_y = y1 + dy * t_num / edge_len;
                         if dy_abs > dx_abs {
-                            (raw_x + 14, raw_y - 6, true)
+                            // Non-ortho vertical: same approach — default to midpoint,
+                            // nudge only if collision is detected.
+                            (raw_x, raw_y - 6, true)
                         } else {
                             (raw_x, raw_y - 14, false)
                         }
@@ -562,7 +567,7 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
             let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
-                class_nudge_label_x(lx, label_half_w, ctx.node_boxes)
+                class_nudge_label_x(lx, ly, label_half_w, ctx.node_boxes)
             } else {
                 lx
             };
