@@ -154,15 +154,22 @@ pub(super) fn class_nudge_label_y(
 /// right edge by 8 px.
 pub(super) fn class_nudge_label_x(
     lx: i32,
+    ly: i32,
     label_half_w: i32,
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
 ) -> i32 {
-    // Only trigger when the label CENTRE is strictly inside a box in x.
-    // Labels placed between two side-by-side boxes (centre is in the gap) are
-    // left undisturbed even if their bounding box clips a neighbouring box.
+    // Only trigger when the label CENTRE is strictly inside a box in BOTH x and y.
+    // Labels placed to the right of a vertical edge segment but above or below the
+    // destination node should not be pushed further right merely because the node's
+    // horizontal extent covers the label's x coordinate.  Closes #1367.
     let max_box_right = node_boxes
         .values()
-        .filter(|bbox| lx > bbox.x && lx < bbox.x + bbox.w)
+        .filter(|bbox| {
+            lx > bbox.x
+                && lx < bbox.x + bbox.w
+                && ly + 8 >= bbox.y - 8
+                && ly - 8 <= bbox.y + bbox.h + 8
+        })
         .map(|bbox| bbox.x + bbox.w)
         .max();
     match max_box_right {
@@ -237,12 +244,21 @@ fn member_anchor_matches(member_text: &str, member_key: &str) -> bool {
     if clean_text == member_key {
         return true;
     }
+    // Strip parameter list and type annotation to get the bare identifier.
+    // e.g. "int value" → "value", "void increment()" → "increment"
     let name = clean_text
         .split(['(', ':', '='])
         .next()
         .unwrap_or(clean_text)
         .trim();
-    name == member_key
+    if name == member_key {
+        return true;
+    }
+    // Handle "Type name" pattern: the identifier is the last whitespace-delimited
+    // token (after stripping type prefix).  e.g. "int value" → last token "value".
+    // Closes #1403: `note right of Counter::value` where member text is "int value".
+    let last_word = name.split_whitespace().last().unwrap_or(name);
+    last_word == member_key
 }
 
 pub(super) fn qualified_row_anchor(
