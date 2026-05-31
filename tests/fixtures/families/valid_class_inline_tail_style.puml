@@ -1,0 +1,14 @@
+@startuml
+' Inline tail-style: #color, #line:color;line.dashed, text:color (#1399)
+class A
+class B
+class C
+class D
+class E
+class F
+
+A --> B #red
+A --> C #line:blue;line.dashed
+D --> E #green;line.bold
+C --> F #line:red;line.bold;text:blue : labeled
+@enduml

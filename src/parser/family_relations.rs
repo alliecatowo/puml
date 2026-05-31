@@ -42,6 +42,9 @@ pub(crate) fn parse_family_relation(
         if pre.line_color.is_some() {
             relation_style.line_color = pre.line_color;
         }
+        if pre.label_color.is_some() {
+            relation_style.label_color = pre.label_color;
+        }
         if pre.dashed {
             relation_style.dashed = pre.dashed;
         }
@@ -101,6 +104,7 @@ pub(crate) fn parse_family_relation(
         left_role,
         right_role,
         line_color: relation_style.line_color,
+        label_color: relation_style.label_color,
         dashed: relation_style.dashed,
         hidden: relation_style.hidden,
         thickness: relation_style.thickness,
@@ -155,6 +159,7 @@ pub(crate) fn association_class_family_relations(
             left_role: None,
             right_role: None,
             line_color: None,
+            label_color: None,
             dashed: false,
             hidden: false,
             thickness: None,
@@ -173,6 +178,7 @@ pub(crate) fn association_class_family_relations(
             left_role: None,
             right_role: None,
             line_color: None,
+            label_color: None,
             dashed: false,
             hidden: false,
             thickness: None,
@@ -191,6 +197,7 @@ pub(crate) fn association_class_family_relations(
             left_role: None,
             right_role: None,
             line_color: None,
+            label_color: None,
             dashed: false,
             hidden: false,
             thickness: None,

@@ -2,6 +2,9 @@ use super::*;
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ParsedFamilyRelationStyle {
     pub(crate) line_color: Option<String>,
+    /// Text/label color for relation labels — set by the `text:<color>` token
+    /// in inline tail-style syntax: `A --> B #line:red;text:blue`.
+    pub(crate) label_color: Option<String>,
     pub(crate) dashed: bool,
     pub(crate) hidden: bool,
     pub(crate) thickness: Option<u8>,

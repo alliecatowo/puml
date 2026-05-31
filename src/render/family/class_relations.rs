@@ -208,9 +208,14 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 stroke_dash, visibility, markers
             ));
             if let Some(label) = relation.label.as_deref() {
+                let lbl_fill = relation
+                    .label_color
+                    .as_ref()
+                    .map(|c| c.as_str())
+                    .unwrap_or(&ctx.class_style.member_color);
                 out.push_str(&format!(
                     "<text class=\"uml-edge-label\" data-uml-label-role=\"edge\" x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-                    label_x, label_y, ctx.class_style.member_color, escape_text(label)
+                    label_x, label_y, lbl_fill, escape_text(label)
                 ));
             }
             continue;
@@ -517,13 +522,12 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
-            out.push_str(&relation_label_svg(
-                lx,
-                ly,
-                label,
-                11,
-                &ctx.class_style.member_color,
-            ));
+            let lbl_fill = relation
+                .label_color
+                .as_ref()
+                .map(|c| c.as_str().to_owned())
+                .unwrap_or_else(|| ctx.class_style.member_color.clone());
+            out.push_str(&relation_label_svg(lx, ly, label, 11, &lbl_fill));
         } else if let Some(label) = relation.label.as_deref() {
             let (lx, ly, label_on_vertical_edge) =
                 if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
@@ -566,13 +570,12 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             } else {
                 lx
             };
-            out.push_str(&relation_label_svg(
-                lx,
-                ly,
-                label,
-                11,
-                &ctx.class_style.member_color,
-            ));
+            let lbl_fill = relation
+                .label_color
+                .as_ref()
+                .map(|c| c.as_str().to_owned())
+                .unwrap_or_else(|| ctx.class_style.member_color.clone());
+            out.push_str(&relation_label_svg(lx, ly, label, 11, &lbl_fill));
         }
     }
 }

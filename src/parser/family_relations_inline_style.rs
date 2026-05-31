@@ -85,9 +85,20 @@ pub(crate) fn parse_rhs_inline_relation_style(
                 existing.line_color = Some(color);
                 found_any = true;
             }
-        } else if lower_stripped.starts_with("text:") {
-            // text: color — accepted as no-op for now (relation labels don't yet have per-label color)
-            found_any = true;
+        } else if let Some(text_color_str) = lower_stripped.strip_prefix("text:") {
+            // text:<color> — sets the relation label text color.
+            if let Some(color) = crate::theme::color::parse_relation_color_token(text_color_str)
+                .or_else(|| {
+                    let hex = format!("#{text_color_str}");
+                    crate::theme::color::parse_relation_color_token(&hex)
+                })
+            {
+                existing.label_color = Some(color);
+                found_any = true;
+            } else {
+                // unknown text color token — still mark as found so the token is stripped
+                found_any = true;
+            }
         } else {
             // `lower_stripped` might be a color name (e.g. `line:green` → stripped to `green`).
             // Also handle first part as a bare color: `#red` or `#FF0000`.
@@ -222,8 +233,17 @@ pub(crate) fn pre_strip_inline_relation_style(
                     style.line_color = Some(color);
                     found_any = true;
                 }
-            } else if lower_stripped.starts_with("text:") {
-                // text: color — accepted as no-op
+            } else if let Some(text_color_str) = lower_stripped.strip_prefix("text:") {
+                // text:<color> — sets the relation label text color.
+                if let Some(color) = crate::theme::color::parse_relation_color_token(text_color_str)
+                    .or_else(|| {
+                        let hex = format!("#{text_color_str}");
+                        crate::theme::color::parse_relation_color_token(&hex)
+                    })
+                {
+                    style.label_color = Some(color);
+                }
+                // Always mark found so the token is stripped even if color is unrecognised.
                 found_any = true;
             } else {
                 // `lower_stripped` might itself be a color name (e.g. `line:green` → `green`)
