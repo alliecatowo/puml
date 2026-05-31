@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # required for keyless cosign signing
 
 jobs:
   create-release:
@@ -47,30 +48,64 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ── Linux ──────────────────────────────────────────────────────────
           - name: linux-x86_64
             runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             cli_binary: puml
             lsp_binary: puml-lsp
-            cli_artifact: puml-linux-x86_64
-            lsp_artifact: puml-lsp-linux-x86_64
+            archive_stem: puml-x86_64-unknown-linux-musl
+            lsp_archive_stem: puml-lsp-x86_64-unknown-linux-musl
             binary_ext: ""
-          - name: macos-x86_64
+            archive_ext: tar.gz
+            os_family: unix
+
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            cli_binary: puml
+            lsp_binary: puml-lsp
+            archive_stem: puml-aarch64-unknown-linux-musl
+            lsp_archive_stem: puml-lsp-aarch64-unknown-linux-musl
+            binary_ext: ""
+            archive_ext: tar.gz
+            os_family: unix
+
+          # ── macOS ──────────────────────────────────────────────────────────
+          - name: macos-aarch64
             runner: macos-latest
+            target: aarch64-apple-darwin
+            cli_binary: puml
+            lsp_binary: puml-lsp
+            archive_stem: puml-aarch64-apple-darwin
+            lsp_archive_stem: puml-lsp-aarch64-apple-darwin
+            binary_ext: ""
+            archive_ext: tar.gz
+            os_family: unix
+
+          - name: macos-x86_64
+            runner: macos-13
             target: x86_64-apple-darwin
             cli_binary: puml
             lsp_binary: puml-lsp
-            cli_artifact: puml-macos-x86_64
-            lsp_artifact: puml-lsp-macos-x86_64
+            archive_stem: puml-x86_64-apple-darwin
+            lsp_archive_stem: puml-lsp-x86_64-apple-darwin
             binary_ext: ""
+            archive_ext: tar.gz
+            os_family: unix
+
+          # ── Windows ────────────────────────────────────────────────────────
           - name: windows-x86_64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
             cli_binary: puml
             lsp_binary: puml-lsp
-            cli_artifact: puml-windows-x86_64.exe
-            lsp_artifact: puml-lsp-windows-x86_64.exe
+            archive_stem: puml-x86_64-pc-windows-msvc
+            lsp_archive_stem: puml-lsp-x86_64-pc-windows-msvc
             binary_ext: ".exe"
+            archive_ext: zip
+            os_family: windows
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -80,6 +115,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # musl cross-compile support on Linux
+      - name: Install musl tools (Linux)
+        if: matrix.os_family == 'unix' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -87,25 +129,167 @@ jobs:
           cache-on-failure: true
 
       - name: Build release binaries
+        shell: bash
         run: |
           set -euo pipefail
-          cargo build --release --locked --target "${{ matrix.target }}" -p puml --bins
+          cargo build --release --locked --target "${{ matrix.target }}" --bins
 
-      - name: Stage artifacts
+      # ── Stage binaries and create archives ──────────────────────────────
+      - name: Stage and archive artifacts (Unix)
+        if: matrix.os_family == 'unix'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp "target/${{ matrix.target }}/release/${{ matrix.cli_binary }}${{ matrix.binary_ext }}" "dist/${{ matrix.cli_artifact }}"
-          cp "target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}${{ matrix.binary_ext }}" "dist/${{ matrix.lsp_artifact }}"
 
-      - name: Upload assets to GitHub release
+          CLI_BIN="target/${{ matrix.target }}/release/${{ matrix.cli_binary }}"
+          LSP_BIN="target/${{ matrix.target }}/release/${{ matrix.lsp_binary }}"
+
+          # CLI tarball: puml + LICENSE + README
+          mkdir -p dist/cli-pkg
+          cp "$CLI_BIN" "dist/cli-pkg/${{ matrix.cli_binary }}"
+          cp LICENSE README.md dist/cli-pkg/
+          tar -czf "dist/${{ matrix.archive_stem }}.tar.gz" -C dist/cli-pkg .
+
+          # LSP tarball
+          mkdir -p dist/lsp-pkg
+          cp "$LSP_BIN" "dist/lsp-pkg/${{ matrix.lsp_binary }}"
+          cp LICENSE README.md dist/lsp-pkg/
+          tar -czf "dist/${{ matrix.lsp_archive_stem }}.tar.gz" -C dist/lsp-pkg .
+
+      - name: Stage and archive artifacts (Windows)
+        if: matrix.os_family == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+          $CliBin = "target\${{ matrix.target }}\release\${{ matrix.cli_binary }}${{ matrix.binary_ext }}"
+          $LspBin = "target\${{ matrix.target }}\release\${{ matrix.lsp_binary }}${{ matrix.binary_ext }}"
+
+          # CLI zip
+          New-Item -ItemType Directory -Force -Path dist\cli-pkg | Out-Null
+          Copy-Item $CliBin dist\cli-pkg\
+          Copy-Item LICENSE,README.md dist\cli-pkg\
+          Compress-Archive -Path dist\cli-pkg\* `
+            -DestinationPath "dist\${{ matrix.archive_stem }}.zip" -Force
+
+          # LSP zip
+          New-Item -ItemType Directory -Force -Path dist\lsp-pkg | Out-Null
+          Copy-Item $LspBin dist\lsp-pkg\
+          Copy-Item LICENSE,README.md dist\lsp-pkg\
+          Compress-Archive -Path dist\lsp-pkg\* `
+            -DestinationPath "dist\${{ matrix.lsp_archive_stem }}.zip" -Force
+
+      # ── SHA-256 checksums ───────────────────────────────────────────────
+      - name: Generate SHA-256 checksums (Unix)
+        if: matrix.os_family == 'unix'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum "${{ matrix.archive_stem }}.tar.gz" \
+                    "${{ matrix.lsp_archive_stem }}.tar.gz" \
+            > "checksums-${{ matrix.name }}.sha256"
+          cat "checksums-${{ matrix.name }}.sha256"
+
+      - name: Generate SHA-256 checksums (Windows)
+        if: matrix.os_family == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location dist
+          $hashes = @(
+            "${{ matrix.archive_stem }}.zip",
+            "${{ matrix.lsp_archive_stem }}.zip"
+          ) | ForEach-Object {
+            $h = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
+            "$h  $_"
+          }
+          $hashes | Out-File -FilePath "checksums-${{ matrix.name }}.sha256" -Encoding utf8
+          Get-Content "checksums-${{ matrix.name }}.sha256"
+
+      # ── Cosign keyless signing ──────────────────────────────────────────
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign archives with cosign (Unix)
+        if: matrix.os_family == 'unix'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          for f in "${{ matrix.archive_stem }}.tar.gz" "${{ matrix.lsp_archive_stem }}.tar.gz"; do
+            cosign sign-blob --yes "$f" --bundle "${f}.cosign.bundle"
+          done
+
+      - name: Sign archives with cosign (Windows)
+        if: matrix.os_family == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location dist
+          foreach ($f in @("${{ matrix.archive_stem }}.zip", "${{ matrix.lsp_archive_stem }}.zip")) {
+            cosign sign-blob --yes $f --bundle "${f}.cosign.bundle"
+          }
+
+      # ── Upload all assets to GitHub release ─────────────────────────────
+      - name: Upload assets to GitHub release (Unix)
+        if: matrix.os_family == 'unix'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: |
-            dist/${{ matrix.cli_artifact }}
-            dist/${{ matrix.lsp_artifact }}
+            dist/${{ matrix.archive_stem }}.tar.gz
+            dist/${{ matrix.archive_stem }}.tar.gz.cosign.bundle
+            dist/${{ matrix.lsp_archive_stem }}.tar.gz
+            dist/${{ matrix.lsp_archive_stem }}.tar.gz.cosign.bundle
+            dist/checksums-${{ matrix.name }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets to GitHub release (Windows)
+        if: matrix.os_family == 'windows'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: |
+            dist/${{ matrix.archive_stem }}.zip
+            dist/${{ matrix.archive_stem }}.zip.cosign.bundle
+            dist/${{ matrix.lsp_archive_stem }}.zip
+            dist/${{ matrix.lsp_archive_stem }}.zip.cosign.bundle
+            dist/checksums-${{ matrix.name }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Merge per-platform checksum files into one canonical artifact ──────
+  merge-checksums:
+    name: Publish merged checksum file
+    needs:
+      - create-release
+      - build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download per-platform checksum files
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ needs.create-release.outputs.tag_name }}
+          fileName: "checksums-*.sha256"
+          out-file-path: "checksums"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge into SHA256SUMS
+        run: |
+          set -euo pipefail
+          cat checksums/checksums-*.sha256 | sort -k2 > SHA256SUMS
+          echo "=== SHA256SUMS ==="
+          cat SHA256SUMS
+
+      - name: Upload merged SHA256SUMS
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -146,12 +330,25 @@ jobs:
           wasm-pack build --release --target web --out-dir "$OUT_DIR/puml-wasm"
           tar -czf "$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" -C "$OUT_DIR" puml-wasm
           echo "artifact_path=$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SHA-256 checksum for wasm
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum "puml-wasm-web-${RELEASE_TAG}.tar.gz" > checksums-wasm.sha256
+          cat checksums-wasm.sha256
 
       - name: Upload wasm artifact to GitHub release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
-          files: ${{ steps.package_wasm.outputs.artifact_path }}
+          files: |
+            ${{ steps.package_wasm.outputs.artifact_path }}
+            dist/checksums-wasm.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -161,6 +358,7 @@ jobs:
     needs:
       - build-and-publish
       - build-wasm
+      - merge-checksums
     permissions:
       contents: read
     if: github.ref_type == 'tag'
