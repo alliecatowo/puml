@@ -101,7 +101,18 @@ pub(super) fn normalize_label_lines(
 /// Bare `&name` OpenIconic sprite references (e.g. `&cloud-upload`) are
 /// counted as 2 visual characters so they stay atomic during word-wrapping
 /// and are never split mid-token by `chunk_text`.
+///
+/// `[[url label]]` hyperlink tokens are counted as the visible label length
+/// only so the wrap budget reflects what the user sees, not the raw URL.
+/// A bare `[[url]]` with no label counts as 4 placeholder chars.
 pub(super) fn visual_char_count(word: &str) -> usize {
+    // Handle [[url]] and [[url label]] tokens atomically before the character loop.
+    if let Some(inner) = word.strip_prefix("[[").and_then(|s| s.strip_suffix("]]")) {
+        if let Some(space_pos) = inner.find(" ") {
+            return inner[space_pos + 1..].chars().count().max(1);
+        }
+        return 4;
+    }
     let chars: Vec<char> = word.chars().collect();
     let len = chars.len();
     let mut count = 0;
@@ -158,14 +169,57 @@ pub(super) fn visual_char_count(word: &str) -> usize {
     count
 }
 
+/// Tokenise `line` for word-wrap, keeping `[[...]]` hyperlink tokens atomic.
+/// Spaces inside `[[...]]` must not become word-break points — the creole
+/// inline parser requires the full `[[url label]]` syntax on one line to
+/// recognise it as a hyperlink.  Splitting produces raw `[[url` text on one
+/// line and `label]]` on the next, causing `//` in the URL to be misread as
+/// italic markup.
+fn split_for_wrap(line: &str) -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    let bytes = line.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    while i < len {
+        // Skip whitespace between tokens
+        if bytes[i] == b' ' || bytes[i] == b'\t' {
+            i += 1;
+            continue;
+        }
+        // Detect start of a [[...]] hyperlink token
+        if i + 1 < len && bytes[i] == b'[' && bytes[i + 1] == b'[' {
+            let start = i;
+            i += 2;
+            while i + 1 < len {
+                if bytes[i] == b']' && bytes[i + 1] == b']' {
+                    i += 2;
+                    break;
+                }
+                i += 1;
+            }
+            // If closing `]]` was never found, i walked to len — still push.
+            tokens.push(line[start..i].to_string());
+        } else {
+            // Regular whitespace-delimited word
+            let start = i;
+            while i < len && bytes[i] != b' ' && bytes[i] != b'\t' {
+                i += 1;
+            }
+            tokens.push(line[start..i].to_string());
+        }
+    }
+    tokens
+}
+
 pub(super) fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     if line.is_empty() {
         return vec![String::new()];
     }
-    let words = line.split_whitespace().collect::<Vec<_>>();
-    if words.is_empty() {
+    let word_strings = split_for_wrap(line);
+    if word_strings.is_empty() {
         return vec![String::new()];
     }
+    let words: Vec<&str> = word_strings.iter().map(|s| s.as_str()).collect();
 
     let mut lines = Vec::new();
     let mut current = String::new();
