@@ -1,5 +1,6 @@
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyOrientation;
+use crate::render::graph_layout::EdgeRouting;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChenNodeKind {
@@ -16,6 +17,12 @@ pub struct ChenDocument {
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub orientation: FamilyOrientation,
+    /// Global edge-routing mode selected by `skinparam linetype <value>`.
+    /// Defaults to [`EdgeRouting::Polyline`] (straight lines). When set to
+    /// [`EdgeRouting::Ortho`], all edges are routed as right-angle elbows
+    /// instead of diagonal lines — the only documented use case for
+    /// `skinparam linetype` in PlantUML §20.3 (crow's-feet workaround).
+    pub edge_routing: EdgeRouting,
     pub warnings: Vec<Diagnostic>,
 }
 

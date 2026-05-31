@@ -61,6 +61,12 @@ ALLOWLIST_REASONS = {
     # node-render context. Nodes module is the dispatch boundary for the routing field
     # and an extraction would not reduce coupling. Split tracked in #590.
     "src/render/activity/nodes.rs": "wave-15 Stage 3 EdgeRouting field threading added 83 lines; split tracked in #590",
+    # Was ~499 lines before #1392; grew to 646 after adding skinparam linetype ortho
+    # support for Chen IE family (render_ortho_edge, orthogonal anchor computation,
+    # linetype dispatch in edge rendering). The ortho logic is tightly coupled to the
+    # existing edge-anchor geometry; extraction would require threading anchor state.
+    # Split tracked in #590.
+    "src/render/chen.rs": "wave-16 linetype ortho for chen-ie added 147 lines; split tracked in #590",
 }
 
 

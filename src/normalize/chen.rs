@@ -7,6 +7,7 @@ use crate::model::{
     ChenNode, ChenNodeKind, ChenRelation as ModelChenRelation, FamilyOrientation,
 };
 use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
+use crate::render::graph_layout::EdgeRouting;
 
 pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnostic> {
     let mut nodes = Vec::new();
@@ -14,6 +15,7 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
     let mut inheritances = Vec::new();
     let mut common = CommonDirectives::default();
     let mut orientation = FamilyOrientation::TopToBottom;
+    let mut edge_routing = EdgeRouting::default();
     let mut warnings: Vec<crate::diagnostic::Diagnostic> = Vec::new();
 
     for stmt in document.statements {
@@ -76,8 +78,16 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
                     .with_span(stmt.span),
                 );
             }
+            StatementKind::SkinParam { key, value } => {
+                // Honor `skinparam linetype ortho` — the only documented use
+                // of `linetype` in PlantUML §20.3 (crow's-feet ortho workaround).
+                if key.trim().eq_ignore_ascii_case("linetype") {
+                    if let Some(mode) = EdgeRouting::parse_linetype(&value) {
+                        edge_routing = mode;
+                    }
+                }
+            }
             StatementKind::Pragma(_)
-            | StatementKind::SkinParam { .. }
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -127,6 +137,7 @@ pub(super) fn normalize_chen(document: Document) -> Result<ChenDocument, Diagnos
         caption: common.caption,
         legend: common.legend,
         orientation,
+        edge_routing,
         warnings,
     })
 }
