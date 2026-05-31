@@ -502,6 +502,11 @@ pub fn tangent_from_bbox_side(
 /// Returns the unit vector from waypoint[0] to waypoint[1]. If the path has
 /// fewer than 2 distinct points, returns `(0, 1)` (downward — safe default
 /// for the default top-down layout).
+///
+/// Currently unused at the dispatch site (which inlines this logic against
+/// integer waypoints), but exported as part of the module's public API for
+/// future callers and integration tests.
+#[allow(dead_code)]
 pub fn tangent_from_orth_path(pts: &[(f64, f64)], reverse: bool) -> (f64, f64) {
     if pts.len() < 2 {
         return (0.0, 1.0);
