@@ -1,11 +1,17 @@
+pub mod compile;
 mod lsp;
 mod markdown;
-mod pipeline;
+pub(crate) mod pipeline;
 mod render;
 mod render_scene;
 mod render_summary;
 mod types;
+pub mod worker;
 
+pub use compile::{
+    compile, compile_with_options, CompileResult, DiagnosticDto, DocumentSymbolDto,
+    LanguageServiceSurface, ModelSummary, SemanticTokenDto, SpanDto,
+};
 pub use lsp::lsp_capabilities;
 pub use markdown::extract_markdown_diagrams;
 pub use pipeline::{
@@ -26,4 +32,8 @@ pub use render_summary::normalized_model_summary_to_json;
 pub use types::{
     CompatMode, DiagramFamily, DiagramInput, FrontendSelection, ParsePipelineOptions,
     ParsePipelineResult, PreprocessPipelineResult,
+};
+pub use worker::{
+    dispatch, dispatch_with_options, WorkerRequest, WorkerRequestPayload, WorkerResponse,
+    WorkerResponsePayload,
 };
