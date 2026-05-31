@@ -26,9 +26,10 @@ fn render_with_mode(source: &str, mode: StyleMode) -> String {
         if let Some(FamilyStyle::Class(ref mut cs)) = doc.family_style {
             cs.style_mode = mode;
         } else if doc.family_style.is_none() {
-            let mut cs = ClassStyle::default();
-            cs.style_mode = mode;
-            doc.family_style = Some(FamilyStyle::Class(cs));
+            doc.family_style = Some(FamilyStyle::Class(ClassStyle {
+                style_mode: mode,
+                ..ClassStyle::default()
+            }));
         }
     }
     let NormalizedDocument::Family(family_doc) = normalized else {
@@ -50,7 +51,7 @@ fn extract_geometry(svg: &str) -> Vec<String> {
     // Process rect elements (node boxes, header bands, background)
     for chunk in svg.split("<rect") {
         let attrs: Vec<&str> = chunk
-            .split(|c: char| c == ' ' || c == '/' || c == '>')
+            .split([' ', '/', '>'])
             .take_while(|s| !s.contains('<'))
             .collect();
         for attr in &attrs {
@@ -65,7 +66,7 @@ fn extract_geometry(svg: &str) -> Vec<String> {
     // Process line elements (dividers, edges)
     for chunk in svg.split("<line") {
         let attrs: Vec<&str> = chunk
-            .split(|c: char| c == ' ' || c == '/' || c == '>')
+            .split([' ', '/', '>'])
             .take_while(|s| !s.contains('<'))
             .collect();
         for attr in &attrs {
