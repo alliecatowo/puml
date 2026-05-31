@@ -5,35 +5,58 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Global edge-routing mode, selected by `skinparam linetype <value>`.
 ///
-/// PlantUML exposes exactly three routing modes (mapped 1-to-1 onto Graphviz's
-/// `splines=` attribute):
+/// All three modes share the same waypoints produced by the orthogonal channel
+/// router. The mode only affects SVG emission, not node positions.
 ///
-/// - [`EdgeRouting::Splines`] — smooth B-spline curves, PlantUML's upstream
-///   default; opt-in in PUML via `skinparam linetype splines`. Long sweeping
-///   arcs for distant endpoints, gentle near-straights for short ones.
-///   Source: `splines=true` (no directive emitted by upstream `DotStringFactory`).
-/// - [`EdgeRouting::Polyline`] — straight line segments through the routed
-///   waypoints, no smoothing. Source: `splines=polyline`.
-/// - [`EdgeRouting::Ortho`] — pure orthogonal right-angle elbows. Source:
-///   `splines=ortho`. The only mode we shipped pre-Stage-2.
+/// ## PlantUML compatibility note
 ///
-/// See `docs/internal/architecture/edge-routing.md` for the user-facing guide
-/// and `docs/internal/architecture/edge-curve-research-2026-05-29.md` for the
-/// upstream Java references.
+/// The PlantUML 1.2025 Language Reference Guide documents **only `ortho`** as a
+/// valid `skinparam linetype` value (§20.3, IE/chen crow's-feet workaround).
+/// `splines` and `polyline` are recognized by the upstream Java parser but are
+/// **NOT documented** to users. We support them for compatibility with diagrams
+/// written against the Java implementation.
+///
+/// PUML's default is [`EdgeRouting::Polyline`]. PlantUML's default is `splines=true`
+/// (Graphviz B-splines). These are intentionally different — see §5 of
+/// `docs/internal/architecture/edge-routing.md` for the rationale.
+///
+/// ## Variants
+///
+/// - [`EdgeRouting::Polyline`] (PUML default) — `<polyline points="…"/>` straight
+///   orthogonal segments through the channel-router waypoints. No smoothing. Maps
+///   to upstream `splines=polyline`.
+/// - [`EdgeRouting::Splines`] — `<path d="M … L … Q …"/>` rounded-corner path:
+///   same waypoints as Polyline, with each interior corner replaced by an 8 px
+///   quarter-arc (quadratic Bézier) chamfer. This is **NOT** a Graphviz B-spline;
+///   it is a rounded-chamfer post-processor. Opt-in via `skinparam linetype splines`.
+///   The former Catmull-Rom implementation that caused the #1334 regression has been
+///   replaced (see `src/render/edge_smoothing.rs`).
+/// - [`EdgeRouting::Ortho`] — identical to `Polyline` for most families. For the
+///   chen-ie (ER/IE notation) family, switches angled crow's-feet to orthogonal
+///   right-angle elbows (the only documented use case per PlantUML §20.3).
+///
+/// See `docs/internal/architecture/edge-routing.md` for the full guide,
+/// per-family routing matrix, and non-goals.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum EdgeRouting {
-    /// Smooth B-spline curves — opt-in via `skinparam linetype splines`.
+    /// Rounded-corner path — same waypoints as Polyline, interior corners replaced
+    /// by 8 px quarter-arc (quadratic Bézier) chamfers. Opt-in via
+    /// `skinparam linetype splines`. NOT a Graphviz B-spline; see module doc.
     Splines,
-    /// Straight line segments through waypoints — PUML default.
+    /// Straight orthogonal segments through channel-router waypoints — PUML default.
+    /// Emits `<polyline points="…"/>`. Maps to upstream `splines=polyline`.
     #[default]
     Polyline,
-    /// Orthogonal right-angle elbows.
+    /// Orthogonal right-angle elbows. Identical to Polyline for most families;
+    /// for chen-ie switches angled crow's-feet to right-angle elbows (PlantUML §20.3).
+    /// The only `linetype` value documented in the PlantUML 1.2025 spec.
     Ortho,
 }
 
 impl EdgeRouting {
-    /// Parse a `skinparam linetype` value. Accepts case-insensitive
-    /// `splines`, `polyline`, and `ortho`. Returns `None` for any other token.
+    /// Parse a `skinparam linetype` value. Accepts case-insensitive tokens;
+    /// returns `None` (silent no-op) for any unrecognized token, matching
+    /// upstream PlantUML's fallback behavior.
     pub fn parse_linetype(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "splines" | "spline" | "curve" | "curved" => Some(Self::Splines),
