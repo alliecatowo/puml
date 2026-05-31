@@ -169,7 +169,7 @@ nwdiag {
     // In nwdiag layout: bus header rect at y, bus bar at y+24, node boxes at
     // y+24+30. So the host y coordinate must be strictly greater than the
     // network header rect y.
-    let label = "network lan (192.168.0.0/24)";
+    let label = "lan (192.168.0.0/24)"; // kind-tag suppression: "network" prefix dropped (#1372)
     let bus_y = svg_network_y(&svg, label).expect("lan bus y");
     assert!(
         host.y > bus_y,
