@@ -2,15 +2,22 @@
  * previewPanel.ts
  *
  * Webview panel that renders the active .puml document to SVG.
- * Refreshes automatically on document changes (debounced 500 ms) and on save.
+ * Refreshes automatically on document changes (debounced, configurable via
+ * puml.preview.debounceMs, default 500 ms) and immediately on save.
  * Requests are guarded with a monotonic sequence number so stale responses
  * from a slow render are dropped silently.
  */
 import * as vscode from 'vscode';
-import { PumlLspClient, RenderSvgResult } from './lspClient';
+import { PumlLspClient } from './lspClient';
 import { renderDocument, RenderResult } from './renderer';
 
-const DEBOUNCE_MS = 500;
+const DEFAULT_DEBOUNCE_MS = 500;
+
+function getDebounceMs(): number {
+  const cfg = vscode.workspace.getConfiguration('puml');
+  const v = cfg.get<number>('preview.debounceMs', DEFAULT_DEBOUNCE_MS);
+  return Math.max(100, Math.min(5000, v));
+}
 
 export class PumlPreviewPanel {
   private static panel: PumlPreviewPanel | undefined;
@@ -78,7 +85,7 @@ export class PumlPreviewPanel {
   // -------------------------------------------------------------------------
 
   private registerListeners(context: vscode.ExtensionContext): void {
-    // Live-update on text change (debounced).
+    // Live-update on text change (debounced, respects puml.preview.debounceMs).
     const changeListener = vscode.workspace.onDidChangeTextDocument((event) => {
       if (
         PumlPreviewPanel.panel &&
@@ -114,7 +121,7 @@ export class PumlPreviewPanel {
     this.cancelDebounce();
     this.debounceTimer = setTimeout(() => {
       void this.refresh();
-    }, DEBOUNCE_MS);
+    }, getDebounceMs());
   }
 
   private cancelDebounce(): void {
