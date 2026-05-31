@@ -84,6 +84,17 @@ pub(super) fn class_run_layout(
             gl_name_to_id
                 .entry(tail.to_string())
                 .or_insert_with(|| n.id.clone());
+            // #1383: map bare base name (without generic parameters) to the full
+            // node ID so that `Container <|-- Stack` matches a node declared as
+            // `class Container<T>`.  Only registers the base name when it differs
+            // from the full tail (i.e. when the node name actually contains `<`).
+            if let Some(base) = tail.split_once('<').map(|(b, _)| b.trim_end()) {
+                if !base.is_empty() {
+                    gl_name_to_id
+                        .entry(base.to_string())
+                        .or_insert_with(|| n.id.clone());
+                }
+            }
         }
     }
     for node in &document.nodes {

@@ -403,5 +403,14 @@ pub(super) fn resolve_relation_endpoint_key(
             return owner.to_string();
         }
     }
+    // #1383: when the endpoint is a bare name (e.g. "Container") but the node
+    // was declared with generic parameters (e.g. "Container<T>"), find the
+    // first node whose base name (everything before `<`) matches the endpoint.
+    if let Some(generic_key) = node_boxes
+        .keys()
+        .find(|k| k.split_once('<').map(|(b, _)| b.trim_end()) == Some(endpoint))
+    {
+        return generic_key.clone();
+    }
     endpoint.to_string()
 }
