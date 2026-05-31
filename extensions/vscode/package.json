@@ -15,11 +15,16 @@
   "activationEvents": [
     "onLanguage:puml",
     "onCommand:puml.preview.open",
+    "onCommand:puml.showSvg",
+    "onCommand:puml.showDiagnostics",
     "onCommand:puml.export.svg",
     "onCommand:puml.export.png",
+    "onCommand:puml.export.source",
+    "onCommand:puml.export.json",
     "onCommand:puml.check",
     "onCommand:puml.renderScene",
-    "onCommand:puml.lsp.restart"
+    "onCommand:puml.lsp.restart",
+    "onCommand:puml.lsp.showOutput"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -51,6 +56,16 @@
         "icon": "$(graph)"
       },
       {
+        "command": "puml.showSvg",
+        "title": "PUML: Show SVG Source",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "puml.showDiagnostics",
+        "title": "PUML: Show Diagnostics",
+        "icon": "$(warning)"
+      },
+      {
         "command": "puml.export.svg",
         "title": "PUML: Export as SVG",
         "icon": "$(export)"
@@ -59,6 +74,16 @@
         "command": "puml.export.png",
         "title": "PUML: Export as PNG",
         "icon": "$(file-media)"
+      },
+      {
+        "command": "puml.export.source",
+        "title": "PUML: Export Source (.puml)",
+        "icon": "$(save)"
+      },
+      {
+        "command": "puml.export.json",
+        "title": "PUML: Export Compile Result as JSON",
+        "icon": "$(json)"
       },
       {
         "command": "puml.check",
@@ -73,6 +98,10 @@
       {
         "command": "puml.lsp.restart",
         "title": "PUML: Restart Language Server"
+      },
+      {
+        "command": "puml.lsp.showOutput",
+        "title": "PUML: Show Output Channel"
       }
     ],
     "menus": {
@@ -90,24 +119,44 @@
           "group": "puml@1"
         },
         {
-          "command": "puml.export.svg",
+          "command": "puml.showSvg",
           "when": "resourceLangId == puml",
           "group": "puml@2"
         },
         {
-          "command": "puml.export.png",
+          "command": "puml.showDiagnostics",
           "when": "resourceLangId == puml",
           "group": "puml@3"
         },
         {
-          "command": "puml.check",
+          "command": "puml.export.svg",
           "when": "resourceLangId == puml",
           "group": "puml@4"
         },
         {
-          "command": "puml.renderScene",
+          "command": "puml.export.png",
           "when": "resourceLangId == puml",
           "group": "puml@5"
+        },
+        {
+          "command": "puml.export.source",
+          "when": "resourceLangId == puml",
+          "group": "puml@6"
+        },
+        {
+          "command": "puml.export.json",
+          "when": "resourceLangId == puml",
+          "group": "puml@7"
+        },
+        {
+          "command": "puml.check",
+          "when": "resourceLangId == puml",
+          "group": "puml@8"
+        },
+        {
+          "command": "puml.renderScene",
+          "when": "resourceLangId == puml",
+          "group": "puml@9"
         }
       ]
     },
@@ -150,11 +199,15 @@
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
     "smoke": "npm run build && node ./scripts/smoke.js",
-    "test": "node ./tests/runTests.js"
+    "test": "node ./tests/runTests.js",
+    "test:electron": "node ./tests/runElectronTests.js"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/vscode": "^1.95.0",
+    "@vscode/test-electron": "^2.4.1",
+    "glob": "^11.0.0",
+    "mocha": "^10.7.3",
     "typescript": "^6.0.3",
     "vscode-languageclient": "^9.0.1"
   }

@@ -5,10 +5,10 @@
  * modules without a full VS Code process. Tests are vanilla Node.js — no
  * framework dependency — so they run quickly in CI with just `node ./tests/runTests.js`.
  *
- * Actual @vscode/test-electron tests require a display; add those in a
- * follow-up wave once CI has an Xvfb step. This file covers the parts that
- * can be unit-tested in isolation: renderer logic, HTML output shape, and
- * smoke-contract invariants.
+ * @vscode/test-electron smoke suite lives in tests/suite/ and is invoked
+ * separately when a display is available (see package.json "test:electron").
+ * This file covers the parts unit-testable in isolation: renderer logic,
+ * HTML output shape, LSP binary resolution logic, and smoke-contract invariants.
  */
 'use strict';
 
@@ -43,7 +43,7 @@ test('dist/extension.js exists after compile', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Source contract invariants (same as smoke.js, kept here for test suite)
+// 2. Source contract invariants
 // ---------------------------------------------------------------------------
 console.log('-- source contracts --');
 
@@ -89,10 +89,10 @@ test('lspClient contains bundled-binary existence guard', () => {
 });
 
 test('lspClient contains PATH fallback for puml-lsp', () => {
-  assert.ok(
-    lspSrc.includes("return isWindows ? 'puml-lsp.exe' : 'puml-lsp';"),
-    'PATH fallback missing'
-  );
+  // The fallback can be expressed as either a return or a const assignment.
+  const hasReturn = lspSrc.includes("return isWindows ? 'puml-lsp.exe' : 'puml-lsp';");
+  const hasConst = lspSrc.includes("const fallback = isWindows ? 'puml-lsp.exe' : 'puml-lsp'");
+  assert.ok(hasReturn || hasConst, 'PATH fallback for puml-lsp missing in lspClient');
 });
 
 test('lspClient exposes isRunning()', () => {
@@ -100,7 +100,67 @@ test('lspClient exposes isRunning()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Live-preview wiring
+// 3. LSP binary resolution (bundled → PATH three-tier strategy)
+// ---------------------------------------------------------------------------
+console.log('-- lsp binary resolution --');
+
+test('lspClient exposes resolveLspBinary (bundled-binary strategy)', () => {
+  assert.ok(
+    lspSrc.includes('export function resolveLspBinary'),
+    'resolveLspBinary not exported'
+  );
+});
+
+test('lspClient logs binary path to output channel', () => {
+  assert.ok(
+    lspSrc.includes('getOutputChannel().appendLine'),
+    'output channel logging missing in lspClient'
+  );
+});
+
+test('lspClient exposes getOutputChannel()', () => {
+  assert.ok(lspSrc.includes('export function getOutputChannel'), 'getOutputChannel not exported');
+});
+
+// ---------------------------------------------------------------------------
+// 4. Output channel + LSP restart/backoff
+// ---------------------------------------------------------------------------
+console.log('-- output channel + restart backoff --');
+
+test('lspClient has exponential-backoff restart (MAX_RESTART_ATTEMPTS)', () => {
+  assert.ok(lspSrc.includes('MAX_RESTART_ATTEMPTS'), 'MAX_RESTART_ATTEMPTS constant missing');
+  assert.ok(lspSrc.includes('RESTART_BACKOFF_BASE_MS'), 'RESTART_BACKOFF_BASE_MS constant missing');
+  assert.ok(lspSrc.includes('Math.pow(2, this.restartAttempts)'), 'exponential-backoff formula missing');
+});
+
+test('lspClient has manualRestart that resets backoff counter', () => {
+  assert.ok(lspSrc.includes('async manualRestart'), 'manualRestart method missing');
+  assert.ok(
+    lspSrc.includes('this.restartAttempts = 0'),
+    'backoff counter reset missing in manualRestart'
+  );
+});
+
+test('commands.ts calls manualRestart for puml.lsp.restart', () => {
+  assert.ok(
+    commandsSrc.includes('lsp.manualRestart'),
+    'puml.lsp.restart should use manualRestart (not restart) to reset backoff'
+  );
+});
+
+test('commands.ts registers puml.lsp.showOutput to reveal output channel', () => {
+  assert.ok(
+    commandsSrc.includes("'puml.lsp.showOutput'"),
+    'puml.lsp.showOutput command missing'
+  );
+  assert.ok(
+    commandsSrc.includes('getOutputChannel'),
+    'output channel not used in commands.ts'
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 5. Live-preview wiring
 // ---------------------------------------------------------------------------
 console.log('-- live preview --');
 
@@ -127,8 +187,19 @@ test('previewPanel shows loading state during render', () => {
   assert.ok(previewSrc.includes('loadingHtml'), 'loadingHtml not found');
 });
 
+test('previewPanel reads debounce delay from configuration (puml.preview.debounceMs)', () => {
+  assert.ok(
+    previewSrc.includes("'preview.debounceMs'") || previewSrc.includes('"preview.debounceMs"'),
+    'puml.preview.debounceMs config key not referenced'
+  );
+  assert.ok(
+    previewSrc.includes('getDebounceMs'),
+    'getDebounceMs helper not found'
+  );
+});
+
 // ---------------------------------------------------------------------------
-// 4. Renderer module
+// 6. Renderer module
 // ---------------------------------------------------------------------------
 console.log('-- renderer --');
 
@@ -174,7 +245,7 @@ test('renderer writes temp file and cleans up', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Export commands
+// 7. Export commands
 // ---------------------------------------------------------------------------
 console.log('-- export commands --');
 
@@ -184,6 +255,14 @@ test('exportCommands registers puml.export.svg', () => {
 
 test('exportCommands registers puml.export.png', () => {
   assert.ok(exportSrc.includes("'puml.export.png'"), "puml.export.png not registered");
+});
+
+test('exportCommands registers puml.export.source', () => {
+  assert.ok(exportSrc.includes("'puml.export.source'"), "puml.export.source not registered");
+});
+
+test('exportCommands registers puml.export.json', () => {
+  assert.ok(exportSrc.includes("'puml.export.json'"), "puml.export.json not registered");
 });
 
 test('exportCommands guards against non-puml file', () => {
@@ -197,13 +276,45 @@ test('exportCommands uses showSaveDialog for path selection', () => {
   assert.ok(exportSrc.includes('showSaveDialog'), 'showSaveDialog not found');
 });
 
+test('exportCommands export.source writes document text directly', () => {
+  assert.ok(exportSrc.includes('document.getText()'), 'getText() call missing in exportCommands');
+  assert.ok(exportSrc.includes('fs.writeFileSync'), 'writeFileSync missing in exportCommands');
+});
+
+test('exportCommands export.json includes family and diagnostics', () => {
+  assert.ok(exportSrc.includes("family:"), "family field missing in JSON export payload");
+  assert.ok(exportSrc.includes("diagnostics:"), "diagnostics field missing in JSON export payload");
+});
+
 // ---------------------------------------------------------------------------
-// 6. Check command
+// 8. Check and Show commands
 // ---------------------------------------------------------------------------
-console.log('-- check command --');
+console.log('-- check and show commands --');
 
 test('commands.ts registers puml.check', () => {
   assert.ok(commandsSrc.includes("'puml.check'"), "puml.check not registered");
+});
+
+test('commands.ts registers puml.showSvg', () => {
+  assert.ok(commandsSrc.includes("'puml.showSvg'"), "puml.showSvg not registered");
+});
+
+test('commands.ts showSvg opens SVG source in a text document', () => {
+  assert.ok(
+    commandsSrc.includes('openTextDocument'),
+    'showSvg command should open SVG in a text document'
+  );
+});
+
+test('commands.ts registers puml.showDiagnostics', () => {
+  assert.ok(commandsSrc.includes("'puml.showDiagnostics'"), "puml.showDiagnostics not registered");
+});
+
+test('commands.ts showDiagnostics focuses Problems panel', () => {
+  assert.ok(
+    commandsSrc.includes('workbench.action.problems.focus'),
+    'showDiagnostics should focus the Problems panel'
+  );
 });
 
 test('commands.ts registers puml.renderScene JSON inspector', () => {
@@ -226,7 +337,7 @@ test('check command updates status bar', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. Status bar
+// 9. Status bar
 // ---------------------------------------------------------------------------
 console.log('-- status bar --');
 
@@ -254,7 +365,7 @@ test('statusBar update() method accepts errorCount + warningCount', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Extension entry point
+// 10. Extension entry point
 // ---------------------------------------------------------------------------
 console.log('-- extension entry --');
 
@@ -273,7 +384,7 @@ test('extension.ts registers status bar', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. package.json command declarations
+// 11. package.json command declarations
 // ---------------------------------------------------------------------------
 console.log('-- package.json --');
 
@@ -286,12 +397,28 @@ test('package.json declares puml.preview.open', () => {
   assert.ok(commandIds.includes('puml.preview.open'), 'puml.preview.open missing');
 });
 
+test('package.json declares puml.showSvg', () => {
+  assert.ok(commandIds.includes('puml.showSvg'), 'puml.showSvg missing');
+});
+
+test('package.json declares puml.showDiagnostics', () => {
+  assert.ok(commandIds.includes('puml.showDiagnostics'), 'puml.showDiagnostics missing');
+});
+
 test('package.json declares puml.export.svg', () => {
   assert.ok(commandIds.includes('puml.export.svg'), 'puml.export.svg missing');
 });
 
 test('package.json declares puml.export.png', () => {
   assert.ok(commandIds.includes('puml.export.png'), 'puml.export.png missing');
+});
+
+test('package.json declares puml.export.source', () => {
+  assert.ok(commandIds.includes('puml.export.source'), 'puml.export.source missing');
+});
+
+test('package.json declares puml.export.json', () => {
+  assert.ok(commandIds.includes('puml.export.json'), 'puml.export.json missing');
 });
 
 test('package.json declares puml.check', () => {
@@ -304,6 +431,10 @@ test('package.json declares puml.renderScene', () => {
 
 test('package.json declares puml.lsp.restart', () => {
   assert.ok(commandIds.includes('puml.lsp.restart'), 'puml.lsp.restart missing');
+});
+
+test('package.json declares puml.lsp.showOutput', () => {
+  assert.ok(commandIds.includes('puml.lsp.showOutput'), 'puml.lsp.showOutput missing');
 });
 
 test('package.json has puml.cli.path configuration', () => {
@@ -324,11 +455,44 @@ test('package.json has editor/title menu entry for preview', () => {
   );
 });
 
-test('package.json has editor/context entries for puml commands', () => {
+test('package.json has editor/context entries for all puml commands (>= 9)', () => {
   const menus = pkg.contributes.menus;
   assert.ok(
-    menus['editor/context'] && menus['editor/context'].length >= 5,
-    'editor/context entries missing or incomplete'
+    menus['editor/context'] && menus['editor/context'].length >= 9,
+    `editor/context entries missing or incomplete (got ${menus['editor/context']?.length ?? 0}, expected >= 9)`
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 12. Activation events
+// ---------------------------------------------------------------------------
+console.log('-- activation events --');
+
+test('package.json activation includes puml.showSvg', () => {
+  assert.ok(
+    pkg.activationEvents.includes('onCommand:puml.showSvg'),
+    'puml.showSvg activation event missing'
+  );
+});
+
+test('package.json activation includes puml.export.source', () => {
+  assert.ok(
+    pkg.activationEvents.includes('onCommand:puml.export.source'),
+    'puml.export.source activation event missing'
+  );
+});
+
+test('package.json activation includes puml.export.json', () => {
+  assert.ok(
+    pkg.activationEvents.includes('onCommand:puml.export.json'),
+    'puml.export.json activation event missing'
+  );
+});
+
+test('package.json activation includes puml.lsp.showOutput', () => {
+  assert.ok(
+    pkg.activationEvents.includes('onCommand:puml.lsp.showOutput'),
+    'puml.lsp.showOutput activation event missing'
   );
 });
 

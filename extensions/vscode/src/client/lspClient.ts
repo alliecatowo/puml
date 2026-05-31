@@ -58,8 +58,22 @@ export type LanguageServiceSurfaceResult = {
   diagnostics?: Array<{ message?: string; severity?: string; code?: string }>;
 };
 
+/** Shared output channel for all PUML extension logging. */
+let _outputChannel: vscode.OutputChannel | undefined;
+
+export function getOutputChannel(): vscode.OutputChannel {
+  if (!_outputChannel) {
+    _outputChannel = vscode.window.createOutputChannel('PUML');
+  }
+  return _outputChannel;
+}
+
+const MAX_RESTART_ATTEMPTS = 5;
+const RESTART_BACKOFF_BASE_MS = 1000;
+
 export class PumlLspClient {
   private client: LanguageClient | undefined;
+  private restartAttempts = 0;
 
   isRunning(): boolean {
     return this.client !== undefined;
@@ -72,7 +86,12 @@ export class PumlLspClient {
 
     const config = vscode.workspace.getConfiguration('puml');
     const configuredPath = config.get<string>('lsp.path')?.trim();
-    const command = configuredPath && configuredPath.length > 0 ? configuredPath : defaultServerCommand(context);
+    const command = configuredPath && configuredPath.length > 0
+      ? configuredPath
+      : resolveLspBinary(context);
+
+    const out = getOutputChannel();
+    out.appendLine(`[puml-lsp] starting: ${command}`);
 
     const serverOptions: ServerOptions = {
       command,
@@ -85,6 +104,7 @@ export class PumlLspClient {
       synchronize: {
         configurationSection: 'puml',
       },
+      outputChannel: out,
     };
 
     this.client = new LanguageClient('puml-lsp', 'puml-lsp', serverOptions, clientOptions);
@@ -92,7 +112,17 @@ export class PumlLspClient {
     const trace = config.get<string>('lsp.trace', 'off');
     this.client.setTrace(trace === 'messages' ? Trace.Messages : trace === 'verbose' ? Trace.Verbose : Trace.Off);
 
-    await this.client.start();
+    try {
+      await this.client.start();
+      this.restartAttempts = 0;
+      out.appendLine('[puml-lsp] started successfully');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      out.appendLine(`[puml-lsp] start failed: ${msg}`);
+      this.client = undefined;
+      throw err;
+    }
+
     context.subscriptions.push({
       dispose: () => {
         void this.stop();
@@ -104,11 +134,50 @@ export class PumlLspClient {
     if (!this.client) {
       return;
     }
+    getOutputChannel().appendLine('[puml-lsp] stopping');
     await this.client.stop();
     this.client = undefined;
   }
 
+  /**
+   * Restart with exponential backoff. If the server has already failed
+   * MAX_RESTART_ATTEMPTS times consecutively, gives up and surfaces an error.
+   */
   async restart(context: vscode.ExtensionContext): Promise<void> {
+    await this.stop();
+
+    if (this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      const out = getOutputChannel();
+      out.appendLine(
+        `[puml-lsp] giving up after ${MAX_RESTART_ATTEMPTS} restart attempts. ` +
+        'Check the PUML output channel for details. You can manually retry via "PUML: Restart Language Server".'
+      );
+      void vscode.window.showErrorMessage(
+        `puml-lsp failed to start after ${MAX_RESTART_ATTEMPTS} attempts. Check the PUML output channel.`,
+        'Show Output'
+      ).then((action) => {
+        if (action === 'Show Output') {
+          getOutputChannel().show();
+        }
+      });
+      return;
+    }
+
+    const delayMs = RESTART_BACKOFF_BASE_MS * Math.pow(2, this.restartAttempts);
+    this.restartAttempts++;
+
+    getOutputChannel().appendLine(`[puml-lsp] restart attempt ${this.restartAttempts} in ${delayMs}ms`);
+
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    await this.start(context);
+  }
+
+  /**
+   * Manual restart requested by the user — resets the backoff counter so the
+   * next failure sequence starts fresh.
+   */
+  async manualRestart(context: vscode.ExtensionContext): Promise<void> {
+    this.restartAttempts = 0;
     await this.stop();
     await this.start(context);
   }
@@ -175,11 +244,24 @@ export class PumlLspClient {
   }
 }
 
-function defaultServerCommand(context: vscode.ExtensionContext): string {
+/**
+ * Resolve the puml-lsp binary using a three-tier strategy:
+ *   1. Extension-bundled binary at <extensionPath>/bin/puml-lsp[.exe]  (preferred)
+ *   2. `puml-lsp` / `puml-lsp.exe` from PATH                           (fallback)
+ *
+ * The configuredPath override (puml.lsp.path setting) is applied in
+ * PumlLspClient.start() before this function is ever called.
+ */
+export function resolveLspBinary(context: vscode.ExtensionContext): string {
   const isWindows = process.platform === 'win32';
   const bundled = path.join(context.extensionPath, 'bin', isWindows ? 'puml-lsp.exe' : 'puml-lsp');
   if (fs.existsSync(bundled)) {
+    getOutputChannel().appendLine(`[puml-lsp] using bundled binary: ${bundled}`);
     return bundled;
   }
-  return isWindows ? 'puml-lsp.exe' : 'puml-lsp';
+  const fallback = isWindows ? 'puml-lsp.exe' : 'puml-lsp';
+  getOutputChannel().appendLine(
+    `[puml-lsp] bundled binary not found at ${bundled}; falling back to PATH: ${fallback}`
+  );
+  return fallback;
 }

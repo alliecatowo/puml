@@ -3,11 +3,15 @@
  *
  * Registers all PUML commands for the extension:
  *   puml.preview.open      — open/refresh the live preview panel
- *   puml.lsp.restart       — restart the language server
+ *   puml.showSvg           — open rendered SVG source in a side editor
+ *   puml.showDiagnostics   — render, show diagnostics panel, and focus Problems
+ *   puml.lsp.restart       — restart the language server (manual, resets backoff)
+ *   puml.lsp.showOutput    — reveal the PUML output channel
  *   puml.check             — render the active file and surface diagnostics inline
+ *   puml.renderScene       — open render scene JSON in a side editor
  */
 import * as vscode from 'vscode';
-import { PumlLspClient } from './lspClient';
+import { PumlLspClient, getOutputChannel } from './lspClient';
 import { PumlPreviewPanel } from './previewPanel';
 import { renderDocument } from './renderer';
 import { PumlStatusBar } from './statusBar';
@@ -36,11 +40,102 @@ export function registerPreviewCommands(
   });
 
   // -------------------------------------------------------------------------
-  // puml.lsp.restart — restart language server with exponential-backoff retry
+  // puml.showSvg — render active file and open SVG source in a side editor
+  // -------------------------------------------------------------------------
+  const showSvgCmd = vscode.commands.registerCommand('puml.showSvg', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'puml') {
+      void vscode.window.showWarningMessage('Open a .puml document to view SVG.');
+      return;
+    }
+
+    await lsp.start(context);
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: 'PUML: Rendering SVG…', cancellable: false },
+      async () => {
+        try {
+          const result = await renderDocument(editor.document, lsp, context);
+          if (!result.svg || result.svg.trim().length === 0) {
+            void vscode.window.showWarningMessage('PUML: No SVG output — check diagnostics.');
+            return;
+          }
+          const svgDoc = await vscode.workspace.openTextDocument({
+            language: 'xml',
+            content: result.svg,
+          });
+          await vscode.window.showTextDocument(svgDoc, vscode.ViewColumn.Beside, true);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`PUML show SVG failed: ${msg}`);
+        }
+      }
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // puml.showDiagnostics — render and focus the Problems panel
+  // -------------------------------------------------------------------------
+  const showDiagnosticsCmd = vscode.commands.registerCommand('puml.showDiagnostics', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'puml') {
+      void vscode.window.showWarningMessage('Open a .puml document to show diagnostics.');
+      return;
+    }
+
+    const document = editor.document;
+    diagCollection.clear();
+
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: 'PUML: Running diagnostics…', cancellable: false },
+      async () => {
+        try {
+          const result = await renderDocument(document, lsp, context);
+          const vscDiags: vscode.Diagnostic[] = result.diagnostics.map((d) => {
+            const range = new vscode.Range(0, 0, 0, 0);
+            const severity =
+              d.severity === 'error'
+                ? vscode.DiagnosticSeverity.Error
+                : d.severity === 'warning'
+                  ? vscode.DiagnosticSeverity.Warning
+                  : vscode.DiagnosticSeverity.Information;
+            const diag = new vscode.Diagnostic(range, d.message, severity);
+            diag.source = 'puml';
+            return diag;
+          });
+
+          diagCollection.set(document.uri, vscDiags);
+
+          const errCount = vscDiags.filter((d) => d.severity === vscode.DiagnosticSeverity.Error).length;
+          const warnCount = vscDiags.filter((d) => d.severity === vscode.DiagnosticSeverity.Warning).length;
+
+          PumlStatusBar.update({ errorCount: errCount, warningCount: warnCount, family: result.family });
+
+          await vscode.commands.executeCommand('workbench.action.problems.focus');
+
+          if (vscDiags.length === 0) {
+            void vscode.window.showInformationMessage('PUML: No diagnostics — diagram is valid.');
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`PUML diagnostics failed: ${msg}`);
+        }
+      }
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // puml.lsp.restart — manual restart; resets backoff counter
   // -------------------------------------------------------------------------
   const restartLsp = vscode.commands.registerCommand('puml.lsp.restart', async () => {
-    await lsp.restart(context);
+    await lsp.manualRestart(context);
     void vscode.window.showInformationMessage('puml-lsp restarted.');
+  });
+
+  // -------------------------------------------------------------------------
+  // puml.lsp.showOutput — reveal the PUML output channel
+  // -------------------------------------------------------------------------
+  const showOutputCmd = vscode.commands.registerCommand('puml.lsp.showOutput', () => {
+    getOutputChannel().show();
   });
 
   // -------------------------------------------------------------------------
@@ -133,5 +228,13 @@ export function registerPreviewCommands(
     }
   });
 
-  context.subscriptions.push(openPreview, restartLsp, checkCmd, renderSceneCmd);
+  context.subscriptions.push(
+    openPreview,
+    showSvgCmd,
+    showDiagnosticsCmd,
+    restartLsp,
+    showOutputCmd,
+    checkCmd,
+    renderSceneCmd,
+  );
 }
