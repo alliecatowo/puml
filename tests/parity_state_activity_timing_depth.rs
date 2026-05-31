@@ -470,8 +470,14 @@ api --> Gateway : exposes
     // Wave 3-A (#490 family-type label suppression).
     assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge\""));
     assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge::Rack\""));
-    assert!(svg.contains(">package Edge<"));
-    assert!(svg.contains(">package Rack<"));
+    assert!(
+        svg.contains(">Edge<"),
+        "Edge group label should appear in SVG"
+    ); // kind-tag suppressed (#1372)
+    assert!(
+        svg.contains(">Rack<"),
+        "Rack group label should appear in SVG"
+    ); // kind-tag suppressed (#1372)
     assert!(svg.contains("API Gateway"));
     assert!(svg.contains("exposes"));
 }
