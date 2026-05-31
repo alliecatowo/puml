@@ -105,19 +105,58 @@ Open `hello.svg` in any browser or SVG viewer. Done.
 ---
 
 <details>
-<summary><b>Install options (Cargo, binary, Homebrew, npm, Docker)</b></summary>
+<summary><b>Install options (curl installer, Cargo, binary, Homebrew, npm, Docker)</b></summary>
 
-### Pre-built binary — no Rust required
+### curl installer — fastest no-Rust path (Linux &amp; macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh
+```
+
+The installer:
+- Auto-detects your platform (Linux x86-64/arm64, macOS Apple Silicon/Intel)
+- Downloads the signed release tarball over HTTPS
+- Verifies the SHA-256 checksum against the release's `SHA256SUMS` file
+- Verifies the [cosign](https://docs.sigstore.dev/cosign/installation/) keyless signature when `cosign` is on your `PATH`
+- Installs to `/usr/local/bin/puml` (or `~/.local/bin/puml` when `/usr/local/bin` is not writable)
+- Runs `puml --version` as a self-test
+
+**The installer never executes the downloaded binary during the install step.**
+
+Options:
+
+```bash
+# Install a specific version
+curl -fsSL .../install.sh | sh -s -- --version v0.2.1
+
+# Install to a custom prefix
+curl -fsSL .../install.sh | sh -s -- --prefix ~/.local
+
+# Preview what would happen (no download, no install)
+curl -fsSL .../install.sh | sh -s -- --dry-run
+
+# Skip cosign (SHA-256 is always checked)
+curl -fsSL .../install.sh | sh -s -- --no-verify-sig
+```
+
+See the [install guide](docs/install.md) for manual download steps and checksum
+verification instructions.
+
+### Pre-built binary — manual download
 
 Download the latest release for your platform from the
 [Releases page](https://github.com/alliecatowo/puml/releases):
 
-| Platform | Asset |
-|---|---|
-| Linux x86-64 | `puml-x86_64-unknown-linux-musl.tar.gz` |
-| macOS (Apple Silicon) | `puml-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `puml-x86_64-apple-darwin.tar.gz` |
-| Windows x86-64 | `puml-x86_64-pc-windows-msvc.zip` |
+| Platform | Archive | LSP Archive |
+|---|---|---|
+| Linux x86-64 | `puml-x86_64-unknown-linux-musl.tar.gz` | `puml-lsp-x86_64-unknown-linux-musl.tar.gz` |
+| Linux arm64 | `puml-aarch64-unknown-linux-musl.tar.gz` | `puml-lsp-aarch64-unknown-linux-musl.tar.gz` |
+| macOS (Apple Silicon) | `puml-aarch64-apple-darwin.tar.gz` | `puml-lsp-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `puml-x86_64-apple-darwin.tar.gz` | `puml-lsp-x86_64-apple-darwin.tar.gz` |
+| Windows x86-64 | `puml-x86_64-pc-windows-msvc.zip` | `puml-lsp-x86_64-pc-windows-msvc.zip` |
+
+Each release also includes a `SHA256SUMS` file and per-archive `.cosign.bundle` files
+for supply-chain verification.
 
 Extract and place the `puml` binary on your `$PATH`.
 

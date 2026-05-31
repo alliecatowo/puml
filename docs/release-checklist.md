@@ -61,6 +61,19 @@
 - [ ] Documented exit codes (`0/1/2/3`) still match observed CLI behavior for success, validation, I/O, and internal failures.
 - [ ] Warning UX still matches docs: warnings print to `stderr` and do not flip successful runs to non-zero.
 
+## Release assets
+
+- [ ] Confirm the release workflow produced archives for all five targets:
+  `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `aarch64-apple-darwin`,
+  `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`.
+- [ ] Confirm both CLI and LSP archives are present for each platform.
+- [ ] Confirm `SHA256SUMS` (merged) is attached to the GitHub release.
+- [ ] Confirm a `.cosign.bundle` file is attached for each archive.
+- [ ] Test the curl installer against the published release:
+  `curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh -s -- --dry-run`
+- [ ] Test the installer for real on at least one platform:
+  `curl -fsSL .../install.sh | sh`
+
 ## Verification
 
 - [ ] Smoke test render from file input.
