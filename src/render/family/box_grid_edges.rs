@@ -335,9 +335,12 @@ pub(super) fn render_box_grid_relations_and_labels(
                 // Exception: interface circle nodes use an anchor adjusted to the
                 // circle edge via adjust_interface_anchor; always honour that y2.
                 let snapped_y = if tgt_keep_routed_x && !is_interface_tgt {
-                    // Top/bottom entry into regular component: apply fan offset along y.
-                    // For top/bottom ports fan is along x so fan_offset.1 is 0 here.
-                    last.1 + fan_offset.1
+                    // Top/bottom entry into regular component: keep the router's y
+                    // (the true bbox edge). The fan offset along y is only valid when
+                    // pick_port chose a side port; if the router arrived at top/bottom
+                    // instead, applying fan_offset.1 would push the endpoint off the
+                    // bbox edge and break precision assertions.
+                    last.1
                 } else {
                     y2 // y2 already has fan_offset.1 applied (or is interface-adjusted)
                 };
