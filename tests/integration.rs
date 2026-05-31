@@ -9412,6 +9412,38 @@ fn skinparam_ch24_class_stereotype_scope_renders() {
 }
 
 #[test]
+fn skinparam_ch24_class_stereotype_block_renders() {
+    // Block-form `skinparam class<<service>> { backgroundColor #hex }` must
+    // parse without warnings and must produce identical per-node colors to the
+    // inline form (`skinparam ClassBackgroundColor<<service>> #hex`).
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_ch24_stereotype_block.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let src = fs::read_to_string(fixture(
+        "styling/valid_skinparam_ch24_stereotype_block.puml",
+    ))
+    .unwrap();
+    let svg = render_source_to_svg(&src)
+        .expect("block-form class stereotype skinparam svg should render");
+    assert!(
+        svg.contains("fill=\"#d9edf7\""),
+        "block-form stereotype-scoped background should render (issue #1400)"
+    );
+    assert!(
+        svg.contains("stroke=\"#2fa4e7\""),
+        "block-form stereotype-scoped border should render"
+    );
+}
+
+#[test]
 fn skinparam_state_keys_accepted_without_warnings() {
     Command::cargo_bin("puml")
         .expect("binary")

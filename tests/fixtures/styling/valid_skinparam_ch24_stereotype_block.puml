@@ -1,0 +1,17 @@
+@startuml
+skinparam class<<service>> {
+  backgroundColor #d9edf7
+  borderColor #2fa4e7
+  fontColor #1e6c8a
+  headerBackgroundColor #bcd9ef
+}
+class Api <<service>> {
+  +call()
+}
+class Worker <<service>>
+class Plain {
+  +id: int
+}
+Api --> Plain
+Worker --> Plain
+@enduml
