@@ -11,7 +11,92 @@ you build from source.
 
 ## Recommended install
 
-If you already have Rust installed, use Cargo:
+### No Rust? Use the curl installer (Linux and macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh
+```
+
+The installer auto-detects your platform, verifies the SHA-256 checksum, optionally
+verifies the cosign signature, and installs `puml` without requiring Rust or any other
+build toolchain.
+
+#### Installer options
+
+| Flag | Description |
+|---|---|
+| `--version <tag>` | Install a specific release (e.g. `v0.2.1`) instead of latest |
+| `--prefix <dir>` | Install to `<dir>/bin` instead of auto-detected prefix |
+| `--dry-run` | Print what would happen without downloading or installing |
+| `--no-verify-sig` | Skip cosign signature check (SHA-256 is always verified) |
+| `-h`, `--help` | Print usage and exit |
+
+Examples:
+
+```bash
+# Install a specific version
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \
+  | sh -s -- --version v0.2.1
+
+# Install to ~/.local (useful when /usr/local is not writable)
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \
+  | sh -s -- --prefix ~/.local
+
+# Preview without installing
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \
+  | sh -s -- --dry-run
+```
+
+#### Trust model
+
+1. **SHA-256 is always verified.** The checksum is fetched from the release's `SHA256SUMS`
+   file over HTTPS and compared to the locally computed hash. The install aborts on mismatch.
+2. **cosign keyless signature is verified when cosign is available.** Install cosign with
+   `brew install cosign` or see [docs.sigstore.dev](https://docs.sigstore.dev/cosign/installation/).
+   Pass `--no-verify-sig` to skip (not recommended).
+3. **The binary is not executed during install.** Only `puml --version` runs after the
+   binary is in place as a smoke-test.
+
+#### Prefix selection
+
+- If `/usr/local/bin` is writable (e.g. macOS with admin rights), the installer uses
+  `/usr/local/bin` — no `sudo` prompt.
+- Otherwise it falls back to `~/.local/bin`, which is XDG-standard and never requires
+  elevated privileges.
+- Use `--prefix` to override entirely.
+
+#### Manual verification (without the installer)
+
+```bash
+# 1. Download the archive and SHA256SUMS for your platform
+VERSION="$(curl -fsSL https://api.github.com/repos/alliecatowo/puml/releases/latest \
+  | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+BASE="https://github.com/alliecatowo/puml/releases/download/${VERSION}"
+
+# Linux x86-64 example:
+curl -LO "${BASE}/puml-x86_64-unknown-linux-musl.tar.gz"
+curl -LO "${BASE}/SHA256SUMS"
+
+# 2. Verify checksum
+grep "puml-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS | sha256sum --check
+
+# 3. (Optional) Verify cosign signature
+curl -LO "${BASE}/puml-x86_64-unknown-linux-musl.tar.gz.cosign.bundle"
+cosign verify-blob \
+  --bundle puml-x86_64-unknown-linux-musl.tar.gz.cosign.bundle \
+  --certificate-identity-regexp "https://github.com/alliecatowo/puml/" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  puml-x86_64-unknown-linux-musl.tar.gz
+
+# 4. Extract and install
+tar -xzf puml-x86_64-unknown-linux-musl.tar.gz
+mkdir -p ~/.local/bin
+mv puml ~/.local/bin/puml
+chmod +x ~/.local/bin/puml
+puml --version
+```
+
+### Have Rust? Use Cargo
 
 ```bash
 cargo install puml --bin puml
@@ -33,10 +118,11 @@ cargo install puml --bin puml --force
 
 | Method | Use it when | Command or source |
 |---|---|---|
+| curl installer | No Rust, Linux or macOS | `curl -fsSL .../install.sh \| sh` |
 | Cargo release | You want the published CLI and already have Rust | `cargo install puml --bin puml` |
 | GitHub HEAD | You need an unreleased fix from `main` | `cargo install --git https://github.com/alliecatowo/puml --bin puml` |
 | Source checkout | You are developing or auditing the project | `cargo build --release --bin puml` |
-| GitHub release asset | You do not want to compile | Download from GitHub Releases |
+| GitHub release asset | You do not want to compile and prefer manual steps | Download from GitHub Releases |
 | WASM crate | You are embedding rendering in the browser/site build | Build `crates/puml-wasm` from this repo |
 
 There is not currently a supported Homebrew tap, Docker image, npm CLI package, or VS
@@ -119,42 +205,46 @@ cp target/release/puml-lsp ~/.local/bin/puml-lsp
 
 Tagged releases are published at
 [github.com/alliecatowo/puml/releases](https://github.com/alliecatowo/puml/releases).
-The current release workflow builds these CLI assets:
+Each release includes archives, a `SHA256SUMS` file, and `.cosign.bundle` signature
+files for every archive.
 
-| Platform | Asset name |
-|---|---|
-| Linux x86_64 | `puml-linux-x86_64` |
-| macOS x86_64 | `puml-macos-x86_64` |
+| Platform | CLI archive | LSP archive |
+|---|---|---|
+| Linux x86-64 | `puml-x86_64-unknown-linux-musl.tar.gz` | `puml-lsp-x86_64-unknown-linux-musl.tar.gz` |
+| Linux arm64 | `puml-aarch64-unknown-linux-musl.tar.gz` | `puml-lsp-aarch64-unknown-linux-musl.tar.gz` |
+| macOS Apple Silicon | `puml-aarch64-apple-darwin.tar.gz` | `puml-lsp-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `puml-x86_64-apple-darwin.tar.gz` | `puml-lsp-x86_64-apple-darwin.tar.gz` |
+| Windows x86-64 | `puml-x86_64-pc-windows-msvc.zip` | `puml-lsp-x86_64-pc-windows-msvc.zip` |
 
-Linux example:
-
-```bash
-mkdir -p ~/.local/bin
-curl -L -o ~/.local/bin/puml \
-  https://github.com/alliecatowo/puml/releases/latest/download/puml-linux-x86_64
-chmod +x ~/.local/bin/puml
-puml --version
-```
-
-macOS Intel example:
+Linux example (manual):
 
 ```bash
 mkdir -p ~/.local/bin
-curl -L -o ~/.local/bin/puml \
-  https://github.com/alliecatowo/puml/releases/latest/download/puml-macos-x86_64
-chmod +x ~/.local/bin/puml
+curl -L -o /tmp/puml.tar.gz \
+  https://github.com/alliecatowo/puml/releases/latest/download/puml-x86_64-unknown-linux-musl.tar.gz
+curl -L -o /tmp/SHA256SUMS \
+  https://github.com/alliecatowo/puml/releases/latest/download/SHA256SUMS
+grep "puml-x86_64-unknown-linux-musl.tar.gz" /tmp/SHA256SUMS | sha256sum --check
+tar -xzf /tmp/puml.tar.gz -C /tmp
+cp /tmp/puml ~/.local/bin/puml
 puml --version
 ```
 
-If macOS blocks a downloaded binary, clear the quarantine attribute for the path you
-installed:
+macOS Apple Silicon example (manual):
 
 ```bash
+mkdir -p ~/.local/bin
+curl -L -o /tmp/puml.tar.gz \
+  https://github.com/alliecatowo/puml/releases/latest/download/puml-aarch64-apple-darwin.tar.gz
+curl -L -o /tmp/SHA256SUMS \
+  https://github.com/alliecatowo/puml/releases/latest/download/SHA256SUMS
+grep "puml-aarch64-apple-darwin.tar.gz" /tmp/SHA256SUMS | shasum -a 256 --check
+tar -xzf /tmp/puml.tar.gz -C /tmp
+cp /tmp/puml ~/.local/bin/puml
+# If macOS Gatekeeper blocks the binary:
 xattr -d com.apple.quarantine ~/.local/bin/puml
+puml --version
 ```
-
-Apple Silicon users can build with Cargo today. Native Apple Silicon release assets are
-not listed in the current release workflow.
 
 ---
 
@@ -182,6 +272,8 @@ Install from source or GitHub HEAD:
 ```bash
 cargo install --git https://github.com/alliecatowo/puml --bin puml-lsp
 ```
+
+Or download the LSP archive from the GitHub Releases page alongside the CLI archive.
 
 ### Neovim
 
