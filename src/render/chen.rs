@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::model::{ChenAttribute, ChenDocument, ChenNode, ChenNodeKind};
 use crate::output::RenderArtifact;
-use crate::render::graph_layout::{layout_hierarchical, EdgeSpec, LayoutOptions, NodeSize};
+use crate::render::graph_layout::{
+    layout_hierarchical, EdgeRouting, EdgeSpec, LayoutOptions, NodeSize,
+};
 use crate::render::svg::escape_text;
 use crate::render_core::{
     text_metrics::estimate_text_width_f64, Anchor, LabelBox, LabelRole, NodeBox, Point, Polyline,
@@ -146,11 +148,15 @@ pub fn render_chen_artifact(document: &ChenDocument) -> RenderArtifact {
         ));
     }
 
+    let ectx = EdgeCtx {
+        pos,
+        nodes: &node_by_id,
+        routing: document.edge_routing,
+    };
     for rel in &document.relations {
         render_edge(
             &mut out,
-            pos,
-            &node_by_id,
+            &ectx,
             &rel.from,
             &rel.to,
             Some(&rel.cardinality),
@@ -158,26 +164,10 @@ pub fn render_chen_artifact(document: &ChenDocument) -> RenderArtifact {
         );
     }
     for edge in edges.iter().filter(|edge| edge.id.starts_with("attr")) {
-        render_edge(
-            &mut out,
-            pos,
-            &node_by_id,
-            &edge.from,
-            &edge.to,
-            None,
-            false,
-        );
+        render_edge(&mut out, &ectx, &edge.from, &edge.to, None, false);
     }
     for edge in edges.iter().filter(|edge| edge.id.starts_with("inh")) {
-        render_edge(
-            &mut out,
-            pos,
-            &node_by_id,
-            &edge.from,
-            &edge.to,
-            None,
-            false,
-        );
+        render_edge(&mut out, &ectx, &edge.from, &edge.to, None, false);
     }
 
     for node in &render_nodes {
@@ -488,39 +478,114 @@ fn render_center_label(out: &mut String, node: &RenderNode, x: f64, y: f64, colo
     }
 }
 
+/// Shared context threaded through edge-rendering helpers to avoid passing the
+/// same maps and routing mode through every call site.
+struct EdgeCtx<'a> {
+    pos: &'a BTreeMap<String, (f64, f64)>,
+    nodes: &'a BTreeMap<&'a str, &'a RenderNode>,
+    routing: EdgeRouting,
+}
+
 fn render_edge(
     out: &mut String,
-    pos: &BTreeMap<String, (f64, f64)>,
-    nodes: &BTreeMap<&str, &RenderNode>,
+    ctx: &EdgeCtx<'_>,
     from: &str,
     to: &str,
     label: Option<&str>,
     total_participation: bool,
 ) {
-    let Some((sx, sy, sw, sh)) = node_rect(pos, nodes, from) else {
+    let Some((sx, sy, sw, sh)) = node_rect(ctx.pos, ctx.nodes, from) else {
         return;
     };
-    let Some((tx, ty, tw, th)) = node_rect(pos, nodes, to) else {
+    let Some((tx, ty, tw, th)) = node_rect(ctx.pos, ctx.nodes, to) else {
         return;
     };
     let (x1, y1, x2, y2) = anchor_line((sx, sy, sw, sh), (tx, ty, tw, th));
     let stroke_width = if total_participation { 3.0 } else { 1.4 };
-    out.push_str(&format!(
-        "<line class=\"chen-edge\" x1=\"{x1:.1}\" y1=\"{y1:.1}\" x2=\"{x2:.1}\" y2=\"{y2:.1}\" stroke=\"#334155\" stroke-width=\"{stroke_width:.1}\"/>"
-    ));
-    if let Some(label) = label {
-        let mx = (x1 + x2) / 2.0;
-        let my = (y1 + y2) / 2.0 - 5.0;
-        let label_w = estimate_text_width_f64(label, 14.0) + 10.0;
-        out.push_str(&format!(
-            "<rect class=\"chen-cardinality-bg\" x=\"{:.1}\" y=\"{:.1}\" width=\"{label_w:.1}\" height=\"16\" rx=\"3\" fill=\"#ffffff\"/>",
-            mx - label_w / 2.0,
-            my - 11.0
-        ));
-        out.push_str(&format!(
-            "<text class=\"chen-cardinality\" x=\"{mx:.1}\" y=\"{my:.1}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
-            escape_text(label)
-        ));
+
+    match ctx.routing {
+        EdgeRouting::Ortho => {
+            // Right-angle elbow path: go along the dominant axis first, then the
+            // secondary axis. This is the PlantUML §20.3 `linetype ortho` behavior —
+            // crow's-foot ends land on a perfectly horizontal/vertical edge segment.
+            let (mx, my) = ortho_midpoint(x1, y1, x2, y2, (sx, sy, sw, sh), (tx, ty, tw, th));
+            out.push_str(&format!(
+                "<polyline class=\"chen-edge\" points=\"{x1:.1},{y1:.1} {mx:.1},{my:.1} {x2:.1},{y2:.1}\" fill=\"none\" stroke=\"#334155\" stroke-width=\"{stroke_width:.1}\"/>"
+            ));
+            if let Some(label) = label {
+                let lx = (x1 + x2) / 2.0;
+                let ly = (y1 + y2) / 2.0 - 5.0;
+                let label_w = estimate_text_width_f64(label, 14.0) + 10.0;
+                out.push_str(&format!(
+                    "<rect class=\"chen-cardinality-bg\" x=\"{:.1}\" y=\"{:.1}\" width=\"{label_w:.1}\" height=\"16\" rx=\"3\" fill=\"#ffffff\"/>",
+                    lx - label_w / 2.0,
+                    ly - 11.0
+                ));
+                out.push_str(&format!(
+                    "<text class=\"chen-cardinality\" x=\"{lx:.1}\" y=\"{ly:.1}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    escape_text(label)
+                ));
+            }
+        }
+        EdgeRouting::Splines | EdgeRouting::Polyline => {
+            out.push_str(&format!(
+                "<line class=\"chen-edge\" x1=\"{x1:.1}\" y1=\"{y1:.1}\" x2=\"{x2:.1}\" y2=\"{y2:.1}\" stroke=\"#334155\" stroke-width=\"{stroke_width:.1}\"/>"
+            ));
+            if let Some(label) = label {
+                let mx = (x1 + x2) / 2.0;
+                let my = (y1 + y2) / 2.0 - 5.0;
+                let label_w = estimate_text_width_f64(label, 14.0) + 10.0;
+                out.push_str(&format!(
+                    "<rect class=\"chen-cardinality-bg\" x=\"{:.1}\" y=\"{:.1}\" width=\"{label_w:.1}\" height=\"16\" rx=\"3\" fill=\"#ffffff\"/>",
+                    mx - label_w / 2.0,
+                    my - 11.0
+                ));
+                out.push_str(&format!(
+                    "<text class=\"chen-cardinality\" x=\"{mx:.1}\" y=\"{my:.1}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    escape_text(label)
+                ));
+            }
+        }
+    }
+}
+
+/// Compute the single elbow mid-point for an orthogonal (right-angle) path
+/// between two anchor points `(x1, y1)` → `(x2, y2)`.
+///
+/// `anchor_line` already picks which side each node is exited on — horizontal-
+/// dominant exits produce horizontal stubs (left/right faces); vertical-dominant
+/// exits produce vertical stubs (top/bottom faces).  For the elbow we need to
+/// turn 90° at the midpoint:
+///
+/// - Horizontal-dominant (x1 ≠ x2, y1 ≈ y2): the exit stub is already
+///   horizontal; a pure `<line>` would be fine.  But when the anchors are at
+///   different y-levels (diagonal), we go horizontal first then vertical:
+///   mid-point = `(x2, y1)`.
+/// - Vertical-dominant (y1 ≠ y2, x1 ≈ x2): go vertical first then horizontal:
+///   mid-point = `(x1, y2)`.
+///
+/// The dominant-axis is the one selected by `anchor_line` — we mirror its
+/// logic here so that the elbow corner is always closest to the source exit.
+fn ortho_midpoint(
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    src: (f64, f64, f64, f64),
+    tgt: (f64, f64, f64, f64),
+) -> (f64, f64) {
+    let (sx, sy, sw, sh) = src;
+    let (tx, ty, tw, th) = tgt;
+    let scx = sx + sw / 2.0;
+    let scy = sy + sh / 2.0;
+    let tcx = tx + tw / 2.0;
+    let tcy = ty + th / 2.0;
+    if (tcx - scx).abs() > (tcy - scy).abs() {
+        // Horizontal-dominant: source exits left/right → elbow at (x2, y1)
+        (x2, y1)
+    } else {
+        // Vertical-dominant: source exits top/bottom → elbow at (x1, y2)
+        (x1, y2)
     }
 }
 
