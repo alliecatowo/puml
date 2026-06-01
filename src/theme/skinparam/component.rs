@@ -1,6 +1,7 @@
 use super::helpers::{parse_bool_value, split_stereotype_scope};
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
+use crate::theme::style_builder::StyleBuilder;
 use crate::theme::StyleSource;
 use std::collections::BTreeMap;
 
@@ -20,7 +21,7 @@ pub enum ComponentStyleMode {
 }
 
 /// Style overrides for component/deployment diagrams.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ComponentStyle {
     pub background_color: String,
     pub border_color: String,
@@ -38,6 +39,9 @@ pub struct ComponentStyle {
     pub target_styles: BTreeMap<ComponentStyleTarget, ComponentNodeStyle>,
     pub stereotype_styles: BTreeMap<String, ComponentNodeStyle>,
     pub sources: ComponentStyleSources,
+    /// Phase B (#1404): resolved `<style>` block rules for this diagram.
+    /// `None` when no `<style>` block was present.
+    pub style_builder: Option<Box<StyleBuilder>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -63,6 +67,7 @@ impl Default for ComponentStyle {
             target_styles: BTreeMap::new(),
             stereotype_styles: BTreeMap::new(),
             sources: ComponentStyleSources::default(),
+            style_builder: None,
         }
     }
 }

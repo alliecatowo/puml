@@ -110,7 +110,7 @@ pub fn component_style_target_for_node(kind: FamilyNodeKind) -> Option<Component
 /// Delegates to the shared cascade resolver
 /// ([`shared_cascade::component_node_effective_style`]) which enforces the
 /// documented precedence:
-///   default < theme < skinparam < target-specific-skinparam < stereotype < inline
+///   default < theme < skinparam < target-specific-skinparam < stereotype < `<style>` < inline
 ///
 /// The `node.fill_color` field (the `#color` shorthand on the declaration
 /// line) is the Inline-tier override for the fill/background property.
@@ -120,8 +120,10 @@ pub fn effective_component_node_style(
 ) -> EffectiveComponentNodeStyle {
     let target_style = component_style_target_for_node(node.kind)
         .and_then(|target| component_style.target_styles.get(&target));
-    let stereotype_style = family_node_stereotype_key(node)
-        .and_then(|key| component_style.stereotype_styles.get(&key));
+    let stereotype_key = family_node_stereotype_key(node);
+    let stereotype_style = stereotype_key
+        .as_deref()
+        .and_then(|key| component_style.stereotype_styles.get(key));
     let inline_style = family_node_inline_style(node);
     let is_interface_or_port =
         matches!(node.kind, FamilyNodeKind::Interface | FamilyNodeKind::Port);
@@ -133,6 +135,7 @@ pub fn effective_component_node_style(
         &inline_style,
         fill_inline,
         is_interface_or_port,
+        stereotype_key.as_deref(),
     )
 }
 
@@ -149,11 +152,19 @@ pub fn effective_class_node_style(
     class_style: &ClassStyle,
     node: &FamilyNode,
 ) -> EffectiveClassNodeStyle {
-    let scoped_style =
-        family_node_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
+    let stereotype_key = family_node_stereotype_key(node);
+    let scoped_style = stereotype_key
+        .as_deref()
+        .and_then(|key| class_style.stereotype_styles.get(key));
     let inline_style = family_node_inline_style(node);
     let fill_inline = node.fill_color.as_deref();
-    shared_class_effective(class_style, scoped_style, &inline_style, fill_inline)
+    shared_class_effective(
+        class_style,
+        scoped_style,
+        &inline_style,
+        fill_inline,
+        stereotype_key.as_deref(),
+    )
 }
 
 /// Compute the fully-resolved per-node style for an activity diagram element.

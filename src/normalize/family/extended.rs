@@ -434,10 +434,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
-            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
-            // The compat shim already emits legacy StyleParam triples; skip the typed
-            // AST node silently until Phase B wires up per-family application.
-            StatementKind::StyleBlock(_) => {}
+            // Phase B (#1404): push typed `<style>` block rules into the builder.
+            // The compat shim still emits legacy StyleParam triples for backward compat.
+            StatementKind::StyleBlock(block) => {
+                family_styles.push_style_block(block);
+            }
             StatementKind::Scale(body) => {
                 common.scale(&body);
                 if family_kind == DiagramKind::Timing && body.contains(" as ") {

@@ -119,7 +119,7 @@ fn cascade_inline_wins_without_style_block() {
 /// Default tier only — no overrides.
 #[test]
 fn class_cascade_default_only() {
-    let result = class_node_cascade("#ffffff", Src::Default, None, None);
+    let result = class_node_cascade("#ffffff", Src::Default, None, None, None);
     assert_eq!(result.as_str(), "#ffffff");
     assert_eq!(result.source(), Src::Default);
 }
@@ -127,7 +127,7 @@ fn class_cascade_default_only() {
 /// Theme-sourced diagram color wins over default.
 #[test]
 fn class_cascade_theme_sourced() {
-    let result = class_node_cascade("#aabbcc", Src::ThemePreset, None, None);
+    let result = class_node_cascade("#aabbcc", Src::ThemePreset, None, None, None);
     assert_eq!(result.as_str(), "#aabbcc");
     assert_eq!(result.source(), Src::ThemePreset);
 }
@@ -135,7 +135,7 @@ fn class_cascade_theme_sourced() {
 /// Skinparam-sourced diagram color wins over theme.
 #[test]
 fn class_cascade_skinparam_sourced() {
-    let result = class_node_cascade("#112233", Src::SkinParam, None, None);
+    let result = class_node_cascade("#112233", Src::SkinParam, None, None, None);
     assert_eq!(result.as_str(), "#112233");
     assert_eq!(result.source(), Src::SkinParam);
 }
@@ -143,7 +143,7 @@ fn class_cascade_skinparam_sourced() {
 /// Stereotype overrides skinparam-sourced diagram color.
 #[test]
 fn class_cascade_stereotype_beats_skinparam() {
-    let result = class_node_cascade("#112233", Src::SkinParam, Some("#334455"), None);
+    let result = class_node_cascade("#112233", Src::SkinParam, Some("#334455"), None, None);
     assert_eq!(result.as_str(), "#334455");
     assert_eq!(result.source(), Src::Stereotype);
 }
@@ -151,7 +151,13 @@ fn class_cascade_stereotype_beats_skinparam() {
 /// Inline overrides stereotype.
 #[test]
 fn class_cascade_inline_beats_stereotype() {
-    let result = class_node_cascade("#112233", Src::SkinParam, Some("#334455"), Some("#ff0000"));
+    let result = class_node_cascade(
+        "#112233",
+        Src::SkinParam,
+        Some("#334455"),
+        None,
+        Some("#ff0000"),
+    );
     assert_eq!(result.as_str(), "#ff0000");
     assert_eq!(result.source(), Src::Inline);
 }
@@ -159,7 +165,7 @@ fn class_cascade_inline_beats_stereotype() {
 /// Inline overrides default with no other tiers set.
 #[test]
 fn class_cascade_inline_beats_default() {
-    let result = class_node_cascade("#ffffff", Src::Default, None, Some("#ff0000"));
+    let result = class_node_cascade("#ffffff", Src::Default, None, None, Some("#ff0000"));
     assert_eq!(result.as_str(), "#ff0000");
     assert_eq!(result.source(), Src::Inline);
 }
@@ -169,7 +175,7 @@ fn class_cascade_inline_beats_default() {
 /// Default-only, no target/stereotype/inline overrides — returns the default.
 #[test]
 fn component_cascade_default_only() {
-    let result = component_node_cascade("#f0f4f8", Src::Default, None, None, None);
+    let result = component_node_cascade("#f0f4f8", Src::Default, None, None, None, None);
     assert_eq!(result.as_str(), "#f0f4f8");
     assert_eq!(result.source(), Src::Default);
 }
@@ -177,7 +183,7 @@ fn component_cascade_default_only() {
 /// Theme-sourced diagram color wins over default.
 #[test]
 fn component_cascade_theme_sourced() {
-    let result = component_node_cascade("#aabbcc", Src::ThemePreset, None, None, None);
+    let result = component_node_cascade("#aabbcc", Src::ThemePreset, None, None, None, None);
     assert_eq!(result.as_str(), "#aabbcc");
     assert_eq!(result.source(), Src::ThemePreset);
 }
@@ -185,7 +191,7 @@ fn component_cascade_theme_sourced() {
 /// Skinparam-sourced diagram color wins over theme/default.
 #[test]
 fn component_cascade_skinparam_sourced() {
-    let result = component_node_cascade("#112233", Src::SkinParam, None, None, None);
+    let result = component_node_cascade("#112233", Src::SkinParam, None, None, None, None);
     assert_eq!(result.as_str(), "#112233");
     assert_eq!(result.source(), Src::SkinParam);
 }
@@ -199,6 +205,7 @@ fn component_cascade_target_beats_generic_skinparam() {
         "#112233",
         Src::SkinParam,
         Some(("#99aabb", Src::SkinParam)),
+        None,
         None,
         None,
     );
@@ -215,6 +222,7 @@ fn component_cascade_stereotype_beats_target_skinparam() {
         Some(("#99aabb", Src::SkinParam)),
         Some("#334455"),
         None,
+        None,
     );
     assert_eq!(result.as_str(), "#334455");
     assert_eq!(result.source(), Src::Stereotype);
@@ -228,6 +236,7 @@ fn component_cascade_inline_beats_stereotype() {
         Src::SkinParam,
         None,
         Some("#334455"),
+        None,
         Some("#ff0000"),
     );
     assert_eq!(result.as_str(), "#ff0000");
@@ -242,6 +251,7 @@ fn component_cascade_inline_beats_all() {
         Src::SkinParam,
         Some(("#99aabb", Src::SkinParam)),
         Some("#334455"),
+        None,
         Some("#ff0000"),
     );
     assert_eq!(result.as_str(), "#ff0000");
@@ -251,7 +261,7 @@ fn component_cascade_inline_beats_all() {
 /// Target absent, no stereotype, no inline — falls back to diagram default.
 #[test]
 fn component_cascade_all_absent_falls_back_to_default() {
-    let result = component_node_cascade("#f0f4f8", Src::Default, None, None, None);
+    let result = component_node_cascade("#f0f4f8", Src::Default, None, None, None, None);
     assert_eq!(result.as_str(), "#f0f4f8");
     assert_eq!(result.source(), Src::Default);
 }
@@ -265,7 +275,7 @@ fn component_effective_default_node() {
     let comp_style = ComponentStyle::default();
     let inline_style = FamilyNodeInlineStyle::default();
     let result =
-        component_node_effective_style(&comp_style, None, None, &inline_style, None, false);
+        component_node_effective_style(&comp_style, None, None, &inline_style, None, false, None);
     assert_eq!(result.fill.as_str(), "#f0f4f8");
     assert_eq!(result.fill.source(), Src::Default);
     assert_eq!(result.stroke.as_str(), "#1e293b");
@@ -289,6 +299,7 @@ fn component_effective_interface_uses_interface_color() {
         &inline_style,
         None,
         true, // is_interface_or_port
+        None,
     );
     assert_eq!(result.fill.as_str(), "#e2e8f0");
     assert_eq!(result.fill.source(), Src::Default);
@@ -307,6 +318,7 @@ fn component_effective_inline_fill_beats_default() {
         &inline_style,
         Some("#ff0000"),
         false,
+        None,
     );
     assert_eq!(result.fill.as_str(), "#ff0000");
     assert_eq!(result.fill.source(), Src::Inline);
@@ -331,6 +343,7 @@ fn component_effective_stereotype_fill_precedence() {
         &inline_style,
         None,
         false,
+        None,
     );
     assert_eq!(result.fill.as_str(), "#aabbcc");
     assert_eq!(result.fill.source(), Src::Stereotype);
@@ -343,6 +356,7 @@ fn component_effective_stereotype_fill_precedence() {
         &inline_style,
         Some("#ff0000"),
         false,
+        None,
     );
     assert_eq!(result2.fill.as_str(), "#ff0000");
     assert_eq!(result2.fill.source(), Src::Inline);
@@ -371,6 +385,7 @@ fn component_effective_target_and_stereotype_precedence() {
         &inline_style,
         None,
         false,
+        None,
     );
     assert_eq!(result.fill.as_str(), "#334455");
     assert_eq!(result.fill.source(), Src::SkinParam);
@@ -383,6 +398,7 @@ fn component_effective_target_and_stereotype_precedence() {
         &inline_style,
         None,
         false,
+        None,
     );
     assert_eq!(result2.fill.as_str(), "#aabbcc");
     assert_eq!(result2.fill.source(), Src::Stereotype);

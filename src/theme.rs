@@ -7,6 +7,7 @@ mod effective;
 mod presets;
 pub mod shared_cascade;
 mod skinparam;
+pub mod style_builder;
 mod styles;
 mod values;
 
@@ -24,5 +25,6 @@ pub use shared_cascade::families::{
 };
 pub use shared_cascade::{resolve_color, CascadeInput, CascadeTier};
 pub use skinparam::*;
+pub use style_builder::{EffectiveStyle, StyleBuilder, StyleQuery};
 pub use styles::*;
 pub use values::*;

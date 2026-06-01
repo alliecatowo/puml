@@ -144,12 +144,14 @@ use super::values::StyleSource as Src;
 /// have been set by theme or skinparam; the `sources` field tells us which).
 /// `diagram_source` — the `StyleSource` recorded in ClassStyle.sources.
 /// `stereotype_color` — the colour set by a matching stereotype rule, if any.
+/// `style_block_color` — the colour resolved from `<style>` block rules (Phase B).
 /// `inline_color` — the colour from the inline `#color` token on the element,
 /// if any.
 fn class_node_cascade(
     diagram_color: &str,
     diagram_source: Src,
     stereotype_color: Option<&str>,
+    style_block_color: Option<&str>,
     inline_color: Option<&str>,
 ) -> EffectiveStyleValue<StyleColor> {
     // diagram_source tells us which tier populated the diagram-level field.
@@ -193,7 +195,11 @@ fn class_node_cascade(
             color: stereotype_color.map(str::to_string),
             source: Src::Stereotype,
         },
-        style_block: CascadeTier::absent(Src::StyleBlock),
+        // Phase B (#1404): populate the style_block tier from `<style>` rules.
+        style_block: CascadeTier {
+            color: style_block_color.map(str::to_string),
+            source: Src::StyleBlock,
+        },
         inline: CascadeTier {
             color: inline_color.map(str::to_string),
             source: Src::Inline,
@@ -210,12 +216,14 @@ fn class_node_cascade(
 ///
 /// # Arguments
 ///
-/// * `class_style`   — Diagram-level style (captures theme + skinparam results).
-/// * `scoped_style`  — Stereotype-scoped overrides for this node, if any.
-/// * `inline_style`  — Inline token overrides extracted from the node members.
-/// * `fill_inline`   — Node-level fill colour from the `#color` shorthand token
+/// * `class_style`        — Diagram-level style (captures theme + skinparam results).
+/// * `scoped_style`       — Stereotype-scoped overrides for this node, if any.
+/// * `inline_style`       — Inline token overrides extracted from the node members.
+/// * `fill_inline`        — Node-level fill colour from the `#color` shorthand token
 ///   (`FamilyNode::fill_color`). Separate from `inline_style`
 ///   because the parser stores it in a dedicated field.
+/// * `element_stereotype` — Lower-cased stereotype key for this node (e.g. `"service"`),
+///   used to build the `StyleQuery` for Phase B `<style>` block lookup.
 ///
 /// # Precedence per property (lowest → highest)
 /// default < theme < skinparam < stereotype < `<style>` < inline
@@ -224,8 +232,35 @@ pub fn class_node_effective_style(
     scoped_style: Option<&super::skinparam::ClassStereotypeStyle>,
     inline_style: &FamilyNodeInlineStyle,
     fill_inline: Option<&str>,
+    element_stereotype: Option<&str>,
 ) -> EffectiveClassNodeStyle {
+    use super::style_builder::StyleQuery;
+    use crate::ast::style::{PName, SName};
+
     let title_font_size = class_style.font_size.unwrap_or(13);
+
+    // ── Phase B: resolve `<style>` block colours ──────────────────────────────
+    // Build a query for this class element and look up any style-block rules.
+    let style_block_resolved = class_style.style_builder.as_deref().map(|builder| {
+        let mut query = StyleQuery::tags([SName::ClassDiagram, SName::Class_]);
+        if let Some(stereo) = element_stereotype {
+            query = query.with_stereotype(stereo);
+        }
+        builder.resolve(&query)
+    });
+
+    let sb_fill = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::BackgroundColor));
+    let sb_stroke = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::LineColor));
+    let sb_font = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::FontColor));
+    let sb_header = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::HeadColor));
 
     // ── fill (background) ─────────────────────────────────────────────────────
     // fill_inline maps to `FamilyNode::fill_color` (#color token on declaration).
@@ -233,6 +268,7 @@ pub fn class_node_effective_style(
         &class_style.background_color,
         class_style.sources.background_color,
         scoped_style.and_then(|s| s.background_color.as_deref()),
+        sb_fill,
         fill_inline,
     );
 
@@ -241,6 +277,7 @@ pub fn class_node_effective_style(
         &class_style.border_color,
         class_style.sources.border_color,
         scoped_style.and_then(|s| s.border_color.as_deref()),
+        sb_stroke,
         inline_style.border_color.as_deref(),
     );
 
@@ -252,6 +289,7 @@ pub fn class_node_effective_style(
         &class_style.font_color,
         class_style.sources.font_color,
         scoped_font_color,
+        sb_font,
         inline_style.text_color.as_deref(),
     );
 
@@ -260,6 +298,7 @@ pub fn class_node_effective_style(
         &class_style.member_color,
         class_style.sources.member_color,
         scoped_font_color,
+        sb_font,
         inline_style.text_color.as_deref(),
     );
 
@@ -268,6 +307,7 @@ pub fn class_node_effective_style(
         &class_style.header_color,
         class_style.sources.header_color,
         scoped_style.and_then(|s| s.header_color.as_deref()),
+        sb_header,
         None, // no inline override for header
     );
 
@@ -321,6 +361,7 @@ fn component_node_cascade(
     diagram_source: Src,
     target_color: Option<(&str, Src)>,
     stereotype_color: Option<&str>,
+    style_block_color: Option<&str>,
     inline_color: Option<&str>,
 ) -> EffectiveStyleValue<StyleColor> {
     // Split the diagram-level source into theme / skinparam tiers.
@@ -366,8 +407,11 @@ fn component_node_cascade(
             color: stereotype_color.map(str::to_string),
             source: Src::Stereotype,
         },
-        // No `<style>` block support for component/deployment yet.
-        style_block: CascadeTier::absent(Src::StyleBlock),
+        // Phase B (#1404): populate the style_block tier from `<style>` rules.
+        style_block: CascadeTier {
+            color: style_block_color.map(str::to_string),
+            source: Src::StyleBlock,
+        },
         inline: CascadeTier {
             color: inline_color.map(str::to_string),
             source: Src::Inline,
@@ -384,20 +428,22 @@ fn component_node_cascade(
 /// cascade so precedence is tested in one place.
 ///
 /// Precedence per property (lowest → highest):
-///   default < theme < skinparam < target-specific-skinparam < stereotype < inline
+///   default < theme < skinparam < target-specific-skinparam < stereotype < `<style>` < inline
 ///
 /// # Arguments
 ///
-/// * `component_style` — Diagram-level style aggregating theme + skinparam.
-/// * `target_style`    — Per-element-kind skinparam overrides (e.g.
+/// * `component_style`    — Diagram-level style aggregating theme + skinparam.
+/// * `target_style`       — Per-element-kind skinparam overrides (e.g.
 ///   `skinparam NodeBackgroundColor`), derived from
 ///   [`ComponentStyle::target_styles`].
-/// * `stereotype_style`— Stereotype-scoped overrides for this element.
-/// * `inline_style`    — Member-encoded inline overrides.
-/// * `fill_inline`     — Node-level fill from the `#color` shorthand token
+/// * `stereotype_style`   — Stereotype-scoped overrides for this element.
+/// * `inline_style`       — Member-encoded inline overrides.
+/// * `fill_inline`        — Node-level fill from the `#color` shorthand token
 ///   (`FamilyNode::fill_color`).
 /// * `is_interface_or_port` — When true, use `interface_color` as the
 ///   fallback fill rather than `background_color`.
+/// * `element_stereotype` — Lower-cased stereotype key for this node,
+///   used to build the `StyleQuery` for Phase B `<style>` block lookup.
 pub fn component_node_effective_style(
     component_style: &ComponentStyle,
     target_style: Option<&ComponentNodeStyle>,
@@ -405,7 +451,30 @@ pub fn component_node_effective_style(
     inline_style: &FamilyNodeInlineStyle,
     fill_inline: Option<&str>,
     is_interface_or_port: bool,
+    element_stereotype: Option<&str>,
 ) -> EffectiveComponentNodeStyle {
+    use super::style_builder::StyleQuery;
+    use crate::ast::style::{PName, SName};
+
+    // ── Phase B: resolve `<style>` block colours ──────────────────────────────
+    let style_block_resolved = component_style.style_builder.as_deref().map(|builder| {
+        let mut query = StyleQuery::tags([SName::ComponentDiagram, SName::Component]);
+        if let Some(stereo) = element_stereotype {
+            query = query.with_stereotype(stereo);
+        }
+        builder.resolve(&query)
+    });
+
+    let sb_fill = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::BackgroundColor));
+    let sb_stroke = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::LineColor));
+    let sb_font = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::FontColor));
+
     // ── fill (background) ─────────────────────────────────────────────────────
     let (base_fill, base_fill_source) = if is_interface_or_port {
         (
@@ -426,6 +495,7 @@ pub fn component_node_effective_style(
         base_fill_source,
         target_fill,
         stereotype_style.and_then(|s| s.background_color.as_deref()),
+        sb_fill,
         fill_inline,
     );
 
@@ -438,6 +508,7 @@ pub fn component_node_effective_style(
         component_style.sources.border_color,
         target_stroke,
         stereotype_style.and_then(|s| s.border_color.as_deref()),
+        sb_stroke,
         inline_style.border_color.as_deref(),
     );
 
@@ -450,6 +521,7 @@ pub fn component_node_effective_style(
         component_style.sources.font_color,
         target_font,
         stereotype_style.and_then(|s| s.font_color.as_deref()),
+        sb_font,
         inline_style.text_color.as_deref(),
     );
 
