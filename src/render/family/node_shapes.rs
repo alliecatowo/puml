@@ -509,7 +509,16 @@ pub(super) fn render_family_node_shape_styled(
     // #525 (Component → «component») and #549 (suppress on Package/Rectangle/
     // Folder containers and `componentStyle rectangle` components) are
     // subsumed by this blanket suppression.
+    //
+    // #1465: place user-supplied stereotypes ABOVE the name label (one line
+    // above `label_y`) so that `<<container>>` (and similar) does not overlap
+    // the name text.  For Interface/Port the kind_tag_y is already above
+    // `label_y`, so fall back to the original formula for those kinds.
     if !hide_stereotype {
-        render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+        let stereo_y = match node.kind {
+            FamilyNodeKind::Interface | FamilyNodeKind::Port => kind_tag_y + 13,
+            _ => label_y - 14,
+        };
+        render_node_stereotype_rows(out, node, cx, stereo_y);
     }
 }

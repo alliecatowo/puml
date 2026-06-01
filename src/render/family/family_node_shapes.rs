@@ -279,8 +279,20 @@ pub(super) fn render_family_node_shape(
     // sufficient signal of the kind. Subsumes #549 (Package/Rectangle/Folder).
     // User-supplied `<<stereotype>>` members are still rendered below via
     // `render_node_stereotype_rows`.
+    //
+    // #1465: place user stereotypes ABOVE the name label (label_y - 14) so
+    // they never overlap the name text.  For Interface/StateInitial/StateFinal/
+    // StateHistory the kind_tag_y is already above label_y; keep the old
+    // formula for those kinds.
     if !hide_stereotype {
-        render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+        let stereo_y = match node.kind {
+            FamilyNodeKind::Interface
+            | FamilyNodeKind::StateInitial
+            | FamilyNodeKind::StateFinal
+            | FamilyNodeKind::StateHistory => kind_tag_y + 13,
+            _ => label_y - 14,
+        };
+        render_node_stereotype_rows(out, node, cx, stereo_y);
     }
 }
 
