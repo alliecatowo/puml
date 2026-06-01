@@ -21,6 +21,10 @@ pub(super) struct VerticalRouteCheck<'a> {
 /// Returns `true` when a straight vertical route at `check.x` from `check.y1`
 /// to `check.y2` would pierce any visible bbox — both leaf nodes AND group/
 /// package frames at every nesting depth (#1325).
+///
+/// Group frames that ENCLOSE the target position are never counted as
+/// obstacles: the route must enter those frames to reach its destination, so
+/// passing through them is intentional, not a pierce (#1472).
 pub(super) fn vertical_route_crosses_node(check: VerticalRouteCheck<'_>) -> bool {
     let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
     // Check leaf-node obstacles.
@@ -33,36 +37,115 @@ pub(super) fn vertical_route_crosses_node(check: VerticalRouteCheck<'_>) -> bool
     if crosses_leaf {
         return true;
     }
-    // Check group/package frame obstacles: include every group frame whose
-    // bounding box the vertical segment would cross.  Frames that fully
-    // contain both endpoints are skipped — the route is *inside* that package,
-    // which is not a pierce.
-    check
-        .group_bounds
-        .values()
-        .any(|&(gx, gy, gw, gh)| segment_crosses_rect(route, Rect::new(gx, gy, gw, gh)))
+    // Check group/package frame obstacles.  Frames whose bounding box
+    // contains the TARGET position are skipped: the route must enter those
+    // frames, so they are not obstacles (#1325, #1472).
+    let tgt_pos = check.positions.get(check.target_id).copied();
+    check.group_bounds.values().any(|&(gx, gy, gw, gh)| {
+        let frame = Rect::new(gx, gy, gw, gh);
+        if !segment_crosses_rect(route, frame) {
+            return false;
+        }
+        // Skip frames that enclose the target — the route legitimately enters
+        // them to reach its destination.
+        let encloses_tgt = tgt_pos.is_some_and(|(tx, ty)| frame.contains_point(Point::new(tx, ty)));
+        !encloses_tgt
+    })
 }
 
+/// Compute the x-coordinate for a detour vertical route that clears all
+/// obstacles in the y-span [check.y1, check.y2].
+///
+/// Obstacles include:
+/// - Leaf nodes (excluding source and target) whose y-ranges overlap the span.
+/// - Group frames (excluding frames that enclose the target) whose y-ranges
+///   overlap the span.
+///
+/// Two candidate detour lanes are computed:
+///   • Right lane: iteratively push past obstacle right edges until clear.
+///   • Left lane: iteratively push past obstacle left edges until clear.
+/// The lane closest to the original check.x is returned.  Ties favour the
+/// right lane.  This prevents detours from escaping the diagram boundary when
+/// the right lane would push outside the cluster (#1472).
 pub(super) fn detour_x_for_vertical_route(check: VerticalRouteCheck<'_>, clearance: f64) -> f64 {
-    let route = Segment::new(Point::new(check.x, check.y1), Point::new(check.x, check.y2));
-    // Collect right edges of all pierced leaf-node obstacles.
-    let leaf_right = check
-        .nodes
-        .iter()
-        .filter(|node| node.id != check.source_id && node.id != check.target_id)
-        .filter_map(|node| node_rect(node, check.positions))
-        .filter(|rect| segment_crosses_rect(route, *rect))
-        .map(|rect| rect.max_x() + clearance);
-    // Collect right edges of all pierced group/package frame obstacles.
-    let group_right = check
-        .group_bounds
-        .values()
-        .map(|&(gx, gy, gw, gh)| Rect::new(gx, gy, gw, gh))
-        .filter(|rect| segment_crosses_rect(route, *rect))
-        .map(|rect| rect.max_x() + clearance);
-    leaf_right
-        .chain(group_right)
-        .fold(check.x + clearance, f64::max)
+    let tgt_pos = check.positions.get(check.target_id).copied();
+
+    // Build a list of all obstacle rects in the y-span, excluding:
+    //   • the source and target leaf nodes
+    //   • group frames that enclose the target (entry frames, not obstacles)
+    let obstacle_rects: Vec<Rect> = {
+        let mut v: Vec<Rect> = Vec::new();
+        for node in check.nodes {
+            if node.id == check.source_id || node.id == check.target_id {
+                continue;
+            }
+            if let Some(rect) = node_rect(node, check.positions) {
+                if ranges_overlap(check.y1, check.y2, rect.min_y(), rect.max_y()) {
+                    v.push(rect);
+                }
+            }
+        }
+        for &(gx, gy, gw, gh) in check.group_bounds.values() {
+            let frame = Rect::new(gx, gy, gw, gh);
+            let encloses_tgt =
+                tgt_pos.is_some_and(|(tx, ty)| frame.contains_point(Point::new(tx, ty)));
+            if encloses_tgt {
+                continue;
+            }
+            if ranges_overlap(check.y1, check.y2, frame.min_y(), frame.max_y()) {
+                v.push(frame);
+            }
+        }
+        v
+    };
+
+    /// Push `x` rightward past every obstacle that contains it, until stable.
+    fn push_right(x: f64, obstacles: &[Rect], clearance: f64) -> f64 {
+        let mut cur = x;
+        let max_iters = obstacles.len() + 2;
+        for _ in 0..max_iters {
+            let next = obstacles
+                .iter()
+                .filter(|r| cur > r.min_x() && cur < r.max_x())
+                .map(|r| r.max_x() + clearance)
+                .fold(cur, f64::max);
+            if next <= cur + f64::EPSILON {
+                break;
+            }
+            cur = next;
+        }
+        cur
+    }
+
+    /// Push `x` leftward past every obstacle that contains it, until stable.
+    fn push_left(x: f64, obstacles: &[Rect], clearance: f64) -> f64 {
+        let mut cur = x;
+        let max_iters = obstacles.len() + 2;
+        for _ in 0..max_iters {
+            let next = obstacles
+                .iter()
+                .filter(|r| cur > r.min_x() && cur < r.max_x())
+                .map(|r| r.min_x() - clearance)
+                .fold(cur, f64::min);
+            if next >= cur - f64::EPSILON {
+                break;
+            }
+            cur = next;
+        }
+        cur
+    }
+
+    let right_x = push_right(check.x + clearance, &obstacle_rects, clearance);
+    let left_x = push_left(check.x - clearance, &obstacle_rects, clearance);
+
+    // Pick the lane that deviates least from check.x.
+    let right_dist = (right_x - check.x).abs();
+    let left_dist = (left_x - check.x).abs();
+    if right_dist <= left_dist {
+        right_x
+    } else {
+        left_x
+    }
 }
 
 fn node_rect(node: &NodeSize, positions: &BTreeMap<String, (f64, f64)>) -> Option<Rect> {
