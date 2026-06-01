@@ -85,6 +85,12 @@ ALLOWLIST_REASONS = {
     # coupled to the existing relation-layout coordinate computation; extraction
     # would require threading actor-group state. Split tracked in #590.
     "src/render/family/class_render.rs": "wave-16 actor→usecase fan layout added 83 lines; split tracked in #590",
+    # New file added in #1391; 684 lines implementing the spline-native waypoint
+    # generator (Catmull-Rom → cubic Bezier conversion, obstacle-aware deflection,
+    # bend-point insertion). The algorithm is a single tightly-coupled geometric
+    # computation; splitting into sub-files would require threading spline state
+    # through callers with no semantic benefit. Split tracked in #590.
+    "src/render/graph_layout/spline_router.rs": "wave-16 spline-native router added as new 684-line file; split tracked in #590",
 }
 
 
