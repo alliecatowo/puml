@@ -126,6 +126,7 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let mut subtree_block_w = vec![0i32; n];
     let mut subtree_block_h = vec![0i32; n];
     if use_plantuml_topdown_layout {
+        #[allow(clippy::too_many_arguments)]
         fn compute_vstack_block(
             idx: usize,
             children_of: &[Vec<usize>],
@@ -319,6 +320,7 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
         y_positions[0] = MARGIN + NODE_H / 2;
 
         // Layout each depth-1 branch as a vertical-stack subtree.
+        #[allow(clippy::too_many_arguments)]
         fn assign_vstack_subtree(
             idx: usize,
             origin_x: i32, // left edge of this subtree's column
@@ -328,7 +330,6 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
             indent: i32,
             children_of: &[Vec<usize>],
             nodes: &[super::super::FamilyNode],
-            subtree_block_w: &[i32],
             subtree_block_h: &[i32],
             x_positions: &mut [i32],
             y_positions: &mut [i32],
@@ -349,7 +350,6 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
                     indent,
                     children_of,
                     nodes,
-                    subtree_block_w,
                     subtree_block_h,
                     x_positions,
                     y_positions,
@@ -371,7 +371,6 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
                 VSTACK_INDENT,
                 &children_of,
                 nodes,
-                &subtree_block_w,
                 &subtree_block_h,
                 &mut x_positions,
                 &mut y_positions,
