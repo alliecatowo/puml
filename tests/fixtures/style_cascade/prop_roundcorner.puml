@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    RoundCorner 18
+  }
+}
+</style>
+class RoundedNode {
+  field
+}
+@enduml

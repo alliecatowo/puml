@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    Padding 20
+  }
+}
+</style>
+class PaddedNode {
+  field
+}
+@enduml

@@ -137,10 +137,14 @@ pub(super) fn render_family_node_shape_styled(
     let stroke = effective_style.stroke.as_str();
     let fill = effective_style.fill.as_str();
     let font_color = effective_style.font_color.as_str();
-    let stroke_dash = if effective_style.border_dashed {
-        " stroke-dasharray=\"5 3\""
+    // Phase D (#1416): LineStyle from `<style>` block.
+    let stroke_dash_pattern = effective_style.line_style.stroke_dasharray();
+    let stroke_dash = if !stroke_dash_pattern.is_empty() {
+        format!(" stroke-dasharray=\"{stroke_dash_pattern}\"")
+    } else if effective_style.border_dashed {
+        " stroke-dasharray=\"5 3\"".to_string()
     } else {
-        ""
+        String::new()
     };
     let stroke_width = effective_style.stroke_width;
     out.push_str(&format!(
@@ -181,11 +185,12 @@ pub(super) fn render_family_node_shape_styled(
             ));
         }
         FamilyNodeKind::Component => {
-            // `skinparam roundcorner <N>` overrides the historical 4px radius.
-            let rx = comp_style.round_corner.unwrap_or(4);
-            // `skinparam shadowing true` drops a soft shadow under the component
-            // rect via the `#shadow` filter emitted in the parent SVG defs.
-            let shadow_attr = if comp_style.shadowing {
+            // Phase D (#1416): `<style>` RoundCorner wins; then skinparam; then default 4.
+            let rx = effective_style
+                .style_round_corner
+                .unwrap_or_else(|| comp_style.round_corner.unwrap_or(4));
+            // Phase D (#1416): `<style>` Shadowing wins; then skinparam shadowing flag.
+            let shadow_attr = if effective_style.shadowing || comp_style.shadowing {
                 " filter=\"url(#shadow)\""
             } else {
                 ""

@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    FontWeight bold
+  }
+}
+</style>
+class BoldClass {
+  field
+}
+@enduml

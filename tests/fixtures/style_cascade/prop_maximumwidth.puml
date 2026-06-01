@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    MaximumWidth 100
+  }
+}
+</style>
+class MaxWidthClass {
+  field
+}
+@enduml
