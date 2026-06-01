@@ -136,6 +136,19 @@ pub(super) fn class_run_layout(
     let is_usecase = is_real_usecase_layout(document);
     let is_class_diagram = document.kind == DiagramKind::Class;
     let is_object = is_object_diagram_layout(document);
+    // PlantUML parity (#1467): detect C4 diagrams (≥ 50% of nodes are C4-kind)
+    // and apply the same tight inter-rank spacing as class diagrams so the
+    // container/system grid mirrors PlantUML's compact C4 layout. Without this
+    // C4 fixtures inherit the loose object-default `row_gap + max_node_h`
+    // (~150px) instead of the tight ~20px PlantUML uses.
+    let is_c4_diagram = !document.nodes.is_empty()
+        && document
+            .nodes
+            .iter()
+            .filter(|n| super::c4_nodes::is_c4_kind(n.kind))
+            .count()
+            * 2
+            >= document.nodes.len();
     let rank_separation = if is_usecase {
         // Retune for PlantUML-equivalent density (#1359): rank_separation =
         // max_node_height + row_gap ensures adjacent ranks never overlap
@@ -143,13 +156,12 @@ pub(super) fn class_run_layout(
         // rank top).  row_gap=20 gives ~20px inter-rank clearance.
         let max_node_h = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60) as f64;
         max_node_h + row_gap as f64
-    } else if is_class_diagram {
-        // Class density retune (#1427): rank_separation is the pure bottom-to-top
-        // gap between adjacent rank rows.  The graph-layout engine (coordinates.rs)
-        // already adds `max_node_height` per row-advance step, so we pass only the
-        // inter-node whitespace here.  The old formula (`row_gap + max_node_h`)
-        // produced ~158px inter-node gaps instead of the intended ~40px, driving
-        // the 3× area ratios observed in the wave-4 audit.
+    } else if is_class_diagram || is_c4_diagram {
+        // Class density retune (#1427) / C4 parity (#1467): rank_separation is
+        // the pure bottom-to-top gap between adjacent rank rows.  The graph-
+        // layout engine (coordinates.rs) already adds `max_node_height` per
+        // row-advance step, so we pass only the inter-node whitespace here.
+        // PlantUML's C4 layout uses tight ~20px inter-rank spacing.
         row_gap as f64
     } else {
         // Object diagrams (and any other family routed through this renderer):
@@ -158,10 +170,22 @@ pub(super) fn class_run_layout(
     };
     let gl_options = GlOptions {
         rank_separation,
-        node_separation: col_gap as f64,
-        // Object and usecase diagrams use tighter group padding (8px) to match
-        // PlantUML's compact spacing; class diagrams use 16px (#1425, #1359).
-        group_padding: if is_object || is_usecase { 8.0 } else { 16.0 },
+        // PlantUML C4 layout uses tight inter-node horizontal spacing (~30px)
+        // matching the container grid; halve the default node_separation for
+        // C4 diagrams so adjacent containers/systems sit closer together.
+        node_separation: if is_c4_diagram {
+            (col_gap as f64 * 0.5).max(20.0)
+        } else {
+            col_gap as f64
+        },
+        // Object, usecase, and C4 diagrams use tighter group padding (8px) to
+        // match PlantUML's compact spacing; class diagrams use 16px
+        // (#1425, #1359, #1467).
+        group_padding: if is_object || is_usecase || is_c4_diagram {
+            8.0
+        } else {
+            16.0
+        },
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
         // Right-side gutter only needs margin_x (32px); canvas_margin also absorbs
