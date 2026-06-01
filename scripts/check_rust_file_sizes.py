@@ -108,12 +108,12 @@ ALLOWLIST_REASONS = {
     # coupled to the existing frame-boundary snap geometry; extraction would require
     # threading frame-rect and header-height state through callers. Split tracked in #590.
     "src/render/family/class_relations.rs": "wave-17 frame header routing fix added ~40 lines; split tracked in #590",
-    # Was 530 lines on main; grew to 602 after Phase B <style> cascade resolver added
-    # the CascadeContext struct, resolve_style_cascade, and class/component migration
-    # helpers (~72 lines). The cascade logic is tightly coupled to the StyleBlock AST
-    # and resolver state; sub-module extraction would require threading context state.
-    # Split tracked in #590.
-    "src/theme/shared_cascade.rs": "wave-17 Phase B style cascade resolver added ~72 lines; split tracked in #590",
+    # Was 563 lines on main; grew to 749 lines after PlantUML-parity Fork + vertical-stack
+    # WBS layout added compute_vstack_block and assign_vstack_subtree helper functions
+    # (~186 lines net). The vstack layout algorithm is tightly coupled to the position
+    # arrays, canvas sizing, and edge-drawing pass; sub-module extraction would require
+    # threading subtree_block_w/h arrays through callers. Split tracked in #590.
+    "src/render/mindmap/wbs.rs": "wave-17 PlantUML Fork+vstack WBS layout added ~186 lines; split tracked in #590",
 }
 
 
