@@ -459,6 +459,89 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
         }
     }
+
+    // #1427: For usecase diagrams, fan edges from the same actor source
+    // horizontally so that actor→usecase edges don't share a single vertical
+    // stem.  Edges from an Actor/BusinessActor node to UseCase/BusinessUseCase
+    // targets are grouped by source actor name and assigned lateral (x) offsets
+    // spaced 20px apart, centred at zero.  The parallel_offset pass above only
+    // separates same from/to pairs; this pass separates same-source fans.
+    //
+    // Only Actor→UseCase edges are fanned (not actor-to-actor generalizations)
+    // so that the hollow-triangle generalization arrows are not disturbed.
+    if is_usecase {
+        // Build actor name lookup (alias or bare name, whichever is used in
+        // relations).
+        let actor_name_set: std::collections::BTreeSet<String> = document
+            .nodes
+            .iter()
+            .filter(|n| {
+                matches!(
+                    n.kind,
+                    FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor
+                )
+            })
+            .flat_map(|n| {
+                let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+                if let Some(alias) = &n.alias {
+                    vec![alias.clone(), n.name.clone(), key]
+                } else {
+                    vec![n.name.clone(), key]
+                }
+            })
+            .collect();
+
+        // Build usecase target name lookup to exclude actor-to-actor edges.
+        // Use cases inside group scopes are stored with scoped names like
+        // "E-Commerce Platform::UC1"; also add the bare unscoped tail so that
+        // relations using `U --> UC1` still match.
+        let usecase_name_set: std::collections::BTreeSet<String> = document
+            .nodes
+            .iter()
+            .filter(|n| {
+                matches!(
+                    n.kind,
+                    FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
+                )
+            })
+            .flat_map(|n| {
+                let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+                let bare = key.rsplit("::").next().unwrap_or(&key).to_string();
+                if let Some(alias) = &n.alias {
+                    vec![alias.clone(), n.name.clone(), key, bare]
+                } else {
+                    let name_bare = n.name.rsplit("::").next().unwrap_or(&n.name).to_string();
+                    vec![n.name.clone(), key, bare, name_bare]
+                }
+            })
+            .collect();
+
+        // Group actor→usecase edges by source actor name (normalised).
+        let mut actor_fan_groups: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, rel) in document.relations.iter().enumerate() {
+            let (fn_, tn_, _) = normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+            if actor_name_set.contains(&fn_) && usecase_name_set.contains(&tn_) {
+                actor_fan_groups.entry(fn_).or_default().push(i);
+            }
+        }
+        // Assign x-offsets; skip groups of one (no tangle possible).
+        for group in actor_fan_groups.values() {
+            if group.len() < 2 {
+                continue;
+            }
+            let n = group.len() as i32;
+            for (slot, &idx) in group.iter().enumerate() {
+                let lane = slot as i32 - n / 2;
+                // Do not override offsets already assigned by the
+                // parallel-pair pass (e.g. bidirectional edges).
+                parallel_offset
+                    .entry(idx)
+                    .or_insert(lane * PARALLEL_EDGE_GAP);
+            }
+        }
+    }
+
     let is_object_diagram = !document.nodes.is_empty()
         && document
             .nodes
