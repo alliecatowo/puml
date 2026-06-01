@@ -31,14 +31,23 @@ fn extract_svg_attr(svg: &str, attr: &str) -> u64 {
     let tag = &svg[..tag_end];
     let needle = format!("{}=\"", attr);
     let start = tag.find(&needle).unwrap_or_else(|| {
-        panic!("attribute '{}' not found in <svg> tag: {}", attr, &svg[..200])
+        panic!(
+            "attribute '{}' not found in <svg> tag: {}",
+            attr,
+            &svg[..200]
+        )
     }) + needle.len();
-    let end = tag[start..].find('"').unwrap_or_else(|| {
-        panic!("closing '\"' not found after attribute '{}' value", attr)
-    }) + start;
-    tag[start..end]
-        .parse::<u64>()
-        .unwrap_or_else(|_| panic!("attribute '{}' value '{}' is not a u64", attr, &tag[start..end]))
+    let end = tag[start..]
+        .find('"')
+        .unwrap_or_else(|| panic!("closing '\"' not found after attribute '{}' value", attr))
+        + start;
+    tag[start..end].parse::<u64>().unwrap_or_else(|_| {
+        panic!(
+            "attribute '{}' value '{}' is not a u64",
+            attr,
+            &tag[start..end]
+        )
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

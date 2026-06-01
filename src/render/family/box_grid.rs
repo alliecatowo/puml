@@ -1,8 +1,8 @@
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, COMPONENT_NODE_BOX_HEIGHT,
-    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, DEPLOYMENT_BOX_HEIGHT, DEPLOYMENT_BOX_WIDTH,
-    DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
+    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, DEPLOYMENT_BOX_HEIGHT,
+    DEPLOYMENT_BOX_WIDTH, DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
 };
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
