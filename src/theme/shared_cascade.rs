@@ -234,12 +234,13 @@ pub fn class_node_effective_style(
     fill_inline: Option<&str>,
     element_stereotype: Option<&str>,
 ) -> EffectiveClassNodeStyle {
+    use super::effective::{EffectiveHAlign, EffectiveLineStyle};
     use super::style_builder::StyleQuery;
-    use crate::ast::style::{PName, SName};
+    use crate::ast::style::{PName, SName, StyleValue};
 
     let title_font_size = class_style.font_size.unwrap_or(13);
 
-    // ── Phase B: resolve `<style>` block colours ──────────────────────────────
+    // ── Phase B/D: resolve `<style>` block properties ─────────────────────────
     // Build a query for this class element and look up any style-block rules.
     let style_block_resolved = class_style.style_builder.as_deref().map(|builder| {
         let mut query = StyleQuery::tags([SName::ClassDiagram, SName::Class_]);
@@ -261,6 +262,133 @@ pub fn class_node_effective_style(
     let sb_header = style_block_resolved
         .as_ref()
         .and_then(|es| es.color(PName::HeadColor));
+
+    // ── Phase D: resolve non-colour properties from style block ───────────────
+    // LineThickness: numeric px value for stroke-width.
+    let sb_line_thickness: Option<f32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::LineThickness)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some(*n as f32),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => s.trim().parse::<f32>().ok(),
+                _ => None,
+            })
+    });
+    // LineStyle: "dashed" | "dotted" | "bold" → EffectiveLineStyle.
+    let sb_line_style: Option<EffectiveLineStyle> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::LineStyle).and_then(|v| {
+            let kw = match v {
+                StyleValue::Keyword(s) | StyleValue::Raw(s) => s.to_ascii_lowercase(),
+                _ => return None,
+            };
+            match kw.as_str() {
+                "dashed" | "dash" => Some(EffectiveLineStyle::Dashed),
+                "dotted" | "dot" => Some(EffectiveLineStyle::Dotted),
+                "solid" | "bold" | "none" => Some(EffectiveLineStyle::Solid),
+                _ => None,
+            }
+        })
+    });
+    // Padding: first numeric value (top/all sides uniform).
+    let sb_padding: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Padding).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as i32),
+            StyleValue::Raw(s) | StyleValue::Keyword(s) => s
+                .split_whitespace()
+                .next()
+                .and_then(|p| p.parse::<i32>().ok()),
+            _ => None,
+        })
+    });
+    // Margin: first numeric value (treated as outer margin; layout wiring is
+    // Phase D follow-up — stored here for downstream render use).
+    let _sb_margin: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Margin).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as i32),
+            StyleValue::Raw(s) | StyleValue::Keyword(s) => s
+                .split_whitespace()
+                .next()
+                .and_then(|p| p.parse::<i32>().ok()),
+            _ => None,
+        })
+    });
+    // RoundCorner: corner radius override from `<style>`.
+    let sb_round_corner: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::RoundCorner)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
+    // FontWeight: numeric (400/700) or keyword ("bold"/"normal").
+    let sb_font_weight: Option<u32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::FontWeight).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as u32),
+            StyleValue::Keyword(s) | StyleValue::Raw(s) => match s.to_ascii_lowercase().as_str() {
+                "bold" => Some(700),
+                "normal" | "regular" => Some(400),
+                _ => s.trim().parse::<u32>().ok(),
+            },
+            _ => None,
+        })
+    });
+    // Shadowing: "true"/"false" or numeric (>0 = true).
+    let sb_shadowing: Option<bool> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Shadowing).and_then(|v| match v {
+            StyleValue::Keyword(s) | StyleValue::Raw(s) => match s.to_ascii_lowercase().as_str() {
+                "true" | "yes" | "on" | "1" => Some(true),
+                "false" | "no" | "off" | "0" => Some(false),
+                _ => None,
+            },
+            StyleValue::Number(n) => Some(*n > 0.0),
+            _ => None,
+        })
+    });
+    // HorizontalAlignment: "left" | "center" | "right".
+    let sb_h_align: Option<EffectiveHAlign> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::HorizontalAlignment)
+            .and_then(|v| {
+                let kw = match v {
+                    StyleValue::Keyword(s) | StyleValue::Raw(s) => s.to_ascii_lowercase(),
+                    _ => return None,
+                };
+                match kw.as_str() {
+                    "left" => Some(EffectiveHAlign::Left),
+                    "right" => Some(EffectiveHAlign::Right),
+                    "center" | "middle" => Some(EffectiveHAlign::Center),
+                    _ => None,
+                }
+            })
+    });
+    // MaximumWidth: numeric pixel cap (0 = unconstrained).
+    let sb_max_width: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::MaximumWidth)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
+    // MinimumWidth: numeric pixel floor (0 = use layout default).
+    let sb_min_width: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::MinimumWidth)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
 
     // ── fill (background) ─────────────────────────────────────────────────────
     // fill_inline maps to `FamilyNode::fill_color` (#color token on declaration).
@@ -311,6 +439,23 @@ pub fn class_node_effective_style(
         None, // no inline override for header
     );
 
+    // ── stroke-width: inline border_thickness wins; then style-block LineThickness;
+    //                  then class_style default of 1.5 ─────────────────────────
+    let stroke_width = inline_style
+        .border_thickness
+        .or(sb_line_thickness)
+        .unwrap_or(1.5);
+
+    // ── LineStyle: inline border_dashed flag wins; then style-block LineStyle ──
+    let line_style = if inline_style.border_dashed {
+        EffectiveLineStyle::Dashed
+    } else {
+        sb_line_style.unwrap_or(EffectiveLineStyle::Solid)
+    };
+
+    // ── Shadowing: style-block wins over skinparam ────────────────────────────
+    let shadowing = sb_shadowing.unwrap_or(class_style.shadowing);
+
     EffectiveClassNodeStyle {
         fill,
         stroke,
@@ -318,13 +463,21 @@ pub fn class_node_effective_style(
         member_color,
         header_color,
         border_dashed: inline_style.border_dashed,
-        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
+        stroke_width,
         font_family: class_style
             .font_name
             .clone()
             .unwrap_or_else(|| "monospace".to_string()),
         title_font_size,
         member_font_size: title_font_size.saturating_sub(2).max(9),
+        line_style,
+        padding: sb_padding.unwrap_or(0),
+        style_round_corner: sb_round_corner,
+        font_weight: sb_font_weight.unwrap_or(400),
+        shadowing,
+        h_align: sb_h_align.unwrap_or(EffectiveHAlign::Center),
+        max_width: sb_max_width.unwrap_or(0),
+        min_width: sb_min_width.unwrap_or(0),
     }
 }
 
@@ -453,10 +606,11 @@ pub fn component_node_effective_style(
     is_interface_or_port: bool,
     element_stereotype: Option<&str>,
 ) -> EffectiveComponentNodeStyle {
+    use super::effective::{EffectiveHAlign, EffectiveLineStyle};
     use super::style_builder::StyleQuery;
-    use crate::ast::style::{PName, SName};
+    use crate::ast::style::{PName, SName, StyleValue};
 
-    // ── Phase B: resolve `<style>` block colours ──────────────────────────────
+    // ── Phase B/D: resolve `<style>` block properties ─────────────────────────
     let style_block_resolved = component_style.style_builder.as_deref().map(|builder| {
         let mut query = StyleQuery::tags([SName::ComponentDiagram, SName::Component]);
         if let Some(stereo) = element_stereotype {
@@ -474,6 +628,122 @@ pub fn component_node_effective_style(
     let sb_font = style_block_resolved
         .as_ref()
         .and_then(|es| es.color(PName::FontColor));
+
+    // ── Phase D: resolve non-colour properties from style block ───────────────
+    let sb_line_thickness: Option<f32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::LineThickness)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some(*n as f32),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => s.trim().parse::<f32>().ok(),
+                _ => None,
+            })
+    });
+    let sb_line_style: Option<EffectiveLineStyle> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::LineStyle).and_then(|v| {
+            let kw = match v {
+                StyleValue::Keyword(s) | StyleValue::Raw(s) => s.to_ascii_lowercase(),
+                _ => return None,
+            };
+            match kw.as_str() {
+                "dashed" | "dash" => Some(EffectiveLineStyle::Dashed),
+                "dotted" | "dot" => Some(EffectiveLineStyle::Dotted),
+                "solid" | "bold" | "none" => Some(EffectiveLineStyle::Solid),
+                _ => None,
+            }
+        })
+    });
+    let sb_padding: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Padding).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as i32),
+            StyleValue::Raw(s) | StyleValue::Keyword(s) => s
+                .split_whitespace()
+                .next()
+                .and_then(|p| p.parse::<i32>().ok()),
+            _ => None,
+        })
+    });
+    let _sb_margin: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Margin).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as i32),
+            StyleValue::Raw(s) | StyleValue::Keyword(s) => s
+                .split_whitespace()
+                .next()
+                .and_then(|p| p.parse::<i32>().ok()),
+            _ => None,
+        })
+    });
+    let sb_round_corner: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::RoundCorner)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
+    let sb_font_weight: Option<u32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::FontWeight).and_then(|v| match v {
+            StyleValue::Number(n) => Some(*n as u32),
+            StyleValue::Keyword(s) | StyleValue::Raw(s) => match s.to_ascii_lowercase().as_str() {
+                "bold" => Some(700),
+                "normal" | "regular" => Some(400),
+                _ => s.trim().parse::<u32>().ok(),
+            },
+            _ => None,
+        })
+    });
+    let sb_shadowing: Option<bool> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties.get(&PName::Shadowing).and_then(|v| match v {
+            StyleValue::Keyword(s) | StyleValue::Raw(s) => match s.to_ascii_lowercase().as_str() {
+                "true" | "yes" | "on" | "1" => Some(true),
+                "false" | "no" | "off" | "0" => Some(false),
+                _ => None,
+            },
+            StyleValue::Number(n) => Some(*n > 0.0),
+            _ => None,
+        })
+    });
+    let sb_h_align: Option<EffectiveHAlign> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::HorizontalAlignment)
+            .and_then(|v| {
+                let kw = match v {
+                    StyleValue::Keyword(s) | StyleValue::Raw(s) => s.to_ascii_lowercase(),
+                    _ => return None,
+                };
+                match kw.as_str() {
+                    "left" => Some(EffectiveHAlign::Left),
+                    "right" => Some(EffectiveHAlign::Right),
+                    "center" | "middle" => Some(EffectiveHAlign::Center),
+                    _ => None,
+                }
+            })
+    });
+    let sb_max_width: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::MaximumWidth)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
+    let sb_min_width: Option<i32> = style_block_resolved.as_ref().and_then(|es| {
+        es.properties
+            .get(&PName::MinimumWidth)
+            .and_then(|v| match v {
+                StyleValue::Number(n) => Some((*n as i32).max(0)),
+                StyleValue::Raw(s) | StyleValue::Keyword(s) => {
+                    s.trim().parse::<i32>().ok().map(|n| n.max(0))
+                }
+                _ => None,
+            })
+    });
 
     // ── fill (background) ─────────────────────────────────────────────────────
     let (base_fill, base_fill_source) = if is_interface_or_port {
@@ -525,12 +795,31 @@ pub fn component_node_effective_style(
         inline_style.text_color.as_deref(),
     );
 
+    let stroke_width = inline_style
+        .border_thickness
+        .or(sb_line_thickness)
+        .unwrap_or(1.5);
+    let line_style = if inline_style.border_dashed {
+        EffectiveLineStyle::Dashed
+    } else {
+        sb_line_style.unwrap_or(EffectiveLineStyle::Solid)
+    };
+    let shadowing = sb_shadowing.unwrap_or(false);
+
     EffectiveComponentNodeStyle {
         fill,
         stroke,
         font_color,
         border_dashed: inline_style.border_dashed,
-        stroke_width: inline_style.border_thickness.unwrap_or(1.5),
+        stroke_width,
+        line_style,
+        padding: sb_padding.unwrap_or(0),
+        style_round_corner: sb_round_corner,
+        font_weight: sb_font_weight.unwrap_or(400),
+        shadowing,
+        h_align: sb_h_align.unwrap_or(EffectiveHAlign::Center),
+        max_width: sb_max_width.unwrap_or(0),
+        min_width: sb_min_width.unwrap_or(0),
     }
 }
 

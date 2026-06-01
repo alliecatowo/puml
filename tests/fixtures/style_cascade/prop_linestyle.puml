@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    LineStyle dashed
+  }
+}
+</style>
+class DashedBorder {
+  field
+}
+@enduml

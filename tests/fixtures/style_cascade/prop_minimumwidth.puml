@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    MinimumWidth 300
+  }
+}
+</style>
+class MinWidthClass {
+  short
+}
+@enduml

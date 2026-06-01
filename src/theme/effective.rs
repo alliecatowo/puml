@@ -26,6 +26,47 @@ pub struct FamilyNodeInlineStyle {
     pub border_thickness: Option<f32>,
 }
 
+/// SVG stroke-dasharray pattern for the `LineStyle` property (Phase D, #1416).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EffectiveLineStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+impl EffectiveLineStyle {
+    /// Return the SVG `stroke-dasharray` value for this line style,
+    /// or an empty string when solid (no attribute needed).
+    pub fn stroke_dasharray(self) -> &'static str {
+        match self {
+            Self::Solid => "",
+            Self::Dashed => "8 4",
+            Self::Dotted => "2 3",
+        }
+    }
+}
+
+/// Text-anchor resolved from the `HorizontalAlignment` property (Phase D, #1416).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EffectiveHAlign {
+    #[default]
+    Center,
+    Left,
+    Right,
+}
+
+impl EffectiveHAlign {
+    /// Return the SVG `text-anchor` value for this alignment.
+    pub fn text_anchor(self) -> &'static str {
+        match self {
+            Self::Center => "middle",
+            Self::Left => "start",
+            Self::Right => "end",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectiveClassNodeStyle {
     pub fill: EffectiveStyleValue<super::StyleColor>,
@@ -38,6 +79,26 @@ pub struct EffectiveClassNodeStyle {
     pub font_family: String,
     pub title_font_size: u32,
     pub member_font_size: u32,
+    // ── Phase D (#1416) — 10 missing properties wired ────────────────────────
+    /// `LineStyle` — dashed / dotted / solid border (overrides `border_dashed`
+    /// when set via `<style>`).
+    pub line_style: EffectiveLineStyle,
+    /// `Padding` — inner padding inside the node box, in pixels (0 = default).
+    pub padding: i32,
+    /// `RoundCorner` from `<style>` block — `None` means use the skinparam value
+    /// or the renderer's built-in default.
+    pub style_round_corner: Option<i32>,
+    /// `FontWeight` — CSS font-weight value (400 = normal, 700 = bold).
+    pub font_weight: u32,
+    /// `Shadowing` — whether to render a drop-shadow filter.
+    pub shadowing: bool,
+    /// `HorizontalAlignment` — resolved label text-anchor.
+    pub h_align: EffectiveHAlign,
+    /// `MaximumWidth` — maximum node width cap in pixels (0 = unconstrained).
+    pub max_width: i32,
+    /// `MinimumWidth` — minimum node width floor in pixels (0 = use layout
+    /// default).
+    pub min_width: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +108,23 @@ pub struct EffectiveComponentNodeStyle {
     pub font_color: EffectiveStyleValue<super::StyleColor>,
     pub border_dashed: bool,
     pub stroke_width: f32,
+    // ── Phase D (#1416) — 10 missing properties wired ────────────────────────
+    /// `LineStyle` — dashed / dotted / solid border.
+    pub line_style: EffectiveLineStyle,
+    /// `Padding` — inner padding inside the node box, in pixels (0 = default).
+    pub padding: i32,
+    /// `RoundCorner` from `<style>` block.
+    pub style_round_corner: Option<i32>,
+    /// `FontWeight` — CSS font-weight value.
+    pub font_weight: u32,
+    /// `Shadowing` — drop-shadow filter.
+    pub shadowing: bool,
+    /// `HorizontalAlignment` — resolved label text-anchor.
+    pub h_align: EffectiveHAlign,
+    /// `MaximumWidth` — node width cap in pixels (0 = unconstrained).
+    pub max_width: i32,
+    /// `MinimumWidth` — node width floor in pixels (0 = use layout default).
+    pub min_width: i32,
 }
 
 pub fn family_node_inline_style(node: &FamilyNode) -> FamilyNodeInlineStyle {

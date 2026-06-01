@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    LineThickness 4
+  }
+}
+</style>
+class ThickBorder {
+  field
+}
+@enduml

@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    Shadowing true
+  }
+}
+</style>
+class ShadowedNode {
+  field
+}
+@enduml
