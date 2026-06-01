@@ -3,7 +3,6 @@ pub(super) struct IfFrame {
     pub(super) diamond_cx: i32,
     pub(super) diamond_arrow_out: i32,
     pub(super) diamond_next_slot: i32,
-    pub(super) then_guard: Option<String>,
     pub(super) then_cx: i32,
     pub(super) then_rightmost_cx: i32,
     pub(super) then_end_next_slot: i32,

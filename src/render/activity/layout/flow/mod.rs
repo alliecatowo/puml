@@ -77,10 +77,6 @@ pub(in crate::render::activity) fn compute_layout(
                     diamond_cx: cx,
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
-                    then_guard: doc.nodes[i]
-                        .label
-                        .as_deref()
-                        .and_then(activity_decision_guard),
                     then_cx,
                     then_rightmost_cx: then_cx,
                     then_end_next_slot: next_slot_y,
@@ -108,7 +104,11 @@ pub(in crate::render::activity) fn compute_layout(
                 let slot_y = frame.diamond_next_slot;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
-                let then_guard = frame.then_guard.clone();
+                // #1447: the else-branch arrow should carry the else guard
+                // (from `else (no)`) not the then guard.
+                // `doc.nodes[i]` is the Else node whose label holds the guard
+                // text extracted from `else (no)` / `else(guard)`.
+                let else_guard = doc.nodes[i].label.clone();
                 frame.else_start_slot = slot_y;
                 frame.in_else = true;
                 for frame in &mut if_stack {
@@ -119,7 +119,7 @@ pub(in crate::render::activity) fn compute_layout(
                 suppress_prev_arrow.insert(i);
                 extra_arrows.push(
                     ActivityRoute::new(diamond_cx, diamond_arrow_out, else_cx, slot_y)
-                        .with_label(then_guard),
+                        .with_label(else_guard),
                 );
                 node_layouts.push(NodeLayout {
                     cx: else_cx,

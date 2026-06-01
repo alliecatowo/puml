@@ -291,12 +291,14 @@ pub(super) fn emit_predecessor_arrow(
         .rev()
         .find_map(|idx| metas[idx].arrow_style.as_ref());
     let branch_guard_style;
+    // #1447: the predecessor arrow from an IfStart to the then-branch first node
+    // should carry the *then* guard (e.g. "yes"), not the else guard.
+    // `then_guard_for_if` extracts it from the IfStart node's label.
     let arrow_style = if arrow_style.is_none() && metas[prev_idx].step_kind == "IfStart" {
-        branch_guard_style =
-            first_else_guard_for_if(doc, metas, prev_idx).map(|label| ActivityArrowStyle {
-                label: Some(label.to_string()),
-                ..ActivityArrowStyle::default()
-            });
+        branch_guard_style = then_guard_for_if(doc, prev_idx).map(|label| ActivityArrowStyle {
+            label: Some(label.to_string()),
+            ..ActivityArrowStyle::default()
+        });
         branch_guard_style.as_ref()
     } else {
         arrow_style
@@ -404,9 +406,11 @@ pub(super) fn emit_predecessor_arrow_routed(
                 .rev()
                 .find_map(|idx| metas[idx].arrow_style.as_ref());
             let branch_guard_style;
+            // #1447: use the then-guard from the IfStart node for the then-branch
+            // predecessor arrow, not the else guard.
             let arrow_style = if arrow_style.is_none() && metas[prev_idx].step_kind == "IfStart" {
                 branch_guard_style =
-                    first_else_guard_for_if(doc, metas, prev_idx).map(|label| ActivityArrowStyle {
+                    then_guard_for_if(doc, prev_idx).map(|label| ActivityArrowStyle {
                         label: Some(label.to_string()),
                         ..ActivityArrowStyle::default()
                     });
@@ -481,22 +485,19 @@ fn render_activity_note_connector(
     ));
 }
 
-fn first_else_guard_for_if<'a>(
-    doc: &'a FamilyDocument,
-    metas: &[NodeMeta],
-    if_idx: usize,
-) -> Option<&'a str> {
-    let mut depth = 0usize;
-    for (idx, meta) in metas.iter().enumerate().skip(if_idx + 1) {
-        match meta.step_kind.as_str() {
-            "IfStart" => depth += 1,
-            "EndIf" if depth == 0 => return None,
-            "EndIf" => depth = depth.saturating_sub(1),
-            "Else" if depth == 0 => return doc.nodes[idx].label.as_deref(),
-            _ => {}
-        }
-    }
-    None
+/// Return the *then*-branch guard label for an `IfStart` node.
+///
+/// `if (Cond?) then (yes)` is stored in the IfStart label as `"Cond? / yes"`.
+/// `activity_decision_guard` splits on " / " and returns the part after the
+/// slash.  We replicate that logic inline to avoid a cross-module import.
+///
+/// Used by the predecessor-arrow pass to label the direct flow from the diamond
+/// to the then-branch first node.
+fn then_guard_for_if(doc: &FamilyDocument, if_idx: usize) -> Option<&str> {
+    // The IfStart label is "<condition> / <then_guard>" when a `then (guard)` is
+    // present.  Split on " / " and take the part after the slash.
+    let label = doc.nodes[if_idx].label.as_deref()?;
+    label.split_once(" / ").map(|(_, guard)| guard.trim())
 }
 
 // ---------------------------------------------------------------------------
