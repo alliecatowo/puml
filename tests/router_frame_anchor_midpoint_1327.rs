@@ -94,11 +94,11 @@ fn edges_entering_framed_nodes_anchor_to_component_bbox_edge() {
     // Edges that cross into package-framed components.
     // (from_alias, to_alias, target_label_text)
     let cases: &[(&str, &str, &str)] = &[
-        ("CLI", "Frontends", "Adapters"),
+        ("CLI", "AdaptersComp", "Adapters"),
         ("CLI", "Preproc", "Preprocessor"),
         ("LSP", "LangSvc", "Language Service"),
         ("WASM", "LangSvc", "Language Service"),
-        ("Frontends", "Parser", "Parser"),
+        ("AdaptersComp", "Parser", "Parser"),
         ("Preproc", "Parser", "Parser"),
         ("LangSvc", "Parser", "Parser"),
     ];

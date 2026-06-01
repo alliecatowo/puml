@@ -12,7 +12,7 @@ package "Transports" {
 }
 
 package "Frontends" {
-  component [Adapters] as Frontends
+  component [Adapters] as AdaptersComp
 }
 
 package "Shared Services" {
@@ -32,12 +32,12 @@ package "Output Formats" {
   component [SVG / PNG / Text] as Outputs
 }
 
-CLI --> Frontends
+CLI --> AdaptersComp
 CLI --> Preproc
 LSP --> LangSvc
 WASM --> LangSvc
 
-Frontends --> Parser
+AdaptersComp --> Parser
 Preproc --> Parser
 LangSvc --> Parser
 LangSvc --> RenderSupport

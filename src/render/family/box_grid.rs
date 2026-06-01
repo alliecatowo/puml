@@ -6,6 +6,7 @@ use crate::render::layout_constants::{
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
 use crate::render::RenderArtifact;
+use crate::render_core::text_metrics::estimate_text_width_f64;
 use crate::render_core::Rect;
 use crate::theme::ComponentStyle;
 
@@ -350,6 +351,12 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         } else {
             format!("{} {}", group.kind, raw_label)
         };
+
+        // Ensure the frame is at least wide enough to contain the header text so
+        // it is never clipped. The header renders at font-size 11 (monospace) with
+        // 8px left padding; add 16px total horizontal padding for breathing room.
+        let min_label_w = (estimate_text_width_f64(&label, 11.0) + 24.0).ceil() as i32;
+        let fw = fw.max(min_label_w);
 
         pkg_layouts.push(PackageLayout {
             group_idx: g_idx,
