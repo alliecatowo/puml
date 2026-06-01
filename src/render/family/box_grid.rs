@@ -7,7 +7,7 @@ use crate::render::layout_constants::{
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
 use crate::render::RenderArtifact;
-use crate::render_core::text_metrics::estimate_text_width_f64;
+use crate::render_core::text_metrics::{estimate_bold_text_width_f64, estimate_text_width_f64};
 use crate::render_core::Rect;
 use crate::theme::ComponentStyle;
 
@@ -137,6 +137,37 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .map(|(i, s)| (i, s.as_str()))
         .collect();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Pre-layout width pass (#1459): compute desired width per node BEFORE
+    // running the layout engine.  The family minimum (cell_w) is the floor;
+    // if the label text is wider than that floor at 13px bold + 16px padding
+    // we use the text-fit width so edges are routed with the actual final
+    // dimensions.  Without this pass the layout engine places nodes at cell_w
+    // and routes edges to those narrower bboxes; a later post-layout widen
+    // (the broken #1457 approach) shifts the node box without re-routing,
+    // causing edges to slice through labels.
+    //
+    // Label font: 13px bold (matches `render_centered_multiline_text` call
+    // in node_shapes.rs).  Horizontal padding: 8px each side = 16px total.
+    // ─────────────────────────────────────────────────────────────────────────
+    const NODE_LABEL_FONT_PX: f64 = 13.0;
+    const NODE_LABEL_HPAD: f64 = 16.0; // 8px left + 8px right
+    let node_desired_widths: std::collections::BTreeMap<String, i32> = doc
+        .nodes
+        .iter()
+        .map(|n| {
+            let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+            let display = n.label.as_deref().unwrap_or(&n.name);
+            // For multi-line labels take the widest line.
+            let text_w = display
+                .lines()
+                .map(|line| estimate_bold_text_width_f64(line, NODE_LABEL_FONT_PX))
+                .fold(0.0_f64, f64::max);
+            let desired = (text_w + NODE_LABEL_HPAD).ceil() as i32;
+            (key, desired.max(cell_w))
+        })
+        .collect();
+
     // Deepest parent scope from `A::B::C` — grows ancestor bboxes in compute_group_bounds (#1287).
     let deepest = |q: &str| -> Option<String> {
         let p: Vec<&str> = q.split("::").filter(|s| !s.is_empty()).collect();
@@ -153,9 +184,12 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
                 .and_then(|g_idx| group_scope_map.get(g_idx))
                 .map(|s| s.to_string());
             let parent = deepest(&n.name).or_else(|| deepest(&key)).or(group_scope);
+            // Use the pre-computed text-fit width (≥ cell_w) for this node so
+            // the layout engine routes edges with the actual final dimensions.
+            let node_w = node_desired_widths.get(&key).copied().unwrap_or(cell_w);
             GlNodeSize {
                 id: key,
-                width: cell_w as f64,
+                width: node_w as f64,
                 height: cell_h as f64,
                 parent,
             }
@@ -252,11 +286,14 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // Run hierarchical layout
     let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
 
-    // Convert f64 positions to i32 for the rest of the renderer
+    // Convert f64 positions to i32 for the rest of the renderer.
+    // Use each node's pre-computed text-fit width (≥ cell_w) so the rendered
+    // bbox matches what the layout engine used for routing (#1459).
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
         std::collections::BTreeMap::new();
     for (id, &(x, y)) in &gl_result.node_positions {
-        positions.insert(id.clone(), (x as i32, y as i32, cell_w, cell_h));
+        let nw = node_desired_widths.get(id).copied().unwrap_or(cell_w);
+        positions.insert(id.clone(), (x as i32, y as i32, nw, cell_h));
     }
 
     // Also register name→position for nodes with aliases
@@ -441,9 +478,10 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         let x = canvas_margin + col * (cell_w + inner_gap);
         let y = pkg_bottom + row * (cell_h + inner_gap);
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-        positions.insert(key, (x, y, cell_w, cell_h));
+        let nw = node_desired_widths.get(&key).copied().unwrap_or(cell_w);
+        positions.insert(key, (x, y, nw, cell_h));
         if let Some(alias) = &node.alias {
-            positions.insert(alias.clone(), (x, y, cell_w, cell_h));
+            positions.insert(alias.clone(), (x, y, nw, cell_h));
         }
     }
 
