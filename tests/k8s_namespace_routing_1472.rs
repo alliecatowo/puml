@@ -184,6 +184,7 @@ fn parse_node_bboxes(svg: &str) -> Vec<(f64, f64, f64, f64)> {
 
 /// Returns true if the segment (x1,y1)-(x2,y2) passes through the INTERIOR
 /// of the given node bounding box (strictly inside, not just touching the boundary).
+#[allow(clippy::too_many_arguments)] // 8 args are two paired (x,y) endpoints + (x,y,w,h) bbox — a struct adds no clarity
 fn segment_crosses_box(
     x1: f64,
     y1: f64,
