@@ -1043,7 +1043,7 @@ participant {
         );
         let bg_triple = compat
             .iter()
-            .find(|t| t.property.to_ascii_lowercase() == "backgroundcolor");
+            .find(|t| t.property.eq_ignore_ascii_case("backgroundcolor"));
         assert!(
             bg_triple.is_some(),
             "BackgroundColor should appear in compat triples"
