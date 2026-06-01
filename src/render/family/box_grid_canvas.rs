@@ -3,6 +3,7 @@
 //! Extracted from `box_grid.rs` to keep that file under the 600-LOC target.
 
 use crate::model::{FamilyDocument, FamilyNodeKind};
+use crate::render::layout_constants::DEPLOYMENT_CUBE_INSET;
 
 use super::box_grid::PackageLayout;
 
@@ -43,13 +44,16 @@ pub(super) struct CanvasBoundsInput<'a> {
 /// This is Phase 2 of the box-grid rendering pipeline (after hierarchical
 /// layout and position resolution).  All values are in i32 pixel coordinates.
 pub(super) fn compute_canvas_bounds(inp: CanvasBoundsInput<'_>) -> BoxGridCanvasBounds {
-    const CUBE_OFFSET: i32 = 12;
+    // Use the named constant so the shape renderer (node_shapes.rs) and the
+    // canvas-width computation always agree on the 3-D cube depth offset.
+    // Pass-2 tightened this from 12px to DEPLOYMENT_CUBE_INSET (8px) to match
+    // PlantUML's ~7–8px 3-D shadow depth, removing unnecessary canvas padding.
     let has_3d_node = inp
         .doc
         .nodes
         .iter()
         .any(|n| matches!(n.kind, FamilyNodeKind::Node | FamilyNodeKind::Frame));
-    let shape_right_extra = if has_3d_node { CUBE_OFFSET } else { 0 };
+    let shape_right_extra = if has_3d_node { DEPLOYMENT_CUBE_INSET } else { 0 };
 
     let all_pkg_bottom = inp
         .pkg_layouts

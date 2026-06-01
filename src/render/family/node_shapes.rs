@@ -2,6 +2,7 @@ use super::class_members::family_node_label;
 use super::family_node_shapes::{render_family_node_shape, render_node_stereotype_rows};
 use super::tree::render_centered_multiline_text;
 use crate::model::{FamilyNode, FamilyNodeKind};
+use crate::render::layout_constants::DEPLOYMENT_CUBE_INSET;
 use crate::render::svg::escape_text;
 use crate::theme::{effective_component_node_style, ComponentStyle, ComponentStyleMode};
 
@@ -261,7 +262,7 @@ pub(super) fn render_family_node_shape_styled(
             match node.kind {
                 // 3D cube for deployment nodes (fix #571)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
-                    let offset = 12i32; // 3D depth offset (right and up)
+                    let offset = DEPLOYMENT_CUBE_INSET; // 3D depth offset (right and up)
                                         // Top face: parallelogram from front-top edge to back-top edge (shifted right+up).
                                         // Points: front-top-left -> back-top-left -> back-top-right -> front-top-right
                     out.push_str(&format!(

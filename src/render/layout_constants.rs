@@ -274,15 +274,26 @@ pub const REF_BODY_BASELINE_Y: i32 = 32;
 // Tuned as part of the per-shape density retune (#1426) to close the 2-5× area
 // gap vs PlantUML for deployment fixtures (02_databases 4.90×, 03_cloud 3.68×,
 // 06_kubernetes 2.21×).  These constants are intentionally smaller than the
-// component-family equivalents: PlantUML renders deployment nodes at ~114×44px
-// with ~60px rank separation, versus component nodes at ~120×50px.  Using
+// component-family equivalents: PlantUML renders deployment nodes at ~100×44px
+// with ~80px rank separation, versus component nodes at ~130×50px.  Using
 // separate constants lets us retune deployment without affecting component.
+//
+// Pass-2 (deployment-density-pass2) further tightens horizontal spread:
+//   - DEPLOYMENT_BOX_WIDTH: 110 → 100  (closer to PlantUML's ~100px node width)
+//   - DEPLOYMENT_NODE_SEP: new 24px constant, replacing 2×PKG_PADDING+PKG_INNER_GAP
+//     (44px) — flat deployment diagrams do not need group-pad overhead in node sep
+//   - DEPLOYMENT_CUBE_INSET: new 8px constant, down from the hardcoded 12px literal —
+//     PlantUML's 3-D cube offset is ~7–8px; 12px was over-widening canvas
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Width of a deployment node in the deployment renderer, in user units.
-/// Tuned to approximate PlantUML's default node width (~114px) for the
-/// deployment family, reducing the 4.90× area ratio on 02_databases (#1426).
-pub const DEPLOYMENT_BOX_WIDTH: i32 = 110;
+/// Tuned to approximate PlantUML's default node width (~100px) for the
+/// deployment family.  Pass-1 (#1426) set 110px; pass-2 tightens to 100px
+/// to reduce horizontal spread on flat fixtures (deployment/02 was 1.33×
+/// after pass-1).  Nodes whose label text is wider than this floor auto-expand
+/// via the pre-layout text-fit pass in `box_grid.rs`, so long-named nodes are
+/// never clipped.
+pub const DEPLOYMENT_BOX_WIDTH: i32 = 100;
 
 /// Height of a deployment node in the deployment renderer (single-line label),
 /// in user units.  Tuned to approximate PlantUML's default node height (~44px).
@@ -296,6 +307,26 @@ pub const DEPLOYMENT_BOX_HEIGHT: i32 = 44;
 /// which is closer to PlantUML's ~75–85px effective inter-rank gap for flat
 /// deployment diagrams.
 pub const DEPLOYMENT_RANK_EXTRA_GAP: f64 = 16.0;
+
+/// Horizontal node separation used by the layout engine for deployment diagrams,
+/// in user units.  Replaces the generic formula `2×PKG_PADDING + PKG_INNER_GAP`
+/// (= 44px) for deployment: flat deployment diagrams do not need the full
+/// group-padding overhead in their inter-node gap.  PlantUML uses ~24–30px
+/// between adjacent deployment nodes.  Used unconditionally for deployment
+/// (grouped and flat), consistent with PlantUML's uniform inter-node spacing.
+pub const DEPLOYMENT_NODE_SEP: i32 = 24;
+
+/// 3-D depth offset (right and up) for the isometric-cube faces drawn for
+/// `node` and `frame` shapes in the deployment renderer, in user units.
+///
+/// Pass-1 used a hardcoded literal of 12px in both the shape renderer
+/// (`node_shapes.rs`) and the canvas-width computation (`box_grid_canvas.rs`).
+/// Pass-2 extracts this as a named constant and tightens it from 12px to 8px:
+/// PlantUML's 3-D cube shadow uses a ~7–8px offset, so 12px was adding
+/// unnecessary horizontal and vertical padding to every diagram that contains
+/// a `node` or `frame` shape.  Both the shape renderer and canvas computation
+/// reference this constant so they stay in sync.
+pub const DEPLOYMENT_CUBE_INSET: i32 = 8;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Activity diagram geometry (activity/mod.rs, activity/layout.rs)

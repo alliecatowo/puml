@@ -2,7 +2,8 @@ use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, COMPONENT_NODE_BOX_HEIGHT,
     COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, DEPLOYMENT_BOX_HEIGHT,
-    DEPLOYMENT_BOX_WIDTH, DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
+    DEPLOYMENT_BOX_WIDTH, DEPLOYMENT_NODE_SEP, DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP,
+    PKG_PADDING, PKG_TAB_HEIGHT,
 };
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
@@ -268,7 +269,16 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         0.0
     };
     let rank_sep = (cell_h + inner_gap) as f64 + pkg_pad_overhead + rank_extra;
-    let node_sep = 2 * pkg_pad + inner_gap;
+    // Per-family node separation (#deployment-density-pass2):
+    //   deployment → DEPLOYMENT_NODE_SEP (24px) — PlantUML uses ~24–30px; the
+    //     generic formula 2×PKG_PADDING+PKG_INNER_GAP (44px) over-spaces flat
+    //     deployment diagrams by adding group-padding overhead they don't need.
+    //   component / other → 2×PKG_PADDING + PKG_INNER_GAP (44px, unchanged)
+    let node_sep = if family == "deployment" {
+        DEPLOYMENT_NODE_SEP
+    } else {
+        2 * pkg_pad + inner_gap
+    };
     let has_lollipop_endpoint = doc
         .relations
         .iter()
