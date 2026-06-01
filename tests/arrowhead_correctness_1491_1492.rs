@@ -36,7 +36,10 @@ fn composition_model_marker_is_diamond_filled() {
     else {
         panic!("class diagram should normalize as Family");
     };
-    let rel = model.relations.first().expect("composition relation should exist");
+    let rel = model
+        .relations
+        .first()
+        .expect("composition relation should exist");
     assert_eq!(
         rel.arrow.start_marker(),
         Some(FamilyRelationEndpointMarker::DiamondFilled),
@@ -49,8 +52,7 @@ fn composition_model_marker_is_diamond_filled() {
 /// must NOT contain a `uml-edge-label-bg` rect that overlaps the diamond zone.
 #[test]
 fn composition_svg_references_diamond_filled_marker() {
-    let svg = puml::render_source_to_svg(COMPOSITION_SRC)
-        .expect("render composition diagram");
+    let svg = puml::render_source_to_svg(COMPOSITION_SRC).expect("render composition diagram");
     assert!(
         svg.contains("arrow-diamond-filled"),
         "composition SVG must reference arrow-diamond-filled marker; got:\n{svg}"
@@ -90,7 +92,10 @@ fn aggregation_model_marker_is_diamond_open() {
     else {
         panic!("class diagram should normalize as Family");
     };
-    let rel = model.relations.first().expect("aggregation relation should exist");
+    let rel = model
+        .relations
+        .first()
+        .expect("aggregation relation should exist");
     assert_eq!(
         rel.arrow.start_marker(),
         Some(FamilyRelationEndpointMarker::DiamondOpen),
@@ -102,8 +107,7 @@ fn aggregation_model_marker_is_diamond_open() {
 /// The SVG for `o--` must reference `arrow-diamond-open`.
 #[test]
 fn aggregation_svg_references_diamond_open_marker() {
-    let svg = puml::render_source_to_svg(AGGREGATION_SRC)
-        .expect("render aggregation diagram");
+    let svg = puml::render_source_to_svg(AGGREGATION_SRC).expect("render aggregation diagram");
     assert!(
         svg.contains("arrow-diamond-open"),
         "aggregation SVG must reference arrow-diamond-open marker; got:\n{svg}"
@@ -136,7 +140,10 @@ fn directed_association_model_marker_is_open_vee() {
     else {
         panic!("object diagram should normalize as Family");
     };
-    let rel = model.relations.first().expect("directed relation should exist");
+    let rel = model
+        .relations
+        .first()
+        .expect("directed relation should exist");
     assert_eq!(
         rel.arrow.end_marker(),
         Some(FamilyRelationEndpointMarker::Open),
@@ -173,7 +180,10 @@ fn directed_association_svg_references_open_vee_not_triangle() {
         // Walk backward to find the opening `<` of this element.
         let elem_start = svg[..rel_start].rfind('<').unwrap_or(rel_start);
         // Walk forward to find the closing `/>`.
-        let elem_end = svg[rel_start..].find("/>").map(|o| rel_start + o + 2).unwrap_or(svg.len());
+        let elem_end = svg[rel_start..]
+            .find("/>")
+            .map(|o| rel_start + o + 2)
+            .unwrap_or(svg.len());
         let elem = &svg[elem_start..elem_end];
         assert!(
             !elem.contains("marker-end=\"url(#arrow-triangle)\""),
@@ -201,7 +211,10 @@ fn inheritance_model_marker_is_triangle() {
     else {
         panic!("class diagram should normalize as Family");
     };
-    let rel = model.relations.first().expect("inheritance relation should exist");
+    let rel = model
+        .relations
+        .first()
+        .expect("inheritance relation should exist");
     assert_eq!(
         rel.arrow.start_marker(),
         Some(FamilyRelationEndpointMarker::Triangle),
@@ -213,8 +226,7 @@ fn inheritance_model_marker_is_triangle() {
 /// The SVG for `<|--` must reference `arrow-triangle`.
 #[test]
 fn inheritance_svg_references_triangle_marker() {
-    let svg = puml::render_source_to_svg(INHERITANCE_SRC)
-        .expect("render inheritance diagram");
+    let svg = puml::render_source_to_svg(INHERITANCE_SRC).expect("render inheritance diagram");
     assert!(
         svg.contains("arrow-triangle"),
         "inheritance SVG must reference arrow-triangle marker; got:\n{svg}"
