@@ -1,7 +1,7 @@
 use super::catalog::LOCAL_SEQUENCE_THEME_CATALOG;
 use super::styles::SequenceStyle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct SequenceThemePreset {
     pub name: &'static str,
     pub style: SequenceStyle,

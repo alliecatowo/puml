@@ -271,6 +271,11 @@ impl ExtendedFamilyStyles {
                 if let Some(mode) = self.activity_monochrome_mode {
                     apply_monochrome_to_activity_style(&mut self.activity_style, mode);
                 }
+                // Phase C (#1404): attach the StyleBuilder so the cascade resolver can
+                // query `<style>` rules per element at render time.
+                if !self.style_builder.is_empty() {
+                    self.activity_style.style_builder = Some(Box::new(self.style_builder.clone()));
+                }
                 Some(FamilyStyle::Activity(self.activity_style))
             }
             DiagramKind::Timing => {

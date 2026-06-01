@@ -142,10 +142,20 @@ impl SequenceNormalizeState {
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
             | StatementKind::RawBlockContent(_) => {}
-            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
-            // The compat shim already emits legacy StyleParam triples; skip the typed
-            // AST node silently until Phase B wires up per-family application.
-            StatementKind::StyleBlock(_) => {}
+            // Phase C (#1404): push typed `<style>` block rules into the sequence
+            // style builder.  The compat shim still emits legacy StyleParam triples
+            // for backward compat with families not yet on the new resolver.
+            StatementKind::StyleBlock(block) => {
+                for rule in block.rules {
+                    if rule.scheme == crate::ast::style::StyleScheme::Regular {
+                        let builder = self
+                            .style
+                            .style_builder
+                            .get_or_insert_with(|| Box::new(crate::theme::StyleBuilder::new()));
+                        builder.push(rule);
+                    }
+                }
+            }
             StatementKind::Scale(body) => {
                 groups::mark_group_content(&mut self.group_stack);
                 self.common.scale(&body);

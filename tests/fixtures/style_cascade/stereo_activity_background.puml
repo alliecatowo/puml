@@ -1,0 +1,19 @@
+@startuml
+<style>
+activityDiagram {
+  activity {
+    BackgroundColor #ede9fe
+    LineColor #7c3aed
+    FontColor #1e1b4b
+  }
+}
+</style>
+start
+:Initialize;
+if (condition?) then (yes)
+  :Branch A;
+else (no)
+  :Branch B;
+endif
+stop
+@enduml

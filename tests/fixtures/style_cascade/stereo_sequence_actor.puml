@@ -1,0 +1,15 @@
+@startuml
+<style>
+sequenceDiagram {
+  participant {
+    BackgroundColor #ff8c00
+  }
+}
+.Apache {
+  BackgroundColor #ffa500
+}
+</style>
+actor "Apache Server" as Apache <<Apache>>
+participant Client
+Apache -> Client : response
+@enduml

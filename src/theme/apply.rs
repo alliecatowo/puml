@@ -82,6 +82,7 @@ pub fn activity_style_from_sequence_theme(style: &SequenceStyle) -> ActivityStyl
         fork_color: style.arrow_color.clone(),
         font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
+        style_builder: None,
     }
 }
 

@@ -41,24 +41,72 @@ pub fn activity_node_effective_style(
     inline_stroke: Option<&str>,
     inline_font: Option<&str>,
 ) -> EffectiveActivityNodeStyle {
-    let fill = simple_cascade(
-        &activity_style.background_color,
-        diagram_source,
-        None,
-        inline_fill,
-    );
-    let stroke = simple_cascade(
-        &activity_style.border_color,
-        diagram_source,
-        None,
-        inline_stroke,
-    );
-    let font_color = simple_cascade(
-        &activity_style.font_color,
-        diagram_source,
-        None,
-        inline_font,
-    );
+    use super::super::style_builder::StyleQuery;
+    use crate::ast::style::{PName, SName};
+
+    // Phase C (#1404): resolve `<style>` block colours for activity nodes.
+    let style_block_resolved = activity_style.style_builder.as_deref().map(|builder| {
+        let query = StyleQuery::tags([SName::ActivityDiagram, SName::Activity]);
+        builder.resolve(&query)
+    });
+    let sb_fill = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::BackgroundColor));
+    let sb_stroke = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::LineColor));
+    let sb_font = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::FontColor));
+
+    let fill = {
+        let mut input = super::CascadeInput::with_default(&activity_style.background_color);
+        if diagram_source == Src::ThemePreset {
+            input.theme =
+                super::CascadeTier::value(&activity_style.background_color, Src::ThemePreset);
+        } else if diagram_source == Src::SkinParam {
+            input.skinparam =
+                super::CascadeTier::value(&activity_style.background_color, Src::SkinParam);
+        }
+        if let Some(c) = sb_fill {
+            input.style_block = super::CascadeTier::value(c, Src::StyleBlock);
+        }
+        if let Some(c) = inline_fill {
+            input.inline = super::CascadeTier::value(c, Src::Inline);
+        }
+        super::resolve_color(&input)
+    };
+    let stroke = {
+        let mut input = super::CascadeInput::with_default(&activity_style.border_color);
+        if diagram_source == Src::ThemePreset {
+            input.theme = super::CascadeTier::value(&activity_style.border_color, Src::ThemePreset);
+        } else if diagram_source == Src::SkinParam {
+            input.skinparam =
+                super::CascadeTier::value(&activity_style.border_color, Src::SkinParam);
+        }
+        if let Some(c) = sb_stroke {
+            input.style_block = super::CascadeTier::value(c, Src::StyleBlock);
+        }
+        if let Some(c) = inline_stroke {
+            input.inline = super::CascadeTier::value(c, Src::Inline);
+        }
+        super::resolve_color(&input)
+    };
+    let font_color = {
+        let mut input = super::CascadeInput::with_default(&activity_style.font_color);
+        if diagram_source == Src::ThemePreset {
+            input.theme = super::CascadeTier::value(&activity_style.font_color, Src::ThemePreset);
+        } else if diagram_source == Src::SkinParam {
+            input.skinparam = super::CascadeTier::value(&activity_style.font_color, Src::SkinParam);
+        }
+        if let Some(c) = sb_font {
+            input.style_block = super::CascadeTier::value(c, Src::StyleBlock);
+        }
+        if let Some(c) = inline_font {
+            input.inline = super::CascadeTier::value(c, Src::Inline);
+        }
+        super::resolve_color(&input)
+    };
     EffectiveActivityNodeStyle {
         fill,
         stroke,
@@ -179,18 +227,78 @@ pub fn sequence_participant_effective_style(
     diagram_source: Src,
     inline_fill: Option<&str>,
 ) -> EffectiveSequenceParticipantStyle {
-    let fill = simple_cascade(
-        &seq_style.participant_background_color,
+    sequence_participant_effective_style_with_stereotype(
+        seq_style,
         diagram_source,
-        None,
         inline_fill,
-    );
-    let stroke = simple_cascade(
-        &seq_style.participant_border_color,
-        diagram_source,
         None,
-        None,
-    );
+    )
+}
+
+/// Compute the fully-resolved style for a sequence participant, optionally
+/// resolving against a Phase C `<style>` block builder with stereotype lookup.
+///
+/// `element_stereotype` — lower-cased stereotype name on this participant, if any.
+pub fn sequence_participant_effective_style_with_stereotype(
+    seq_style: &SequenceStyle,
+    diagram_source: Src,
+    inline_fill: Option<&str>,
+    element_stereotype: Option<&str>,
+) -> EffectiveSequenceParticipantStyle {
+    use super::super::style_builder::StyleQuery;
+    use crate::ast::style::{PName, SName};
+
+    // Phase C (#1404): resolve `<style>` block colours for sequence participants.
+    let style_block_resolved = seq_style.style_builder.as_deref().map(|builder| {
+        let mut query = StyleQuery::tags([SName::SequenceDiagram, SName::Participant]);
+        if let Some(stereo) = element_stereotype {
+            query = query.with_stereotype(stereo);
+        }
+        builder.resolve(&query)
+    });
+    let sb_fill = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::BackgroundColor));
+    let sb_stroke = style_block_resolved
+        .as_ref()
+        .and_then(|es| es.color(PName::LineColor));
+
+    let fill = {
+        let mut input = super::CascadeInput::with_default(&seq_style.participant_background_color);
+        // Overwrite the skinparam tier if this value was theme-sourced.
+        if diagram_source == Src::ThemePreset {
+            input.theme = super::CascadeTier::value(
+                &seq_style.participant_background_color,
+                Src::ThemePreset,
+            );
+            input.default =
+                super::CascadeTier::value(&seq_style.participant_background_color, Src::Default);
+        } else if diagram_source == Src::SkinParam {
+            input.skinparam =
+                super::CascadeTier::value(&seq_style.participant_background_color, Src::SkinParam);
+        }
+        if let Some(c) = sb_fill {
+            input.style_block = super::CascadeTier::value(c, Src::StyleBlock);
+        }
+        if let Some(c) = inline_fill {
+            input.inline = super::CascadeTier::value(c, Src::Inline);
+        }
+        super::resolve_color(&input)
+    };
+    let stroke = {
+        let mut input = super::CascadeInput::with_default(&seq_style.participant_border_color);
+        if diagram_source == Src::ThemePreset {
+            input.theme =
+                super::CascadeTier::value(&seq_style.participant_border_color, Src::ThemePreset);
+        } else if diagram_source == Src::SkinParam {
+            input.skinparam =
+                super::CascadeTier::value(&seq_style.participant_border_color, Src::SkinParam);
+        }
+        if let Some(c) = sb_stroke {
+            input.style_block = super::CascadeTier::value(c, Src::StyleBlock);
+        }
+        super::resolve_color(&input)
+    };
     EffectiveSequenceParticipantStyle { fill, stroke }
 }
 

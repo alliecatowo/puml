@@ -1,0 +1,14 @@
+@startuml
+<style>
+sequenceDiagram {
+  participant {
+    BackgroundColor #bbdefb
+    LineColor #1565c0
+  }
+}
+</style>
+participant Alice
+participant Bob
+Alice -> Bob : hi
+Bob --> Alice : hello
+@enduml
