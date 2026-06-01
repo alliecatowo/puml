@@ -552,9 +552,10 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         &gl_result.edge_paths,
         &comp_style,
     );
-    // Bug #1374: Re-paint dark package header bands + text AFTER edge-label
-    // backgrounds so white label-bg rects that route through the header area
-    // cannot obscure the white header text.
+    // Re-paint header label text (text only, NOT the dark band) AFTER edge-label
+    // backgrounds so the white label text stays readable even when a white edge-label
+    // bg rect overlaps the header zone. The dark band itself is NOT repainted here
+    // to avoid covering cross-package edge lines that pass through it (#1424/#1374).
     render_box_grid_package_header_text(
         &mut out,
         &pkg_layouts,
