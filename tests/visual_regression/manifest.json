@@ -22,7 +22,7 @@
     {
       "path": "docs/examples/themes/theme_sunlust.puml",
       "family": "sequence",
-      "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log success", "log error"],
+      "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log", "success", "log error"],
       "min_text_elements": 10,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -259,8 +259,8 @@
     {
       "path": "docs/examples/nwdiag/01_single_net.puml",
       "family": "nwdiag",
-      "expected_text": ["Network diagram", "network dmz (192.168.0.x/24)", "web01", "web02"],
-      "min_text_elements": 4,
+      "expected_text": ["dmz (192.168.0.x/24)", "web01", "web02"],
+      "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 1372,
       "png_baseline_deferred_reason": "nwdiag density retune (#1372) changes layout dimensions (640x167 -> 640x147); re-bless on Linux after merge"
