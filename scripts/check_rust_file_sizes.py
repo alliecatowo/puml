@@ -114,6 +114,12 @@ ALLOWLIST_REASONS = {
     # arrays, canvas sizing, and edge-drawing pass; sub-module extraction would require
     # threading subtree_block_w/h arrays through callers. Split tracked in #590.
     "src/render/mindmap/wbs.rs": "wave-17 PlantUML Fork+vstack WBS layout added ~186 lines; split tracked in #590",
+    # Was 530 lines on main; grew to 602 after Phase B <style> cascade resolver added
+    # the CascadeContext struct, resolve_style_cascade, and class/component migration
+    # helpers (~72 lines). The cascade logic is tightly coupled to the StyleBlock AST
+    # and resolver state; sub-module extraction would require threading context state.
+    # Split tracked in #590.
+    "src/theme/shared_cascade.rs": "wave-17 Phase B style cascade resolver added ~72 lines; split tracked in #590",
 }
 
 
