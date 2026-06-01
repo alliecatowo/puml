@@ -62,7 +62,10 @@ stop
 @enduml"#;
     let out = svg(src);
     // The "yes" text must be present
-    assert!(out.contains(">yes<"), "#1478: 'yes' guard label must appear");
+    assert!(
+        out.contains(">yes<"),
+        "#1478: 'yes' guard label must appear"
+    );
     // Extract the x coordinate of the "yes" text element.
     // It should be outside the diamond horizontal span.
     // The diamond is centered on the x axis of the diagram.
@@ -100,7 +103,9 @@ lambda --> rds : reads
     let out = svg(src);
     // Count the number of bg rects for the "queries" label.
     // Each bg rect is preceded by data-uml-label-role="edge-background".
-    let bg_rect_count = out.matches("data-uml-label-role=\"edge-background\"").count();
+    let bg_rect_count = out
+        .matches("data-uml-label-role=\"edge-background\"")
+        .count();
     // There can be at most one bg rect per unique label.
     // With 3 relations, at most 3 bg rects (one per label).
     assert!(
@@ -130,7 +135,10 @@ UC2 --> UC3 : triggers
 @enduml"#;
     let out = svg(src);
     // The actor shapes must be present
-    assert!(out.contains("Customer"), "#1481: Customer actor must appear");
+    assert!(
+        out.contains("Customer"),
+        "#1481: Customer actor must appear"
+    );
     // There must be no fill-less rect that sits below the Customer text.
     // We check that the only rects with fill attributes are the viewport rect
     // (fill="#ffffff"), the edge bg rects (fill="white"), and nothing else.
@@ -138,7 +146,9 @@ UC2 --> UC3 : triggers
     // that is NOT an edge-label-bg should appear in the SVG.
     // Proxy check: the number of uml-edge-label-bg rects must equal the number
     // of labelled edges (2: "leads to" and "triggers").
-    let bg_rects = out.matches("data-uml-label-role=\"edge-background\"").count();
+    let bg_rects = out
+        .matches("data-uml-label-role=\"edge-background\"")
+        .count();
     assert_eq!(
         bg_rects, 2,
         "#1481: expected exactly 2 edge bg rects (leads to, triggers), got {bg_rects}"

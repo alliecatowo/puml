@@ -466,7 +466,13 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // dark header band overlaps the title or sits above the SVG viewBox top edge
     // and gets clipped.  Shift all layout results down so the topmost frame
     // starts at ≥ canvas_margin + header_h (title area is reserved above).
-    {
+    //
+    // Only apply when pkg_layouts is non-empty (i.e., the diagram has at least
+    // one group/package frame).  For plain ungrouped components the graph layout
+    // already places nodes below the title band and the edge_paths from
+    // gl_result are NOT shifted here, so applying a y_shift would desync node
+    // bboxes from edge waypoints and break endpoint-anchoring assertions (#1318).
+    if !pkg_layouts.is_empty() {
         let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
         let min_allowed_y = canvas_margin + header_h;
         let y_shift = (min_allowed_y - min_pkg_y).max(0);
