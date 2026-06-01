@@ -7,7 +7,7 @@ use crate::render::layout_constants::{
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
 use crate::render::RenderArtifact;
-use crate::render_core::text_metrics::estimate_text_width_f64;
+use crate::render_core::text_metrics::{estimate_bold_text_width_f64, estimate_text_width_f64};
 use crate::render_core::Rect;
 use crate::theme::ComponentStyle;
 
@@ -252,11 +252,37 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // Run hierarchical layout
     let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
 
-    // Convert f64 positions to i32 for the rest of the renderer
+    // Convert f64 positions to i32 for the rest of the renderer.
+    //
+    // Per-node minimum-width guard (#1442, #1443, #1444): density retune
+    // constants (DEPLOYMENT_BOX_WIDTH=110, COMPONENT_NODE_BOX_WIDTH=130) can
+    // be narrower than the label text they must display.  After converting each
+    // node's position we clamp its width to
+    //   max(cell_w, ceil(bold_label_width(13px) + 2 * NODE_LABEL_H_PAD))
+    // so the rendered rect always contains the label.  This preserves the
+    // compact layout for short-label nodes while expanding only where needed.
+    const NODE_LABEL_FONT_SIZE: f64 = 13.0;
+    const NODE_LABEL_H_PAD: f64 = 14.0; // 14 px each side (28 px total breathing room)
+                                        // Build a quick id→label map so the guard can measure per-node text.
+    let node_label_by_id: std::collections::BTreeMap<String, String> = doc
+        .nodes
+        .iter()
+        .map(|n| {
+            let id = n.alias.clone().unwrap_or_else(|| n.name.clone());
+            let label = n.label.clone().unwrap_or_else(|| n.name.clone());
+            (id, label)
+        })
+        .collect();
+
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
         std::collections::BTreeMap::new();
     for (id, &(x, y)) in &gl_result.node_positions {
-        positions.insert(id.clone(), (x as i32, y as i32, cell_w, cell_h));
+        let min_w = node_label_by_id.get(id.as_str()).map_or(cell_w, |label| {
+            let text_w =
+                estimate_bold_text_width_f64(label, NODE_LABEL_FONT_SIZE) + 2.0 * NODE_LABEL_H_PAD;
+            cell_w.max(text_w.ceil() as i32)
+        });
+        positions.insert(id.clone(), (x as i32, y as i32, min_w, cell_h));
     }
 
     // Also register name→position for nodes with aliases
@@ -398,6 +424,32 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             frame_h: fh,
             fill_color: group.fill_color.clone(),
         });
+    }
+
+    // #1440 — Outer-group viewport clamp.
+    //
+    // The hierarchical nesting pass in graph_layout/groups.rs grows an ancestor
+    // frame outward from its children via `gy = child_y - label_reserve`.  For
+    // deeply-nested diagrams (e.g. Kubernetes: cluster → namespace → pod →
+    // container) this can produce a top-level group y < 0, placing the group
+    // header rect above the SVG viewBox so it is completely clipped.
+    //
+    // Fix: find the most-negative pkg abs_y; if it is above the safe top edge
+    // (canvas_margin + header_h, i.e. below the title block) shift every frame
+    // AND every node position down by the deficit so the outermost header
+    // starts immediately below any title/header text.
+    {
+        let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
+        let safe_top = canvas_margin + header_h;
+        if min_pkg_y < safe_top {
+            let shift = safe_top - min_pkg_y;
+            for pl in &mut pkg_layouts {
+                pl.abs_y += shift;
+            }
+            for pos in positions.values_mut() {
+                pos.1 += shift;
+            }
+        }
     }
 
     // derive pkg_frame_widths/heights for compat
