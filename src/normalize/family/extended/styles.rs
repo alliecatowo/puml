@@ -26,6 +26,8 @@ pub(super) struct ExtendedFamilyStyles {
     activity_monochrome_mode: Option<crate::theme::MonochromeMode>,
     timing_monochrome_mode: Option<crate::theme::MonochromeMode>,
     sepia: bool,
+    /// Phase B (#1404): accumulated `<style>` block rules for component/deployment.
+    style_builder: crate::theme::StyleBuilder,
 }
 
 impl ExtendedFamilyStyles {
@@ -41,6 +43,16 @@ impl ExtendedFamilyStyles {
             activity_monochrome_mode: None,
             timing_monochrome_mode: None,
             sepia: false,
+            style_builder: crate::theme::StyleBuilder::new(),
+        }
+    }
+
+    /// Phase B (#1404): push all Regular-scheme rules from a parsed `<style>` block.
+    pub(super) fn push_style_block(&mut self, block: crate::ast::style::StyleBlock) {
+        for rule in block.rules {
+            if rule.scheme == crate::ast::style::StyleScheme::Regular {
+                self.style_builder.push(rule);
+            }
         }
     }
 
@@ -245,7 +257,15 @@ impl ExtendedFamilyStyles {
     pub(super) fn into_family_style(mut self, family_kind: DiagramKind) -> Option<FamilyStyle> {
         match family_kind {
             DiagramKind::Component | DiagramKind::Deployment => {
-                Some(self.graph_style.into_family_style())
+                let mut fs = self.graph_style.into_family_style();
+                // Phase B (#1404): attach the StyleBuilder so the cascade resolver can
+                // query `<style>` rules per element at render time.
+                if !self.style_builder.is_empty() {
+                    if let FamilyStyle::Component(ref mut cs) = fs {
+                        cs.style_builder = Some(Box::new(self.style_builder));
+                    }
+                }
+                Some(fs)
             }
             DiagramKind::Activity => {
                 if let Some(mode) = self.activity_monochrome_mode {

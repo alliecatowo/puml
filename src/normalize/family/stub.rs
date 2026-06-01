@@ -35,6 +35,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut style_cascade = crate::theme::GraphStyleCascade::new(graph_family);
     let mut salt_style = crate::theme::SaltStyle::default();
     let mut style_params: Vec<StyleParamRecord> = Vec::new();
+    // Phase B (#1404): accumulate `<style>` block rules into a StyleBuilder.
+    let mut style_builder = crate::theme::StyleBuilder::new();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
@@ -393,10 +395,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
-            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
-            // The compat shim already emits legacy StyleParam triples; skip the typed
-            // AST node silently until Phase B wires up per-family application.
-            StatementKind::StyleBlock(_) => {}
+            // Phase B (#1404): accumulate typed `<style>` block rules into the builder
+            // so they can be queried per-element at cascade time.  Only Regular-scheme
+            // rules are consumed; Dark rules are stored for future `--scheme dark` flag.
+            StatementKind::StyleBlock(block) => {
+                for rule in block.rules {
+                    if rule.scheme == crate::ast::style::StyleScheme::Regular {
+                        style_builder.push(rule);
+                    }
+                }
+            }
             StatementKind::SaltGridRow { cells } => {
                 if family_kind != DiagramKind::Salt {
                     return Err(Diagnostic::error(
@@ -560,11 +568,20 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     }
     common::sort_diagnostics_by_message_and_span(&mut warnings);
     let sepia = style_cascade.sepia();
-    let family_style = if family_kind == DiagramKind::Salt {
+    let mut family_style = if family_kind == DiagramKind::Salt {
         crate::model::FamilyStyle::Salt(Box::new(salt_style))
     } else {
         style_cascade.into_family_style()
     };
+    // Phase B (#1404): attach the accumulated StyleBuilder to the family style so
+    // the cascade resolver can query `<style>` block rules per element at render time.
+    if !style_builder.is_empty() {
+        let boxed = Box::new(style_builder);
+        if let crate::model::FamilyStyle::Class(cs) = &mut family_style {
+            cs.style_builder = Some(boxed);
+        }
+        // Salt / unexpected family: builder is unused.
+    }
 
     Ok(FamilyDocument {
         kind: family_kind,

@@ -36,6 +36,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
                 .unwrap_or_default(),
         },
         style_mode: StyleMode::default(),
+        style_builder: None,
     }
 }
 
@@ -69,6 +70,7 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
             font_color: StyleSource::ThemePreset,
             arrow_color: StyleSource::ThemePreset,
         },
+        style_builder: None,
     }
 }
 

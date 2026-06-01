@@ -21,7 +21,7 @@ pub struct JsonProjection {
 }
 
 /// Per-family style overrides carried through the model.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum FamilyStyle {
     Class(ClassStyle),
     State(StateStyle),

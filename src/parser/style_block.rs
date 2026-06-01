@@ -532,11 +532,13 @@ fn parse_block_contents(stream: &mut Stream, parser: &mut Parser) {
 
                 if let Some(Tok::Open) = stream.peek() {
                     // This is a selector block: `selectorA, selectorB { … }`
+                    // `parse_selector_segments` handles the PlantUML-specific
+                    // `identifier<<Stereotype>>` compound syntax.
                     stream.next(); // consume `{`
                     let chains: Vec<SelectorChain> = selector_parts
                         .iter()
                         .map(|p| SelectorChain {
-                            segments: vec![parse_selector_segment(p)],
+                            segments: parse_selector_segments(p),
                         })
                         .collect();
                     parser.push_selectors(chains);
@@ -675,6 +677,32 @@ fn parse_selector_segment(raw: &str) -> SelectorSegment {
         return SelectorSegment::Tag(sname);
     }
     SelectorSegment::Unknown(raw.to_string())
+}
+
+/// Convert a raw selector string into one or more `SelectorSegment`s.
+///
+/// PlantUML `<style>` blocks support the `identifier<<Stereotype>>` syntax as
+/// a shorthand for a compound selector (e.g. `class<<service>>` = class node
+/// with the `service` stereotype).  This function splits such selectors into
+/// `[Tag(identifier), Stereotype("service")]` so the cascade resolver can match
+/// them correctly.
+///
+/// Non-compound selectors return a single-element `Vec`.
+fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
+    // Fast path: no `<<` — simple single segment.
+    if !raw.contains("<<") {
+        return vec![parse_selector_segment(raw)];
+    }
+    // Split on first `<<`: the left part is the SName, the right (strip `>>`) is the stereotype.
+    if let Some(idx) = raw.find("<<") {
+        let tag_part = &raw[..idx];
+        let rest = &raw[idx + 2..]; // strip `<<`
+        let stereo = rest.trim_end_matches('>').trim().to_string();
+        let tag_seg = parse_selector_segment(tag_part.trim());
+        let stereo_seg = SelectorSegment::Stereotype(stereo);
+        return vec![tag_seg, stereo_seg];
+    }
+    vec![parse_selector_segment(raw)]
 }
 
 /// Convert a pseudo-selector token like `depth(2)` to a `SelectorSegment`.

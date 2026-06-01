@@ -1,6 +1,7 @@
 use super::helpers::{parse_bool_value, parse_monochrome_value, split_stereotype_scope};
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
+use crate::theme::style_builder::StyleBuilder;
 use crate::theme::styles::*;
 use crate::theme::StyleSource;
 use std::collections::BTreeMap;
@@ -22,7 +23,7 @@ pub enum StyleMode {
 }
 
 /// Style overrides for class/object/usecase diagrams.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ClassStyle {
     pub background_color: String,
     pub border_color: String,
@@ -46,6 +47,9 @@ pub struct ClassStyle {
     /// `Plantuml` renders a neutral look matching PlantUML's defaults.
     /// Only paint is affected — layout is always identical.
     pub style_mode: StyleMode,
+    /// Phase B (#1404): resolved `<style>` block rules for this diagram.
+    /// `None` when no `<style>` block was present.
+    pub style_builder: Option<Box<StyleBuilder>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -103,6 +107,7 @@ impl Default for ClassStyle {
             stereotype_styles: BTreeMap::new(),
             sources: ClassStyleSources::default(),
             style_mode: StyleMode::default(),
+            style_builder: None,
         }
     }
 }
