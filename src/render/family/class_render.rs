@@ -1,4 +1,8 @@
+use crate::ast::DiagramKind;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
+use crate::render::layout_constants::{
+    CLASS_BOX_MIN_WIDTH, CLASS_COL_GAP, CLASS_MARGIN_X, CLASS_ROW_GAP,
+};
 use crate::render::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
 };
@@ -46,8 +50,18 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         _ => ClassStyle::default(),
     };
 
-    // Layout constants
-    let margin_x: i32 = 32;
+    // Determine diagram sub-family for family-specific constant selection.
+    // Object and UseCase diagrams share this renderer but have their own retune
+    // schedules (#1425 object, #1359 usecase).  Only `DiagramKind::Class` uses
+    // the class density-retune constants introduced in #1427.
+    let is_class_diagram = document.kind == DiagramKind::Class;
+
+    // Layout constants — class-specific density retune (#1427).
+    // CLASS_MARGIN_X / CLASS_BOX_MIN_WIDTH / CLASS_COL_GAP / CLASS_ROW_GAP are
+    // defined in layout_constants.rs and tuned to close the 2-4× area gap vs
+    // PlantUML observed in the wave-4 audit.  For non-class families that share
+    // this renderer (object, usecase) the pre-retune values are preserved.
+    let margin_x: i32 = if is_class_diagram { CLASS_MARGIN_X } else { 32 };
     // Extra top margin for a `header` block above the title / nodes.
     let header_block_h = family_metadata_label_height(document.header.as_deref());
     let margin_top: i32 = 32 + header_block_h;
@@ -81,7 +95,14 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             .map(|m| crate::render::text_metrics::monospace_width(&m.text, 7) + 24)
             .max()
             .unwrap_or(0);
-        let base_w = name_px.max(member_px).clamp(160, 600);
+        // Class density retune (#1427): tighten minimum box width for class
+        // diagrams only.  Object/usecase retain the old 160px floor.
+        let min_w = if is_class_diagram {
+            CLASS_BOX_MIN_WIDTH
+        } else {
+            160
+        };
+        let base_w = name_px.max(member_px).clamp(min_w, 600);
         // Retune for usecase density (#1359): ovals are much smaller than class
         // boxes; cap usecase node width at 120 to match PlantUML oval sizing.
         if is_real_usecase_layout(document) {
@@ -111,16 +132,25 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         .max()
         .unwrap_or(0);
     let is_usecase = is_real_usecase_layout(document);
-    // Retune for PlantUML-equivalent density (#1359): usecase diagrams use
-    // much tighter spacing than class/object.  col_gap reduced 80→30 and
-    // row_gap reduced 46→20 to match PlantUML's ~30px node separation.
+    // Spacing per diagram family (separate retune tracks):
+    //   usecase  — col_gap=30, row_gap=20  (retune #1359)
+    //   class    — col_gap=CLASS_COL_GAP=40, row_gap=CLASS_ROW_GAP=40  (retune #1427)
+    //   object   — col_gap=80, row_gap=64  (pre-retune; object retune is #1425)
     // Relation labels in usecase diagrams don't drive horizontal node spacing.
     let col_gap: i32 = if is_usecase {
         30
+    } else if is_class_diagram {
+        CLASS_COL_GAP.max(relation_label_gap)
     } else {
-        80.max(relation_label_gap)
+        80_i32.max(relation_label_gap)
     };
-    let row_gap: i32 = if is_usecase { 20 } else { 64 };
+    let row_gap: i32 = if is_usecase {
+        20
+    } else if is_class_diagram {
+        CLASS_ROW_GAP
+    } else {
+        64
+    };
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;

@@ -163,6 +163,47 @@ pub const COMPONENT_NODE_BOX_HEIGHT: i32 = 50;
 /// spacing for component diagrams.
 pub const COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
 
+// Class diagram geometry (class_render.rs / class_layout.rs)
+//
+// Tuned as part of the per-family density retune to close the 2-4× area gap
+// vs PlantUML for class fixtures identified in the wave-4 audit:
+//   - class/01_basic               3.24×  (worst class fixture)
+//   - class/03_composition         2.99×
+//   - class/11_generics            2.50×  (post-#1383 correctness win)
+//   - class/05_visibility          1.85×
+// These constants are class-specific and intentionally isolated from the
+// component/deployment/usecase families.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Minimum width of a class node box before auto-sizing takes over, in user
+/// units.  Auto-sizing widens the box when node names or member text require
+/// more space (clamp upper bound 600).  Reduced from the old 160px to 130px
+/// to approximate PlantUML's compact class box sizing (~120–140px for typical
+/// short member names).
+pub const CLASS_BOX_MIN_WIDTH: i32 = 130;
+
+/// Horizontal margin (left/right gutter) inside the class diagram canvas, in
+/// user units.  The left margin is where the first column of node boxes starts;
+/// the right margin (passed as `canvas_right_margin`) is the gutter after the
+/// rightmost node.  Reduced from 32px to 16px to tighten horizontal whitespace
+/// toward PlantUML parity.
+pub const CLASS_MARGIN_X: i32 = 16;
+
+/// Horizontal gap between adjacent class nodes in the same rank (node
+/// separation fed to the hierarchical layout engine), in user units.  Also the
+/// minimum gap driven by relation-label width.  Reduced from 80px to 40px to
+/// reduce horizontal spread on multi-column diagrams.
+pub const CLASS_COL_GAP: i32 = 40;
+
+/// Bottom-to-top inter-rank gap for class diagrams, in user units.  This value
+/// is passed directly as `rank_separation` in the `LayoutOptions` fed to the
+/// hierarchical layout engine.  The engine adds `max_node_height` to the
+/// row-advance separately (see `coordinates.rs`), so this constant represents
+/// only the whitespace between the bottom edge of one rank's tallest node and
+/// the top edge of the next rank.  40px approximates PlantUML's default
+/// inter-rank gap for class diagrams.
+pub const CLASS_ROW_GAP: i32 = 40;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sequence diagram geometry (sequence.rs)
 // ─────────────────────────────────────────────────────────────────────────────
