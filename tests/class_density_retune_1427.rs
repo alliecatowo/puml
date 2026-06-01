@@ -35,15 +35,20 @@ fn extract_svg_attr(svg: &str, attr: &str) -> u64 {
     let tag_end = svg.find('>').unwrap_or(svg.len());
     let tag = &svg[..tag_end];
     let needle = format!("{attr}=\"");
-    let start = tag.find(&needle).unwrap_or_else(|| {
-        panic!("attribute '{attr}' not found in <svg> tag: {}", &svg[..200])
-    }) + needle.len();
-    let end = tag[start..].find('"').unwrap_or_else(|| {
-        panic!("closing '\"' not found after attribute '{attr}' value")
-    }) + start;
-    tag[start..end]
-        .parse::<u64>()
-        .unwrap_or_else(|_| panic!("attribute '{attr}' value '{}' is not a u64", &tag[start..end]))
+    let start = tag
+        .find(&needle)
+        .unwrap_or_else(|| panic!("attribute '{attr}' not found in <svg> tag: {}", &svg[..200]))
+        + needle.len();
+    let end = tag[start..]
+        .find('"')
+        .unwrap_or_else(|| panic!("closing '\"' not found after attribute '{attr}' value"))
+        + start;
+    tag[start..end].parse::<u64>().unwrap_or_else(|_| {
+        panic!(
+            "attribute '{attr}' value '{}' is not a u64",
+            &tag[start..end]
+        )
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

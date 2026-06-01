@@ -163,7 +163,6 @@ pub const COMPONENT_NODE_BOX_HEIGHT: i32 = 50;
 /// spacing for component diagrams.
 pub const COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
 
-
 // Class diagram geometry (class_render.rs / class_layout.rs)
 //
 // Tuned as part of the per-family density retune to close the 2-4× area gap
