@@ -433,9 +433,12 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             ));
         }
         if let Some(right) = &relation.right_cardinality {
+            // #1454: anchor the right cardinality label at the END of the text
+            // (i.e. the text extends leftward from x2-4) so it never bleeds into
+            // the target node bbox when the edge enters from the left.
             out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
-                x = x2 + 4,
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x2 - 4,
                 y = y2 - 6,
                 member_color = ctx.class_style.member_color,
                 txt = escape_text(right)
