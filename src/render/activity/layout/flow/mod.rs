@@ -77,6 +77,10 @@ pub(in crate::render::activity) fn compute_layout(
                     diamond_cx: cx,
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
+                    then_guard: doc.nodes[i]
+                        .label
+                        .as_deref()
+                        .and_then(activity_decision_guard),
                     then_cx,
                     then_rightmost_cx: then_cx,
                     then_end_next_slot: next_slot_y,
@@ -138,13 +142,22 @@ pub(in crate::render::activity) fn compute_layout(
                 let slot_y = frame.then_end_next_slot.max(current_slot_y);
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
+                // #1447: when the then-branch is EMPTY (no nodes advanced
+                // current_slot_y past the diamond's own next_slot), carry the
+                // then_guard on the then-merge arrow so the label is visible
+                // somewhere.  For non-empty branches the predecessor-arrow pass
+                // already labels the first then-branch node's incoming arrow.
+                let then_branch_empty = frame.then_end_next_slot <= frame.diamond_next_slot;
+                let then_label = if then_branch_empty {
+                    frame.then_guard.clone()
+                } else {
+                    None
+                };
                 suppress_prev_arrow.insert(i);
-                extra_arrows.push(ActivityRoute::new(
-                    then_cx,
-                    then_arrow_out_y,
-                    frame.diamond_cx,
-                    slot_y,
-                ));
+                extra_arrows.push(
+                    ActivityRoute::new(then_cx, then_arrow_out_y, frame.diamond_cx, slot_y)
+                        .with_label(then_label),
+                );
                 extra_arrows.push(ActivityRoute::new(
                     else_cx,
                     else_arrow_out_y,
