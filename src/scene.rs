@@ -167,14 +167,19 @@ pub struct LayoutOptions {
 impl Default for LayoutOptions {
     fn default() -> Self {
         Self {
-            margin: 24,
-            participant_spacing: 160,
-            participant_width: 120,
+            // Sequence density retune (#1371): tuned to match PlantUML's default
+            // participant column width (~100px center-to-center), participant box
+            // width (~80px), and message row height (~28px).  The prior values
+            // (160/120/40) produced 2.80–3.31× area ratios vs PlantUML; these
+            // values target ≤ 2.0× on the four audited fixtures.
+            margin: 16,
+            participant_spacing: 100,
+            participant_width: 80,
             participant_height: 32,
             title_height: 28,
-            message_row_height: 40,
-            note_width: 180,
-            note_padding: 8,
+            message_row_height: 28,
+            note_width: 140,
+            note_padding: 6,
             footer_height: 24,
             text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         }

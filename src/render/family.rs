@@ -32,5 +32,4 @@ pub use self::class_render::{
 };
 pub use self::tree::{render_family_tree_artifact, render_family_tree_svg};
 
-pub(crate) use self::class_members::family_node_label;
 pub(crate) use self::family_node_shapes::render_note_card;

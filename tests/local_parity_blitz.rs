@@ -219,7 +219,10 @@ API --() Orders: provides
 "#,
     )
     .expect("component namespace render should succeed");
-    assert!(component_svg.contains("namespace Edge"));
+    assert!(
+        component_svg.contains("Edge"),
+        "namespace group label should appear in SVG"
+    );
     assert!(component_svg.contains("API"));
     assert!(component_svg.contains("Orders"));
     assert!(component_svg.contains("provides"));
@@ -376,7 +379,10 @@ http --> api :binds
 "##,
     )
     .expect("component relation metadata should render");
-    assert!(component_svg.contains("package Edge"));
+    assert!(
+        component_svg.contains("Edge"),
+        "package group label should appear in SVG"
+    );
     assert!(component_svg.contains("api"));
     assert!(component_svg.contains("http"));
     assert!(component_svg.contains("&lt;&lt;REST&gt;&gt;"));

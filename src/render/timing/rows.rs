@@ -116,16 +116,9 @@ fn render_signal_labels(
         ty = wave_mid + 4,
         name = escape_text(signal_label)
     ));
-    out.push_str(&format!(
-        "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"9\" fill=\"#94a3b8\" text-anchor=\"end\">{kind}</text>",
-        x = layout.left_pad - 8,
-        ty = wave_mid + 16,
-        kind = if timing_signal_is_analog(signal) {
-            "analog"
-        } else {
-            family_node_label(signal.kind)
-        }
-    ));
+    // Kind-tag suppression (#1372): PlantUML does not emit "concise", "robust",
+    // "binary", or "clock" sub-labels under lane names.  Only the lane name
+    // itself is shown.  We suppress the kind sub-label entirely to match parity.
     if !signal.members.is_empty() {
         let controls = signal
             .members

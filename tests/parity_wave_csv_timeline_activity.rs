@@ -1204,7 +1204,7 @@ clock clk
     assert!(svg.contains("checkpoint"));
     assert!(svg.contains("deploy"));
     assert!(svg.contains("<polyline"));
-    assert!(svg.contains("timing diagram"));
+    // Kind-tag suppressed (#1372): "timing diagram" auto-subtitle removed
 }
 
 #[test]

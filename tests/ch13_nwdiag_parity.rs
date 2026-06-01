@@ -26,16 +26,18 @@ fn nwdiag_peer_links_width_full_and_group_overlay_render() {
         "shared app should keep both network connectors plus the jump line"
     );
 
-    let edge_width = svg_network_width(&svg, "network edge (203.0.113.0/24)").expect("edge width");
-    let core_width = svg_network_width(&svg, "network core (10.0.0.0/24)").expect("core width");
-    let devices_width = svg_network_width(&svg, "network devices").expect("devices width");
+    // kind-tag suppression strips the "network " prefix from busbar labels
+    let edge_width = svg_network_width(&svg, "edge (203.0.113.0/24)").expect("edge width");
+    let core_width = svg_network_width(&svg, "core (10.0.0.0/24)").expect("core width");
+    let devices_width = svg_network_width(&svg, "devices").expect("devices width");
     assert_eq!(edge_width, devices_width);
     assert!(
         edge_width > core_width,
         "width=full should extend selected busbars beyond the default network span"
     );
 
-    let devices_y = svg_network_y(&svg, "network devices").expect("devices y");
+    // kind-tag suppression strips the "network " prefix from busbar labels
+    let devices_y = svg_network_y(&svg, "devices").expect("devices y");
     let internet = svg_node_rect(&svg, "internet").expect("internet rect");
     let printer = svg_node_rect(&svg, "printer").expect("printer rect");
     assert!(internet.y > devices_y);

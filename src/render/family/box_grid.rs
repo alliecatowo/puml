@@ -372,12 +372,15 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             });
 
         let raw_label = group.label.clone().unwrap_or_default();
+        // Kind-tag suppression (#1372): component/deployment package frame headers
+        // show only the user-supplied name, not "package <name>" / "node <name>"
+        // etc.  PlantUML omits the keyword prefix for all group kinds in these
+        // families.  Only fall back to the kind string when no label was given
+        // (so an anonymous group still has some visible identity).
         let label = if raw_label.is_empty() {
             group.kind.clone()
-        } else if group.kind == "rectangle" {
-            raw_label.clone()
         } else {
-            format!("{} {}", group.kind, raw_label)
+            raw_label.clone()
         };
 
         // Ensure the frame is at least wide enough to contain the header text so

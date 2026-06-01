@@ -30,6 +30,10 @@ pub(super) fn build_render_scene(sequence: &Scene) -> RenderScene {
     builder.add_groups();
     builder.add_metadata_labels();
     builder.add_messages();
+    // Density retune (#1371) compresses the participant header band; box-group
+    // headers can land at slightly negative y. Expand the viewport so the
+    // typed-scene contains_rect invariant covers all rendered geometry.
+    builder.scene.fit_viewport_to_visible_bounds();
     builder.scene
 }
 

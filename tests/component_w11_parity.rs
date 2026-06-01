@@ -40,9 +40,11 @@ package "Outer" {
         "Inner frame should be scoped under Outer"
     );
 
-    // Package label text appears for both frames
-    assert!(svg.contains(">package Outer<"), "Outer label should appear");
-    assert!(svg.contains(">package Inner<"), "Inner label should appear");
+    // Package label text appears for both frames.
+    // Kind-tag suppression (pass 2) strips the "package " prefix so PlantUML
+    // shows only the user-supplied name, matching upstream behaviour.
+    assert!(svg.contains(">Outer<"), "Outer label should appear");
+    assert!(svg.contains(">Inner<"), "Inner label should appear");
 
     // Worker is scoped under Outer::Inner
     assert!(

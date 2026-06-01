@@ -101,7 +101,6 @@ pub use timeline::{render_timeline_artifact, render_timeline_stub_svg, render_ti
 pub use timing::{render_timing_artifact, render_timing_svg};
 pub use wire::{render_wire_artifact, render_wire_svg};
 
-pub(crate) use family::family_node_label;
 pub(crate) use geometry::compute_edge_anchors_for_direction;
 
 pub(crate) use relation::render_relation_marker_defs;

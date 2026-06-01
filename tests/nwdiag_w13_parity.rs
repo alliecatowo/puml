@@ -125,7 +125,7 @@ nwdiag {
     );
 
     // The label combines the network name and CIDR.
-    let label = "network dmz (10.0.0.0/24)";
+    let label = "dmz (10.0.0.0/24)";
     assert!(
         svg.contains(label),
         "expected CIDR label '{label}' in SVG; got:\n{svg}"
@@ -169,7 +169,7 @@ nwdiag {
     // In nwdiag layout: bus header rect at y, bus bar at y+24, node boxes at
     // y+24+30. So the host y coordinate must be strictly greater than the
     // network header rect y.
-    let label = "network lan (192.168.0.0/24)";
+    let label = "lan (192.168.0.0/24)"; // kind-tag suppression: "network" prefix dropped (#1372)
     let bus_y = svg_network_y(&svg, label).expect("lan bus y");
     assert!(
         host.y > bus_y,
@@ -397,15 +397,15 @@ nwdiag {
 
     // All three CIDR labels must appear.
     assert!(
-        svg.contains("network dmz (10.0.0.0/24)"),
+        svg.contains("dmz (10.0.0.0/24)"),
         "dmz CIDR label missing from SVG"
     );
     assert!(
-        svg.contains("network internal (192.168.1.0/24)"),
+        svg.contains("internal (192.168.1.0/24)"),
         "internal CIDR label missing from SVG"
     );
     assert!(
-        svg.contains("network management (172.16.0.0/24)"),
+        svg.contains("management (172.16.0.0/24)"),
         "management CIDR label missing from SVG"
     );
 
@@ -419,10 +419,9 @@ nwdiag {
     }
 
     // Network vertical ordering in the SVG (dmz → internal → management).
-    let dmz_y = svg_network_y(svg, "network dmz (10.0.0.0/24)").expect("dmz y");
-    let internal_y = svg_network_y(svg, "network internal (192.168.1.0/24)").expect("internal y");
-    let management_y =
-        svg_network_y(svg, "network management (172.16.0.0/24)").expect("management y");
+    let dmz_y = svg_network_y(svg, "dmz (10.0.0.0/24)").expect("dmz y");
+    let internal_y = svg_network_y(svg, "internal (192.168.1.0/24)").expect("internal y");
+    let management_y = svg_network_y(svg, "management (172.16.0.0/24)").expect("management y");
     assert!(
         dmz_y < internal_y,
         "dmz (y={dmz_y}) should appear above internal (y={internal_y})"

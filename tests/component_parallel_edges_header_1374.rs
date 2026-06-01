@@ -94,17 +94,19 @@ Parser --> Renderer
 
     let svg = render_svg(puml);
 
-    // Find the last occurrence of the "package Pipeline Core" header text.
+    // Find the last occurrence of the "Pipeline Core" header text.
+    // Note: kind-tag suppression (#1372) removes the "package" prefix from the
+    // rendered header text, so we search for just the user-supplied label.
     let last_header_pos = svg
-        .rfind("package Pipeline Core")
-        .expect("'package Pipeline Core' must appear in SVG");
+        .rfind("Pipeline Core")
+        .expect("'Pipeline Core' must appear in SVG");
 
     // If there are edge label backgrounds, the last one must come BEFORE
     // the last header text occurrence.
     if let Some(last_bg_pos) = svg.rfind("uml-edge-label-bg") {
         assert!(
             last_header_pos > last_bg_pos,
-            "Header text 'package Pipeline Core' (byte {}) must appear after \
+            "Header text 'Pipeline Core' (byte {}) must appear after \
              the last edge-label-bg rect (byte {}) so the dark band is repainted \
              on top and the text stays visible (#1374).",
             last_header_pos,
