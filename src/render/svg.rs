@@ -227,10 +227,22 @@ fn has_creole_block_line(label: &str) -> bool {
         }
 
         let level = trimmed_start.chars().take_while(|&ch| ch == '=').count();
-        (1..=4).contains(&level)
+        if (1..=4).contains(&level)
             && trimmed_start
                 .get(level..)
                 .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+        {
+            return true;
+        }
+
+        // Definition list: `; Term` or `; Term : Definition`
+        if let Some(rest) = trimmed.strip_prefix(';') {
+            if rest.starts_with(char::is_whitespace) {
+                return true;
+            }
+        }
+
+        false
     })
 }
 

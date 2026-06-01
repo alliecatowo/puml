@@ -116,6 +116,10 @@ pub(super) fn parse_block_line(raw_line: &str) -> CreoleLine {
         return line;
     }
 
+    if let Some(line) = parse_definition_list_line(trimmed) {
+        return line;
+    }
+
     parse_inline(raw_line)
 }
 
@@ -301,4 +305,58 @@ fn creole_hash_color(color: &str) -> String {
     } else {
         color.to_string()
     }
+}
+
+/// Parse a Creole definition-list line of the form `; Term : Definition` or
+/// just `; Term` (term without an inline definition).
+///
+/// The term is rendered bold; if a definition is present it follows a " : "
+/// separator in normal weight. Both term and definition text go through the
+/// inline parser so they can contain their own inline markup.
+///
+/// Returns `None` for lines that do not start with `;` followed by whitespace.
+fn parse_definition_list_line(line: &str) -> Option<CreoleLine> {
+    let rest = line.strip_prefix(';')?;
+    if rest.is_empty() || !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let content = rest.trim_start();
+    if content.is_empty() {
+        return None;
+    }
+
+    let mut result = Vec::new();
+
+    // Split on the first ` : ` separator (space-colon-space) to separate
+    // term from definition.  A bare `;` without ` : ` renders just the term.
+    if let Some(sep) = content.find(" : ") {
+        let term_str = &content[..sep];
+        let def_str = &content[sep + 3..];
+
+        // Term spans — apply bold to every span.
+        let mut term_spans = parse_inline(term_str);
+        for s in &mut term_spans {
+            s.bold = true;
+        }
+        result.extend(term_spans);
+
+        // Separator.
+        result.push(CreoleSpan {
+            text: " : ".to_string(),
+            ..Default::default()
+        });
+
+        // Definition spans — plain inline text.
+        let def_spans = parse_inline(def_str);
+        result.extend(def_spans);
+    } else {
+        // Term only — render bold.
+        let mut term_spans = parse_inline(content);
+        for s in &mut term_spans {
+            s.bold = true;
+        }
+        result.extend(term_spans);
+    }
+
+    Some(result)
 }

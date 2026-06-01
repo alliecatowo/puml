@@ -1,0 +1,28 @@
+@startuml
+title Block-level Creole constructs (issue #1502)
+
+Alice -> Bob: review
+
+note over Alice, Bob
+= Heading H1 =
+== Heading H2 ==
+=== Heading H3 ===
+----
+* Bullet item
+** Nested bullet
+# Numbered item
+## Nested number
+----
+; Term : Definition text
+; BareTermOnly
+----
+| col1 | col2 |
+|= Header | Cell |
+|<#FF8080> red | plain |
+----
+<code>**literal code**</code> and ""inline mono""
+.. titled rule ..
+|_ tree root
+  |_ branch one
+end note
+@enduml

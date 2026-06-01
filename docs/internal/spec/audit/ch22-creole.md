@@ -1,140 +1,144 @@
 # Chapter 22 — Creole Audit
 
-Source: `/tmp/puml-spec/ch22-creole.txt` (1314 lines)
-Spec date: PlantUML Language Reference Guide 1.2025.0
+Source: PlantUML Language Reference Guide 1.2025.0, Chapter 22
+Last updated: 2026-06-01 (refreshed in #1502 — prior entries were stale)
 
 Status legend: ✅ supported · 🟡 partial · ❌ not supported
 
-Core implementation: `src/creole.rs`. Module docstring:
-> Supports: **bold**, //italic//, ""mono"", __underline__, --strikethrough--, [[url label]] hyperlinks, <color:X>text</color>, <size:N>text</size>, <b>, <i>, <u> HTML tags, \n line breaks, and <&icon> placeholders.
+Core implementation: `src/creole/` (split into `inline.rs`, `parser.rs`, `svg.rs`).
 
 ---
 
-### 22.1 Emphasized text — 🟡
-**Feature:** `**bold**`, `//italic//`, `""monospaced""`, `--strikethrough--`, `__underline__`, `~~wave-underline~~`.
-**Syntax example:** `This is **bold**`
-**Status:** 🟡 (5 of 6 — no wave-underline `~~...~~`)
-**Evidence:** `src/creole.rs:238-278` (`**bold**`, `//italic//`, `""mono""`, `__underline__`, `--strike--`). No code for `~~...~~`.
-**Notes:** Wave-underline is rendered in HTML via `<w>` tag in PlantUML — both creole `~~` and HTML `<w>` are missing.
+### 22.1 Emphasized text — ✅
+**Feature:** `**bold**`, `//italic//`, `""monospaced""`, `--strikethrough--`,
+`__underline__`, `~~wave-underline~~`.
+**Status:** ✅ All six supported.
+**Evidence:** `src/creole/inline.rs` — bold (`**`), italic (`//`), mono (`""`),
+underline (`__`), strike (`--`), wave underline (`~~`). Tests in `src/creole/tests.rs`.
 
-### 22.2 Lists — ❌ (likely; not found in creole.rs)
+### 22.2 Lists — ✅
 **Feature:** Bullet `*` and numbered `#` lists with nesting (`**`, `##`).
-**Syntax example:** `* Bullet list\n** Sub item\n# Numbered\n## Sub`
-**Status:** ❌
-**Evidence:** No list parsing in `src/creole.rs`. `**` is consumed as bold-toggle (`src/creole.rs:238`). At line-start `*` or `#` would not be recognized as list markers.
-**Notes:** Major gap — lists are commonly used in notes/legends.
+**Status:** ✅ Supported.
+**Evidence:** `src/creole/parser.rs` `parse_list_line`. Depth-1 bullets use `- ` prefix;
+numbered use `1. `; nesting increases indentation. Tests: `tests/creole_block_parity.rs`
+and `tests/creole_block_level_1502.rs`.
 
-### 22.3 Escape character (`~`) — ❌
+### 22.3 Escape character (`~`) — ✅
 **Feature:** `~` escapes the next creole metacharacter (e.g. `~**not bold**`).
-**Status:** ❌
-**Evidence:** `~` not handled in `src/creole.rs` tokenizer; would be passed through as literal text.
-**Notes:** Means `~~` is also not interpreted as wave; small upside.
+**Status:** ✅ Supported.
+**Evidence:** `src/creole/inline.rs` tilde-escape handling; test `tilde_escapes_creole_markers`
+in `src/creole/tests.rs`.
 
-### 22.4 Headings — ❌
+### 22.4 Headings — ✅
 **Feature:** Line-leading `=`, `==`, `===`, `====` indicate heading sizes.
-**Status:** ❌
-**Evidence:** No heading parsing in creole or text renderer.
-**Notes:** Spec uses inside usecase/note text.
+**Status:** ✅ Supported (h1–h4 with bold + font-size escalation).
+**Evidence:** `src/creole/parser.rs` `parse_heading_line`. Font sizes: h1=24, h2=21,
+h3=18, h4=16. Tests: `src/creole/tests.rs` `headings_become_bold_sized_lines` and
+`tests/creole_block_level_1502.rs`.
 
 ### 22.5 Emoji `<:name:>` and `<#color:name:>` — 🟡
-**Feature:** Twemoji emoji via `<:1f600:>`, `<:innocent:>`, `<#green:sunny:>`, `<#0:sunglasses:>`. `emoji <block>` listing command.
-**Status:** 🟡 Partial
-**Evidence:** `src/creole.rs` decodes a small deterministic emoji subset plus numeric hex emoji tags such as `<:1f600:>`.
-**Notes:** Full PlantUML emoji catalog, colorized emoji forms, and the `emoji` listing directive remain missing.
+**Feature:** Twemoji emoji via `<:1f600:>`, `<:innocent:>`, `<#green:sunny:>`. `emoji` listing command.
+**Status:** 🟡 Partial — small deterministic subset + numeric hex codepoints decoded;
+full PlantUML emoji catalog and colorized forms (`<#color:name:>`) partially supported;
+`emoji` listing directive not implemented.
+**Evidence:** `src/text_markup.rs` `decode_unicode_escapes`.
 
-### 22.6 Horizontal lines (`----`, `====`, `____`, `..title..`) — ❌
-**Feature:** Inline horizontal rules with optional title; works inside notes and creole text.
-**Status:** ❌
-**Evidence:** No matches for horizontal-rule parsing in `src/creole.rs` or `src/render/text.rs`. (`text.rs` mentions `tree_branch`/`tree_leaf` only as character constants — unrelated.)
+### 22.6 Horizontal lines (`----`, `====`, `____`, `..title..`) — ✅
+**Feature:** Horizontal rules with optional title; works inside notes and creole text.
+**Status:** ✅ Supported.
+**Evidence:** `src/creole/parser.rs` `is_plain_horizontal_rule` / `parse_titled_rule_line`.
+Plain rules (`----`, `====`, `____`) emit `is_hr` sentinel → SVG `<line>` element.
+Titled variants (`.. Title ..`, `=== Title ===`) render as styled text.
+Tests: `src/creole/tests.rs` `horizontal_rule_lines_render_as_rule_text`,
+`tests/creole_block_level_1502.rs`.
 
-### 22.7 Links `[[url]]` / `[[url label]]` / `[[url{tooltip} label]]` — 🟡
+### 22.7 Links `[[url]]` / `[[url label]]` / `[[url{tooltip} label]]` — ✅
 **Feature:** Square-bracket URL link with optional label and optional `{tooltip}`.
-**Status:** 🟡 (url + label yes; `{tooltip}` not handled)
-**Evidence:** `src/creole.rs:278+` handles `[[url]]` and `[[url label]]`. Test cases at `src/creole.rs:560,568`. SVG anchor emission `src/creole.rs:56-60` (xlink:href).
-**Notes:** No `{tooltip}` parsing detected — would land in label or fail.
+**Status:** ✅ Supported (url, label, tooltip all handled).
+**Evidence:** `src/creole/inline.rs` `[[...]]` branch; `src/creole/inline_helpers.rs`
+`parse_link_inner`. Tooltip parses `{...}` and emits `<title>` in SVG. Tests:
+`src/creole/tests.rs` `link_tooltip_renders_svg_title`.
 
-### 22.8 `<code> ... </code>` — ❌
+### 22.8 `<code> ... </code>` — ✅
 **Feature:** Verbatim code block tag (no syntax highlighting).
-**Status:** ❌
-**Evidence:** No `<code>` tag handling in `src/creole.rs`.
-**Notes:** Likely renders the literal `<code>` text.
+**Status:** ✅ Supported. Content is monospace, all markup disabled verbatim.
+**Evidence:** `src/creole/inline.rs` `<code>` branch. Test:
+`src/creole/tests.rs` `code_tag_is_verbatim_monospace`.
 
-### 22.9 Tables (`|= header |`, `| cell |`, color cells `<#color>`, borders) — ❌
-**Feature:** Creole pipe tables with header rows (`|= ... |`), cell colors (`|<#FF8080> red |`), row colors (`<#yellow>| ... |`), text alignment.
-**Status:** ❌
-**Evidence:** No `|=` / `|` table tokenizer in `src/creole.rs` or `src/render/text.rs`.
-**Notes:** Major gap — used heavily for class-field alignment.
+### 22.9 Tables (`|= header |`, `| cell |`, color cells `<#color>`, borders) — ✅
+**Feature:** Creole pipe tables with header rows (`|= ... |`), cell colors
+(`|<#FF8080> red |`), row colors (`<#yellow>| ... |`), text alignment.
+**Status:** ✅ Supported.
+**Evidence:** `src/creole/parser.rs` `parse_table_line`, `parse_row_background`,
+`parse_cell_background`. Tests: `src/creole/tests.rs` `table_lines_mark_headers_*`,
+`tests/creole_block_level_1502.rs`.
 
-### 22.10 Tree (`|_`) — ❌
+### 22.10 Tree (`|_`) — ✅
 **Feature:** Tree bullets using `|_`.
-**Status:** ❌
-**Evidence:** No `|_` parsing in creole.
-**Notes:** Note: `src/render/text.rs` has `tree_branch`/`tree_leaf` but those are mindmap rendering helpers, not creole `|_`.
+**Status:** ✅ Supported.
+**Evidence:** `src/creole/parser.rs` `parse_tree_line`. Emits monospace `` `- `` prefix.
+Test: `src/creole/tests.rs` `tree_lines_use_text_tree_prefix`,
+`tests/creole_block_level_1502.rs`.
 
 ### 22.11 Special characters (`<U+XXXX>`, `&#nnnn;`) — ✅
 **Feature:** Unicode codepoint insertion via `<U+221E>` (hex) or `&#nnnnnn;` (decimal).
-**Status:** ✅ Supported
-**Evidence:** `decode_unicode_escapes` in `src/creole.rs` decodes decimal / hex numeric entities and PlantUML `<U+...>` tags before tokenization. Covered by `decodes_numeric_character_references`, `decodes_plantuml_u_plus_tags`, and integration coverage around `valid_unicode_escapes.puml`.
-**Notes:** Invalid or out-of-range codepoints remain literal, which keeps malformed input deterministic.
+**Status:** ✅ Supported.
+**Evidence:** `src/text_markup.rs` `decode_unicode_escapes`. Tests:
+`src/creole/tests.rs` `decodes_decimal_and_hex_*`, `decodes_u_plus_codepoint_tags`.
 
-### 22.12 Legacy HTML tags — 🟡
+### 22.12 Legacy HTML tags — ✅
+All HTML extension tags documented in PlantUML Ch22 are now supported:
 
-#### 22.12.x `<b>` — ✅
-**Evidence:** `src/creole.rs:372-373`.
-
-#### 22.12.x `<i>` — ✅
-**Evidence:** `src/creole.rs:388-389`.
-
-#### 22.12.x `<u>` / `<u:color>` — 🟡
-**Status:** 🟡 (`<u>` yes; `<u:color>` not detected)
-**Evidence:** `src/creole.rs:404-405`. No `<u:#...>` colored variant.
-
-#### 22.12.x `<s>` / `<s:color>` strike — ❌
-**Evidence:** No `<s>` handling.
-**Notes:** Creole `--strike--` works but the HTML tag does not.
-
-#### 22.12.x `<w>` / `<w:color>` wave — ❌
-**Evidence:** No `<w>` handling.
-
-#### 22.12.x `<plain>` — ❌
-**Evidence:** No `<plain>` handling.
-
-#### 22.12.x `<color:X>...</color>` — ✅
-**Evidence:** `src/creole.rs:337+`.
-
-#### 22.12.x `<back:X>...</back>` background — ❌
-**Evidence:** No `<back:` handling.
-
-#### 22.12.x `<size:N>...</size>` — ✅
-**Evidence:** `src/creole.rs:354+`.
-
-#### 22.12.x `<font:Name>...</font>` font-family — ❌
-**Evidence:** No `<font:` handling.
-
-#### 22.12.x `<img:path>` / `<img:url>` / `{scale=0.3}` — ❌
-**Evidence:** No `<img:` handling in creole.
-
-#### 22.12.2 `<sub>` / `<sup>` — ❌
-**Evidence:** No subscript/superscript handling.
+| Tag | Status | Evidence |
+|-----|--------|----------|
+| `<b>` / `</b>` | ✅ | `src/creole/inline.rs` |
+| `<i>` / `</i>` | ✅ | `src/creole/inline.rs` |
+| `<u>` / `<u:color>` | ✅ | `src/creole/inline.rs` |
+| `<s>` / `<s:color>` | ✅ | `src/creole/inline.rs` |
+| `<w>` / `<w:color>` | ✅ | `src/creole/inline.rs` |
+| `<plain>` | ✅ | `src/creole/inline.rs` |
+| `<color:X>` / `</color>` | ✅ | `src/creole/inline.rs` |
+| `<back:X>` / `</back>` | ✅ | `src/creole/inline.rs` |
+| `<size:N>` / `</size>` | ✅ | `src/creole/inline.rs` |
+| `<font:Name>` / `</font>` | ✅ | `src/creole/inline.rs` |
+| `<img:path>` / `<img:url>` | ✅ | `src/creole/inline.rs` (emits `[filename]` placeholder) |
+| `<sub>` / `</sub>` | ✅ | `src/creole/inline.rs` |
+| `<sup>` / `</sup>` | ✅ | `src/creole/inline.rs` |
+| `<strong>` / `<em>` / `<del>` / `<strike>` / `<tt>` | ✅ | Alias mappings in `src/creole/inline.rs` |
 
 ### 22.13 OpenIconic `<&iconname>` — 🟡
-**Status:** 🟡 (parsed as placeholder, but icons not rendered)
-**Evidence:** `src/creole.rs:319-322` (`<&icon>` recognized as span). Module docstring says "icon placeholders". Test `src/creole.rs:631`.
-**Notes:** Likely emits the icon name as text or empty — actual icon glyph rendering not confirmed. `listopeniconic` directive not implemented.
+**Status:** 🟡 (parsed as text placeholder `[iconname]`; icon glyphs not rendered)
+**Evidence:** `src/creole/inline.rs` `<&...>` branch.
+**Notes:** `listopeniconic` directive not implemented. Placeholder keeps diagrams readable.
 
-### 22.14+ List rendering on all diagrams — ❌
-**Status:** ❌ (follows from 22.2)
-**Evidence:** No list machinery; per-diagram list rendering thus absent.
+### 22.14 Definition lists (`; Term : Definition`) — ✅
+**Feature:** Creole-standard definition-list syntax.
+**Status:** ✅ Supported (added in #1502). Term is bold; definition follows ` : ` separator
+in normal weight. Both sides pass through inline markup. Term-only form (`; Term`)
+also supported.
+**Evidence:** `src/creole/parser.rs` `parse_definition_list_line`.
+Tests: `tests/creole_block_level_1502.rs`.
 
 ### Line breaks (`\n`, `\\n`, `<br>`) — ✅
-**Evidence:** `src/creole.rs:31` `normalize_line_breaks`, handles `\\n` and `<br>`/`<br/>`. Tspan multi-line render at `src/creole.rs:131-145`.
+**Evidence:** `src/creole/parser.rs` `normalize_line_breaks`.
 
 ---
 
 ## Tally — Chapter 22
 
-- ✅ Supported: `**bold**`, `//italic//`, `""mono""`, `__underline__`, `--strike--`, `[[url label]]`, `<b>`, `<i>`, `<u>` (basic), `<color:X>`, `<size:N>`, line breaks (`\n`, `<br>`), numeric entities, and `<U+...>` codepoint escapes
-- 🟡 Partial: emphasized text (missing `~~wave~~`), `[[url{tooltip} label]]` tooltip, OpenIconic `<&icon>` (parsed but rendering unconfirmed), and emoji tags (small deterministic subset, not the full PlantUML catalog/directive)
-- ❌ Missing (16+): lists (`*`/`#`), `~` escape, headings (`=`, `==`, ...), full `emoji` directive/catalog parity, horizontal lines (`----`/`====`/`____`/`..title..`), `<code>`, tables (`|= |`, `|`, `<#color>` cells), tree `|_`, `<s>`, `<w>`, `<plain>`, `<back:>`, `<font:>`, `<img:>`, `<sub>`/`<sup>`, `<u:color>`, `listopeniconic`
+- ✅ Supported (26): all 6 emphasis forms, bullet+numbered lists, tilde escape, h1–h4
+  headings, all horizontal rule forms, links with tooltip, `<code>` verbatim, pipe tables
+  with header/cell/row colors, tree (`|_`), all Unicode escapes, all legacy HTML tags
+  (`<b>`, `<i>`, `<u:color>`, `<s:color>`, `<w:color>`, `<plain>`, `<color>`, `<back>`,
+  `<size>`, `<font>`, `<img>` placeholder, `<sub>`, `<sup>`, HTML aliases), and
+  definition lists.
+- 🟡 Partial (2): emoji (`<:name:>` — small deterministic subset, not full catalog;
+  colorized form partially); OpenIconic `<&icon>` (placeholder, not rendered).
+- ❌ Missing (3): full PlantUML emoji catalog/`emoji` listing directive,
+  `listopeniconic` directive, `<img:>` actual image embedding (placeholder is fine for
+  text-only renderers; blocked on bitmap compositing).
 
-**Headline:** Creole engine covers the core inline formatting set (bold/italic/mono/underline/strike, color, size, simple links, line breaks, basic `<b>/<i>/<u>` HTML) plus numeric / `<U+...>` Unicode escapes and a small deterministic emoji subset. It is still missing all block-level Creole (lists, headings, tables, tree, horizontal rules), most HTML extension tags (`<s>`, `<w>`, `<plain>`, `<back>`, `<font>`, `<img>`, `<sub>`, `<sup>`), and full PlantUML emoji catalog/directive parity.
+**Headline:** Creole engine is now near-complete for the PlantUML Ch22 spec. All block
+constructs (lists, headings, tables, tree, horizontal rules, definition lists) and all
+inline/HTML extension tags are implemented. Remaining gaps are emoji catalog completeness
+and icon glyph rendering — both intentionally deferred.
