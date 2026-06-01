@@ -260,10 +260,10 @@ pub(super) fn extract_relation_segments(svg: &str) -> Vec<(String, String, Vec<S
 
 /// Extract package/group header strips from rendered SVG group frames.
 ///
-/// The current SVG backend emits a `rect.uml-group-frame`, a small title tab,
-/// and a separator line. Typed group geometry is not available for every
-/// renderer yet, so the fallback uses the top 30px as the reserved header
-/// strip.
+/// The current SVG backend emits a 40 px dark-fill rect (header band) followed
+/// by an 8 px overlap separator, so the full reserved strip is 48 px.  Using 48
+/// here ensures both the header rect and the separator are treated as off-limits
+/// for edge-label background rects (fixes #1451 / #1441 header-height undercount).
 pub fn extract_package_frames(svg: &str) -> Vec<PackageFrame> {
     let mut result = Vec::new();
     let mut pos = 0;
@@ -295,7 +295,7 @@ pub fn extract_package_frames(svg: &str) -> Vec<PackageFrame> {
             x,
             y,
             width,
-            header_height: 30,
+            header_height: 48,
         });
         pos = next_pos;
     }

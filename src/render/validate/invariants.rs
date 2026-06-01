@@ -147,6 +147,20 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                     });
 
                     if matches!(mode, AutoCorrect::Apply) {
+                        // Skip bg rect if the label text itself sits inside a
+                        // package header band.  Header labels (e.g. "package
+                        // Frontends") already have a dark background and must
+                        // NOT receive a white overlay rect (#1441).
+                        let label_in_header = package_frames.iter().any(|frame| {
+                            let header_bot = frame.y + frame.header_height;
+                            let in_x = text.x >= frame.x && text.x <= frame.x + frame.width;
+                            let in_y = text.y >= frame.y && text.y < header_bot;
+                            in_x && in_y
+                        });
+                        if label_in_header {
+                            break;
+                        }
+
                         // Queue a white background rect to be inserted before
                         // the text element in the SVG.
                         let rx = label_x1 - 2;
@@ -167,6 +181,21 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                                 ry = header_bot + 1;
                             }
                         }
+                        // Belt-and-suspenders: if after the push the rect still
+                        // overlaps any header band (e.g. because header_height
+                        // was underestimated), suppress the insert entirely.
+                        // A missing bg rect is always better than one that
+                        // mottles a dark header (#1451).
+                        let still_in_header = package_frames.iter().any(|frame| {
+                            let header_bot = frame.y + frame.header_height;
+                            let overlaps_x = rx < frame.x + frame.width && rx + rw > frame.x;
+                            let overlaps_y = ry < header_bot && ry + rh > frame.y;
+                            overlaps_x && overlaps_y
+                        });
+                        if still_in_header {
+                            break;
+                        }
+
                         let rect = format!(
                             "<rect class=\"uml-edge-label-bg\" data-uml-label-role=\"edge-background\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" opacity=\"0.85\"/>",
                             rx, ry, rw, rh
