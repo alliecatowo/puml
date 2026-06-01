@@ -150,6 +150,54 @@ fn mindmap_depth_style_block_applies_depth_specific_colors() {
     );
 }
 
+/// #1467 — PlantUML layout parity: without explicit `left side` markers, all
+/// depth-1 branches default to the right side (vertical-stack mindmap), matching
+/// upstream PlantUML. The auto-balance heuristic that previously distributed
+/// half the branches to the left was a PUML chrome flourish that broke 1:1
+/// layout parity and is no longer applied.
+#[test]
+fn mindmap_default_layout_keeps_all_branches_on_right_side() {
+    let src = "@startmindmap\n\
+               * Root\n\
+               ** Frontend\n\
+               ** Backend\n\
+               ** DevOps\n\
+               @endmindmap\n";
+    let svg = puml::render_source_to_svg(src).expect("mindmap should render");
+    // All depth-1 branches must sit on the right side — none on the left.
+    assert!(
+        !svg.contains("data-mindmap-side=\"left\""),
+        "without explicit `left side` markers, no branches should be on the left \
+         (PlantUML vertical-stack convention #1467): {svg}"
+    );
+    assert!(
+        svg.contains("data-mindmap-side=\"right\""),
+        "right-side branches should still be present: {svg}"
+    );
+}
+
+/// #1467 — explicit `left side` markers still opt into the symmetric splay
+/// layout, preserving the manual escape hatch for users who want the previous
+/// auto-balance look.
+#[test]
+fn mindmap_explicit_left_side_still_splits_layout() {
+    let src = "@startmindmap\n\
+               * Root\n\
+               ** Right1\n\
+               left side\n\
+               ** Left1\n\
+               @endmindmap\n";
+    let svg = puml::render_source_to_svg(src).expect("mindmap should render");
+    assert!(
+        svg.contains("data-mindmap-side=\"left\""),
+        "explicit `left side` marker must place at least one branch on the left: {svg}"
+    );
+    assert!(
+        svg.contains("data-mindmap-side=\"right\""),
+        "right-side branches should also be present: {svg}"
+    );
+}
+
 #[test]
 fn mindmap_theme_preset_applies_to_existing_depth_style_hooks() {
     let document = puml::parser::parse(THEME_SRC).expect("parse themed mindmap");

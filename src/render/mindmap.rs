@@ -79,33 +79,12 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
         }
     }
 
-    // Auto-balance: if all depth-1 nodes are Right (no explicit side markers),
-    // distribute them evenly left/right for a balanced mindmap (#430/#532).
-    // We assign the first half to Left (alternating from the last node upward so
-    // the first child stays on the right per convention).
-    let has_explicit_left =
-        (0..n).any(|i| nodes[i].depth == 1 && nodes[i].mindmap_side == MindMapSide::Left);
-    if !has_explicit_left {
-        let depth1_indices: Vec<usize> = (0..n).filter(|&i| nodes[i].depth == 1).collect();
-        let total = depth1_indices.len();
-        if total > 1 {
-            // Assign the bottom half (by index order) to Left, keeping the top half Right.
-            let left_count = total / 2;
-            for (rank, &node_idx) in depth1_indices.iter().enumerate() {
-                if rank >= total - left_count {
-                    // Bottom `left_count` children go left; propagate to their descendants.
-                    let mut j = node_idx;
-                    while j < n {
-                        if j != node_idx && nodes[j].depth <= nodes[node_idx].depth {
-                            break;
-                        }
-                        side[j] = MindMapSide::Left;
-                        j += 1;
-                    }
-                }
-            }
-        }
-    }
+    // PlantUML parity (#1467): without explicit `left side` markers, all depth-1
+    // branches stay on the right, matching upstream PlantUML's vertical-stack
+    // mindmap convention. Users who want a symmetric splay can opt in by
+    // tagging individual branches with `left side`. The auto-balance heuristic
+    // that previously redistributed half the branches to the left was a PUML
+    // chrome flourish that broke 1:1 layout parity (median +0.20×).
 
     // Collect left/right subtrees at depth 1+.
     let right_roots: Vec<usize> = (0..n)

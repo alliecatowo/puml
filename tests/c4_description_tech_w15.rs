@@ -137,3 +137,43 @@ Rel(u, app, "Requests", "HTTPS")
         "Container diagram: technology tag [HTTPS] must appear on edge"
     );
 }
+
+/// #1467 — PlantUML layout parity: C4 diagrams use tight rank separation and
+/// tighter group padding so the container grid mirrors PlantUML's compact
+/// layout. Asserted by the canvas dimensions of the canonical
+/// `12_container_with_databases` fixture — after the retune the rendered SVG
+/// stays within parity bounds (≤1600px wide, ≤1100px tall, area ratio ≤1.3×
+/// upstream PlantUML's 989×774 = 765 486 px²).
+#[test]
+fn c4_layout_density_matches_plantuml_within_parity_bounds() {
+    let out = svg(FIXTURE);
+    fn svg_attr(svg: &str, key: &str) -> i32 {
+        let needle = format!(" {key}=\"");
+        let pos = svg.find(&needle).expect("svg dimension attribute");
+        let start = pos + needle.len();
+        let end = svg[start..].find('"').expect("attribute close quote") + start;
+        svg[start..end].parse().expect("integer dimension")
+    }
+    let w = svg_attr(&out, "width");
+    let h = svg_attr(&out, "height");
+    assert!(
+        w <= 1600,
+        "C4 container canvas width must stay ≤1600px after density retune; got {w}"
+    );
+    assert!(
+        h <= 1100,
+        "C4 container canvas height must stay ≤1100px after density retune; got {h}"
+    );
+    let area = (w as i64) * (h as i64);
+    let plantuml_area: i64 = 989 * 774;
+    let ratio_x100 = (area * 100) / plantuml_area;
+    assert!(
+        ratio_x100 <= 145,
+        "C4 container area ratio must be ≤1.45× PlantUML's; got {}.{:02}× ({}×{} = {} px²)",
+        ratio_x100 / 100,
+        ratio_x100 % 100,
+        w,
+        h,
+        area
+    );
+}

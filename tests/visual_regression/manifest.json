@@ -4,7 +4,11 @@
     {
       "path": "docs/examples/sequence/01_basic.puml",
       "family": "sequence",
-      "expected_text": ["Alice", "Bob", "Hello"],
+      "expected_text": [
+        "Alice",
+        "Bob",
+        "Hello"
+      ],
       "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 1371,
@@ -13,7 +17,12 @@
     {
       "path": "docs/examples/sequence/05_alt_opt_loop.puml",
       "family": "sequence",
-      "expected_text": ["alt", "else", "opt", "loop"],
+      "expected_text": [
+        "alt",
+        "else",
+        "opt",
+        "loop"
+      ],
       "min_text_elements": 4,
       "png_baseline_required": false,
       "png_baseline_issue": 1371,
@@ -22,7 +31,14 @@
     {
       "path": "docs/examples/themes/theme_sunlust.puml",
       "family": "sequence",
-      "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log", "success", "log error"],
+      "expected_text": [
+        "sunlust Theme Showcase",
+        "alt success",
+        "else error",
+        "log",
+        "success",
+        "log error"
+      ],
       "min_text_elements": 10,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -31,7 +47,10 @@
     {
       "path": "docs/examples/class/01_basic.puml",
       "family": "class",
-      "expected_text": ["Animal", "Dog"],
+      "expected_text": [
+        "Animal",
+        "Dog"
+      ],
       "min_text_elements": 2,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -40,7 +59,14 @@
     {
       "path": "docs/examples/class/02_inheritance.puml",
       "family": "class",
-      "expected_text": ["Vehicle", "Car", "Truck", "make: String", "drive()", "haul()"],
+      "expected_text": [
+        "Vehicle",
+        "Car",
+        "Truck",
+        "make: String",
+        "drive()",
+        "haul()"
+      ],
       "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -49,7 +75,12 @@
     {
       "path": "docs/examples/activity/01_simple_flow.puml",
       "family": "activity",
-      "expected_text": ["Simple Activity Flow", "Initialize", "Process Data", "Save Results"],
+      "expected_text": [
+        "Simple Activity Flow",
+        "Initialize",
+        "Process Data",
+        "Save Results"
+      ],
       "min_text_elements": 4,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -58,8 +89,18 @@
     {
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
-      "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
-      "unexpected_text": ["(else) no", "(endif)"],
+      "expected_text": [
+        "If-Then-Else Decision",
+        "Receive Request",
+        "authenticated?",
+        "Process",
+        "Return 200",
+        "Return 401"
+      ],
+      "unexpected_text": [
+        "(else) no",
+        "(endif)"
+      ],
       "min_text_elements": 7,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -68,7 +109,13 @@
     {
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
-      "expected_text": ["Idle", "Running", "start", "stop", "init"],
+      "expected_text": [
+        "Idle",
+        "Running",
+        "start",
+        "stop",
+        "init"
+      ],
       "min_text_elements": 5,
       "png_baseline_required": false,
       "png_baseline_issue": 1366,
@@ -77,7 +124,14 @@
     {
       "path": "docs/examples/state/05_fork_join_choice.puml",
       "family": "state",
-      "expected_text": ["TaskA", "TaskB", "Success", "Failure", "ok", "error"],
+      "expected_text": [
+        "TaskA",
+        "TaskB",
+        "Success",
+        "Failure",
+        "ok",
+        "error"
+      ],
       "min_text_elements": 6,
       "png_baseline_required": false,
       "png_baseline_issue": 1366,
@@ -86,7 +140,11 @@
     {
       "path": "docs/examples/usecase/01_basic.puml",
       "family": "usecase",
-      "expected_text": ["Login", "Register", "leads to"],
+      "expected_text": [
+        "Login",
+        "Register",
+        "leads to"
+      ],
       "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -95,7 +153,13 @@
     {
       "path": "docs/examples/usecase/08_inline_element_style.puml",
       "family": "usecase",
-      "expected_text": ["Shopper", "Support", "Browse catalog", "Checkout", "assists"],
+      "expected_text": [
+        "Shopper",
+        "Support",
+        "Browse catalog",
+        "Checkout",
+        "assists"
+      ],
       "min_text_elements": 5,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
@@ -104,7 +168,11 @@
     {
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
-      "expected_text": ["Frontend", "Backend", "calls"],
+      "expected_text": [
+        "Frontend",
+        "Backend",
+        "calls"
+      ],
       "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -113,7 +181,18 @@
     {
       "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
       "family": "component",
-      "expected_text": ["Ports, lollipop interfaces, and required connectors", "Order Service", "Notification Service", "OrderController", "OrderDomain", "IOrderService", "IOrderRepository", "PostgreSQL", "RabbitMQ", "publish events"],
+      "expected_text": [
+        "Ports, lollipop interfaces, and required connectors",
+        "Order Service",
+        "Notification Service",
+        "OrderController",
+        "OrderDomain",
+        "IOrderService",
+        "IOrderRepository",
+        "PostgreSQL",
+        "RabbitMQ",
+        "publish events"
+      ],
       "min_text_elements": 18,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
@@ -122,7 +201,18 @@
     {
       "path": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
       "family": "component",
-      "expected_text": ["CDN Layer", "API Cluster", "Storage Layer", "Event Bus", "Analytics Platform", "Edge Cache", "Load Balancer", "Primary DB", "Kafka", "aggregate"],
+      "expected_text": [
+        "CDN Layer",
+        "API Cluster",
+        "Storage Layer",
+        "Event Bus",
+        "Analytics Platform",
+        "Edge Cache",
+        "Load Balancer",
+        "Primary DB",
+        "Kafka",
+        "aggregate"
+      ],
       "min_text_elements": 24,
       "png_baseline_required": false,
       "png_baseline_issue": 594,
@@ -131,7 +221,12 @@
     {
       "path": "docs/examples/component/10_style_rectangle.puml",
       "family": "component",
-      "expected_text": ["Backend", "API Server", "Database", "Client"],
+      "expected_text": [
+        "Backend",
+        "API Server",
+        "Database",
+        "Client"
+      ],
       "min_text_elements": 4,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
@@ -140,7 +235,10 @@
     {
       "path": "docs/examples/component/11_multiline_bracket_description.puml",
       "family": "component",
-      "expected_text": ["Line 1", "Line 2"],
+      "expected_text": [
+        "Line 1",
+        "Line 2"
+      ],
       "min_text_elements": 1,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
@@ -149,7 +247,16 @@
     {
       "path": "docs/examples/component/12_style_stereotype_targets.puml",
       "family": "component",
-      "expected_text": ["Component style selectors and stereotypes", "Public API", "Worker", "Events", "HTTPS", "dispatch", "publish", "serve"],
+      "expected_text": [
+        "Component style selectors and stereotypes",
+        "Public API",
+        "Worker",
+        "Events",
+        "HTTPS",
+        "dispatch",
+        "publish",
+        "serve"
+      ],
       "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 594,
@@ -158,7 +265,11 @@
     {
       "path": "docs/examples/object/01_basic.puml",
       "family": "object",
-      "expected_text": ["Alice : Person", "Bob : Person", "knows"],
+      "expected_text": [
+        "Alice : Person",
+        "Bob : Person",
+        "knows"
+      ],
       "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -167,7 +278,13 @@
     {
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
-      "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
+      "expected_text": [
+        "WebServer",
+        "AppServer",
+        "DBServer",
+        "HTTP",
+        "TCP"
+      ],
       "min_text_elements": 5,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -193,25 +310,58 @@
     {
       "path": "docs/examples/gantt/01_basic.puml",
       "family": "gantt",
-      "expected_text": ["Project Timeline", "Design", "Build", "Test", "Kickoff"],
+      "expected_text": [
+        "Project Timeline",
+        "Design",
+        "Build",
+        "Test",
+        "Kickoff"
+      ],
       "min_text_elements": 10
     },
     {
       "path": "docs/examples/mindmap/01_basic.puml",
       "family": "mindmap",
-      "expected_text": ["Project", "Planning", "Development", "Testing"],
-      "min_text_elements": 4
+      "expected_text": [
+        "Project",
+        "Planning",
+        "Development",
+        "Testing"
+      ],
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1467,
+      "png_baseline_deferred_reason": "PlantUML-parity layout (#1467) changes canvas dimensions; macOS-blessed baseline drifts on Linux; re-bless on Linux after merge"
     },
     {
       "path": "docs/examples/wbs/01_basic.puml",
       "family": "wbs",
-      "expected_text": ["Project Scope", "Phase 1", "Phase 2", "Phase 3"],
-      "min_text_elements": 4
+      "expected_text": [
+        "Project Scope",
+        "Phase 1",
+        "Phase 2",
+        "Phase 3"
+      ],
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1467,
+      "png_baseline_deferred_reason": "PlantUML-parity layout (#1467) changes canvas dimensions; macOS-blessed baseline drifts on Linux; re-bless on Linux after merge"
     },
     {
       "path": "docs/examples/c4/01_context.puml",
       "family": "c4",
-      "expected_text": ["System Context - Banking App", "Customer", "Support", "Banking Application", "SMS Gateway", "Core Banking", "Uses", "Manages", "Sends notifications", "Transfers funds"],
+      "expected_text": [
+        "System Context - Banking App",
+        "Customer",
+        "Support",
+        "Banking Application",
+        "SMS Gateway",
+        "Core Banking",
+        "Uses",
+        "Manages",
+        "Sends notifications",
+        "Transfers funds"
+      ],
       "min_text_elements": 14,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -220,7 +370,15 @@
     {
       "path": "docs/examples/json/01_object.puml",
       "family": "json",
-      "expected_text": ["JSON", "active", "true", "age", "30", "name", "\"Alice\""],
+      "expected_text": [
+        "JSON",
+        "active",
+        "true",
+        "age",
+        "30",
+        "name",
+        "\"Alice\""
+      ],
       "min_text_elements": 7,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -229,37 +387,88 @@
     {
       "path": "docs/examples/archimate/01_layered.puml",
       "family": "archimate",
-      "expected_text": ["Archimate", "application", "technology", "Web App", "API Server", "Database", "calls", "reads/writes"],
+      "expected_text": [
+        "Archimate",
+        "application",
+        "technology",
+        "Web App",
+        "API Server",
+        "Database",
+        "calls",
+        "reads/writes"
+      ],
       "min_text_elements": 8
     },
     {
       "path": "docs/examples/regex/03_alternation.puml",
       "family": "regex",
-      "expected_text": ["/cat|dog | (foo|bar)+/", "c", "a", "t", "d", "o", "g", "f", "b", "r", "+"],
+      "expected_text": [
+        "/cat|dog | (foo|bar)+/",
+        "c",
+        "a",
+        "t",
+        "d",
+        "o",
+        "g",
+        "f",
+        "b",
+        "r",
+        "+"
+      ],
       "min_text_elements": 13
     },
     {
       "path": "docs/examples/ebnf/02_optional_repetition.puml",
       "family": "ebnf",
-      "expected_text": ["expression :=", "term :=", "factor :=", "term", "factor", "number", "expression", "+", "-", "*", "/", "(", ")"],
+      "expected_text": [
+        "expression :=",
+        "term :=",
+        "factor :=",
+        "term",
+        "factor",
+        "number",
+        "expression",
+        "+",
+        "-",
+        "*",
+        "/",
+        "(",
+        ")"
+      ],
       "min_text_elements": 15
     },
     {
       "path": "docs/examples/math/02_complex.puml",
       "family": "math",
-      "expected_text": ["0", "e", "-", "x", "2", "d", "="],
+      "expected_text": [
+        "0",
+        "e",
+        "-",
+        "x",
+        "2",
+        "d",
+        "="
+      ],
       "min_text_elements": 11
     },
     {
       "path": "docs/examples/ditaa/01_simple_ascii.puml",
       "family": "ditaa",
-      "expected_text": ["Client", "Server", "DB"],
+      "expected_text": [
+        "Client",
+        "Server",
+        "DB"
+      ],
       "min_text_elements": 3
     },
     {
       "path": "docs/examples/nwdiag/01_single_net.puml",
       "family": "nwdiag",
-      "expected_text": ["dmz (192.168.0.x/24)", "web01", "web02"],
+      "expected_text": [
+        "dmz (192.168.0.x/24)",
+        "web01",
+        "web02"
+      ],
       "min_text_elements": 3,
       "png_baseline_required": false,
       "png_baseline_issue": 1372,
@@ -268,7 +477,12 @@
     {
       "path": "docs/examples/timing/04_binary.puml",
       "family": "timing",
-      "expected_text": ["Request", "Ack", "high", "low"],
+      "expected_text": [
+        "Request",
+        "Ack",
+        "high",
+        "low"
+      ],
       "min_text_elements": 8,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -277,7 +491,16 @@
     {
       "path": "docs/examples/timing/08_clock_anchor_messages.puml",
       "family": "timing",
-      "expected_text": ["Clock ticks and anchored messages", "Bus clock", "Producer", "Consumer", "Header", "Payload", "ReceiveHeader", "ReceivePayload"],
+      "expected_text": [
+        "Clock ticks and anchored messages",
+        "Bus clock",
+        "Producer",
+        "Consumer",
+        "Header",
+        "Payload",
+        "ReceiveHeader",
+        "ReceivePayload"
+      ],
       "min_text_elements": 10,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -286,13 +509,33 @@
     {
       "path": "docs/examples/chart/01_bar.puml",
       "family": "chart",
-      "expected_text": ["Q1", "Q2", "Q3", "Q4", "42", "58", "73", "91"],
+      "expected_text": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "42",
+        "58",
+        "73",
+        "91"
+      ],
       "min_text_elements": 13
     },
     {
       "path": "docs/examples/component/07_ports_lollipop_interfaces.puml",
       "family": "component",
-      "expected_text": ["OrderController", "OrderDomain", "IOrderService", "IOrderRepository", "NotificationSender", "PostgreSQL", "RabbitMQ", "provides", "requires", "publish events"],
+      "expected_text": [
+        "OrderController",
+        "OrderDomain",
+        "IOrderService",
+        "IOrderRepository",
+        "NotificationSender",
+        "PostgreSQL",
+        "RabbitMQ",
+        "provides",
+        "requires",
+        "publish events"
+      ],
       "min_text_elements": 16,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -301,7 +544,17 @@
     {
       "path": "docs/examples/deployment/05_three_tier_cloud_onprem.puml",
       "family": "deployment",
-      "expected_text": ["CDN", "WAF / DDoS Protection", "Load Balancer", "Web Server 1", "Redis Primary", "SQS", "VPN Gateway", "PostgreSQL Primary", "replication"],
+      "expected_text": [
+        "CDN",
+        "WAF / DDoS Protection",
+        "Load Balancer",
+        "Web Server 1",
+        "Redis Primary",
+        "SQS",
+        "VPN Gateway",
+        "PostgreSQL Primary",
+        "replication"
+      ],
       "min_text_elements": 18,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -310,7 +563,18 @@
     {
       "path": "docs/examples/deployment/06_kubernetes_pods_containers.puml",
       "family": "deployment",
-      "expected_text": ["Kubernetes Cluster", "nginx", "sidecar-logger", "Ingress Controller", "api-service", "queue-consumer", "postgres-0", "redis-server", "HTTP", "psql"],
+      "expected_text": [
+        "Kubernetes Cluster",
+        "nginx",
+        "sidecar-logger",
+        "Ingress Controller",
+        "api-service",
+        "queue-consumer",
+        "postgres-0",
+        "redis-server",
+        "HTTP",
+        "psql"
+      ],
       "min_text_elements": 20,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -319,7 +583,16 @@
     {
       "path": "docs/examples/deployment/09_style_kind_targets.puml",
       "family": "deployment",
-      "expected_text": ["Deployment style selectors by kind", "Edge", "Web", "Jobs", "DB", "route", "enqueue", "persist"],
+      "expected_text": [
+        "Deployment style selectors by kind",
+        "Edge",
+        "Web",
+        "Jobs",
+        "DB",
+        "route",
+        "enqueue",
+        "persist"
+      ],
       "min_text_elements": 8,
       "png_baseline_required": false,
       "png_baseline_issue": 594,
@@ -328,7 +601,18 @@
     {
       "path": "docs/examples/usecase/06_multi_system_boundary.puml",
       "family": "usecase",
-      "expected_text": ["Customer", "Support Agent", "Customer Portal", "Support Console", "Automation Engine", "Open Ticket", "Auto-tag Ticket", "Route to Agent", "triggers", "<<extend>>"],
+      "expected_text": [
+        "Customer",
+        "Support Agent",
+        "Customer Portal",
+        "Support Console",
+        "Automation Engine",
+        "Open Ticket",
+        "Auto-tag Ticket",
+        "Route to Agent",
+        "triggers",
+        "<<extend>>"
+      ],
       "min_text_elements": 18,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -337,7 +621,15 @@
     {
       "path": "docs/examples/class/31_generic_types_container.puml",
       "family": "class",
-      "expected_text": ["Collection<T>", "ArrayList<T>", "LinkedList<T>", "Node<T>", "Map<K, V>", "HashMap<K, V>", "Optional<T>"],
+      "expected_text": [
+        "Collection<T>",
+        "ArrayList<T>",
+        "LinkedList<T>",
+        "Node<T>",
+        "Map<K, V>",
+        "HashMap<K, V>",
+        "Optional<T>"
+      ],
       "min_text_elements": 7,
       "png_baseline_required": false,
       "png_baseline_issue": 594,
@@ -346,7 +638,15 @@
     {
       "path": "docs/examples/class/32_association_class_deep_packages.puml",
       "family": "class",
-      "expected_text": ["com::acme::hr::Employee", "com::acme::hr::Department", "com::acme::hr::Membership", "com::acme::payroll::PaySlip", "com::acme::reporting::Report", "publishes", "has"],
+      "expected_text": [
+        "com::acme::hr::Employee",
+        "com::acme::hr::Department",
+        "com::acme::hr::Membership",
+        "com::acme::payroll::PaySlip",
+        "com::acme::reporting::Report",
+        "publishes",
+        "has"
+      ],
       "min_text_elements": 24,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -355,7 +655,17 @@
     {
       "path": "docs/examples/sequence/48_complex_ref_over_multibox.puml",
       "family": "sequence",
-      "expected_text": ["Client Tier", "API Tier", "Data Tier", "OAuth2 PKCE handshake", "Token validated", "GET user:profile:{uid}", "cache hit", "cache miss", "dashboard"],
+      "expected_text": [
+        "Client Tier",
+        "API Tier",
+        "Data Tier",
+        "OAuth2 PKCE handshake",
+        "Token validated",
+        "GET user:profile:{uid}",
+        "cache hit",
+        "cache miss",
+        "dashboard"
+      ],
       "min_text_elements": 30,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -364,7 +674,16 @@
     {
       "path": "docs/examples/activity/16_nested_swimlanes_parallel_forks.puml",
       "family": "activity",
-      "expected_text": ["Customer", "Warehouse", "Finance", "Logistics", "Submit order", "Charge payment", "Assign courier", "Update inventory"],
+      "expected_text": [
+        "Customer",
+        "Warehouse",
+        "Finance",
+        "Logistics",
+        "Submit order",
+        "Charge payment",
+        "Assign courier",
+        "Update inventory"
+      ],
       "min_text_elements": 15,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -373,7 +692,16 @@
     {
       "path": "docs/examples/activity/17_switch_case_with_detach.puml",
       "family": "activity",
-      "expected_text": ["Read event type", "Parse headers", "Route to handler", "Dispatch message", "Flush queues", "Flush state", "Graceful shutdown", "Reset event buffer"],
+      "expected_text": [
+        "Read event type",
+        "Parse headers",
+        "Route to handler",
+        "Dispatch message",
+        "Flush queues",
+        "Flush state",
+        "Graceful shutdown",
+        "Reset event buffer"
+      ],
       "min_text_elements": 8,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -382,7 +710,17 @@
     {
       "path": "docs/examples/activity/18_repeat_while_nested_partition.puml",
       "family": "activity",
-      "expected_text": ["Open data source", "Fetch batch", "Validate schema", "Normalize timestamps", "Deduplicate records", "Write primary table", "Update search index", "Publish CDC events", "Commit transaction"],
+      "expected_text": [
+        "Open data source",
+        "Fetch batch",
+        "Validate schema",
+        "Normalize timestamps",
+        "Deduplicate records",
+        "Write primary table",
+        "Update search index",
+        "Publish CDC events",
+        "Commit transaction"
+      ],
       "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -391,7 +729,16 @@
     {
       "path": "docs/examples/activity_new/08_notes_split_partitions.puml",
       "family": "activity",
-      "expected_text": ["Planner", "Build", "Gather context", "Review evidence", "archive stale worker", "fix live branch", "build log path", "render PNG"],
+      "expected_text": [
+        "Planner",
+        "Build",
+        "Gather context",
+        "Review evidence",
+        "archive stale worker",
+        "fix live branch",
+        "build log path",
+        "render PNG"
+      ],
       "min_text_elements": 10,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -400,7 +747,20 @@
     {
       "path": "docs/examples/state/09_three_level_composite.puml",
       "family": "state",
-      "expected_text": ["Device", "Off", "On", "Initializing", "LoadingFirmware", "SelfTest", "RamCheck", "StorageCheck", "Running", "Sleeping", "power on", "wake event"],
+      "expected_text": [
+        "Device",
+        "Off",
+        "On",
+        "Initializing",
+        "LoadingFirmware",
+        "SelfTest",
+        "RamCheck",
+        "StorageCheck",
+        "Running",
+        "Sleeping",
+        "power on",
+        "wake event"
+      ],
       "min_text_elements": 18,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -409,7 +769,21 @@
     {
       "path": "docs/examples/state/10_parallel_regions_shared_events.puml",
       "family": "state",
-      "expected_text": ["Parallel regions with shared events", "MediaPlayer", "Playing", "Paused", "Stopped", "Normal", "Muted", "EQOff", "EQOn", "pause", "mute", "enableEQ", "powerOff"],
+      "expected_text": [
+        "Parallel regions with shared events",
+        "MediaPlayer",
+        "Playing",
+        "Paused",
+        "Stopped",
+        "Normal",
+        "Muted",
+        "EQOff",
+        "EQOn",
+        "pause",
+        "mute",
+        "enableEQ",
+        "powerOff"
+      ],
       "min_text_elements": 13,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -418,7 +792,17 @@
     {
       "path": "docs/examples/timing/05_concurrent_timelines_message_arrows.puml",
       "family": "timing",
-      "expected_text": ["CPU", "Cache L1", "Memory Bus", "I/O Controller", "System Clock", "ReadReq", "ReadResp", "DmaKick", "DmaAck"],
+      "expected_text": [
+        "CPU",
+        "Cache L1",
+        "Memory Bus",
+        "I/O Controller",
+        "System Clock",
+        "ReadReq",
+        "ReadResp",
+        "DmaKick",
+        "DmaAck"
+      ],
       "min_text_elements": 24,
       "png_baseline_required": false,
       "png_baseline_issue": 434,
@@ -427,7 +811,18 @@
     {
       "path": "docs/examples/c4/11_system_landscape.puml",
       "family": "c4",
-      "expected_text": ["Customer", "Operations Team", "Business Analyst", "E-Commerce Platform", "CRM System", "ERP System", "Analytics Platform", "Notification Service", "Payment Gateway", "Shipping Partner API"],
+      "expected_text": [
+        "Customer",
+        "Operations Team",
+        "Business Analyst",
+        "E-Commerce Platform",
+        "CRM System",
+        "ERP System",
+        "Analytics Platform",
+        "Notification Service",
+        "Payment Gateway",
+        "Shipping Partner API"
+      ],
       "min_text_elements": 18,
       "png_baseline_required": false,
       "png_baseline_issue": 739,
@@ -436,7 +831,17 @@
     {
       "path": "docs/examples/chart/06_multi_series_line.puml",
       "family": "chart",
-      "expected_text": ["Weekly Active Users", "Desktop", "Mobile", "Tablet", "W1", "W8", "1800", "1100", "610"],
+      "expected_text": [
+        "Weekly Active Users",
+        "Desktop",
+        "Mobile",
+        "Tablet",
+        "W1",
+        "W8",
+        "1800",
+        "1100",
+        "610"
+      ],
       "min_text_elements": 20,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -445,7 +850,20 @@
     {
       "path": "docs/diagrams/language-service-layers.puml",
       "family": "class",
-      "expected_text": ["CompletionItem", "CompletionList", "Hover", "DocumentSymbol", "SemanticTokens", "FormatResult", "Diagnostic", "Severity", "LspAdapter", "WasmAdapter", "CliAdapter", "VsCodeExtension"],
+      "expected_text": [
+        "CompletionItem",
+        "CompletionList",
+        "Hover",
+        "DocumentSymbol",
+        "SemanticTokens",
+        "FormatResult",
+        "Diagnostic",
+        "Severity",
+        "LspAdapter",
+        "WasmAdapter",
+        "CliAdapter",
+        "VsCodeExtension"
+      ],
       "min_text_elements": 35,
       "png_baseline_required": false,
       "png_baseline_issue": 1113,
@@ -454,13 +872,28 @@
     {
       "path": "docs/examples/sdl/02_with_transitions.puml",
       "family": "sdl",
-      "expected_text": ["Idle", "Processing", "Waiting", "Done", "request", "complete"],
+      "expected_text": [
+        "Idle",
+        "Processing",
+        "Waiting",
+        "Done",
+        "request",
+        "complete"
+      ],
       "min_text_elements": 8
     },
     {
       "path": "docs/examples/wire/01_basic_components.puml",
       "family": "wire",
-      "expected_text": ["Wire harness controller", "Panel", "Controller", "POWER", "DATA", "24V", "signal"],
+      "expected_text": [
+        "Wire harness controller",
+        "Panel",
+        "Controller",
+        "POWER",
+        "DATA",
+        "24V",
+        "signal"
+      ],
       "min_text_elements": 9,
       "png_baseline_required": false,
       "png_baseline_issue": 725,

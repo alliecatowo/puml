@@ -151,14 +151,19 @@ deactivate A
 
 #[test]
 fn issue_1298_mindmap_multiline_left_nodes_do_not_overlap() {
-    // Four depth-1 nodes each with a two-line label.  With auto-balance 2 go
-    // left and 2 go right.  Before the fix the y-step was fixed at 48px while
-    // each node rendered at 50px tall, causing node boxes to overlap.  After
-    // the fix each slot is at least `rendered_height + padding`.
+    // Four depth-1 nodes each with a two-line label, with two explicitly tagged
+    // `left side`. Before the multi-line height fix the y-step was fixed at 48px
+    // while each node rendered at 50px tall, causing node boxes to overlap.
+    // After the fix each slot is at least `rendered_height + padding`.
+    //
+    // Test refreshed for #1467 (PlantUML parity): auto-balance was removed, so
+    // the test now uses explicit `left side` markers to exercise the left-side
+    // slot-height path.
     let src = "@startmindmap\n\
                * Root\n\
                ** Node1\\nLine2\n\
                ** Node2\\nLine2\n\
+               left side\n\
                ** Node3\\nLine2\n\
                ** Node4\\nLine2\n\
                @endmindmap\n";
