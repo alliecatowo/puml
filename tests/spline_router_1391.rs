@@ -205,7 +205,7 @@ fn spline_endpoints_pin_to_source_and_target_anchors() {
     // Extract final C segment endpoint (last 'x,y' in d, after all
     // intermediate control points).
     let last_segment = d.rsplit(" C ").next().unwrap();
-    let last_token = last_segment.split(' ').last().unwrap();
+    let last_token = last_segment.split(' ').next_back().unwrap();
     let (ex, ey) = parse_pair(last_token);
     // Endpoint coords must be finite real numbers in canvas space.
     assert!(
@@ -254,7 +254,7 @@ Source --> Target : my_label
     let move_token = after_m.split(' ').next().unwrap();
     let (mx, _) = parse_pair(move_token);
     let last_segment = d.rsplit(" C ").next().unwrap();
-    let last_token = last_segment.split(' ').last().unwrap();
+    let last_token = last_segment.split(' ').next_back().unwrap();
     let (ex, _) = parse_pair(last_token);
     let approx_mid_x = (mx + ex) / 2.0;
     // Find the label element.
