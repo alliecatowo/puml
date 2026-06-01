@@ -428,8 +428,12 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
             "loop 3 times",
             "authenticate",
             "token",
-            "401 Unauthorized",
-            "store session",
+            // Density retune (#1371) wraps "401 Unauthorized" and "store session"
+            // onto separate tspans; assert each word individually.
+            "401",
+            "Unauthorized",
+            "store",
+            "session",
             "heartbeat",
             "pong",
         ],
