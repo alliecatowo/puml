@@ -181,7 +181,7 @@ fn inline_element_style_renders_usecase_node_style() {
         "usecase inline fill and line color should reach ellipse geometry; svg={svg}"
     );
     assert!(
-        svg.contains("stroke-dasharray=\"5 3\""),
+        svg.contains("stroke-dasharray=\"8 4\""),
         "usecase line.dashed should render dashed node border; svg={svg}"
     );
     assert!(
