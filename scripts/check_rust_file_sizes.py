@@ -91,6 +91,17 @@ ALLOWLIST_REASONS = {
     # computation; splitting into sub-files would require threading spline state
     # through callers with no semantic benefit. Split tracked in #590.
     "src/render/graph_layout/spline_router.rs": "wave-16 spline-native router added as new 684-line file; split tracked in #590",
+    # New module introduced in #1413 (Phase A) implementing the recursive-descent
+    # <style> block parser with full property, selector, nested-block, and
+    # inheritance-chain support. The parser is a single tightly-coupled recursive
+    # descent over the style grammar; splitting into sub-modules would require
+    # threading the parser cursor through all sub-parsers. Split tracked in #590.
+    "src/parser/style_block.rs": "wave-16 <style> block parser Phase A; split tracked in #590",
+    # Was 597 lines on main; grew to 601 after Phase A (#1413) added the StyleBlock
+    # passthrough arm (4 lines including comment). The stub normalizer handles multiple
+    # diagram families (Salt, Mindmap, WBS); mechanical sub-module extraction would
+    # require threading family-dispatch state. Split tracked in #590.
+    "src/normalize/family/stub.rs": "wave-16 StyleBlock passthrough added 4 lines; split tracked in #590",
 }
 
 
