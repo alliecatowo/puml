@@ -1,7 +1,7 @@
 ' Merged GCP stdlib compatibility surface.
 
-!procedure GCPIcon($alias, $service_or_label, $label_or_technology="", $descr="")
-object $service_or_label as $alias <<gcp-$label_or_technology>>
+!procedure GCPIcon($alias, $service, $label="", $descr="")
+object $label as $alias <<gcp-$service>>
 !endprocedure
 
 !procedure GCPGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor)
