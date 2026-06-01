@@ -205,6 +205,49 @@ pub const CLASS_COL_GAP: i32 = 40;
 pub const CLASS_ROW_GAP: i32 = 40;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Object diagram geometry (class_render.rs — object-specific density retune)
+//
+// PlantUML renders object boxes at ~120px wide with tight inter-element gaps.
+// These constants override the wider class-diagram defaults when the renderer
+// detects an all-Object-node diagram (is_object_diagram_layout check).
+//
+// Tuned to bring area ratios below 2.0× for the two wave-4 audit fixtures
+// (object/02_with_attributes, object/05_ch04_parity) — refs #1425.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Maximum node width for object diagrams, in user units.
+///
+/// PlantUML renders object boxes at roughly 120px wide (content-driven but
+/// capped tight).  Class diagrams use 160–600px.  Capping objects at 160
+/// brings the horizontal canvas much closer to PlantUML parity while still
+/// accommodating typical attribute-value text (#1425).
+pub const OBJECT_NODE_WIDTH_MAX: i32 = 130;
+
+/// Horizontal column gap between adjacent object nodes, in user units.
+///
+/// Tuned to ~20px to match PlantUML's tight horizontal spacing for object
+/// diagrams.  Class diagrams use 80px or relation-label-driven spacing (#1425).
+pub const OBJECT_COL_GAP: i32 = 20;
+
+/// Vertical row gap between object diagram ranks, in user units.
+///
+/// Tuned to ~20px to approximate PlantUML's compact vertical spacing for
+/// object diagrams.  Class diagrams use 64px (#1425).
+pub const OBJECT_ROW_GAP: i32 = 20;
+
+/// Horizontal canvas margin for object diagrams, in user units.
+///
+/// Object diagrams use a narrower outer margin than class diagrams (8px vs
+/// 32px) to match PlantUML's tight canvas boundary (#1425).
+pub const OBJECT_MARGIN_X: i32 = 8;
+
+/// Top canvas margin for object diagrams, in user units.
+///
+/// Matched to OBJECT_MARGIN_X; titles and group labels add on top of this
+/// value via the standard header-block computation (#1425).
+pub const OBJECT_MARGIN_TOP: i32 = 8;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sequence diagram geometry (sequence.rs)
 // ─────────────────────────────────────────────────────────────────────────────
 
