@@ -368,7 +368,9 @@ nwdiag {
     assert!(nwdiag_svg.contains("data-nwdiag-name=\"web01\""));
     assert!(nwdiag_svg.contains("data-nwdiag-addresses=\"203.0.113.10, 2001:db8::10\""));
     assert!(nwdiag_svg.contains("data-nwdiag-shape=\"roundedbox\""));
-    assert!(nwdiag_svg.contains("width=\"240\""));
+    // width=240 in fixture is clamped to NWDIAG_NODE_WIDTH_MAX=180 after the
+    // density-retune in #1466 lowered the max node width from 240 → 180.
+    assert!(nwdiag_svg.contains("width=\"180\""));
     assert!(nwdiag_svg.contains("DMZ group"));
 
     let archimate = r##"@startarchimate

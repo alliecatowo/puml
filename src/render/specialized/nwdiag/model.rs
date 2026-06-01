@@ -95,7 +95,7 @@ pub(super) fn shared_node_spans(
     let mut scan_y = start_y;
     for net in &document.networks {
         let bar_y = scan_y + 24;
-        let node_y = bar_y + 30;
+        let node_y = bar_y + NWDIAG_BUS_DROP;
         for node in &net.nodes {
             if !shared_names.contains(&node.name) {
                 continue;
