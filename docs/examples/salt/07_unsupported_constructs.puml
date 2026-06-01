@@ -1,0 +1,8 @@
+@startsalt
+{#
+| Name        | Value | Notes   |
+| Alpha       | 42    | *       |
+| Beta        | 17    | *       |
+| <<missing>> | n/a   | no icon |
+}
+@endsalt
