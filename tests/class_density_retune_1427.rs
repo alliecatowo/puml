@@ -138,10 +138,11 @@ fn class_11_generics_area_ratio_within_target() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Isolation guard: object/02_with_attributes must remain at wave-4 baseline
 //
-// The class density-retune constants (#1427) are gated on DiagramKind::Class
-// only.  This test ensures object diagrams (DiagramKind::Object, which also
-// routes through the class renderer) are NOT affected by the retune.
-// PlantUML reference: 223×253 = 56,419 px² (wave-4 object/02 baseline)
+// Object diagrams (#1425) get their own tighter layout constants, separate
+// from the class-retune constants (#1427).  This test ensures the object
+// retune delivers the expected compact size and that the class-retune
+// constants (#1427) don't accidentally over-inflate object diagrams again.
+// Post-#1425 baseline: 210×326 = 68,460 px²
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -149,13 +150,17 @@ fn object_02_unaffected_by_class_retune() {
     let src = include_str!("../docs/examples/object/02_with_attributes.puml");
     let svg = render(src);
     let puml_area = svg_canvas_area(&svg);
-    // Object/02 wave-4 baseline: 327×450 = 147,150 px²
-    // Ensure it is NOT smaller than 0.8× of the wave-4 baseline (regression guard
-    // that it wasn't accidentally retune'd smaller).
-    let baseline_area: u64 = 327 * 450;
+    // Object/02 post-#1425 baseline: 210×326 = 68,460 px²
+    // Guard: must stay within ±30% of the post-retune compact baseline.
+    let baseline_area: u64 = 210 * 326;
     assert!(
-        puml_area >= baseline_area * 80 / 100,
-        "object/02 area={puml_area} is more than 20% smaller than wave-4 baseline={baseline_area} — \
-         class retune may have accidentally shrunk object diagrams"
+        puml_area >= baseline_area * 70 / 100,
+        "object/02 area={puml_area} is more than 30% smaller than post-#1425 baseline={baseline_area} — \
+         object retune may have regressed"
+    );
+    assert!(
+        puml_area <= baseline_area * 130 / 100,
+        "object/02 area={puml_area} is more than 30% larger than post-#1425 baseline={baseline_area} — \
+         class-retune constants may be inflating object diagrams"
     );
 }

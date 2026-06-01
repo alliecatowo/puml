@@ -1,7 +1,8 @@
 use crate::ast::DiagramKind;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
-    CLASS_BOX_MIN_WIDTH, CLASS_COL_GAP, CLASS_MARGIN_X, CLASS_ROW_GAP,
+    CLASS_BOX_MIN_WIDTH, CLASS_COL_GAP, CLASS_MARGIN_X, CLASS_ROW_GAP, OBJECT_COL_GAP,
+    OBJECT_MARGIN_TOP, OBJECT_MARGIN_X, OBJECT_NODE_WIDTH_MAX, OBJECT_ROW_GAP,
 };
 use crate::render::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
@@ -13,7 +14,8 @@ use crate::theme::ClassStyle;
 
 use super::c4_nodes::c4_node_height;
 use super::class_layout::{
-    class_compute_canvas, class_node_display_name, class_run_layout, is_real_usecase_layout,
+    class_compute_canvas, class_node_display_name, class_run_layout, is_object_diagram_layout,
+    is_real_usecase_layout,
 };
 use super::class_members::{count_header_stereotype_members, parse_map_row};
 use super::class_metadata::{
@@ -55,16 +57,28 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     // schedules (#1425 object, #1359 usecase).  Only `DiagramKind::Class` uses
     // the class density-retune constants introduced in #1427.
     let is_class_diagram = document.kind == DiagramKind::Class;
+    // Detect object diagrams early so we can apply tighter spacing constants
+    // (#1425: object density retune — matches PlantUML compact object layout).
+    let is_object = is_object_diagram_layout(document);
 
     // Layout constants — class-specific density retune (#1427).
     // CLASS_MARGIN_X / CLASS_BOX_MIN_WIDTH / CLASS_COL_GAP / CLASS_ROW_GAP are
     // defined in layout_constants.rs and tuned to close the 2-4× area gap vs
-    // PlantUML observed in the wave-4 audit.  For non-class families that share
-    // this renderer (object, usecase) the pre-retune values are preserved.
-    let margin_x: i32 = if is_class_diagram { CLASS_MARGIN_X } else { 32 };
+    // PlantUML observed in the wave-4 audit.
+    let margin_x: i32 = if is_class_diagram {
+        CLASS_MARGIN_X
+    } else if is_object {
+        OBJECT_MARGIN_X
+    } else {
+        32
+    };
     // Extra top margin for a `header` block above the title / nodes.
     let header_block_h = family_metadata_label_height(document.header.as_deref());
-    let margin_top: i32 = 32 + header_block_h;
+    let margin_top: i32 = if is_object {
+        OBJECT_MARGIN_TOP + header_block_h
+    } else {
+        32 + header_block_h
+    };
     let col_count: i32 = 3;
     let group_frames = collect_render_group_frames(&document.groups);
     let max_group_depth = group_frames
@@ -105,8 +119,12 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         let base_w = name_px.max(member_px).clamp(min_w, 600);
         // Retune for usecase density (#1359): ovals are much smaller than class
         // boxes; cap usecase node width at 120 to match PlantUML oval sizing.
+        // Retune for object density (#1425): cap object node width to
+        // OBJECT_NODE_WIDTH_MAX to match PlantUML's tighter object box sizing.
         if is_real_usecase_layout(document) {
             base_w.min(120)
+        } else if is_object {
+            base_w.min(OBJECT_NODE_WIDTH_MAX)
         } else {
             base_w
         }
@@ -137,10 +155,14 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     //   class    — col_gap=CLASS_COL_GAP=40, row_gap=CLASS_ROW_GAP=40  (retune #1427)
     //   object   — col_gap=80, row_gap=64  (pre-retune; object retune is #1425)
     // Relation labels in usecase diagrams don't drive horizontal node spacing.
+    // Retune for object density (#1425): use OBJECT_COL_GAP / OBJECT_ROW_GAP
+    // for object diagrams to approximate PlantUML's compact spacing.
     let col_gap: i32 = if is_usecase {
         30
     } else if is_class_diagram {
         CLASS_COL_GAP.max(relation_label_gap)
+    } else if is_object {
+        OBJECT_COL_GAP.max(relation_label_gap)
     } else {
         80_i32.max(relation_label_gap)
     };
@@ -148,6 +170,8 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         20
     } else if is_class_diagram {
         CLASS_ROW_GAP
+    } else if is_object {
+        OBJECT_ROW_GAP
     } else {
         64
     };

@@ -135,6 +135,7 @@ pub(super) fn class_run_layout(
 
     let is_usecase = is_real_usecase_layout(document);
     let is_class_diagram = document.kind == DiagramKind::Class;
+    let is_object = is_object_diagram_layout(document);
     let rank_separation = if is_usecase {
         // Retune for PlantUML-equivalent density (#1359): rank_separation =
         // max_node_height + row_gap ensures adjacent ranks never overlap
@@ -158,7 +159,9 @@ pub(super) fn class_run_layout(
     let gl_options = GlOptions {
         rank_separation,
         node_separation: col_gap as f64,
-        group_padding: if is_usecase { 8.0 } else { 16.0 },
+        // Object and usecase diagrams use tighter group padding (8px) to match
+        // PlantUML's compact spacing; class diagrams use 16px (#1425, #1359).
+        group_padding: if is_object || is_usecase { 8.0 } else { 16.0 },
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
         // Right-side gutter only needs margin_x (32px); canvas_margin also absorbs
@@ -493,8 +496,13 @@ pub(super) fn class_compute_canvas(
     let svg_width = gl_canvas_right
         .max(nodes_right + label_right_pad)
         .max(groups_right + margin_x);
-    let svg_height =
-        (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
+    // Bottom gutter: use margin_x as the canvas bottom margin so object diagrams
+    // (margin_x=8) get a tight 8px gutter instead of the class-diagram 40px.
+    // Class diagrams (margin_x=32) get 32px, which is close to the old 40px and
+    // preserves existing visual output within normal tolerance (#1425).
+    let bottom_gutter = margin_x.max(8);
+    let svg_height = (nodes_bottom.max(groups_bottom) + bottom_gutter + proj_extra_height)
+        .max(gl_canvas_bottom + bottom_gutter);
 
     ClassCanvasMetrics {
         svg_width,
@@ -519,6 +527,26 @@ pub(super) fn class_node_display_name(
         .filter(|sep| !sep.is_empty())
         .map(|sep| raw_name.replace("::", sep))
         .unwrap_or_else(|| raw_name.to_string())
+}
+
+/// Returns `true` when the document is an object diagram.
+///
+/// An object diagram may contain `Object`, `Diamond` (junction nodes), and
+/// `Note` nodes.  At least one `Object` node must be present.  Used in
+/// `class_render.rs` to select tighter layout constants (OBJECT_*) that match
+/// PlantUML's compact object-diagram spacing (#1425).
+pub(super) fn is_object_diagram_layout(document: &FamilyDocument) -> bool {
+    let has_object = document
+        .nodes
+        .iter()
+        .any(|node| matches!(node.kind, FamilyNodeKind::Object));
+    let all_object_compatible = document.nodes.iter().all(|node| {
+        matches!(
+            node.kind,
+            FamilyNodeKind::Object | FamilyNodeKind::Diamond | FamilyNodeKind::Note
+        )
+    });
+    !document.nodes.is_empty() && has_object && all_object_compatible
 }
 
 pub(super) fn is_real_usecase_layout(document: &FamilyDocument) -> bool {
