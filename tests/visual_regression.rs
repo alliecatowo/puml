@@ -1191,10 +1191,13 @@ fn render_svg_uses_stdout_without_mutating_fixture_directory() {
     let svg = render_svg(&fixture_path).expect("render svg");
 
     assert!(svg.contains("<svg"), "rendered stdout should contain SVG");
-    assert!(
-        svg.contains("hello from stdin"),
-        "rendered stdout should contain fixture text"
-    );
+    // Density retune may wrap multi-word labels onto separate tspans; assert per-word presence.
+    for word in ["hello", "from", "stdin"] {
+        assert!(
+            svg.contains(word),
+            "rendered stdout should contain fixture text word: {word}"
+        );
+    }
     assert!(
         !fixture_path.with_extension("svg").exists(),
         "rendering through the visual harness must not create sibling SVGs"
