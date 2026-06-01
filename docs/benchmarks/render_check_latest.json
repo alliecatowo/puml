@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-31T23:37:20Z",
+  "generated_at_utc": "2026-06-01T01:47:01Z",
   "summary": {
-    "total": 342,
-    "passed": 339,
+    "total": 343,
+    "passed": 340,
     "excluded": 3,
     "failed": 0
   },
@@ -815,6 +815,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/class/11_generics.puml",
       "artifact_svg": "docs/examples/class/11_generics.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/class/11_spot_stereotypes.puml",
+      "artifact_svg": "docs/examples/class/11_spot_stereotypes.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

@@ -1,3 +1,4 @@
+use crate::ast::DiagramKind;
 use crate::model::{FamilyDocument, FamilyNode, FamilyNodeKind};
 
 use super::class_types::{ClassCanvasMetrics, ClassNodeBox};
@@ -133,6 +134,7 @@ pub(super) fn class_run_layout(
         .collect();
 
     let is_usecase = is_real_usecase_layout(document);
+    let is_class_diagram = document.kind == DiagramKind::Class;
     let rank_separation = if is_usecase {
         // Retune for PlantUML-equivalent density (#1359): rank_separation =
         // max_node_height + row_gap ensures adjacent ranks never overlap
@@ -140,7 +142,17 @@ pub(super) fn class_run_layout(
         // rank top).  row_gap=20 gives ~20px inter-rank clearance.
         let max_node_h = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60) as f64;
         max_node_h + row_gap as f64
+    } else if is_class_diagram {
+        // Class density retune (#1427): rank_separation is the pure bottom-to-top
+        // gap between adjacent rank rows.  The graph-layout engine (coordinates.rs)
+        // already adds `max_node_height` per row-advance step, so we pass only the
+        // inter-node whitespace here.  The old formula (`row_gap + max_node_h`)
+        // produced ~158px inter-node gaps instead of the intended ~40px, driving
+        // the 3× area ratios observed in the wave-4 audit.
+        row_gap as f64
     } else {
+        // Object diagrams (and any other family routed through this renderer):
+        // preserve the pre-#1427 formula pending their own retune (#1425).
         (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60)) as f64
     };
     let gl_options = GlOptions {
