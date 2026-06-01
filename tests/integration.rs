@@ -5175,8 +5175,10 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         "dashed node style should reach SVG geometry"
     );
     assert!(
-        svg.contains("width=\"240\""),
-        "node width attribute should affect SVG geometry"
+        // The fixture sets width=240, which is clamped to the new max (180) after the
+        // density-retune in #1466 lowered NWDIAG_NODE_WIDTH_MAX from 240 → 180.
+        svg.contains("width=\"180\""),
+        "node width attribute should affect SVG geometry (clamped to NWDIAG_NODE_WIDTH_MAX=180)"
     );
     assert!(
         svg.contains("class=\"nwdiag-connector\""),
