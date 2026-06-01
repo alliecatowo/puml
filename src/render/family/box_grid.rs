@@ -1,7 +1,8 @@
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, COMPONENT_NODE_BOX_HEIGHT,
-    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
+    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, DEPLOYMENT_BOX_HEIGHT,
+    DEPLOYMENT_BOX_WIDTH, DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
 };
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
@@ -57,16 +58,21 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         _ => ComponentStyle::default(),
     };
 
-    // Component uses tighter per-node dimensions than the shared defaults (#1427): ~140×56px
-    // vs the 200×80px graph-layout fallback, matching PlantUML's denser output for component
-    // diagrams.  Deployment and other families continue to use their own constants.
+    // Per-family per-node dimensions (#1426, #1427):
+    //   component → COMPONENT_NODE_BOX (~130×50px, PlantUML denser layout)
+    //   deployment → DEPLOYMENT_BOX (~110×44px, PlantUML denser layout)
+    //   other families → COMPONENT_BOX (200×80px graph-layout default)
     let cell_w = if family == "component" {
         COMPONENT_NODE_BOX_WIDTH
+    } else if family == "deployment" {
+        DEPLOYMENT_BOX_WIDTH
     } else {
         COMPONENT_BOX_WIDTH
     };
     let cell_h = if family == "component" {
         COMPONENT_NODE_BOX_HEIGHT
+    } else if family == "deployment" {
+        DEPLOYMENT_BOX_HEIGHT
     } else {
         COMPONENT_BOX_HEIGHT
     };
@@ -199,10 +205,14 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .collect();
 
     let group_top_overhead = (pkg_pad + pkg_tab) as f64;
-    // Component uses a tighter rank separation to match PlantUML's inter-rank gap (#1427).
-    // Other families keep the 40px extra gap.
+    // Per-family rank separation (#1426, #1427):
+    //   component → COMPONENT_RANK_EXTRA_GAP (8px, PlantUML tighter inter-rank)
+    //   deployment → DEPLOYMENT_RANK_EXTRA_GAP (30px, PlantUML ~80px inter-rank)
+    //   other families → 40px extra gap
     let rank_extra = if family == "component" {
         COMPONENT_RANK_EXTRA_GAP
+    } else if family == "deployment" {
+        DEPLOYMENT_RANK_EXTRA_GAP
     } else {
         40.0
     };

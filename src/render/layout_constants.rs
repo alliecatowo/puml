@@ -182,6 +182,32 @@ pub const REF_HEADER_HEIGHT: i32 = 20;
 pub const REF_BODY_BASELINE_Y: i32 = 32;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Deployment diagram geometry (box_grid.rs / render_deployment_artifact)
+//
+// Tuned as part of the per-shape density retune (#1426) to close the 2-5× area
+// gap vs PlantUML for deployment fixtures (02_databases 4.90×, 03_cloud 3.68×,
+// 06_kubernetes 2.21×).  These constants are intentionally smaller than the
+// component-family equivalents: PlantUML renders deployment nodes at ~114×44px
+// with ~60px rank separation, versus component nodes at ~120×50px.  Using
+// separate constants lets us retune deployment without affecting component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Width of a deployment node in the deployment renderer, in user units.
+/// Tuned to approximate PlantUML's default node width (~114px) for the
+/// deployment family, reducing the 4.90× area ratio on 02_databases (#1426).
+pub const DEPLOYMENT_BOX_WIDTH: i32 = 110;
+
+/// Height of a deployment node in the deployment renderer (single-line label),
+/// in user units.  Tuned to approximate PlantUML's default node height (~44px).
+pub const DEPLOYMENT_BOX_HEIGHT: i32 = 44;
+
+/// Extra gap added on top of DEPLOYMENT_BOX_HEIGHT to compute the deployment
+/// rank separation, in user units.  Together they yield
+/// `DEPLOYMENT_BOX_HEIGHT + DEPLOYMENT_RANK_EXTRA_GAP + 2*PKG_PADDING` ≈ 80px,
+/// close to PlantUML's default inter-rank gap for the deployment family.
+pub const DEPLOYMENT_RANK_EXTRA_GAP: f64 = 30.0;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Activity diagram geometry (activity/mod.rs, activity/layout.rs)
 // ─────────────────────────────────────────────────────────────────────────────
 

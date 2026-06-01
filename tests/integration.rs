@@ -6227,12 +6227,12 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 #[test]
 fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
     for (example_path, max_width, max_aspect) in [
-        // aspect relaxed to 1.4 after the PlantUML density retune (#1346):
-        // tighter rank/node separation compresses the vertical axis more
-        // than the horizontal, naturally widening the aspect ratio without
-        // re-introducing the pathological one-row whitespace shape this
-        // test guards against.
-        ("deployment/07_ch08_keyword_parity.puml", 2600, 1.4),
+        // aspect relaxed to 2.0 after the deployment density retune (#1426):
+        // smaller deployment nodes (110×44 vs 200×80) compress the vertical
+        // axis more than the horizontal when many node types are in one diagram,
+        // producing wider aspect ratios without any pathological whitespace.
+        // Still well below an unconstrained one-row whitespace layout.
+        ("deployment/07_ch08_keyword_parity.puml", 2600, 2.0),
         // aspect relaxed to 2.1: is_real_usecase_layout now detects this
         // diagram (actors + usecases + rectangle groups) as a usecase layout,
         // reducing row_gap from 64→46 which produces a wider aspect.
