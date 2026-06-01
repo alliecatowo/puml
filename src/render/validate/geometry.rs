@@ -304,6 +304,19 @@ pub fn extract_package_frames(svg: &str) -> Vec<PackageFrame> {
 
 /// Parse `points="x1,y1 x2,y2 …"` into a list of `Segment` values.
 pub(super) fn parse_polyline_segments(tag: &str) -> Vec<Segment> {
+    parse_polyline_points(tag)
+        .windows(2)
+        .map(|w| Segment {
+            x1: w[0].0,
+            y1: w[0].1,
+            x2: w[1].0,
+            y2: w[1].1,
+        })
+        .collect()
+}
+
+/// Parse `points="x1,y1 x2,y2 …"` into a list of `(x, y)` coordinate pairs.
+fn parse_polyline_points(tag: &str) -> Vec<(i32, i32)> {
     let Some(start) = tag.find("points=\"") else {
         return Vec::new();
     };
@@ -313,7 +326,7 @@ pub(super) fn parse_polyline_segments(tag: &str) -> Vec<Segment> {
     };
     let pts_str = &tag[inner_start..inner_start + rel_end];
 
-    let pts: Vec<(i32, i32)> = pts_str
+    pts_str
         .split_whitespace()
         .filter_map(|pair| {
             let mut it = pair.splitn(2, ',');
@@ -321,14 +334,98 @@ pub(super) fn parse_polyline_segments(tag: &str) -> Vec<Segment> {
             let y: i32 = it.next()?.parse().ok()?;
             Some((x, y))
         })
-        .collect();
-
-    pts.windows(2)
-        .map(|w| Segment {
-            x1: w[0].0,
-            y1: w[0].1,
-            x2: w[1].0,
-            y2: w[1].1,
-        })
         .collect()
+}
+
+/// Clearance reserved around each arrowhead attachment point.  A diamond
+/// marker is 14 × 10 user units; the triangle is 16 × 16.  Adding 2 px gives
+/// 18 px which safely covers both shapes plus a small visual breathing room.
+pub(super) const MARKER_ZONE_PX: i32 = 18;
+
+/// Extract the bounding rectangles of every arrowhead / diamond marker that
+/// appears in the SVG so the label-edge-clearance invariant (#1491 / #1492) can
+/// avoid placing white background rects over them.
+///
+/// A `marker-start` puts its marker at the *first* waypoint of the path; a
+/// `marker-end` at the *last* waypoint.  Both cases are handled for
+/// `<polyline>` and straight `<line>` elements.
+///
+/// Returns a list of `(x, y, w, h)` zones in SVG user coordinates.
+pub(super) fn extract_marker_zones(svg: &str) -> Vec<(i32, i32, i32, i32)> {
+    let mut zones: Vec<(i32, i32, i32, i32)> = Vec::new();
+    let mut pos = 0;
+
+    // ── Polylines ────────────────────────────────────────────────────────────
+    while let Some(rel) = svg[pos..].find("<polyline ") {
+        let tag_start = pos + rel;
+        let Some(rel_close) = svg[tag_start..].find("/>") else {
+            pos = tag_start + 1;
+            continue;
+        };
+        let tag = &svg[tag_start..tag_start + rel_close];
+        if !tag.contains("uml-relation") {
+            pos = tag_start + 1;
+            continue;
+        }
+        let pts = parse_polyline_points(tag);
+        if tag.contains("marker-start=") {
+            if let Some(&(x, y)) = pts.first() {
+                zones.push((
+                    x - MARKER_ZONE_PX,
+                    y - MARKER_ZONE_PX,
+                    MARKER_ZONE_PX * 2,
+                    MARKER_ZONE_PX * 2,
+                ));
+            }
+        }
+        if tag.contains("marker-end=") {
+            if let Some(&(x, y)) = pts.last() {
+                zones.push((
+                    x - MARKER_ZONE_PX,
+                    y - MARKER_ZONE_PX,
+                    MARKER_ZONE_PX * 2,
+                    MARKER_ZONE_PX * 2,
+                ));
+            }
+        }
+        pos = tag_start + 1;
+    }
+
+    // ── Straight lines ───────────────────────────────────────────────────────
+    pos = 0;
+    while let Some(rel) = svg[pos..].find("<line ") {
+        let tag_start = pos + rel;
+        let Some(rel_close) = svg[tag_start..].find("/>") else {
+            pos = tag_start + 1;
+            continue;
+        };
+        let tag = &svg[tag_start..tag_start + rel_close];
+        if !tag.contains("uml-relation") {
+            pos = tag_start + 1;
+            continue;
+        }
+        if tag.contains("marker-start=") {
+            let x = parse_attr_i32(tag, "x1").unwrap_or(0);
+            let y = parse_attr_i32(tag, "y1").unwrap_or(0);
+            zones.push((
+                x - MARKER_ZONE_PX,
+                y - MARKER_ZONE_PX,
+                MARKER_ZONE_PX * 2,
+                MARKER_ZONE_PX * 2,
+            ));
+        }
+        if tag.contains("marker-end=") {
+            let x = parse_attr_i32(tag, "x2").unwrap_or(0);
+            let y = parse_attr_i32(tag, "y2").unwrap_or(0);
+            zones.push((
+                x - MARKER_ZONE_PX,
+                y - MARKER_ZONE_PX,
+                MARKER_ZONE_PX * 2,
+                MARKER_ZONE_PX * 2,
+            ));
+        }
+        pos = tag_start + 1;
+    }
+
+    zones
 }

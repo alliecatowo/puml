@@ -1,5 +1,6 @@
 use super::geometry::{
-    extract_package_frames, extract_relation_segments, segment_crosses_rect, PackageFrame, Segment,
+    extract_marker_zones, extract_package_frames, extract_relation_segments, segment_crosses_rect,
+    PackageFrame, Segment,
 };
 use super::svg_hooks::{
     extract_text_elements, parse_viewbox, sync_svg_dimensions, TextAnchor, CHAR_WIDTH_PX,
@@ -105,6 +106,16 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
     } else {
         Vec::new()
     };
+    // Extract arrowhead / diamond marker zones.  A white bg rect must not cover
+    // these zones — doing so washes out the marker fill, turning a filled
+    // diamond into an outline that looks like an inheritance triangle (#1491 /
+    // #1492).  The zone is a square of ±MARKER_ZONE_PX centred on each marked
+    // endpoint; any bg rect that would overlap such a zone is suppressed.
+    let marker_zones = if matches!(mode, AutoCorrect::Apply) {
+        extract_marker_zones(svg)
+    } else {
+        Vec::new()
+    };
     let mut violations = Vec::new();
     let mut inserts: Vec<(usize, String)> = Vec::new(); // (char-pos-in-svg, rect-svg)
 
@@ -193,6 +204,25 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                             overlaps_x && overlaps_y
                         });
                         if still_in_header {
+                            break;
+                        }
+
+                        // Suppress the bg rect entirely if it would overlap an
+                        // arrowhead / diamond marker zone.  A white overlay on
+                        // top of a filled marker washes out its colour and makes
+                        // a composition diamond look like a hollow triangle
+                        // (#1491 / #1492).  The label still renders correctly
+                        // without the bg rect because the marker and label
+                        // occupy the same edge region only on short edges where
+                        // the line itself already acts as a visual separator.
+                        let overlaps_marker = marker_zones.iter().any(|&(mx, my, mw, mh)| {
+                            let rect_x2 = rx + rw;
+                            let rect_y2 = ry + rh;
+                            let zone_x2 = mx + mw;
+                            let zone_y2 = my + mh;
+                            rx < zone_x2 && rect_x2 > mx && ry < zone_y2 && rect_y2 > my
+                        });
+                        if overlaps_marker {
                             break;
                         }
 
