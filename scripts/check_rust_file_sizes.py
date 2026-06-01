@@ -73,6 +73,12 @@ ALLOWLIST_REASONS = {
     # tightly coupled to the existing class-header rendering path; extraction would
     # require threading spot fields through all header-render callers. Split tracked in #590.
     "src/render/family/class_node_render.rs": "wave-16 spot-stereotype badge added 37 lines; split tracked in #590",
+    # Was ~580 lines before #1400; grew to 625 after adding stereotype-scoped skinparam
+    # parsing (SkinparamStereotypeBlock, per-stereotype param accumulation). The new
+    # parsing rules interleave with existing skinparam dispatch and share the directive
+    # tokenizer; mechanical sub-module extraction requires duplicating parser state.
+    # Split tracked in #590.
+    "src/parser/directives.rs": "wave-16 stereotype-scoped skinparam added ~45 lines; split tracked in #590",
 }
 
 

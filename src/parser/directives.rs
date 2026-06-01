@@ -20,6 +20,33 @@ pub(crate) fn parse_skinparam_block(
     let original_rest = line["skinparam ".len()..].trim_end();
     let original_prefix = original_rest.trim_end_matches('{').trim();
 
+    // Check if the block prefix itself carries a stereotype scope, e.g.
+    // `skinparam class<<entity>> { ... }`.  In that case we need to reorder
+    // the key so the stereotype suffix lands at the *end*, because the
+    // classifier in `classify_class_skinparam` (and friends) calls
+    // `split_stereotype_scope` which expects `ClassBackgroundColor<<entity>>`
+    // not `class<<entity>>BackgroundColor`.
+    //
+    // Detect: prefix ends with `>>` and contains `<<`.
+    let (base_prefix, block_stereotype) = {
+        let p = original_prefix;
+        if let Some(stripped) = p.strip_suffix(">>") {
+            if let Some(start) = stripped.rfind("<<") {
+                let base = stripped[..start].trim();
+                let stereo = stripped[start + 2..].trim();
+                if !base.is_empty() && !stereo.is_empty() {
+                    (base, Some(stereo.to_string()))
+                } else {
+                    (p, None)
+                }
+            } else {
+                (p, None)
+            }
+        } else {
+            (p, None)
+        }
+    };
+
     // Scan for the closing `}`.
     let mut kinds: Vec<StatementKind> = Vec::new();
     let mut end_idx = start_idx;
@@ -42,8 +69,15 @@ pub(crate) fn parse_skinparam_block(
             continue;
         }
         // Combine prefix with inner key: "class" + "BackgroundColor" → "classBackgroundColor".
-        // Handle stereotype-scoped inner keys: "BackgroundColor<<Abstract>>" stays as-is after prefix.
-        let combined_key = format!("{original_prefix}{inner_key}");
+        // When the block selector carries a stereotype (e.g. `class<<entity>>`), move
+        // the stereotype tag to the end of the combined key so the skinparam classifier
+        // can peel it with `split_stereotype_scope`:
+        //   "class" + "BackgroundColor" + "<<entity>>" → "classBackgroundColor<<entity>>"
+        let combined_key = if let Some(ref stereo) = block_stereotype {
+            format!("{base_prefix}{inner_key}<<{stereo}>>")
+        } else {
+            format!("{original_prefix}{inner_key}")
+        };
         kinds.push(StatementKind::SkinParam {
             key: combined_key,
             value: inner_value.to_string(),
