@@ -70,6 +70,7 @@ fn collect_bg_rects(svg: &str) -> Vec<(i32, i32, i32, i32)> {
 }
 
 /// Returns true if rect (rx, ry, rw, rh) overlaps band (bx, by, bw, bh).
+#[allow(clippy::too_many_arguments)] // 8 args are 2 paired (x,y,w,h) tuples — a struct would add no clarity
 fn overlaps_band(rx: i32, ry: i32, rw: i32, rh: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
     let overlaps_x = rx < bx + bw && rx + rw > bx;
     let overlaps_y = ry < by + bh && ry + rh > by;
