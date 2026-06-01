@@ -9,6 +9,11 @@ pub(super) struct ClassGroupFrameRect {
     pub(super) y: i32,
     pub(super) w: i32,
     pub(super) h: i32,
+    /// Height of the visual header band (tab + label gap) that edges must not
+    /// route through.  Equal to `CLASS_GROUP_TAB_HEIGHT + CLASS_GROUP_LABEL_GAP + depth_outset`.
+    /// Used by `snap_path_to_frame_boundaries` to push horizontal routing segments
+    /// below the header (#1446).
+    pub(super) label_header: i32,
 }
 
 pub(super) const CLASS_GROUP_DEPTH_OUTSET: i32 = 18;
@@ -48,7 +53,13 @@ pub(super) fn class_group_frame_rect(
     let w = (gx_max - gx_min) + pad * 2;
     let h = (gy_max - gy_min) + pad * 2 + label_header;
 
-    Some(ClassGroupFrameRect { x, y, w, h })
+    Some(ClassGroupFrameRect {
+        x,
+        y,
+        w,
+        h,
+        label_header,
+    })
 }
 
 /// Render the group/package/namespace frames for a class diagram.

@@ -115,27 +115,67 @@ fn actor_generalization_pick_port(
 
 // #1292: system-boundary frame entry/exit snap
 
-/// For usecase diagrams: when an ortho path segment crosses a group-frame
-/// top boundary (entering the frame from above), snap the crossing point so
-/// the visible edge line meets the frame border cleanly (#1292).
+/// For usecase diagrams: when an ortho path segment runs through a group-frame
+/// header band, nudge it below the header so the visible edge line does not
+/// cross the frame label text (#1292, #1446).
+///
+/// Two cases are handled:
+///
+/// 1. **Downward vertical** segment that enters a frame from above: snap the
+///    endpoint to the frame top (original #1292 behaviour).
+/// 2. **Horizontal** segment whose y sits inside the frame's header band
+///    (frame.y .. frame.y + label_header): push the y below the header so
+///    the segment routes in the frame content area, not over the label text.
 fn snap_path_to_frame_boundaries(pts: &mut [(i32, i32)], frame_rects: &[ClassGroupFrameRect]) {
     if frame_rects.is_empty() || pts.len() < 3 {
         return;
     }
     let n = pts.len();
     for i in 0..n.saturating_sub(1) {
-        let (_ax, ay) = pts[i];
-        let (_bx, by) = pts[i + 1];
-        // Only downward vertical segments (from outside the frame into it).
-        if pts[i].0 != pts[i + 1].0 || by <= ay {
+        let (ax, ay) = pts[i];
+        let (bx, by) = pts[i + 1];
+
+        // Case 1: downward vertical segment crossing a frame top.
+        if ax == bx && by > ay {
+            for frame in frame_rects {
+                let frame_top = frame.y;
+                if ay < frame_top && by > frame_top {
+                    pts[i + 1].1 = frame_top;
+                    if i + 2 < n {
+                        pts[i + 2].1 = frame_top;
+                    }
+                    break;
+                }
+            }
             continue;
         }
+
+        // Case 2: horizontal segment whose y falls inside a frame header band.
+        // Only check segments that are strictly horizontal (ay == by).
+        if ay != by {
+            continue;
+        }
+        let seg_y = ay;
+        let seg_x_min = ax.min(bx);
+        let seg_x_max = ax.max(bx);
         for frame in frame_rects {
-            let frame_top = frame.y;
-            if ay < frame_top && by > frame_top {
-                pts[i + 1].1 = frame_top;
+            let header_top = frame.y;
+            let header_bot = frame.y + frame.label_header;
+            // The segment must pass through the frame's x-span and be inside
+            // the header band vertically.
+            let overlaps_x = seg_x_min < frame.x + frame.w && seg_x_max > frame.x;
+            if overlaps_x && seg_y >= header_top && seg_y < header_bot {
+                // Push segment below the header. Adjust both endpoints (they
+                // share the same y for a horizontal segment) and propagate the
+                // new y to adjacent segment endpoints to keep the polyline
+                // connected.
+                pts[i].1 = header_bot;
+                pts[i + 1].1 = header_bot;
+                if i > 0 {
+                    pts[i - 1].1 = header_bot;
+                }
                 if i + 2 < n {
-                    pts[i + 2].1 = frame_top;
+                    pts[i + 2].1 = header_bot;
                 }
                 break;
             }

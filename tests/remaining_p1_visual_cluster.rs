@@ -58,31 +58,65 @@ fn state_07_data_ready_label_near_edge() {
 const DEP_06: &str = include_str!("../docs/examples/deployment/06_kubernetes_pods_containers.puml");
 
 /// For the first occurrence of a node whose name text is `name`, return
-/// (name_y, stereo_y) where stereo_y is the y of the preceding <<container>>
-/// stereotype text element.
+/// (name_y, stereo_y) where stereo_y is the y of the SPATIALLY ADJACENT
+/// `<<container>>` stereotype text element (same x-coordinate within 4px).
+///
+/// We cannot rely on document order because edges and nodes are rendered in
+/// separate passes; instead we match by x-coordinate proximity.
 fn node_name_and_stereo_ys(svg_str: &str, name: &str) -> Option<(i32, i32)> {
-    // Find bold name text element.
+    // Find bold name text element and extract its x and y.
     let name_needle = format!("font-weight=\"600\" fill=\"#0f172a\">{name}</text>");
     let name_pos = svg_str.find(&name_needle)?;
     let elem_start = svg_str[..name_pos].rfind('<')?;
     let elem = &svg_str[elem_start..];
+    let x_idx = elem.find(" x=\"")?;
+    let xrest = &elem[x_idx + 4..];
+    let xend = xrest.find('"')?;
+    let name_x: i32 = xrest[..xend].parse().ok()?;
     let y_idx = elem.find(" y=\"")?;
     let rest = &elem[y_idx + 4..];
     let end = rest.find('"')?;
     let name_y: i32 = rest[..end].parse().ok()?;
 
-    // Stereotype label is the nearest <<container>> element before the name.
+    // Find all <<container>> stereotype text elements in the SVG.
+    // Return the one whose x-coordinate is closest to name_x (within 4px).
     let stereo_needle = "&lt;&lt;container&gt;&gt;</text>";
-    let region = &svg_str[..name_pos];
-    let stereo_pos = region.rfind(stereo_needle)?;
-    let stereo_start = region[..stereo_pos].rfind('<')?;
-    let stereo_elem = &region[stereo_start..];
-    let sy_idx = stereo_elem.find(" y=\"")?;
-    let srest = &stereo_elem[sy_idx + 4..];
-    let send = srest.find('"')?;
-    let stereo_y: i32 = srest[..send].parse().ok()?;
+    let mut best_stereo_y: Option<i32> = None;
+    let mut best_x_dist = i32::MAX;
+    let mut search_pos = 0;
+    while let Some(idx) = svg_str[search_pos..].find(stereo_needle) {
+        let abs = search_pos + idx;
+        let sel_start = svg_str[..abs].rfind('<').unwrap_or(0);
+        let sel = &svg_str[sel_start..];
+        // Extract x coord from this element
+        if let Some(sx_idx) = sel.find(" x=\"") {
+            let sxrest = &sel[sx_idx + 4..];
+            if let Some(sxend) = sxrest.find('"') {
+                if let Ok(sx) = sxrest[..sxend].parse::<i32>() {
+                    let dist = (sx - name_x).abs();
+                    if dist < best_x_dist {
+                        // Extract y coord
+                        if let Some(sy_idx) = sel.find(" y=\"") {
+                            let syrest = &sel[sy_idx + 4..];
+                            if let Some(syend) = syrest.find('"') {
+                                if let Ok(sy) = syrest[..syend].parse::<i32>() {
+                                    best_x_dist = dist;
+                                    best_stereo_y = Some(sy);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        search_pos = abs + 1;
+    }
 
-    Some((name_y, stereo_y))
+    // Only accept a match if x-coords are within 4 px (same node).
+    if best_x_dist > 4 {
+        return None;
+    }
+    best_stereo_y.map(|sy| (name_y, sy))
 }
 
 #[test]
