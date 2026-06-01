@@ -461,6 +461,25 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         });
     }
 
+    // ── #1440: clamp outermost frame top-clip ────────────────────────────────
+    // When the outermost group frame has abs_y < canvas_margin + header_h the
+    // dark header band overlaps the title or sits above the SVG viewBox top edge
+    // and gets clipped.  Shift all layout results down so the topmost frame
+    // starts at ≥ canvas_margin + header_h (title area is reserved above).
+    {
+        let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
+        let min_allowed_y = canvas_margin + header_h;
+        let y_shift = (min_allowed_y - min_pkg_y).max(0);
+        if y_shift > 0 {
+            for p in pkg_layouts.iter_mut() {
+                p.abs_y += y_shift;
+            }
+            for v in positions.values_mut() {
+                v.1 += y_shift;
+            }
+        }
+    }
+
     // derive pkg_frame_widths/heights for compat
     let pkg_frame_widths: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_w).collect();
     let pkg_frame_heights: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_h).collect();
