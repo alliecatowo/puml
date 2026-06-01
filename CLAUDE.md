@@ -5,6 +5,17 @@ Read it fully before touching a file. For deeper runbooks, follow the links in s
 
 ---
 
+## 0. MANDATORY for every PR (added 2026-06-01 per Allie)
+
+**Every PR body MUST include image evidence** of what the change does visually.
+
+- For any render/layout/style change: BEFORE PNG + AFTER PNG inline in the PR description (paste as markdown ![](url) using GitHub upload — comment with `gh pr edit` is fine).
+- For stdlib changes (AWS/Azure/GCP/k8s etc): include a fixture using the stdlib + its rendered PNG so the reviewer can confirm the icons + colors actually load.
+- For doc-only / CI-only changes: a sentence stating no visual impact is sufficient.
+- "Trust but verify": if a PR body doesn't include images for visual work, don't merge it — the agent should regenerate + attach.
+
+**Direct-to-main is authorized for emergency visual rescue** (Allie 2026-06-01) when a recent merge has made fixtures look broken. Render every affected fixture locally, fix, re-render, confirm visually, push direct.
+
 ## 1. Project at a glance
 
 PUML is an AI-driven PlantUML-compatible diagram renderer written in Rust. Most code
