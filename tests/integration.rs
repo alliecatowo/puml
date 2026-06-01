@@ -6129,12 +6129,14 @@ fn component_same_source_labels_keep_branch_midpoints_when_not_overlapping() {
     // After the component density retune (#1427) the per-branch column centers
     // shifted leftward (130×50 nodes vs 200×80); the two labels still sit near
     // their respective branch midpoints at the new coordinates (~168 and ~255).
+    // After the wave-7 cross-family density sweep (CLASS_MARGIN_X 16→8) the
+    // layout tightened further; branch midpoints are now ~116 and ~203.
     assert!(
-        routes.iter().any(|&(x, _)| (130..=230).contains(&x)),
+        routes.iter().any(|&(x, _)| (85..=200).contains(&x)),
         "left branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
     assert!(
-        routes.iter().any(|&(x, _)| (220..=320).contains(&x)),
+        routes.iter().any(|&(x, _)| (170..=280).contains(&x)),
         "right branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
 }

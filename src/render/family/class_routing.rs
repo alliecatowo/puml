@@ -168,17 +168,31 @@ pub(super) fn class_nudge_label_x(
     //                         y in [ly - 14, ly + 2]  (14px text, 2px slack).
     const LABEL_H: i32 = 14;
     const LABEL_SLACK: i32 = 2;
+    // Minimum depth of vertical overlap required before the x-push fires.
+    // Without this guard, a label sitting at the arclength midpoint of a
+    // tightly-packed vertical edge (CLASS_ROW_GAP ≈ 30px) may clip the bottom
+    // edge of the source node by just a few pixels and trigger a large push
+    // sideways — a false-positive collision.  6px ensures the label centre is
+    // meaningfully inside the node rather than just grazing the boundary.
+    const MIN_OVERLAP_Y: i32 = 6;
     let label_top = ly - LABEL_H;
     let label_bot = ly + LABEL_SLACK;
     let max_box_right = node_boxes
         .values()
         .filter(|bbox| {
+            let box_bot = bbox.y + bbox.h;
+            let box_top = bbox.y;
+            let overlap_top = label_top.max(box_top);
+            let overlap_bot = label_bot.min(box_bot);
+            let overlap_depth = overlap_bot - overlap_top;
             // X: label centre must be inside the box horizontally (same check as before)
             lx > bbox.x
                 && lx < bbox.x + bbox.w
-                // Y: label must actually overlap the box vertically to warrant a push
-                && label_top < bbox.y + bbox.h
-                && label_bot > bbox.y
+                // Y: label must actually overlap the box vertically by at least
+                // MIN_OVERLAP_Y pixels to warrant a push (prevents false-positive
+                // pushes when a label just grazes a node edge at the endpoint of a
+                // tight vertical edge with CLASS_ROW_GAP ~30px).
+                && overlap_depth >= MIN_OVERLAP_Y
         })
         .map(|bbox| bbox.x + bbox.w)
         .max();

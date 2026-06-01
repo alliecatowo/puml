@@ -238,11 +238,23 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         })
         .collect();
 
-    let group_top_overhead = (pkg_pad + pkg_tab) as f64;
-    // Per-family rank separation (#1426, #1427):
+    // group_top_overhead: only reserve vertical space for a package-label tab
+    // when the diagram actually contains groups.  For flat (ungrouped) diagrams
+    // the tab-height reserve is pure wasted whitespace — wave-7 cross-family
+    // pass-2 identifies this as the root cause of the 2.43× deployment_02 ratio.
+    let has_groups = !doc.groups.is_empty();
+    let group_top_overhead = if has_groups {
+        (pkg_pad + pkg_tab) as f64
+    } else {
+        0.0
+    };
+    // Per-family rank separation (#1426, #1427, wave-7 pass-2):
     //   component → COMPONENT_RANK_EXTRA_GAP (8px, PlantUML tighter inter-rank)
-    //   deployment → DEPLOYMENT_RANK_EXTRA_GAP (30px, PlantUML ~80px inter-rank)
+    //   deployment → DEPLOYMENT_RANK_EXTRA_GAP (16px, after wave-7 retune)
     //   other families → 40px extra gap
+    // The 2×PKG_PADDING term is only added when the diagram contains groups;
+    // for flat diagrams those padding pixels inflated every inter-rank gap
+    // without serving any layout purpose.
     let rank_extra = if family == "component" {
         COMPONENT_RANK_EXTRA_GAP
     } else if family == "deployment" {
@@ -250,7 +262,12 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     } else {
         40.0
     };
-    let rank_sep = (cell_h + inner_gap) as f64 + 2.0 * pkg_pad as f64 + rank_extra;
+    let pkg_pad_overhead = if has_groups {
+        2.0 * pkg_pad as f64
+    } else {
+        0.0
+    };
+    let rank_sep = (cell_h + inner_gap) as f64 + pkg_pad_overhead + rank_extra;
     let node_sep = 2 * pkg_pad + inner_gap;
     let has_lollipop_endpoint = doc
         .relations
