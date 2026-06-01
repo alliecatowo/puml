@@ -1,8 +1,0 @@
-@startuml
-!theme silver
-title Silver Theme
-App -> Logger: log event
-Logger -> Storage: persist
-Storage --> Logger: ack
-Logger --> App: done
-@enduml

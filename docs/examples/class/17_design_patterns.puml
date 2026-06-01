@@ -1,0 +1,208 @@
+@startuml
+title Observer Pattern
+class Observer {
+  +update(event): void
+}
+class Subject {
+  +subscribe(o): void
+  +notify(): void
+}
+class EventBus {
+  -observers: List
+  +subscribe(o): void
+  +notify(): void
+}
+class UIComponent {
+  +update(event): void
+}
+class Logger {
+  +update(event): void
+}
+EventBus <|-- Subject
+UIComponent <|-- Observer
+Logger <|-- Observer
+EventBus --> Observer
+@enduml
+
+@startuml
+title Factory Pattern
+class AnimalFactory {
+  +create(): Animal
+}
+class Animal {
+  +speak(): String
+}
+class DogFactory {
+  +create(): Animal
+}
+class CatFactory {
+  +create(): Animal
+}
+class Dog {
+  +speak(): String
+}
+class Cat {
+  +speak(): String
+}
+AnimalFactory <|-- DogFactory
+AnimalFactory <|-- CatFactory
+Animal <|-- Dog
+Animal <|-- Cat
+DogFactory --> Dog
+CatFactory --> Cat
+@enduml
+
+@startuml
+title Repository Pattern
+class Repository {
+  +findById(id)
+  +findAll(): List
+  +save(entity): void
+}
+class UserRepository {
+  -db: Database
+  +findById(id: Long)
+  +findAll(): List
+  +findByEmail(email: String)
+  +save(user: User): User
+}
+class User {
+  -id: Long
+  -name: String
+  -email: String
+}
+UserRepository <|-- Repository
+UserRepository --> User
+@enduml
+
+@startuml
+title Builder Pattern
+class HttpRequest {
+  -url: String
+  -method: String
+  -body: String
+}
+class Builder {
+  -url: String
+  -method: String
+  +url(url: String): Builder
+  +method(m: String): Builder
+  +body(body: String): Builder
+  +build(): HttpRequest
+}
+Builder --> HttpRequest : builds
+@enduml
+
+@startuml
+title Strategy Pattern
+class SortStrategy {
+  +sort(data: List): List
+}
+class QuickSort {
+  +sort(data: List): List
+}
+class MergeSort {
+  +sort(data: List): List
+}
+class Sorter {
+  -strategy: SortStrategy
+  +sort(data: List): List
+}
+QuickSort <|-- SortStrategy
+MergeSort <|-- SortStrategy
+Sorter o-- SortStrategy
+@enduml
+
+@startuml
+title Chain of Responsibility
+class Handler {
+  -next: Handler
+  +handle(request): Response
+}
+class AuthHandler {
+  +handle(request): Response
+}
+class RateLimitHandler {
+  +handle(request): Response
+}
+class BusinessHandler {
+  +handle(request): Response
+}
+Handler <|-- AuthHandler
+Handler <|-- RateLimitHandler
+Handler <|-- BusinessHandler
+AuthHandler --> RateLimitHandler : next
+RateLimitHandler --> BusinessHandler : next
+@enduml
+
+@startuml
+title Composite Pattern
+class FileSystemNode {
+  +name(): String
+  +size(): long
+}
+class File {
+  -name: String
+  +name(): String
+  +size(): long
+}
+class Directory {
+  -name: String
+  -children: List
+  +add(node): void
+  +name(): String
+  +size(): long
+}
+File <|-- FileSystemNode
+Directory <|-- FileSystemNode
+Directory *-- FileSystemNode
+@enduml
+
+@startuml
+title Decorator Pattern
+class TextProcessor {
+  +process(text: String): String
+}
+class PlainProcessor {
+  +process(text: String): String
+}
+class TextDecorator {
+  -wrapped: TextProcessor
+  +process(text: String): String
+}
+class UppercaseDecorator {
+  +process(text: String): String
+}
+class TrimDecorator {
+  +process(text: String): String
+}
+PlainProcessor <|-- TextProcessor
+TextDecorator <|-- TextProcessor
+TextDecorator <|-- UppercaseDecorator
+TextDecorator <|-- TrimDecorator
+TextDecorator o-- TextProcessor
+@enduml
+
+@startuml
+title Command Pattern
+class Command {
+  +execute(): void
+  +undo(): void
+}
+class Invoker {
+  -history: Stack
+  +execute(cmd: Command): void
+  +undo(): void
+}
+class Receiver {
+  +action(): void
+}
+class ConcreteCommand {
+  -receiver: Receiver
+  +execute(): void
+  +undo(): void
+}
+ConcreteCommand <|-- Command
+Invoker o-- Command
+ConcreteCommand --> Receiver
+@enduml

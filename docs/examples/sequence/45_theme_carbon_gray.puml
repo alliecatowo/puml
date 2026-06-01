@@ -1,8 +1,0 @@
-@startuml
-!theme carbon-gray
-title Carbon Gray Theme (Dark)
-Dev -> CI: push
-CI -> Tests: run
-Tests --> CI: passed
-CI --> Dev: deployed
-@enduml

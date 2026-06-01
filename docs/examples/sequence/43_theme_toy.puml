@@ -1,8 +1,0 @@
-@startuml
-!theme toy
-title Toy Theme (Bright Primary)
-Woody -> Buzz: reach for sky
-Buzz -> Rex: roar
-Rex --> Buzz: ok
-Buzz --> Woody: done
-@enduml

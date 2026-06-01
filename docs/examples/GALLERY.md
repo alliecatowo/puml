@@ -6,8 +6,8 @@ product documentation and as a quick visual smoke pass.
 
 Current corpus snapshot:
 
-- `324` source diagrams under `docs/examples/`
-- `328` committed SVG renders under `docs/examples/`
+- `269` source diagrams under `docs/examples/`
+- `273` committed SVG renders under `docs/examples/`
 - `44` fixtures in `tests/visual_regression/manifest.json`
 - `30` reviewed PNG baselines under `tests/visual_baselines/`
 
@@ -40,8 +40,8 @@ examples are executable visual gates.
 
 | Family | Examples | Start Here | Gallery Role | Visual Gate Status |
 |---|---:|---|---|---|
-| [Sequence](sequence/) | 49 | [01_basic](sequence/01_basic.puml) / [svg](sequence/01_basic.svg) | Message flows, groups, themes, lifecycle, and nested refs. | 3 PNG baselines; 1 high-risk manifest fixture deferred to #1113. |
-| [Class](class/) | 33 | [02_inheritance](class/02_inheritance.puml) / [svg](class/02_inheritance.svg) | Classes, members, packages, generics, and relation varieties. | 2 PNG baselines; compactness/header cases deferred to #594/#1113. |
+| [Sequence](sequence/) | 29 | [01_basic](sequence/01_basic.puml) / [svg](sequence/01_basic.svg) | Message flows, groups, themes, lifecycle, and nested refs. Theme variants live in [26_theme_gallery](sequence/26_theme_gallery.puml) (5-slice multi-block). | 3 PNG baselines; 1 high-risk manifest fixture deferred to #1113. |
+| [Class](class/) | 23 | [02_inheritance](class/02_inheritance.puml) / [svg](class/02_inheritance.svg) | Classes, members, packages, generics, and relation varieties. Design + architecture patterns consolidated into [17_design_patterns](class/17_design_patterns.puml) (9-slice multi-block) and [21_architecture_patterns](class/21_architecture_patterns.puml) (4-slice multi-block). | 2 PNG baselines; compactness/header cases deferred to #594/#1113. |
 | [Object](object/) | 6 | [01_basic](object/01_basic.puml) / [svg](object/01_basic.svg) | Objects, attributes, links, stereotypes, and map-like anchors. | 1 PNG baseline. |
 | [Use Case](usecase/) | 8 | [01_basic](usecase/01_basic.puml) / [svg](usecase/01_basic.svg) | Actors, use cases, boundaries, include/extend, and styles. | 1 PNG baseline; multi-boundary routing case deferred to #1113. |
 | [Component](component/) | 11 | [01_basic](component/01_basic.puml) / [svg](component/01_basic.svg) | Components, interfaces, packages, notes, ports, and stereotypes. | 2 PNG baselines; port/header routing case deferred to #1113. |
@@ -70,7 +70,7 @@ examples are executable visual gates.
 | [Chen ER](chen/) | 4 | [03_relationships](chen/03_relationships.puml) / [svg](chen/03_relationships.svg) | Chen-style ER entities, attributes, weak entities, and relationships. | No PNG baseline yet. |
 | [Creole](creole/) | 5 | [01_bold_italic](creole/01_bold_italic.puml) / [svg](creole/01_bold_italic.svg) | Text markup: bold, italic, color, size, multiline, and monospace. | No PNG baseline yet. |
 | [Skinparams](skinparams/) | 20 | [08_combined](skinparams/08_combined.puml) / [svg](skinparams/08_combined.svg) | Skinparam color, font, note, group, lifeline, and alignment examples. | No PNG baseline yet. |
-| [Themes](themes/) | 31 | [theme_sunlust](themes/theme_sunlust.puml) / [svg](themes/theme_sunlust.svg) | Built-in theme previews and theme interactions. | 1 PNG baseline through the manifest. |
+| [Themes](themes/) | 8 | [theme_sunlust](themes/theme_sunlust.puml) / [svg](themes/theme_sunlust.svg) | Built-in theme previews and theme interactions. Multi-theme overview lives in [theme_showcase](themes/theme_showcase.puml) (6-slice multi-block). | 1 PNG baseline through the manifest. |
 | [Sprites](sprites/) | 6 | [02_openiconic](sprites/02_openiconic.puml) / [svg](sprites/02_openiconic.svg) | Built-in sprite and icon rendering. | No PNG baseline yet. |
 | [Preprocessor](preprocessor/) | 6 | [01_define](preprocessor/01_define.puml) / [svg](preprocessor/01_define.svg) | Defines, conditionals, loops, functions, procedures, and variables. | No PNG baseline yet. |
 | [Stdlib](stdlib/) | 1 | [01_inventory](stdlib/01_inventory.puml) / [svg](stdlib/01_inventory.svg) | Bundled stdlib inventory and include discovery. | No PNG baseline yet. |

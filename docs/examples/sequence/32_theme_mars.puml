@@ -1,8 +1,0 @@
-@startuml
-!theme mars
-title Mars Theme
-Rover -> Mission: telemetry
-Mission -> Ground: relay
-Ground --> Mission: command
-Mission --> Rover: execute
-@enduml

@@ -106,7 +106,7 @@
       "family": "sequence",
       "construct": "theme and skinparam sequence styling",
       "expected_status": "partial",
-      "fixtures": ["docs/examples/sequence/28_theme_hacker.puml", "tests/fixtures/styling/valid_skinparam_ch24_sequence.puml"],
+      "fixtures": ["docs/examples/sequence/26_theme_gallery.puml", "tests/fixtures/styling/valid_skinparam_ch24_sequence.puml"],
       "issues": ["#1241", "#1184"],
       "oracle_status": "eligible",
       "visual_gate": "semantic-svg"

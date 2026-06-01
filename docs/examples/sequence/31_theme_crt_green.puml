@@ -1,8 +1,0 @@
-@startuml
-!theme crt-green
-title CRT Green Theme
-Terminal -> Host: connect
-Host -> Shell: execute
-Shell --> Host: output
-Host --> Terminal: display
-@enduml

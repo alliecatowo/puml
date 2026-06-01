@@ -1,8 +1,0 @@
-@startuml
-!theme mono
-title Mono Theme (Grayscale)
-Source -> Sink: data
-Sink -> Storage: persist
-Storage --> Sink: ack
-Sink --> Source: done
-@enduml

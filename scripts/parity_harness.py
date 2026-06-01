@@ -54,6 +54,27 @@ DOC_EXAMPLE_EXCLUSIONS = {
         "specialized family before sequence participants are accepted; the "
         "legacy SVG is not treated as a regenerated docs artifact"
     ),
+    "docs/examples/sequence/26_theme_gallery.puml": (
+        "multi-block theme gallery (5 @startuml/@enduml slices); emits "
+        "numbered -1.svg..-5.svg artifacts rather than a single .svg, so it "
+        "is excluded from the single-artifact drift gate (#1504)"
+    ),
+    "docs/examples/themes/theme_showcase.puml": (
+        "multi-block theme showcase (6 @startuml/@enduml slices); emits "
+        "numbered -1.svg..-6.svg artifacts rather than a single .svg, so it "
+        "is excluded from the single-artifact drift gate (#1504)"
+    ),
+    "docs/examples/class/17_design_patterns.puml": (
+        "multi-block design-patterns gallery (9 @startuml/@enduml slices); "
+        "emits numbered -1.svg..-9.svg artifacts rather than a single .svg, "
+        "so it is excluded from the single-artifact drift gate (#1504)"
+    ),
+    "docs/examples/class/21_architecture_patterns.puml": (
+        "multi-block architecture-patterns gallery (4 @startuml/@enduml "
+        "slices); emits numbered -1.svg..-4.svg artifacts rather than a "
+        "single .svg, so it is excluded from the single-artifact drift gate "
+        "(#1504)"
+    ),
 }
 
 
