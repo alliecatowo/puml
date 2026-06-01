@@ -102,6 +102,12 @@ ALLOWLIST_REASONS = {
     # diagram families (Salt, Mindmap, WBS); mechanical sub-module extraction would
     # require threading family-dispatch state. Split tracked in #590.
     "src/normalize/family/stub.rs": "wave-16 StyleBlock passthrough added 4 lines; split tracked in #590",
+    # Was 589 lines before #1446; grew to 629 after extending snap_path_to_frame_boundaries
+    # to handle horizontal edge segments inside frame header bands (in addition to the
+    # existing downward-vertical segment snapping). The new Case 2 logic is tightly
+    # coupled to the existing frame-boundary snap geometry; extraction would require
+    # threading frame-rect and header-height state through callers. Split tracked in #590.
+    "src/render/family/class_relations.rs": "wave-17 frame header routing fix added ~40 lines; split tracked in #590",
 }
 
 
