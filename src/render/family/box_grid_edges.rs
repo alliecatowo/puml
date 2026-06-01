@@ -39,6 +39,14 @@ pub(super) fn render_box_grid_relations_and_labels(
 
     // Map (to_name, port_x, port_y) → list of relation indices with that port.
     let mut tgt_port_groups: BTreeMap<(String, i32, i32), Vec<usize>> = BTreeMap::new();
+    // Map source name → list of relation indices that leave from it. Used by
+    // the spline-native router (#1391) to assign tangent-angle jitter so that
+    // hub-and-spoke fans diverge at the source port instead of sharing a
+    // common stub.
+    let mut src_fan_groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    // Map target name → list of relation indices that arrive at it. Used by
+    // the spline-native router for many-to-one converge tangent jitter.
+    let mut tgt_fan_groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (rel_idx, rel) in doc.relations.iter().enumerate() {
         if rel.direction.is_some() || rel.hidden {
             continue;
@@ -56,9 +64,14 @@ pub(super) fn render_box_grid_relations_and_labels(
         };
         let (_, _, x2, y2) = pick_port((fx, fy, fw, fh), (tx, ty, tw, th));
         tgt_port_groups
-            .entry((to_name, x2, y2))
+            .entry((to_name.clone(), x2, y2))
             .or_default()
             .push(rel_idx);
+        src_fan_groups
+            .entry(from_name.clone())
+            .or_default()
+            .push(rel_idx);
+        tgt_fan_groups.entry(to_name).or_default().push(rel_idx);
     }
 
     // rel_idx → (dx, dy) fan offset to apply to (x2, y2).
@@ -89,6 +102,46 @@ pub(super) fn render_box_grid_relations_and_labels(
             let dy_clamped = dy.clamp(-(tgt_h / 2 - 4), tgt_h / 2 - 4);
             let dx_clamped = dx.clamp(-(tgt_w / 2 - 4), tgt_w / 2 - 4);
             port_fan_offset.insert(rel_idx, (dx_clamped, dy_clamped));
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── Spline-native tangent jitter (#1391) ─────────────────────────────────
+    // For each relation that leaves from a node with ≥2 outgoing edges, assign
+    // a small angular jitter (radians) so the spline curves fan out at the
+    // source port instead of overlapping. Mirror for converge fans at target.
+    //
+    // The jitter is symmetric around 0, spaced ~`SPLINE_FAN_STEP_RAD` per lane,
+    // capped at ±`SPLINE_FAN_MAX_RAD` so the tangent never rotates past the
+    // adjacent boundary side (~π/3 ≈ 60°).
+    const SPLINE_FAN_STEP_RAD: f64 = 0.22; // ≈ 12.5° per lane
+    const SPLINE_FAN_MAX_RAD: f64 = 0.7; // ≈ 40° absolute cap
+    let mut spline_src_jitter: BTreeMap<usize, f64> = BTreeMap::new();
+    let mut spline_tgt_jitter: BTreeMap<usize, f64> = BTreeMap::new();
+    for group in src_fan_groups.values() {
+        if group.len() <= 1 {
+            continue;
+        }
+        let n = group.len() as f64;
+        // Sort by rel_idx already (BTreeMap insertion order from sequential loop).
+        for (slot, &rel_idx) in group.iter().enumerate() {
+            let lane = slot as f64 - (n - 1.0) / 2.0;
+            let theta = (lane * SPLINE_FAN_STEP_RAD).clamp(-SPLINE_FAN_MAX_RAD, SPLINE_FAN_MAX_RAD);
+            spline_src_jitter.insert(rel_idx, theta);
+        }
+    }
+    for group in tgt_fan_groups.values() {
+        if group.len() <= 1 {
+            continue;
+        }
+        let n = group.len() as f64;
+        for (slot, &rel_idx) in group.iter().enumerate() {
+            let lane = slot as f64 - (n - 1.0) / 2.0;
+            // Reverse sign at the target end so the converging curves mirror
+            // the diverging-source pattern symmetrically.
+            let theta =
+                -(lane * SPLINE_FAN_STEP_RAD).clamp(-SPLINE_FAN_MAX_RAD, SPLINE_FAN_MAX_RAD);
+            spline_tgt_jitter.insert(rel_idx, theta);
         }
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -355,36 +408,121 @@ pub(super) fn render_box_grid_relations_and_labels(
                     orth_pts[n - 2].0 = x2;
                 }
             }
-            let (tag, geom_attr) =
-                crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, &orth_pts);
-            out.push_str(&format!(
-                "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
-                geom_attr, relation_color, stroke_width,
-                dash_attr, visibility_attr, direction_attr, style_attr, markers
-            ));
-            // Place the label at the midpoint of the longest segment (horizontal or
-            // vertical).  Using only horizontal segments caused labels to land on
-            // short stubs for mostly-vertical edges (e.g. usecase "triggers" on a
-            // downward arc), then get pushed far right by the obstacle avoider.
-            // Closes #1367.
-            let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
-                let dx = (seg[1].0 - seg[0].0).abs();
-                let dy = (seg[1].1 - seg[0].1).abs();
-                dx.max(dy)
-            });
-            let (lmx, lmy) = match longest_seg {
-                Some(seg) => {
-                    let is_horiz = (seg[1].1 - seg[0].1).abs() <= (seg[1].0 - seg[0].0).abs();
-                    let mx = (seg[0].0 + seg[1].0) / 2;
-                    let my = (seg[0].1 + seg[1].1) / 2;
-                    if is_horiz {
-                        (mx, my - 12)
-                    } else {
-                        (mx + 12, my)
-                    }
+            // ── Splines-mode dispatch (#1391) ────────────────────────────────
+            // For `EdgeRouting::Splines`, attempt the spline-native generator
+            // first. It produces a fundamentally different waypoint set: a
+            // single sweeping cubic Bézier from source-anchor to target-anchor
+            // with tangents perpendicular to the source/target boundary, NOT
+            // an orthogonal-corner path with rounded chamfers. If the topology
+            // is too complex (obstacle clutter, etc.), the generator returns
+            // None and we fall back to the rounded-corner renderer.
+            let mut emitted_spline = false;
+            let mut spline_label_point: Option<(i32, i32)> = None;
+            if matches!(
+                doc.edge_routing,
+                crate::render::graph_layout::EdgeRouting::Splines
+            ) && orth_pts.len() >= 2
+            {
+                use crate::render::graph_layout::spline_router::{
+                    generate_spline_path, tangent_from_bbox_side, SplinePathInput,
+                };
+                let (sx, sy) = orth_pts[0];
+                let (tx_, ty_) = orth_pts[orth_pts.len() - 1];
+                let src_anchor = (sx as f64, sy as f64);
+                let tgt_anchor = (tx_ as f64, ty_ as f64);
+                let src_bbox = (fx as f64, fy as f64, fw as f64, fh as f64);
+                let tgt_bbox = (tx as f64, ty as f64, tw as f64, th as f64);
+                // Tangent direction: prefer bbox-side normal (clean outward
+                // direction); fall back to the orthogonal path's first
+                // segment direction when the anchor doesn't sit cleanly on a
+                // side (e.g. interface circles).
+                let src_tangent =
+                    tangent_from_bbox_side(src_anchor, src_bbox, 4.0).unwrap_or_else(|| {
+                        let (ax, ay) = orth_pts[0];
+                        let (bx, by) = orth_pts[1];
+                        let dx = (bx - ax) as f64;
+                        let dy = (by - ay) as f64;
+                        let len = dx.hypot(dy).max(1.0);
+                        (dx / len, dy / len)
+                    });
+                // Target tangent points INTO the target (the curve enters the
+                // target along this direction). Outward normal at the target
+                // anchor, then negate, is equivalent to inward normal.
+                let tgt_outward =
+                    tangent_from_bbox_side(tgt_anchor, tgt_bbox, 4.0).unwrap_or_else(|| {
+                        let n = orth_pts.len();
+                        let (ax, ay) = orth_pts[n - 1];
+                        let (bx, by) = orth_pts[n - 2];
+                        let dx = (ax - bx) as f64;
+                        let dy = (ay - by) as f64;
+                        let len = dx.hypot(dy).max(1.0);
+                        (dx / len, dy / len)
+                    });
+                let tgt_tangent = (-tgt_outward.0, -tgt_outward.1);
+                // Obstacles: all sibling node bboxes except source/target.
+                let obstacles: Vec<(f64, f64, f64, f64)> = all_boxes
+                    .iter()
+                    .filter(|&&b| b != (fx, fy, fw, fh) && b != (tx, ty, tw, th))
+                    .map(|&(bx, by_, bw, bh)| (bx as f64, by_ as f64, bw as f64, bh as f64))
+                    .collect();
+                let input = SplinePathInput {
+                    src_anchor,
+                    tgt_anchor,
+                    src_tangent,
+                    tgt_tangent,
+                    obstacles,
+                    src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                    tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                };
+                if let Some(spline) = generate_spline_path(input) {
+                    let d = spline.to_svg_d();
+                    out.push_str(&format!(
+                        "<path class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                        escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                        d, relation_color, stroke_width,
+                        dash_attr, visibility_attr, direction_attr, style_attr, markers
+                    ));
+                    // Label position: arclength midpoint of the spline (pin
+                    // label to the path's actual visual midpoint, not the
+                    // orthogonal-waypoint midpoint, per #1352/#1366/#1387).
+                    let (mx, my) = spline.point_at(0.5);
+                    spline_label_point = Some((mx as i32, my as i32 - 12));
+                    emitted_spline = true;
                 }
-                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+            }
+
+            if !emitted_spline {
+                let (tag, geom_attr) =
+                    crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, &orth_pts);
+                out.push_str(&format!(
+                    "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                    escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                    geom_attr, relation_color, stroke_width,
+                    dash_attr, visibility_attr, direction_attr, style_attr, markers
+                ));
+            }
+
+            let (lmx, lmy) = if let Some(p) = spline_label_point {
+                p
+            } else {
+                let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
+                    let dx = (seg[1].0 - seg[0].0).abs();
+                    let dy = (seg[1].1 - seg[0].1).abs();
+                    dx.max(dy)
+                });
+                match longest_seg {
+                    Some(seg) => {
+                        let is_horiz = (seg[1].1 - seg[0].1).abs() <= (seg[1].0 - seg[0].0).abs();
+                        let mx = (seg[0].0 + seg[1].0) / 2;
+                        let my = (seg[0].1 + seg[1].1) / 2;
+                        if is_horiz {
+                            (mx, my - 12)
+                        } else {
+                            (mx + 12, my)
+                        }
+                    }
+                    None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                }
             };
             label_mx = lmx;
             label_my = lmy;
@@ -414,14 +552,66 @@ pub(super) fn render_box_grid_relations_and_labels(
                 })
             };
             if !line_collides {
-                out.push_str(&format!(
-                    "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                    escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
-                    x1, y1, x2, y2, relation_color, stroke_width,
-                    dash_attr, visibility_attr, direction_attr, style_attr, markers
-                ));
-                label_mx = (x1 + x2) / 2;
-                label_my = (y1 + y2) / 2 - 12;
+                // Spline-mode dispatch (#1391): even an obstacle-free
+                // straight line gets a curved spline emission so the visual
+                // mode is consistent across the diagram. Otherwise: emit a
+                // plain <line>.
+                let mut spline_label: Option<(i32, i32)> = None;
+                if matches!(
+                    doc.edge_routing,
+                    crate::render::graph_layout::EdgeRouting::Splines
+                ) {
+                    use crate::render::graph_layout::spline_router::{
+                        generate_spline_path, tangent_from_bbox_side, SplinePathInput,
+                    };
+                    let src_anchor = (x1 as f64, y1 as f64);
+                    let tgt_anchor = (x2 as f64, y2 as f64);
+                    let src_bbox = (fx as f64, fy as f64, fw as f64, fh as f64);
+                    let tgt_bbox = (tx as f64, ty as f64, tw as f64, th as f64);
+                    let src_tangent =
+                        tangent_from_bbox_side(src_anchor, src_bbox, 4.0).unwrap_or((0.0, 1.0));
+                    let tgt_outward =
+                        tangent_from_bbox_side(tgt_anchor, tgt_bbox, 4.0).unwrap_or((0.0, -1.0));
+                    let tgt_tangent = (-tgt_outward.0, -tgt_outward.1);
+                    let obstacles: Vec<(f64, f64, f64, f64)> = all_boxes
+                        .iter()
+                        .filter(|&&b| b != (fx, fy, fw, fh) && b != (tx, ty, tw, th))
+                        .map(|&(bx, by_, bw, bh)| (bx as f64, by_ as f64, bw as f64, bh as f64))
+                        .collect();
+                    let input = SplinePathInput {
+                        src_anchor,
+                        tgt_anchor,
+                        src_tangent,
+                        tgt_tangent,
+                        obstacles,
+                        src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                        tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                    };
+                    if let Some(spline) = generate_spline_path(input) {
+                        let d = spline.to_svg_d();
+                        out.push_str(&format!(
+                            "<path class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                            escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                            d, relation_color, stroke_width,
+                            dash_attr, visibility_attr, direction_attr, style_attr, markers
+                        ));
+                        let (mx, my) = spline.point_at(0.5);
+                        spline_label = Some((mx as i32, my as i32 - 12));
+                    }
+                }
+                if let Some((lmx, lmy)) = spline_label {
+                    label_mx = lmx;
+                    label_my = lmy;
+                } else {
+                    out.push_str(&format!(
+                        "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                        escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                        x1, y1, x2, y2, relation_color, stroke_width,
+                        dash_attr, visibility_attr, direction_attr, style_attr, markers
+                    ));
+                    label_mx = (x1 + x2) / 2;
+                    label_my = (y1 + y2) / 2 - 12;
+                }
             } else {
                 // L/Z-shape routing: try L first; escalate to Z if still collides.
                 let src_cx = fx + fw / 2;
@@ -523,14 +713,78 @@ pub(super) fn render_box_grid_relations_and_labels(
                 };
 
                 let pts = best_pts.as_slice();
-                let (tag, geom_attr) =
-                    crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, pts);
-                out.push_str(&format!(
-                    "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                    escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
-                    geom_attr, relation_color, stroke_width,
-                    dash_attr, visibility_attr, direction_attr, markers
-                ));
+
+                // Spline-mode dispatch (#1391) for the L/Z fallback branch.
+                let mut emitted_spline_lz = false;
+                if matches!(
+                    doc.edge_routing,
+                    crate::render::graph_layout::EdgeRouting::Splines
+                ) && pts.len() >= 2
+                {
+                    use crate::render::graph_layout::spline_router::{
+                        generate_spline_path, tangent_from_bbox_side, SplinePathInput,
+                    };
+                    let (sx, sy) = pts[0];
+                    let (tx_, ty_) = pts[pts.len() - 1];
+                    let src_anchor = (sx as f64, sy as f64);
+                    let tgt_anchor = (tx_ as f64, ty_ as f64);
+                    let src_bbox = (fx as f64, fy as f64, fw as f64, fh as f64);
+                    let tgt_bbox = (tx as f64, ty as f64, tw as f64, th as f64);
+                    let src_tangent = tangent_from_bbox_side(src_anchor, src_bbox, 4.0)
+                        .unwrap_or_else(|| {
+                            let (ax, ay) = pts[0];
+                            let (bx, by) = pts[1];
+                            let dx = (bx - ax) as f64;
+                            let dy = (by - ay) as f64;
+                            let len = dx.hypot(dy).max(1.0);
+                            (dx / len, dy / len)
+                        });
+                    let tgt_outward = tangent_from_bbox_side(tgt_anchor, tgt_bbox, 4.0)
+                        .unwrap_or_else(|| {
+                            let n = pts.len();
+                            let (ax, ay) = pts[n - 1];
+                            let (bx, by) = pts[n - 2];
+                            let dx = (ax - bx) as f64;
+                            let dy = (ay - by) as f64;
+                            let len = dx.hypot(dy).max(1.0);
+                            (dx / len, dy / len)
+                        });
+                    let tgt_tangent = (-tgt_outward.0, -tgt_outward.1);
+                    let obstacles: Vec<(f64, f64, f64, f64)> = rel_obstacles
+                        .iter()
+                        .filter(|&&b| b != (fx, fy, fw, fh) && b != (tx, ty, tw, th))
+                        .map(|&(bx, by_, bw, bh)| (bx as f64, by_ as f64, bw as f64, bh as f64))
+                        .collect();
+                    let input = SplinePathInput {
+                        src_anchor,
+                        tgt_anchor,
+                        src_tangent,
+                        tgt_tangent,
+                        obstacles,
+                        src_tangent_jitter: spline_src_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                        tgt_tangent_jitter: spline_tgt_jitter.get(&rel_idx).copied().unwrap_or(0.0),
+                    };
+                    if let Some(spline) = generate_spline_path(input) {
+                        let d = spline.to_svg_d();
+                        out.push_str(&format!(
+                            "<path class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                            escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                            d, relation_color, stroke_width,
+                            dash_attr, visibility_attr, direction_attr, markers
+                        ));
+                        emitted_spline_lz = true;
+                    }
+                }
+                if !emitted_spline_lz {
+                    let (tag, geom_attr) =
+                        crate::render::edge_smoothing::edge_geometry_attr(doc.edge_routing, pts);
+                    out.push_str(&format!(
+                        "<{tag} class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" {} fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                        escape_text(&from_name), escape_text(&to_name), escape_text(normalized_arrow.as_str()),
+                        geom_attr, relation_color, stroke_width,
+                        dash_attr, visibility_attr, direction_attr, markers
+                    ));
+                }
 
                 let target_is_deployment_data_store = family == "deployment"
                     && doc.nodes.iter().any(|node| {

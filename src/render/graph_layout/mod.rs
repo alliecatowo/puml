@@ -15,6 +15,7 @@ mod groups;
 mod rank;
 mod router;
 mod scene;
+pub mod spline_router;
 
 pub use router::EdgeRouting;
 
