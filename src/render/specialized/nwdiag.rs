@@ -57,20 +57,20 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
             .and_modify(|current: &mut i32| *current = (*current).max(w))
             .or_insert(w);
     }
-    let gap = 24;
+    let gap = NWDIAG_COL_GAP;
     let topology_width: i32 = node_columns
         .iter()
-        .map(|name| column_widths.get(name).copied().unwrap_or(140))
+        .map(|name| column_widths.get(name).copied().unwrap_or(100))
         .sum::<i32>()
         + gap * node_columns.len().saturating_sub(1) as i32;
-    let width = (topology_width + 48).max(760);
+    let width = (topology_width + 48).max(NWDIAG_CANVAS_MIN_WIDTH);
     let inner_width = width - 48;
     let topology_x = 24 + ((inner_width - topology_width).max(0) / 2);
     let mut column_x = BTreeMap::new();
     let mut next_x = topology_x;
     for name in &node_columns {
         column_x.insert(name.clone(), next_x);
-        next_x += column_widths.get(name).copied().unwrap_or(140) + gap;
+        next_x += column_widths.get(name).copied().unwrap_or(100) + gap;
     }
     let mut rendered_top_level_names = Vec::new();
     for node in &document.top_level_nodes {
@@ -129,7 +129,7 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
         let mut scan_y = y;
         for net in &document.networks {
             let bar_y = scan_y + 24;
-            let node_y = bar_y + 30;
+            let node_y = bar_y + NWDIAG_BUS_DROP;
             for node in &net.nodes {
                 let shared_span = shared_node_spans.get(&node.name);
                 let x = shared_span
@@ -282,7 +282,7 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
         network_lanes.push(NetworkLaneGeom {
             id: format!("nwdiag:network:{}", net.name),
             label: network_label(net),
-            bounds: (network_x, y, network_width, network_row_step(net) - 2),
+            bounds: (network_x, y, network_width, network_row_step(net)),
             bus: (network_x, y + 24, network_width, 12),
         });
         out.push_str(&format!(
@@ -313,7 +313,7 @@ pub fn render_nwdiag_artifact(document: &NwdiagDocument) -> RenderArtifact {
             escape_text(net_fill),
             net_dash
         ));
-        let node_y = bar_y + 30;
+        let node_y = bar_y + NWDIAG_BUS_DROP;
         for node in &net.nodes {
             let shared_span = shared_node_spans.get(&node.name);
             let node_fill = shared_span

@@ -4,9 +4,24 @@ use super::*;
 use crate::model::{NwdiagNetwork, NwdiagNode};
 use crate::render::text_metrics::rounded_proportional_monospace_width;
 
+// ── Packed-grid density constants (#1466) ────────────────────────────────────
+// Reduced from the original loose layout to match PlantUML's compact rendering.
+// Target: ≤1.5× area ratio vs PlantUML for the 02_multi_network fixture.
+const NWDIAG_NODE_WIDTH_MIN: i32 = 80;
+const NWDIAG_NODE_WIDTH_MAX: i32 = 180;
+const NWDIAG_NODE_LABEL_HPAD: i32 = 16; // horizontal padding added to label text width
+const NWDIAG_NODE_LINES_VPAD: i32 = 8; // vertical padding per-node (added to line height sum)
+const NWDIAG_NODE_LINE_HEIGHT: i32 = 14; // px per text line inside a node box
+const NWDIAG_NODE_HEIGHT_MIN: i32 = 20; // minimum node box height
+const NWDIAG_LANE_TOP_PAD: i32 = 12; // space above the network header band
+pub(super) const NWDIAG_BUS_DROP: i32 = 18; // distance from bus bar bottom to node box top
+const NWDIAG_LANE_BOTTOM_PAD: i32 = 12; // space below node boxes to next lane
+pub(super) const NWDIAG_COL_GAP: i32 = 16; // horizontal gap between node columns
+pub(super) const NWDIAG_CANVAS_MIN_WIDTH: i32 = 520; // minimum canvas width (was 760)
+
 pub(super) fn node_width(node: &NwdiagNode) -> i32 {
     if let Some(width) = node.width.and_then(|width| i32::try_from(width).ok()) {
-        return width.clamp(120, 240);
+        return width.clamp(NWDIAG_NODE_WIDTH_MIN, NWDIAG_NODE_WIDTH_MAX);
     }
 
     let label = node_render_label(node, None);
@@ -18,25 +33,28 @@ pub(super) fn node_width(node: &NwdiagNode) -> i32 {
             } else {
                 0
             };
-            text_width(&line, 12) + sprite_padding + 24
+            text_width(&line, 12) + sprite_padding + NWDIAG_NODE_LABEL_HPAD
         })
         .max()
-        .unwrap_or(140);
-    label_width.clamp(120, 240)
+        .unwrap_or(100);
+    label_width.clamp(NWDIAG_NODE_WIDTH_MIN, NWDIAG_NODE_WIDTH_MAX)
 }
 
 pub(super) fn node_height(node: &NwdiagNode) -> i32 {
     let label = node_render_label(node, None);
     let lines = normalized_label_lines(&label).len().max(1) as i32;
-    (lines * 16 + 12).max(28)
+    (lines * NWDIAG_NODE_LINE_HEIGHT + NWDIAG_NODE_LINES_VPAD).max(NWDIAG_NODE_HEIGHT_MIN)
 }
 
 pub(super) fn network_row_step(network: &NwdiagNetwork) -> i32 {
-    24 + 30 + network_max_node_height(network) + 24
+    NWDIAG_LANE_TOP_PAD
+        + NWDIAG_BUS_DROP
+        + network_max_node_height(network)
+        + NWDIAG_LANE_BOTTOM_PAD
 }
 
 pub(super) fn network_after_node_gap(network: &NwdiagNetwork) -> i32 {
-    network_max_node_height(network) + 24
+    network_max_node_height(network) + NWDIAG_BUS_DROP
 }
 
 pub(super) fn network_max_node_height(network: &NwdiagNetwork) -> i32 {
