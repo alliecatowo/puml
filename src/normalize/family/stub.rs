@@ -3,7 +3,9 @@ use crate::ast::RawSyntaxCategory;
 use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 mod salt_cells;
-use self::salt_cells::{encode_salt_cells, StyleParamRecord};
+use self::salt_cells::{
+    collect_salt_ascii_sprite_names, encode_salt_cells, salt_scan_unsupported, StyleParamRecord,
+};
 
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
@@ -44,6 +46,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut last_relation: Option<(String, String)> = None;
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
+
+    // For Salt diagrams: pre-collect ASCII sprite names from `<<name\n...\n>>`
+    // definitions.  These arrive as BenignPassthrough statements (the main
+    // parser does not understand the salt ASCII sprite syntax); we need them
+    // before we scan SaltGridRow cells for W_SALT_UNSUPPORTED_SPRITE_REF.
+    let salt_ascii_sprite_names = if family_kind == DiagramKind::Salt {
+        collect_salt_ascii_sprite_names(&document.statements)
+    } else {
+        Default::default()
+    };
 
     for stmt in document.statements {
         match stmt.kind {
@@ -412,6 +424,15 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     )
                     .with_span(stmt.span));
                 }
+                // Emit W_SALT_UNSUPPORTED_* warnings for constructs that render
+                // only as placeholders (table spans, undefined sprite refs).
+                salt_scan_unsupported(
+                    &cells,
+                    stmt.span,
+                    &sprites,
+                    &salt_ascii_sprite_names,
+                    &mut warnings,
+                );
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::Salt,
                     name: encode_salt_cells(cells),
