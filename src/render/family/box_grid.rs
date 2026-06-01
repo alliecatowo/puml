@@ -1,7 +1,7 @@
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
-    COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, PKG_INNER_GAP, PKG_PADDING,
-    PKG_TAB_HEIGHT,
+    COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, COMPONENT_NODE_BOX_HEIGHT,
+    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
 };
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
@@ -57,8 +57,19 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         _ => ComponentStyle::default(),
     };
 
-    let cell_w = COMPONENT_BOX_WIDTH;
-    let cell_h = COMPONENT_BOX_HEIGHT;
+    // Component uses tighter per-node dimensions than the shared defaults (#1427): ~140×56px
+    // vs the 200×80px graph-layout fallback, matching PlantUML's denser output for component
+    // diagrams.  Deployment and other families continue to use their own constants.
+    let cell_w = if family == "component" {
+        COMPONENT_NODE_BOX_WIDTH
+    } else {
+        COMPONENT_BOX_WIDTH
+    };
+    let cell_h = if family == "component" {
+        COMPONENT_NODE_BOX_HEIGHT
+    } else {
+        COMPONENT_BOX_HEIGHT
+    };
     let inner_cols = 3i32;
     let inner_gap = PKG_INNER_GAP;
     let pkg_pad = PKG_PADDING;
@@ -188,7 +199,14 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         .collect();
 
     let group_top_overhead = (pkg_pad + pkg_tab) as f64;
-    let rank_sep = (cell_h + inner_gap) as f64 + 2.0 * pkg_pad as f64 + 40.0;
+    // Component uses a tighter rank separation to match PlantUML's inter-rank gap (#1427).
+    // Other families keep the 40px extra gap.
+    let rank_extra = if family == "component" {
+        COMPONENT_RANK_EXTRA_GAP
+    } else {
+        40.0
+    };
+    let rank_sep = (cell_h + inner_gap) as f64 + 2.0 * pkg_pad as f64 + rank_extra;
     let node_sep = 2 * pkg_pad + inner_gap;
     let has_lollipop_endpoint = doc
         .relations

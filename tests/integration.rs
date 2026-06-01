@@ -6125,12 +6125,15 @@ fn component_same_source_labels_keep_branch_midpoints_when_not_overlapping() {
     // After the PlantUML density retune (#1346) the per-branch column centers
     // shifted leftward; the two labels still sit near their respective
     // branch midpoints, just at the new coordinates.
+    // After the component density retune (#1427) the per-branch column centers
+    // shifted leftward (130×50 nodes vs 200×80); the two labels still sit near
+    // their respective branch midpoints at the new coordinates (~168 and ~255).
     assert!(
-        routes.iter().any(|&(x, _)| (190..=260).contains(&x)),
+        routes.iter().any(|&(x, _)| (130..=230).contains(&x)),
         "left branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
     assert!(
-        routes.iter().any(|&(x, _)| (310..=380).contains(&x)),
+        routes.iter().any(|&(x, _)| (220..=320).contains(&x)),
         "right branch label should stay near the horizontal branch midpoint: {routes:?}"
     );
 }

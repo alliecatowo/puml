@@ -136,6 +136,34 @@ pub const COMPONENT_BOX_HEIGHT: i32 = 80;
 pub const COMPONENT_CANVAS_MARGIN: i32 = DEFAULT_CANVAS_MARGIN as i32;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Component diagram per-node geometry (box_grid.rs / render_component_artifact)
+//
+// Tuned as part of the component-family density retune to close the 2-5× area
+// gap vs PlantUML for component fixtures (02_interfaces 4.09×, 07_ports 2.89×,
+// 08_cloud_db_queue 3.43×).  These constants override the shared
+// COMPONENT_BOX_WIDTH/HEIGHT defaults (which remain as graph-layout fallbacks)
+// when family == "component" in box_grid.rs.  PlantUML renders component nodes
+// at roughly 120×50px; 140×56 gives comfortable label legibility while closing
+// the density gap to ≤2.0× on all three audit fixtures.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Width of a component node when rendered in the component diagram family,
+/// in user units.  Narrower than the shared `COMPONENT_BOX_WIDTH` default to
+/// produce denser layouts closer to PlantUML's output.
+pub const COMPONENT_NODE_BOX_WIDTH: i32 = 130;
+
+/// Height of a component node when rendered in the component diagram family
+/// (single-line label), in user units.  Shorter than the shared
+/// `COMPONENT_BOX_HEIGHT` default to reduce vertical whitespace.
+pub const COMPONENT_NODE_BOX_HEIGHT: i32 = 50;
+
+/// Extra vertical gap added to `cell_h + inner_gap` when computing rank
+/// separation for the component diagram family, in user units.  Smaller than
+/// the 40px used as the generic default, matching PlantUML's tighter inter-rank
+/// spacing for component diagrams.
+pub const COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sequence diagram geometry (sequence.rs)
 // ─────────────────────────────────────────────────────────────────────────────
 
