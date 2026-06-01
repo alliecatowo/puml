@@ -77,10 +77,11 @@ VCC is 5
         svg.contains("Voltage"),
         "analog signal label 'Voltage' must appear in SVG"
     );
-    // The kind sub-label should identify the row as "analog".
+    // Kind-tag suppression (#1372): per-lane kind sub-labels ("analog", "concise",
+    // "robust", "binary", "clock") are no longer emitted; PlantUML does not render them.
     assert!(
-        svg.contains(">analog<"),
-        "analog row should have 'analog' sub-label"
+        !svg.contains(">analog<"),
+        "kind-tag suppression removes the 'analog' sub-label"
     );
 }
 
