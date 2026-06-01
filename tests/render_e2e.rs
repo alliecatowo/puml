@@ -1473,15 +1473,15 @@ fn render_svg_sequence_alt_opt_loop_fixture_labels_alt_and_else() {
         "else branch separator should include the group keyword and label"
     );
     assert!(
-        svg.contains("<polygon points=\"24,120 187,120 187,134 181,140 24,140\""),
+        svg.contains("<polygon points=\"16,100 179,100 179,114 173,120 16,120\""),
         "alt branch header should render as a pentagon notch instead of a plain rectangle label"
     );
     assert!(
-        svg.contains("<polygon points=\"24,320 145,320 145,334 139,340 24,340\""),
+        svg.contains("<polygon points=\"16,268 137,268 137,282 131,288 16,288\""),
         "opt branch header should render as a pentagon notch instead of a plain rectangle label"
     );
     assert!(
-        svg.contains("<polygon points=\"24,440 124,440 124,454 118,460 24,460\""),
+        svg.contains("<polygon points=\"16,380 116,380 116,394 110,400 16,400\""),
         "loop branch header should render as a pentagon notch instead of a plain rectangle label"
     );
 }
@@ -1498,32 +1498,32 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
     for (header_text, polygon_prefix) in [
         (
             "alt success",
-            "<polygon points=\"24,148 117,148 117,162 111,168 24,168\"",
+            "<polygon points=\"16,128 109,128 109,142 103,148 16,148\"",
         ),
         (
             "opt optional step",
-            "<polygon points=\"24,348 159,348 159,362 153,368 24,368\"",
+            "<polygon points=\"16,268 151,268 151,282 145,288 16,288\"",
         ),
         (
             "loop retry 3 times",
-            "<polygon points=\"24,468 166,468 166,482 160,488 24,488\"",
+            "<polygon points=\"16,352 158,352 158,366 152,372 16,372\"",
         ),
         (
             "par parallel",
-            "<polygon points=\"24,588 124,588 124,602 118,608 24,608\"",
+            "<polygon points=\"16,436 116,436 116,450 110,456 16,456\"",
         ),
         (
             "critical critical section",
-            "<polygon points=\"24,828 215,828 215,842 209,848 24,848\"",
+            "<polygon points=\"16,604 207,604 207,618 201,624 16,624\"",
         ),
         (
             "break on error",
-            "<polygon points=\"24,948 138,948 138,962 132,968 24,968\"",
+            "<polygon points=\"16,688 130,688 130,702 124,708 16,708\"",
         ),
         (
             "group custom label",
             // y shifted after #764: post-`par` spacer reserves an extra row.
-            "<polygon points=\"24,1108 166,1108 166,1122 160,1128 24,1128\"",
+            "<polygon points=\"16,800 158,800 158,814 152,820 16,820\"",
         ),
     ] {
         assert!(
@@ -1672,12 +1672,12 @@ fn render_svg_renders_distinct_participant_kinds() {
         "queue ellipse caps",
     );
     assert_count(
-        "x=\"992\" y=\"24\" width=\"24\" height=\"8\"",
+        "x=\"624\" y=\"16\" width=\"24\" height=\"8\"",
         1,
         "collections top tab",
     );
     assert_count(
-        "x=\"998\" y=\"26\" width=\"24\" height=\"8\"",
+        "x=\"630\" y=\"18\" width=\"24\" height=\"8\"",
         1,
         "collections stacked tab",
     );
@@ -1687,12 +1687,12 @@ fn render_svg_renders_distinct_participant_kinds() {
         "control polygon",
     );
     assert_count(
-        "x1=\"514\" y1=\"40\" x2=\"614\" y2=\"40\"",
+        "x1=\"326\" y1=\"32\" x2=\"386\" y2=\"32\"",
         1,
         "control top midline",
     );
     assert_count(
-        "x1=\"514\" y1=\"360\" x2=\"614\" y2=\"360\"",
+        "x1=\"326\" y1=\"280\" x2=\"386\" y2=\"280\"",
         1,
         "control footbox midline",
     );
@@ -1702,23 +1702,23 @@ fn render_svg_renders_distinct_participant_kinds() {
         "entity base box",
     );
     assert_count(
-        "x1=\"670\" y1=\"36\" x2=\"778\" y2=\"36\"",
+        "x1=\"422\" y1=\"28\" x2=\"490\" y2=\"28\"",
         1,
         "entity top divider",
     );
     assert_count(
-        "x1=\"670\" y1=\"356\" x2=\"778\" y2=\"356\"",
+        "x1=\"422\" y1=\"276\" x2=\"490\" y2=\"276\"",
         1,
         "entity footbox divider",
     );
     assert_count("stroke-dasharray=\"5 3\"", 2, "boundary dashed box");
     assert_count(
-        "x1=\"350\" y1=\"28\" x2=\"350\" y2=\"52\"",
+        "x1=\"222\" y1=\"20\" x2=\"222\" y2=\"44\"",
         1,
         "boundary left rail",
     );
     assert_count(
-        "x1=\"458\" y1=\"28\" x2=\"458\" y2=\"52\"",
+        "x1=\"290\" y1=\"20\" x2=\"290\" y2=\"44\"",
         1,
         "boundary right rail",
     );
@@ -1729,13 +1729,13 @@ fn render_svg_renders_distinct_participant_kinds() {
     );
     // Canonical actor head: r=6, stroke-width=1.5 (issue #715)
     assert_count(
-        "<circle cx=\"196\" cy=\"25\" r=\"6\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1.5\"/>",
+        "<circle cx=\"128\" cy=\"17\" r=\"6\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1.5\"/>",
         1,
         "actor head",
     );
     // Canonical actor footbox right leg: hip at y=365, foot at y=381, cx±8 spread
     assert_count(
-        "x1=\"196\" y1=\"365\" x2=\"204\" y2=\"381\"",
+        "x1=\"128\" y1=\"285\" x2=\"136\" y2=\"301\"",
         1,
         "actor footbox leg",
     );
@@ -2130,7 +2130,8 @@ fn render_svg_wraps_long_message_labels_without_viewbox_clipping() {
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
 
     assert!(svg.contains("LEFTE"));
-    assert!(svg.contains("CENTEROVERFLOWTOKEN"));
+    // Density retune hard-breaks long unbreakable tokens; assert a prefix that survives the wrap.
+    assert!(svg.contains("CENTEROVERFL"));
     assert!(svg.contains("RIGHT"));
     assert_snapshot!(
         "render_svg_wraps_long_message_labels_without_viewbox_clipping",
