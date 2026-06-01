@@ -1,0 +1,12 @@
+@startuml
+<style>
+activityDiagram {
+  activity {
+    BackgroundColor #d1fae5
+  }
+}
+</style>
+:Start;
+:Process Data;
+:End;
+@enduml

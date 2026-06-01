@@ -1,0 +1,13 @@
+@startuml
+skinparam participantBackgroundColor #888888
+<style>
+sequenceDiagram {
+  participant {
+    BackgroundColor #2563eb
+  }
+}
+</style>
+participant Node1
+participant Node2
+Node1 -> Node2 : message
+@enduml

@@ -28,7 +28,7 @@ impl Theme {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct SequenceStyle {
     pub arrow_color: String,
     pub lifeline_border_color: String,
@@ -82,6 +82,9 @@ pub struct SequenceStyle {
     /// When `true`, the entire diagram is rendered with a sepia CSS filter
     /// (`filter:sepia(1)`). Controlled by `skinparam sepia true/false`.
     pub sepia: bool,
+    /// Phase C (#1404): accumulated `<style>` block rules for sequence diagrams.
+    /// `None` when no `<style>` block was present.
+    pub style_builder: Option<Box<crate::theme::StyleBuilder>>,
 }
 
 /// Alignment of sequence message labels.
@@ -355,6 +358,7 @@ impl Default for SequenceStyle {
             hand_drawn: false,
             lifeline_nosolid: false,
             sepia: false,
+            style_builder: None,
         }
     }
 }

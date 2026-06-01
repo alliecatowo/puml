@@ -1,10 +1,11 @@
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
+use crate::theme::StyleBuilder;
 
 // ─── Activity-family skinparam support ───────────────────────────────────────
 
 /// Style overrides for activity diagrams.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ActivityStyle {
     pub background_color: String,
     pub border_color: String,
@@ -12,6 +13,9 @@ pub struct ActivityStyle {
     pub fork_color: String,
     pub font_color: String,
     pub arrow_color: String,
+    /// Phase C (#1404): accumulated `<style>` block rules for activity diagrams.
+    /// `None` when no `<style>` block was present.
+    pub style_builder: Option<Box<StyleBuilder>>,
 }
 
 impl Default for ActivityStyle {
@@ -23,6 +27,7 @@ impl Default for ActivityStyle {
             fork_color: "#0f172a".to_string(),
             font_color: "#0f172a".to_string(),
             arrow_color: "#0f172a".to_string(),
+            style_builder: None,
         }
     }
 }
