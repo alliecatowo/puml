@@ -1,7 +1,7 @@
 ' Merged Azure stdlib compatibility surface.
 
-!procedure AzureIcon($alias, $service_or_label, $label_or_technology="", $descr="")
-object $service_or_label as $alias <<azure-$label_or_technology>>
+!procedure AzureIcon($alias, $service, $label="", $descr="")
+object $label as $alias <<azure-$service>>
 !endprocedure
 
 !procedure AzureGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor)
