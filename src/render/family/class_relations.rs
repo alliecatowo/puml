@@ -33,6 +33,10 @@ pub(super) struct ClassRelationCtx<'a> {
     pub(super) arrow_stroke: &'a str,
     pub(super) margin_x: i32,
     pub(super) margin_top: i32,
+    /// Top y-coordinate where diagram content (nodes) begins.
+    /// Equal to margin_top + title_block_height + group_top_reserve.
+    /// Used to clamp edge labels so they don't escape into the title band.
+    pub(super) canvas_margin_y: i32,
     pub(super) svg_width: i32,
     /// True when every node is an `Object` (object diagram).  In object diagrams
     /// relation labels are expected to stay near the edge midpoint (centred on
@@ -427,7 +431,15 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         } else {
             (lat_offset, 0)
         };
-        let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
+        // #1461/#1481: clamp the fanned exit point so it stays within the
+        // source node's bounding box.  Actor fan-out can push the start x
+        // outside the actor bbox, creating an orphaned corner segment that
+        // looks like a stray rectangle artifact in the PNG render.
+        let raw_x1 = x1 + off_x;
+        let raw_y1 = y1 + off_y;
+        let clamped_x1 = raw_x1.clamp(from.x, from.x + from.w);
+        let clamped_y1 = raw_y1.clamp(from.y, from.y + from.h);
+        let (x1, y1, x2, y2) = (clamped_x1, clamped_y1, x2 + off_x, y2 + off_y);
         from_anchor.x = x1;
         from_anchor.y = y1;
         to_anchor.x = x2;
@@ -853,6 +865,12 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // #1463/#1464: class_nudge_label_y can push a label above the
+            // diagram content area (into the title band) when the source node
+            // sits near the top of the canvas.  Re-clamp to canvas_margin_y
+            // (= margin_top + title_block_height + group_top_reserve) so edge
+            // labels are always visible within the content area.
+            let ly = ly.max(ctx.canvas_margin_y + 4);
             let lbl_fill = relation
                 .label_color
                 .as_ref()
@@ -901,6 +919,8 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // #1464: re-clamp after nudge to prevent upward escape into title area.
+            let ly = ly.max(ctx.canvas_margin_y + 4);
             let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
                 class_nudge_label_x(lx, ly, label_half_w, ctx.node_boxes)
             } else {

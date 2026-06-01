@@ -118,6 +118,10 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
     };
     let mut violations = Vec::new();
     let mut inserts: Vec<(usize, String)> = Vec::new(); // (char-pos-in-svg, rect-svg)
+                                                        // #1479/#1481: Track which text positions already have a bg rect queued so
+                                                        // that multiple edge relations violating the same label only produce ONE rect.
+    let mut bg_rect_queued_for: std::collections::BTreeSet<(i32, i32)> =
+        std::collections::BTreeSet::new();
 
     for text in &texts {
         if has_marked_edge_labels && !text.is_edge_label {
@@ -158,6 +162,12 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                     });
 
                     if matches!(mode, AutoCorrect::Apply) {
+                        // Only insert ONE bg rect per text position, even if
+                        // multiple edge relations violate the same label (#1479/#1481).
+                        if bg_rect_queued_for.contains(&(text.x, text.y)) {
+                            break; // already queued for this text element
+                        }
+
                         // Skip bg rect if the label text itself sits inside a
                         // package header band.  Header labels (e.g. "package
                         // Frontends") already have a dark background and must
@@ -233,9 +243,10 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                         // Find the position of this text in the SVG to insert before it.
                         if let Some(pos) = find_text_element_pos(svg, text.x, text.y) {
                             inserts.push((pos, rect));
+                            bg_rect_queued_for.insert((text.x, text.y));
                         }
                     }
-                    break; // one violation per label
+                    break; // one violation per label per relation
                 }
             }
         }
