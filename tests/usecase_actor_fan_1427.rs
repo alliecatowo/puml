@@ -78,9 +78,8 @@ fn count_line_elements(svg: &str, from_attr: &str, to_attr: &str) -> usize {
     count
 }
 
-const FIXTURE: &str = include_str!(
-    "../docs/examples/usecase/05_actor_generalization_system_boundary.puml"
-);
+const FIXTURE: &str =
+    include_str!("../docs/examples/usecase/05_actor_generalization_system_boundary.puml");
 
 #[test]
 fn user_actor_usecase_edges_fanned_20px_apart() {
