@@ -177,17 +177,19 @@ pub const COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
 
 /// Minimum width of a class node box before auto-sizing takes over, in user
 /// units.  Auto-sizing widens the box when node names or member text require
-/// more space (clamp upper bound 600).  Reduced from the old 160px to 130px
-/// to approximate PlantUML's compact class box sizing (~120–140px for typical
-/// short member names).
-pub const CLASS_BOX_MIN_WIDTH: i32 = 130;
+/// more space (clamp upper bound 600).  Reduced from the old 160px to 130px,
+/// then tightened to 120px in the wave-7 cross-family pass-2 density sweep to
+/// closer match PlantUML's compact class box sizing (~110–125px for typical
+/// short names).
+pub const CLASS_BOX_MIN_WIDTH: i32 = 120;
 
 /// Horizontal margin (left/right gutter) inside the class diagram canvas, in
 /// user units.  The left margin is where the first column of node boxes starts;
 /// the right margin (passed as `canvas_right_margin`) is the gutter after the
-/// rightmost node.  Reduced from 32px to 16px to tighten horizontal whitespace
-/// toward PlantUML parity.
-pub const CLASS_MARGIN_X: i32 = 16;
+/// rightmost node.  Reduced from 32px to 16px in wave-4 retune, then to 8px
+/// in the wave-7 cross-family pass-2 sweep to tighten horizontal whitespace
+/// toward PlantUML parity (PlantUML uses ~4–8px outer gutter for class).
+pub const CLASS_MARGIN_X: i32 = 8;
 
 /// Horizontal gap between adjacent class nodes in the same rank (node
 /// separation fed to the hierarchical layout engine), in user units.  Also the
@@ -200,9 +202,10 @@ pub const CLASS_COL_GAP: i32 = 40;
 /// hierarchical layout engine.  The engine adds `max_node_height` to the
 /// row-advance separately (see `coordinates.rs`), so this constant represents
 /// only the whitespace between the bottom edge of one rank's tallest node and
-/// the top edge of the next rank.  40px approximates PlantUML's default
-/// inter-rank gap for class diagrams.
-pub const CLASS_ROW_GAP: i32 = 40;
+/// the top edge of the next rank.  Reduced from 40px to 30px in the wave-7
+/// cross-family pass-2 density sweep to approximate PlantUML's tighter
+/// inter-rank gap (~25–30px) for class diagrams.
+pub const CLASS_ROW_GAP: i32 = 30;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Object diagram geometry (class_render.rs — object-specific density retune)
@@ -286,10 +289,13 @@ pub const DEPLOYMENT_BOX_WIDTH: i32 = 110;
 pub const DEPLOYMENT_BOX_HEIGHT: i32 = 44;
 
 /// Extra gap added on top of DEPLOYMENT_BOX_HEIGHT to compute the deployment
-/// rank separation, in user units.  Together they yield
-/// `DEPLOYMENT_BOX_HEIGHT + DEPLOYMENT_RANK_EXTRA_GAP + 2*PKG_PADDING` ≈ 80px,
-/// close to PlantUML's default inter-rank gap for the deployment family.
-pub const DEPLOYMENT_RANK_EXTRA_GAP: f64 = 30.0;
+/// rank separation, in user units.  Reduced from 30px to 16px in the wave-7
+/// cross-family pass-2 density sweep: when there are no package groups the
+/// 2×PKG_PADDING overhead is also skipped (see `box_grid.rs`), yielding
+/// `DEPLOYMENT_BOX_HEIGHT + inner_gap + DEPLOYMENT_RANK_EXTRA_GAP` = 80px,
+/// which is closer to PlantUML's ~75–85px effective inter-rank gap for flat
+/// deployment diagrams.
+pub const DEPLOYMENT_RANK_EXTRA_GAP: f64 = 16.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Activity diagram geometry (activity/mod.rs, activity/layout.rs)

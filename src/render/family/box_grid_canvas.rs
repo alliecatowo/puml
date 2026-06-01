@@ -111,7 +111,11 @@ pub(super) fn compute_canvas_bounds(inp: CanvasBoundsInput<'_>) -> BoxGridCanvas
         .max(ungrouped_right)
         .max(inp.canvas_margin)
         + right_gutter;
-    let svg_width = svg_width.max(400);
+    // Wave-7 cross-family pass-2: remove the 400px hardcoded floor that was
+    // inflating every flat (ungrouped) deployment/component diagram to ≥400px
+    // regardless of content.  PlantUML renders compact diagrams at 250-340px.
+    // Keep a 120px sanity floor so the SVG is never degenerate-tiny.
+    let svg_width = svg_width.max(120);
 
     let caption_block_h =
         super::class_metadata::family_metadata_label_height(inp.doc.caption.as_deref());
