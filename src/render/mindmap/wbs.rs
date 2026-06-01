@@ -68,14 +68,16 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
 
     let total_leaves = wbs_leaf_count(nodes, 0);
     let max_depth = nodes.iter().map(|n| n.depth).max().unwrap_or(0);
-    let use_compact_vertical_layout = matches!(doc.orientation, FamilyOrientation::TopToBottom)
-        && total_leaves >= 16
-        && max_depth >= 3;
-    let layout_orientation = if use_compact_vertical_layout {
-        FamilyOrientation::LeftToRight
-    } else {
-        doc.orientation
-    };
+
+    // PlantUML parity (#1467): for the default TopToBottom WBS orientation,
+    // upstream PlantUML uses a `Fork` at depth 0 + recursive `ITFComposed`
+    // vertical-stack layout at depth ≥ 1. Each depth-1 branch sits in a
+    // horizontal row below the root; under each branch, descendants stack
+    // vertically with horizontal "+-" connectors. This matches PlantUML's
+    // byte-identical layout and dramatically reduces canvas width compared
+    // to the previous PUML horizontal-spread leaves convention.
+    let use_plantuml_topdown_layout = matches!(doc.orientation, FamilyOrientation::TopToBottom);
+    let layout_orientation = doc.orientation;
     let layout_vertical = matches!(
         layout_orientation,
         FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
@@ -111,12 +113,96 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
     let _root_span =
         compute_wbs_subtree_span(0, &children_of, nodes, SIBLING_GAP, &mut subtree_span);
 
-    let canvas_w = if layout_vertical {
+    // PlantUML-style "vertical-stack subtree" geometry. For each non-root node
+    // we compute:
+    //   - `subtree_block_h[idx]` : total vertical height the subtree (idx + all
+    //     descendants) occupies when laid out as a vertical stack.
+    //   - `subtree_block_w[idx]` : total horizontal width the subtree occupies
+    //     (own width + max child block width + indent).
+    // The root itself is placed at depth 0; its depth-1 children are arranged
+    // horizontally with each child consuming `subtree_block_w[child]` width.
+    const VSTACK_INDENT: i32 = 30; // horizontal indent per nesting level
+    const VSTACK_ROW_GAP: i32 = 12; // vertical gap between stacked siblings
+    let mut subtree_block_w = vec![0i32; n];
+    let mut subtree_block_h = vec![0i32; n];
+    if use_plantuml_topdown_layout {
+        fn compute_vstack_block(
+            idx: usize,
+            children_of: &[Vec<usize>],
+            nodes: &[super::super::FamilyNode],
+            node_h: i32,
+            row_gap: i32,
+            indent: i32,
+            subtree_block_w: &mut [i32],
+            subtree_block_h: &mut [i32],
+        ) {
+            let own_w = wbs_node_width(&nodes[idx]);
+            let children = &children_of[idx];
+            if children.is_empty() {
+                subtree_block_w[idx] = own_w;
+                subtree_block_h[idx] = node_h;
+                return;
+            }
+            let mut max_child_w = 0;
+            let mut total_h = node_h;
+            for &c in children {
+                compute_vstack_block(
+                    c,
+                    children_of,
+                    nodes,
+                    node_h,
+                    row_gap,
+                    indent,
+                    subtree_block_w,
+                    subtree_block_h,
+                );
+                max_child_w = max_child_w.max(subtree_block_w[c]);
+                total_h += row_gap + subtree_block_h[c];
+            }
+            subtree_block_w[idx] = own_w.max(indent + max_child_w);
+            subtree_block_h[idx] = total_h;
+        }
+        // Compute per-depth-1-branch blocks (the root itself uses Fork below).
+        for &c in &children_of[0] {
+            compute_vstack_block(
+                c,
+                &children_of,
+                nodes,
+                NODE_H,
+                VSTACK_ROW_GAP,
+                VSTACK_INDENT,
+                &mut subtree_block_w,
+                &mut subtree_block_h,
+            );
+        }
+    }
+
+    let canvas_w = if use_plantuml_topdown_layout {
+        // Sum of depth-1 child block widths + gaps + margins. Fall back to
+        // root width if there are no children.
+        let root_w = wbs_node_width(&nodes[0]);
+        let mut sum_w = 0i32;
+        for (k, &c) in children_of[0].iter().enumerate() {
+            sum_w += subtree_block_w[c];
+            if k > 0 {
+                sum_w += SIBLING_GAP;
+            }
+        }
+        sum_w.max(root_w) + 2 * MARGIN
+    } else if layout_vertical {
         (total_leaves as i32) * X_STEP + 2 * MARGIN
     } else {
         (max_depth as i32 + 1) * X_STEP + 2 * MARGIN + 120
     };
-    let canvas_h = if layout_vertical {
+    let canvas_h = if use_plantuml_topdown_layout {
+        // Root row + fork gap + max depth-1 child block.
+        let max_branch_h = children_of[0]
+            .iter()
+            .map(|&c| subtree_block_h[c])
+            .max()
+            .unwrap_or(0);
+        NODE_H + Y_STEP + max_branch_h + 2 * MARGIN
+    } else if layout_vertical {
         (max_depth as i32 + 1) * Y_STEP + 2 * MARGIN + NODE_H
     } else {
         (total_leaves as i32) * Y_STEP + 2 * MARGIN + NODE_H
@@ -217,23 +303,100 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
         }
     }
 
-    assign_wbs_positions(
-        nodes,
-        0,
-        MARGIN,
-        X_STEP,
-        MARGIN,
-        NODE_H,
-        Y_STEP,
-        layout_orientation,
-        max_depth,
-        use_compact_vertical_layout,
-        &subtree_span,
-        &children_of,
-        SIBLING_GAP,
-        &mut x_positions,
-        &mut y_positions,
-    );
+    if use_plantuml_topdown_layout {
+        // Root sits at top center; depth-1 children fork horizontally below.
+        let root_w = wbs_node_width(&nodes[0]);
+        let mut sum_branch_w = 0i32;
+        for (k, &c) in children_of[0].iter().enumerate() {
+            sum_branch_w += subtree_block_w[c];
+            if k > 0 {
+                sum_branch_w += SIBLING_GAP;
+            }
+        }
+        let total_block_w = sum_branch_w.max(root_w);
+        let block_start_x = (canvas_w - total_block_w) / 2;
+        x_positions[0] = block_start_x + total_block_w / 2;
+        y_positions[0] = MARGIN + NODE_H / 2;
+
+        // Layout each depth-1 branch as a vertical-stack subtree.
+        fn assign_vstack_subtree(
+            idx: usize,
+            origin_x: i32, // left edge of this subtree's column
+            origin_y: i32, // top of this subtree's own node
+            node_h: i32,
+            row_gap: i32,
+            indent: i32,
+            children_of: &[Vec<usize>],
+            nodes: &[super::super::FamilyNode],
+            subtree_block_w: &[i32],
+            subtree_block_h: &[i32],
+            x_positions: &mut [i32],
+            y_positions: &mut [i32],
+        ) {
+            let own_w = wbs_node_width(&nodes[idx]);
+            // Place node so its left edge sits at the column origin; descendants
+            // are indented right (PlantUML ITFComposed vertical-stack layout).
+            x_positions[idx] = origin_x + own_w / 2;
+            y_positions[idx] = origin_y + node_h / 2;
+            let mut cur_y = origin_y + node_h + row_gap;
+            for &c in &children_of[idx] {
+                assign_vstack_subtree(
+                    c,
+                    origin_x + indent,
+                    cur_y,
+                    node_h,
+                    row_gap,
+                    indent,
+                    children_of,
+                    nodes,
+                    subtree_block_w,
+                    subtree_block_h,
+                    x_positions,
+                    y_positions,
+                );
+                cur_y += subtree_block_h[c] + row_gap;
+            }
+        }
+
+        let mut x_cursor = block_start_x;
+        let branch_top_y = MARGIN + NODE_H + Y_STEP;
+        for &c in &children_of[0] {
+            let block_w = subtree_block_w[c];
+            assign_vstack_subtree(
+                c,
+                x_cursor,
+                branch_top_y,
+                NODE_H,
+                VSTACK_ROW_GAP,
+                VSTACK_INDENT,
+                &children_of,
+                nodes,
+                &subtree_block_w,
+                &subtree_block_h,
+                &mut x_positions,
+                &mut y_positions,
+            );
+            x_cursor += block_w + SIBLING_GAP;
+        }
+    } else {
+        assign_wbs_positions(
+            nodes,
+            0,
+            MARGIN,
+            X_STEP,
+            MARGIN,
+            NODE_H,
+            Y_STEP,
+            layout_orientation,
+            max_depth,
+            false,
+            &subtree_span,
+            &children_of,
+            SIBLING_GAP,
+            &mut x_positions,
+            &mut y_positions,
+        );
+    }
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -272,6 +435,29 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
         if let Some(p) = parent_of[i] {
             let parent_w = wbs_node_width(&nodes[p]);
             let child_w = wbs_node_width(&nodes[i]);
+            // PlantUML-parity vertical-stack: at depth ≥ 1, draw an orthogonal
+            // "+-" connector (vertical drop from parent's left edge, then
+            // horizontal segment to child's left edge). At depth 0 (root → its
+            // depth-1 children) keep the straight Fork-style edge.
+            if use_plantuml_topdown_layout && nodes[i].depth >= 2 {
+                let px = x_positions[p] - parent_w / 2;
+                let py = y_positions[p] + NODE_H / 2;
+                let cx = x_positions[i] - child_w / 2;
+                let cy = y_positions[i];
+                // Vertical drop
+                out.push_str(&format!(
+                    "<line class=\"wbs-edge\" data-wbs-edge-depth=\"{depth}\" x1=\"{px}\" y1=\"{py}\" x2=\"{px}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                    depth = nodes[i].depth,
+                    px = px, py = py, cy = cy
+                ));
+                // Horizontal segment
+                out.push_str(&format!(
+                    "<line class=\"wbs-edge\" data-wbs-edge-depth=\"{depth}\" x1=\"{px}\" y1=\"{cy}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                    depth = nodes[i].depth,
+                    px = px, cx = cx, cy = cy
+                ));
+                continue;
+            }
             let (px, py, cx, cy) = match layout_orientation {
                 FamilyOrientation::TopToBottom => (
                     x_positions[p],

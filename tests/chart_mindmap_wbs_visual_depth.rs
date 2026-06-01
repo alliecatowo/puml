@@ -471,13 +471,17 @@ fn wbs_deep_top_to_bottom_layout_is_compact_and_keeps_padding() {
         .parse::<i32>()
         .expect("svg height should be numeric");
 
+    // PlantUML parity (#1467): WBS uses Fork + ITFComposed vertical-stack
+    // layout. Width is the sum of depth-1 branch block widths; height is the
+    // tallest branch. Both should stay reasonable — far below the legacy
+    // 3821px horizontal-spread strip — but width may exceed height.
     assert!(
-        svg_width <= 1200,
-        "deep WBS should use compact outline layout instead of the old 3821px strip: {svg_width}"
+        svg_width <= 1600,
+        "deep WBS should use PlantUML vertical-stack layout instead of the old 3821px strip: {svg_width}"
     );
     assert!(
-        svg_height > svg_width,
-        "deep WBS should trade width for vertical depth readability: {svg_width}x{svg_height}"
+        svg_height >= 400,
+        "deep WBS vertical stacking should produce a tall canvas: {svg_width}x{svg_height}"
     );
 
     let wbs_nodes = rects(&svg)
