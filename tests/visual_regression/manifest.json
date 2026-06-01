@@ -5,13 +5,19 @@
       "path": "docs/examples/sequence/01_basic.puml",
       "family": "sequence",
       "expected_text": ["Alice", "Bob", "Hello"],
-      "min_text_elements": 3
+      "min_text_elements": 3,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1371,
+      "png_baseline_deferred_reason": "sequence density retune (#1371/#1372) changes layout; Mac-blessed baseline drifts on Linux; re-bless on Linux after merge"
     },
     {
       "path": "docs/examples/sequence/05_alt_opt_loop.puml",
       "family": "sequence",
       "expected_text": ["alt", "else", "opt", "loop"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1371,
+      "png_baseline_deferred_reason": "sequence density retune (#1371/#1372) changes layout; Mac-blessed baseline drifts on Linux; re-bless on Linux after merge"
     },
     {
       "path": "docs/examples/themes/theme_sunlust.puml",
