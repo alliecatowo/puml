@@ -79,6 +79,12 @@ ALLOWLIST_REASONS = {
     # tokenizer; mechanical sub-module extraction requires duplicating parser state.
     # Split tracked in #590.
     "src/parser/directives.rs": "wave-16 stereotype-scoped skinparam added ~45 lines; split tracked in #590",
+    # Was ~561 lines before #1438; grew to 644 after adding the actor-fan layout
+    # pass (fan_actor_to_usecase_edges: compute 20px offsets for actor→use-case
+    # stems to untangle overlapping vertical arrows). The fan geometry is tightly
+    # coupled to the existing relation-layout coordinate computation; extraction
+    # would require threading actor-group state. Split tracked in #590.
+    "src/render/family/class_render.rs": "wave-16 actor→usecase fan layout added 83 lines; split tracked in #590",
 }
 
 
