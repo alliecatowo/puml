@@ -398,6 +398,10 @@ class A\n\
 
 #[test]
 fn component_style_unsupported_targets_warn_deterministically_but_render() {
+    // Phase D (#1416): `RoundCorner` and `BackgroundColor` are both recognised
+    // `PName` properties handled by the StyleBuilder path.  Since Phase D wires
+    // them into the cascade, they no longer generate W_STYLE_UNSUPPORTED warnings
+    // (the properties are supported; only the `cloud` target selector is ignored).
     let src = "@startuml\n\
 <style>\n\
 componentDiagram {\n\
@@ -416,17 +420,16 @@ component API\n\
     let NormalizedDocument::Family(family) = normalized else {
         panic!("expected family document");
     };
-    let messages: Vec<&str> = family
+    // Phase D: recognised PName properties no longer emit W_STYLE_UNSUPPORTED.
+    let unsupported_warnings: Vec<&str> = family
         .warnings
         .iter()
         .map(|warning| warning.message.as_str())
+        .filter(|m| m.contains("W_STYLE_UNSUPPORTED"))
         .collect();
-    assert_eq!(
-        messages,
-        vec![
-            "[W_STYLE_UNSUPPORTED] unsupported style `BackgroundColor` in selector `cloud`",
-            "[W_STYLE_UNSUPPORTED] unsupported style `RoundCorner` in selector `component`",
-        ]
+    assert!(
+        unsupported_warnings.is_empty(),
+        "Phase D: recognised PName properties must not produce W_STYLE_UNSUPPORTED; got: {unsupported_warnings:?}"
     );
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Component)
         .expect("unsupported component style should still render");

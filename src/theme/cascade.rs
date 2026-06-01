@@ -105,7 +105,13 @@ impl GraphStyleCascade {
         if let Some(key) = key {
             self.apply_style_value(key, value, span, warnings, StyleSource::StyleBlock);
         } else {
-            warnings.push(unsupported_style_warning(selector, property, span));
+            // Phase D (#1416): properties recognised by `PName::from_name` are
+            // handled by the StyleBuilder path (Phase B) — suppress the warning
+            // for them since they ARE supported, just not via the skinparam alias.
+            let is_style_builder_property = crate::ast::style::PName::from_name(property).is_some();
+            if !is_style_builder_property {
+                warnings.push(unsupported_style_warning(selector, property, span));
+            }
         }
     }
 
