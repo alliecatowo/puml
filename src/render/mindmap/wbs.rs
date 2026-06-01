@@ -735,6 +735,7 @@ pub fn render_wbs_artifact(doc: &FamilyDocument) -> RenderArtifact {
         canvas_w,
         canvas_h,
         NODE_H,
+        use_plantuml_topdown_layout,
     )
 }
 
