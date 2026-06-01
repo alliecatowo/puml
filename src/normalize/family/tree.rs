@@ -290,6 +290,10 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
             StatementKind::LegendPos(pos) => {
                 common.legend_position(&pos);
             }
+            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
+            // The compat shim already emits legacy StyleParam triples; skip the typed
+            // AST node silently until Phase B wires up per-family application.
+            StatementKind::StyleBlock(_) => {}
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
                 let line = raw.line;

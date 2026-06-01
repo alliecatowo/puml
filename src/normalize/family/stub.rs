@@ -393,6 +393,10 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
+            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
+            // The compat shim already emits legacy StyleParam triples; skip the typed
+            // AST node silently until Phase B wires up per-family application.
+            StatementKind::StyleBlock(_) => {}
             StatementKind::SaltGridRow { cells } => {
                 if family_kind != DiagramKind::Salt {
                     return Err(Diagnostic::error(

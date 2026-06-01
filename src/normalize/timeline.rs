@@ -290,6 +290,7 @@ pub(super) fn normalize_timeline_baseline(
             | StatementKind::Pragma(_)
             | StatementKind::AllowMixing
             | StatementKind::LegendPos(_)
+            | StatementKind::StyleBlock(_)
             | StatementKind::SetOption { .. } => {}
             StatementKind::HideOption(option) => match option.as_str() {
                 "resources names" | "resource names" => hide_resource_names = true,

@@ -434,6 +434,10 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
+            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
+            // The compat shim already emits legacy StyleParam triples; skip the typed
+            // AST node silently until Phase B wires up per-family application.
+            StatementKind::StyleBlock(_) => {}
             StatementKind::Scale(body) => {
                 common.scale(&body);
                 if family_kind == DiagramKind::Timing && body.contains(" as ") {

@@ -4,6 +4,11 @@ use crate::sprites::SpriteDefinition;
 mod timing;
 pub use self::timing::{ActivityStep, ActivityStepKind, TimingDeclKind};
 
+pub mod style;
+pub use self::style::{
+    PName, SName, SelectorChain, SelectorSegment, StyleBlock, StyleRule, StyleScheme, StyleValue,
+};
+
 #[derive(Debug, Clone)]
 pub struct Document {
     pub kind: DiagramKind,
@@ -154,6 +159,10 @@ pub enum StatementKind {
         key: Option<String>,
         value: String,
     },
+    /// Rich typed AST for a `<style>` block (Phase A of #1404).
+    /// Emitted alongside legacy `StyleParam` triples (compat shim) until Phase E
+    /// removes the flat triples.
+    StyleBlock(StyleBlock),
     Theme(String),
     Pragma(String),
     Footbox(bool),

@@ -142,6 +142,10 @@ impl SequenceNormalizeState {
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
             | StatementKind::RawBlockContent(_) => {}
+            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
+            // The compat shim already emits legacy StyleParam triples; skip the typed
+            // AST node silently until Phase B wires up per-family application.
+            StatementKind::StyleBlock(_) => {}
             StatementKind::Scale(body) => {
                 groups::mark_group_content(&mut self.group_stack);
                 self.common.scale(&body);
