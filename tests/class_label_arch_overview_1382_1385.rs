@@ -42,11 +42,12 @@ fn class_01_basic_label_at_midpoint() {
             .expect("x attr not numeric")
     };
 
-    // Both Animal and Dog centre at x=112 (layout may vary slightly by
-    // padding, but mid should be within ±20px of 112 regardless).
+    // Both Animal and Dog centre at x=93 (layout uses CLASS_MARGIN_X=8,
+    // CLASS_BOX_MIN_WIDTH=120; node x=8+some_padding, width=122 → centre≈93;
+    // may vary slightly by padding, but mid should be within ±25px of 93).
     assert!(
-        (label_x - 112).abs() <= 20,
-        "owns label x={label_x} is more than 20px from midpoint 112 — collision push fired spuriously"
+        (label_x - 93).abs() <= 25,
+        "owns label x={label_x} is more than 25px from midpoint 93 — collision push fired spuriously"
     );
 }
 
