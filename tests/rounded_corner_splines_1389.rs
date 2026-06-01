@@ -7,16 +7,18 @@
 //!
 //! ## What these tests lock in
 //!
-//! 1. A 3-waypoint edge in Splines mode contains exactly 1 `Q` command in its
-//!    `<path d="…">` attribute (one rounded corner).
-//! 2. A diagram with multiple edges in Splines mode has at least 2 `Q` commands
-//!    in the SVG (two or more corners across all edges).
+//! 1. A 3-waypoint edge in Splines mode emits at least one path command (`C` or `Q`)
+//!    in its `<path d="…">` attribute (class diagrams now use cubic `C` via the
+//!    spline-native router introduced in #1412).
+//! 2. A diagram with multiple edges in Splines mode has at least 2 path commands
+//!    (`C` or `Q`) in the SVG (two or more curves across all edges).
 //! 3. A straight 2-node / single-segment edge in Splines mode emits `M … L …`
 //!    with no `Q` arc (no corners to round).
 //! 4. All `<path class="uml-relation"` elements have their `d` attribute start
 //!    with an exact `M x,y` matching the connector anchor — endpoints are pinned.
-//! 5. Splines mode uses `Q` (quadratic) arcs, never `C` (cubic Bézier). The old
-//!    Catmull-Rom algorithm emitted `C`; its absence confirms the regression is gone.
+//! 5. Class-family Splines mode uses `C` (cubic Bézier) from the spline-native router
+//!    (#1412). The old Catmull-Rom `C` regression is separately guarded in
+//!    `tests/spline_router_class_family_1412.rs`.
 //! 6. **Default routing (Polyline) is unaffected** — no `<path class="uml-relation">`
 //!    appears without an explicit `skinparam linetype splines` directive.
 //!
@@ -43,6 +45,20 @@ fn count_q_in_relation_paths(svg: &str) -> usize {
         let close = abs + svg[abs..].find("/>").unwrap_or(svg.len() - abs);
         let element = &svg[abs..close];
         total += element.matches(" Q ").count();
+        offset = close + 1;
+    }
+    total
+}
+
+/// Count occurrences of ` C ` inside `<path class="uml-relation"` elements.
+fn count_c_in_relation_paths(svg: &str) -> usize {
+    let mut total = 0;
+    let mut offset = 0;
+    while let Some(pos) = svg[offset..].find("<path class=\"uml-relation\"") {
+        let abs = offset + pos;
+        let close = abs + svg[abs..].find("/>").unwrap_or(svg.len() - abs);
+        let element = &svg[abs..close];
+        total += element.matches(" C ").count();
         offset = close + 1;
     }
     total
@@ -107,68 +123,69 @@ C --> D
 @enduml";
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 1. Q-command presence: 3-waypoint path → exactly 1 Q per relation path
+// 1. Curve-command presence: 3-waypoint path → at least 1 C or Q command
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Splines mode must emit at least one `Q` command in the relation paths for an
-/// L-shaped (3-waypoint) edge — the hallmark of rounded-corner arcs.
+/// Splines mode must emit at least one curve command (`C` or `Q`) in the relation
+/// paths for an L-shaped (3-waypoint) edge.  Class diagrams use the spline-native
+/// router which emits cubic `C` commands (#1412); sequence/activity diagrams use
+/// the rounded-corner renderer which emits quadratic `Q` commands (#1389).
 #[test]
-fn three_waypoint_edge_in_splines_mode_contains_q_command() {
+fn three_waypoint_edge_in_splines_mode_contains_curve_command() {
     let svg = render_svg(SPLINES_THREE_NODE);
     let q_count = count_q_in_relation_paths(&svg);
+    let c_count = count_c_in_relation_paths(&svg);
     assert!(
-        q_count >= 1,
-        "Splines mode with multi-waypoint edges must emit at least 1 Q arc command; \
-         got {q_count} in relation paths. SVG excerpt:\n{}",
+        q_count >= 1 || c_count >= 1,
+        "Splines mode with multi-waypoint edges must emit at least 1 Q or C curve command; \
+         got q={q_count} c={c_count} in relation paths. SVG excerpt:\n{}",
         &svg[..svg.len().min(1000)]
     );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 2. Multi-edge diagram: at least 2 Q commands total across all relation paths
+// 2. Multi-edge diagram: at least 2 curve commands total across all relation paths
 // ──────────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn multi_edge_splines_diagram_has_multiple_q_commands() {
+fn multi_edge_splines_diagram_has_multiple_curve_commands() {
     let svg = render_svg(SPLINES_MULTI_EDGE);
     let q_count = count_q_in_relation_paths(&svg);
+    let c_count = count_c_in_relation_paths(&svg);
     assert!(
-        q_count >= 2,
-        "multi-edge Splines diagram must have ≥2 Q commands across relation paths; \
-         got {q_count}"
+        q_count + c_count >= 2,
+        "multi-edge Splines diagram must have ≥2 Q+C curve commands across relation paths; \
+         got q={q_count} c={c_count}"
     );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 3. No cubic Bézier C commands in Splines mode — old Catmull-Rom is gone
+// 3. Class-family Splines mode: cubic C commands from spline-native router (#1412)
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// The Catmull-Rom implementation emitted ` C ` (cubic Bézier). The new rounded-
-/// corner renderer must use only ` Q ` (quadratic). Verify no `C` commands leak.
+/// Class diagrams in Splines mode use the spline-native router which emits cubic
+/// `C` commands (not the old rounded-corner quadratic `Q` renderer).
+/// The old Catmull-Rom regression produced `C` via a different code path; this
+/// test confirms the spline-native router is active and producing `C` commands.
 #[test]
-fn splines_mode_emits_no_cubic_bezier_c_commands() {
+fn class_splines_mode_emits_cubic_bezier_c_commands() {
     let svg = render_svg(SPLINES_MULTI_EDGE);
-    let mut offset = 0;
-    while let Some(pos) = svg[offset..].find("<path class=\"uml-relation\"") {
-        let abs = offset + pos;
-        let close = abs + svg[abs..].find("/>").unwrap_or(svg.len() - abs);
-        let element = &svg[abs..close];
-        assert!(
-            !element.contains(" C "),
-            "Splines mode must not emit cubic Bézier C commands (old Catmull-Rom regression); \
-             found in element: {element}"
-        );
-        offset = close + 1;
-    }
+    let c_count = count_c_in_relation_paths(&svg);
+    assert!(
+        c_count >= 1,
+        "Class-family Splines mode must emit cubic C commands via spline-native router (#1412); \
+         got {c_count} C commands in relation paths"
+    );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 4. Endpoint pinning — M and final L must be at exact waypoint coords
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// All `d` values in Splines-mode relation paths must start with `M ` (move-to)
-/// and end with `L <integer>,<integer>` (line-to exact endpoint). Smoothing must
-/// not displace the connector anchors.
+/// All `d` values in Splines-mode relation paths must start with `M ` (move-to).
+/// Endpoint format depends on the renderer:
+/// - Rounded-corner renderer (sequence/activity): ends with `L x,y`
+/// - Spline-native router (class/object/usecase, #1412): ends with the last C segment endpoint
 #[test]
 fn splines_relation_paths_start_with_m_and_end_with_l_integer_coords() {
     let svg = render_svg(SPLINES_THREE_NODE);
@@ -182,8 +199,7 @@ fn splines_relation_paths_start_with_m_and_end_with_l_integer_coords() {
             d.starts_with("M "),
             "relation path d must start with 'M '; got: {d}"
         );
-        // Final token after last 'L ' must be `integer,integer` (no decimal point
-        // from smoothing-induced float shift).
+        // If the path ends with L (rounded-corner renderer), verify coordinate format.
         if let Some(last_l) = d.rfind(" L ") {
             let tail = &d[last_l + 3..];
             // Accept both integer (e.g. "50,100") and minimal float (e.g. "50,100").
@@ -203,6 +219,7 @@ fn splines_relation_paths_start_with_m_and_end_with_l_integer_coords() {
                 .parse::<f64>()
                 .unwrap_or_else(|_| panic!("final L y coord not numeric: {tail} in d={d}"));
         }
+        // For C-command paths (spline-native router), no L at end is expected.
     }
 }
 
