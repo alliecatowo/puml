@@ -391,10 +391,27 @@ pub(super) fn render_node<'a>(
                     w: COMPOSITE_PAD_X,
                     h: composite_p.h,
                 };
+                // Exclude the current composite itself AND any ancestor composite
+                // whose bounding box fully contains the current composite's box.
+                // Without this, outer composites (e.g. "Operational" containing
+                // "Working") stay in the obstacle set and push intra-composite
+                // labels completely out of the visible area (#1449).
                 let mut inner_placed: std::collections::BTreeMap<String, PlacedNode> = ctx
                     .placed
                     .iter()
-                    .filter(|(k, _)| k.as_str() != node.name.as_str())
+                    .filter(|(k, v)| {
+                        if k.as_str() == node.name.as_str() {
+                            return false;
+                        }
+                        // Exclude ancestor composites: a node is an ancestor when its
+                        // bounding box fully contains the current composite's box.
+                        let is_ancestor = v.x <= x
+                            && v.y <= y
+                            && v.x + v.w >= x + w
+                            && v.y + v.h >= y + h
+                            && (v.w > w || v.h > h);
+                        !is_ancestor
+                    })
                     .map(|(k, v)| (k.clone(), *v))
                     .collect();
                 inner_placed.insert(format!("__wall_header_{}", node.name), header_wall);
