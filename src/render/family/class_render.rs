@@ -463,6 +463,9 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
 
     // Build lateral-offset map for parallel edges and render all relations.
     // Delegate to helper to keep this orchestrator function concise.
+    // #1445/#1446: actor-fan edges for usecase diagrams now use a wider gap
+    // (ACTOR_FAN_GAP below) so that edges from a parent actor spread far enough
+    // to clear child actor figures (~50 px wide) placed on the same vertical axis.
     const PARALLEL_EDGE_GAP: i32 = 20;
     let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
         std::collections::BTreeMap::new();
@@ -550,18 +553,21 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             }
         }
         // Assign x-offsets; skip groups of one (no tangle possible).
+        // #1445/#1446: use a wider per-edge gap for actor fans so that
+        // edges from a parent actor spread past child actor figures (~50 px)
+        // that sit on the same vertical axis between the actor and the boundary.
+        // Scale the gap with the fan size: 40 px for ≤4 edges, 32 px for 5+.
         for group in actor_fan_groups.values() {
             if group.len() < 2 {
                 continue;
             }
             let n = group.len() as i32;
+            let actor_fan_gap = if n <= 4 { 40i32 } else { 32 };
             for (slot, &idx) in group.iter().enumerate() {
                 let lane = slot as i32 - n / 2;
                 // Do not override offsets already assigned by the
                 // parallel-pair pass (e.g. bidirectional edges).
-                parallel_offset
-                    .entry(idx)
-                    .or_insert(lane * PARALLEL_EDGE_GAP);
+                parallel_offset.entry(idx).or_insert(lane * actor_fan_gap);
             }
         }
     }

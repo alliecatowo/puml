@@ -3,6 +3,10 @@ pub(super) struct IfFrame {
     pub(super) diamond_cx: i32,
     pub(super) diamond_arrow_out: i32,
     pub(super) diamond_next_slot: i32,
+    /// The `then (guard)` label from `if (cond) then (guard)`.  Retained so
+    /// that when the then-branch is empty (no nodes between the diamond and
+    /// the else/endif), the EndIf handler can place the guard on the then-merge
+    /// arrow — the only visible then-path in that case.
     pub(super) then_guard: Option<String>,
     pub(super) then_cx: i32,
     pub(super) then_rightmost_cx: i32,
