@@ -260,7 +260,10 @@
       "path": "docs/examples/nwdiag/01_single_net.puml",
       "family": "nwdiag",
       "expected_text": ["Network diagram", "network dmz (192.168.0.x/24)", "web01", "web02"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1372,
+      "png_baseline_deferred_reason": "nwdiag density retune (#1372) changes layout dimensions (640x167 -> 640x147); re-bless on Linux after merge"
     },
     {
       "path": "docs/examples/timing/04_binary.puml",
