@@ -474,7 +474,9 @@ pub(super) fn render_node<'a>(
                             }
                             continue;
                         } else if has_reverse {
-                            let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 10);
+                            // #1448: 40 px offset so bidirectional labels end up
+                            // 80 px apart — matches the top-level render pass.
+                            let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 40);
                             let cpx = (ox1 + ox2) / 2;
                             let cpy = (oy1 + oy2) / 2;
                             out.push_str(&format!(

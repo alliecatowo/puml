@@ -472,9 +472,11 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
                 }
                 continue;
             } else if has_reverse {
-                // Bidirectional pair: use a curved path offset to the right of the line
-                // so both arrows are visible without overlapping.
-                let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 10);
+                // Bidirectional pair: use a curved path offset to the right of the
+                // line so both arrows are visible without overlapping.
+                // #1448: 40 px ensures label anchors are 80 px apart (40 each side)
+                // so bidirectional word labels don't stack on top of each other.
+                let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 40);
                 let cpx = (ox1 + ox2) / 2;
                 let cpy = (oy1 + oy2) / 2;
                 out.push_str(&format!(

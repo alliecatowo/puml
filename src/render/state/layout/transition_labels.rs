@@ -23,8 +23,11 @@ pub(in crate::render::state) fn shift_layout_for_transition_labels<'a>(
                 );
                 let has_reverse =
                     t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                // #1448: use 40 px offset so bidirectional label anchors start
+                // 80 px apart (40 each side) — clears node-box collision for
+                // typical single-word state-transition labels.
                 let (lx1, ly1, lx2, ly2) = if has_reverse {
-                    offset_parallel_edge(x1, y1, x2, y2, 10)
+                    offset_parallel_edge(x1, y1, x2, y2, 40)
                 } else {
                     state_orthogonal_label_segment(x1, y1, x2, y2)
                 };
@@ -171,7 +174,9 @@ fn account_for_transition_label<'a>(
             let apex_y = fp.y - arc_h / 2;
             (apex_x, apex_y, apex_x, apex_y)
         } else if has_reverse {
-            offset_parallel_edge(x1, y1, x2, y2, 10)
+            // #1448: same 40 px offset as the render pass so canvas expansion
+            // matches the actual label anchor positions.
+            offset_parallel_edge(x1, y1, x2, y2, 40)
         } else {
             state_orthogonal_label_segment(x1, y1, x2, y2)
         };
