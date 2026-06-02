@@ -219,7 +219,7 @@ api --> Worker
         "component line: color should style the component border; svg={svg}"
     );
     assert!(
-        svg.contains("stroke-dasharray=\"5 3\""),
+        svg.contains("stroke-dasharray=\"8 4\""),
         "component line.dashed should style the component border; svg={svg}"
     );
     assert!(
