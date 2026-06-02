@@ -33,10 +33,7 @@ fn max_rect_width(svg: &str) -> i32 {
     let mut cursor = 0;
     while let Some(idx) = svg[cursor..].find("<rect ") {
         let abs = cursor + idx;
-        let tag_end = svg[abs..]
-            .find('>')
-            .map(|e| abs + e)
-            .unwrap_or(svg.len());
+        let tag_end = svg[abs..].find('>').map(|e| abs + e).unwrap_or(svg.len());
         let tag = &svg[abs..tag_end];
         if let Some(w_start) = tag.find("width=\"") {
             let w_body = &tag[w_start + 7..];

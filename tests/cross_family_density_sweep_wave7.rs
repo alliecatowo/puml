@@ -71,7 +71,10 @@ fn attr_u64(tag: &str, attr: &str) -> u64 {
 // Class family pass-2 guards (≤1.75× after wave-7)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// class/01_basic: was 1.82×, target ≤1.75× after wave-7 margin/gap retune.
+/// class/01_basic: was 1.82×, wave-7 target ≤1.75×.
+/// 2026-06-01 emergency visual rescue (#1519): CLASS_BOX_MIN_WIDTH 120→150 for
+/// breathing room; threshold relaxed to ≤1.85× to accommodate the intentional
+/// visual-integrity improvement (parity metrics intentionally regress).
 #[test]
 fn w7_class_01_area_ratio_le_1x75() {
     let src = include_str!("../docs/examples/class/01_basic.puml");
@@ -79,8 +82,8 @@ fn w7_class_01_area_ratio_le_1x75() {
     let pl_area: u64 = 134 * 276; // 36,984 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 175,
-        "class/01 area ratio {:.2}× exceeds 1.75× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 185,
+        "class/01 area ratio {:.2}× exceeds 1.85× emergency-rescue threshold (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
@@ -166,8 +169,10 @@ fn w7_component_08_grouped_not_regressed() {
 // Deployment family pass-2 guards
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// deployment/02_databases: was 2.43×, target ≤1.5× after conditional
-/// group_top_overhead and DEPLOYMENT_RANK_EXTRA_GAP retune.
+/// deployment/02_databases: was 2.43×, wave-7 target ≤1.5×.
+/// 2026-06-01 emergency visual rescue (#1519): DEPLOYMENT_BOX_WIDTH 110→140 for
+/// breathing room; threshold relaxed to ≤1.65× to accommodate the intentional
+/// visual-integrity improvement (parity metrics intentionally regress).
 #[test]
 fn w7_deployment_02_area_ratio_le_1x5() {
     let src = include_str!("../docs/examples/deployment/02_databases.puml");
@@ -175,8 +180,8 @@ fn w7_deployment_02_area_ratio_le_1x5() {
     let pl_area: u64 = 254 * 322; // 81,788 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 150,
-        "deployment/02 area ratio {:.2}× exceeds 1.5× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 165,
+        "deployment/02 area ratio {:.2}× exceeds 1.65× emergency-rescue threshold (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
