@@ -58,13 +58,16 @@ fn object_02_with_attributes_area_le_1_8x_plantuml() {
 ///
 /// PlantUML reference dimensions: 185×236 = 43 660 px².
 /// Threshold: 43 660 × 2.0 = 87 320 px², rounded to 88 000 for headroom.
+/// 2026-06-01 emergency visual rescue (#1519): OBJECT_NODE_WIDTH_MAX 130→165 widens
+/// object nodes, increasing the area. Relaxed to 110 000 to accommodate the intentional
+/// visual-integrity improvement (parity metrics intentionally regress per the audit).
 #[test]
 fn object_05_ch04_parity_area_le_2x_plantuml() {
     let svg = render_fixture("docs/examples/object/05_ch04_parity.puml");
     let (w, h) = svg_dimensions(&svg);
     let area = w * h;
     assert!(
-        area <= 88_000,
-        "object/05_ch04_parity area {w}×{h}={area} px² exceeds 88 000 px² (2.0× PlantUML=43 660) — issue #1425"
+        area <= 110_000,
+        "object/05_ch04_parity area {w}×{h}={area} px² exceeds 110 000 px² (emergency rescue threshold) — issue #1425"
     );
 }
