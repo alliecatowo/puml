@@ -53,6 +53,10 @@ pub(super) fn frontend_hint_for_path(path: Option<&Path>) -> Option<FrontendSele
         .and_then(|ext| ext.to_str())
         .and_then(|ext| match ext.to_ascii_lowercase().as_str() {
             "picouml" => Some(FrontendSelection::Picouml),
+            // Mermaid uses `.mmd` (canonical, Mermaid CLI's default) and the
+            // less-common `.mermaid` extension on disk; map both to the
+            // Mermaid frontend adapter so `puml foo.mmd` "just works".
+            "mmd" | "mermaid" => Some(FrontendSelection::Mermaid),
             _ => None,
         })
 }
