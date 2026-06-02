@@ -399,13 +399,80 @@ pub(super) fn render_box_grid_relations_and_labels(
                 };
                 *last = (snapped_x, snapped_y);
             }
+            // Perpendicular stub enforcement.  After snapping the endpoint
+            // anchors above (including any port-fan lateral shift), the
+            // first segment must be perpendicular to the source side and
+            // the last must be perpendicular to the target side.  Align
+            // the off-axis coordinate of the second/penultimate waypoint
+            // to the (possibly fan-shifted) endpoint:
+            //
+            //   top/bottom side (src/tgt_keep_routed_x = true): outward
+            //     normal is vertical → stub must be vertical → match x.
+            //   left/right side (src/tgt_keep_routed_x = false): outward
+            //     normal is horizontal → stub must be horizontal → match y.
+            //
+            // Without this, fan-shifting an endpoint laterally leaves the
+            // router-emitted penultimate at the un-shifted axis, producing
+            // a diagonal stub where the arrowhead "grazes" the box border
+            // instead of pointing into the side at 90°.
+            //
+            // For n == 3 the single interior waypoint must satisfy both the
+            // source-side and target-side stub.  When the two endpoints sit
+            // on the same axis (both vertical exit/entry with different x, or
+            // both horizontal with different y), one corner cannot satisfy
+            // both constraints — insert an extra waypoint so we get a
+            // U-shaped bend.  When the two sides are perpendicular axes, the
+            // single interior point becomes the natural L-corner.
             let n = orth_pts.len();
-            if n >= 3 {
-                if !src_keep_routed_x {
-                    orth_pts[1].0 = x1;
+            if n == 3 {
+                let (p0x, p0y) = orth_pts[0];
+                let (p2x, p2y) = orth_pts[2];
+                match (src_keep_routed_x, tgt_keep_routed_x) {
+                    // Both vertical stubs: require pts[1].x = p0.x AND
+                    // pts[2-1=1].x = p2.x.  If endpoint xs differ, inject a
+                    // mid-y bend at the existing pts[1].y.
+                    (true, true) => {
+                        if p0x == p2x {
+                            orth_pts[1].0 = p0x;
+                        } else {
+                            let bend_y = orth_pts[1].1;
+                            orth_pts[1] = (p0x, bend_y);
+                            orth_pts.insert(2, (p2x, bend_y));
+                        }
+                    }
+                    // Both horizontal stubs.
+                    (false, false) => {
+                        if p0y == p2y {
+                            orth_pts[1].1 = p0y;
+                        } else {
+                            let bend_x = orth_pts[1].0;
+                            orth_pts[1] = (bend_x, p0y);
+                            orth_pts.insert(2, (bend_x, p2y));
+                        }
+                    }
+                    // Source vertical + target horizontal: L-corner at
+                    // (p0.x, p2.y).
+                    (true, false) => {
+                        orth_pts[1] = (p0x, p2y);
+                    }
+                    // Source horizontal + target vertical: L-corner at
+                    // (p2.x, p0.y).
+                    (false, true) => {
+                        orth_pts[1] = (p2x, p0y);
+                    }
                 }
-                if n > 3 && !tgt_keep_routed_x {
-                    orth_pts[n - 2].0 = x2;
+            } else if n > 3 {
+                let (p0x, p0y) = orth_pts[0];
+                let (pnx, pny) = orth_pts[n - 1];
+                if src_keep_routed_x {
+                    orth_pts[1].0 = p0x;
+                } else {
+                    orth_pts[1].1 = p0y;
+                }
+                if tgt_keep_routed_x {
+                    orth_pts[n - 2].0 = pnx;
+                } else {
+                    orth_pts[n - 2].1 = pny;
                 }
             }
             // ── Splines-mode dispatch (#1391) ────────────────────────────────

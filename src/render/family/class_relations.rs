@@ -15,7 +15,7 @@ use super::class_routing::{
     class_box_anchor_toward_point, class_nudge_label_x, class_nudge_label_y,
     class_port_side_from_box_anchor, class_route_with_row_ports, qualified_row_anchor,
 };
-use super::class_types::{ClassEndpointAnchor, ClassNodeBox};
+use super::class_types::{ClassEndpointAnchor, ClassNodeBox, ClassPortSide};
 use super::group_frames::ClassGroupFrameRect;
 
 /// Context passed to `render_class_relations` — groups the many read-only
@@ -494,11 +494,81 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             if let Some(last) = pts.last_mut() {
                 *last = (x2, y2);
             }
+            // Perpendicular stub enforcement.  After snapping the endpoint
+            // anchors above, the first segment (pts[0]→pts[1]) must be
+            // perpendicular to the source side and the last segment
+            // (pts[cn-2]→pts[cn-1]) must be perpendicular to the target
+            // side.  When the snap shifts an endpoint laterally, the
+            // router-emitted penultimate waypoint still sits at the
+            // un-shifted axis, leaving the stub diagonal — visually the
+            // arrowhead "grazes" the box border instead of pointing into the
+            // side at 90°.  Align the off-axis coordinate of the
+            // second/penultimate waypoint to the endpoint:
+            //
+            //   Top/Bottom side → outward normal is vertical → segment must
+            //     be vertical → match x to endpoint x.
+            //   Left/Right side → outward normal is horizontal → segment
+            //     must be horizontal → match y to endpoint y.
+            //
+            // For cn == 3 the single interior waypoint must satisfy both the
+            // source-side and target-side stub.  When the two sides are on
+            // the same axis (both vertical or both horizontal), inject an
+            // extra waypoint so we get a U-shaped bend.  When the two sides
+            // are perpendicular, the single interior point becomes the
+            // natural L-corner.
             let cn = pts.len();
             if cn >= 3 && !from_anchor.is_row_port && !to_anchor.is_row_port {
-                pts[1].0 = x1;
-                if cn > 3 {
-                    pts[cn - 2].0 = x2;
+                let src_axis_vertical = matches!(
+                    from_anchor.side,
+                    ClassPortSide::Top | ClassPortSide::Bottom
+                );
+                let tgt_axis_vertical = matches!(
+                    to_anchor.side,
+                    ClassPortSide::Top | ClassPortSide::Bottom
+                );
+                if cn == 3 {
+                    let (p0x, p0y) = pts[0];
+                    let (p2x, p2y) = pts[2];
+                    match (src_axis_vertical, tgt_axis_vertical) {
+                        (true, true) => {
+                            if p0x == p2x {
+                                pts[1].0 = p0x;
+                            } else {
+                                let bend_y = pts[1].1;
+                                pts[1] = (p0x, bend_y);
+                                pts.insert(2, (p2x, bend_y));
+                            }
+                        }
+                        (false, false) => {
+                            if p0y == p2y {
+                                pts[1].1 = p0y;
+                            } else {
+                                let bend_x = pts[1].0;
+                                pts[1] = (bend_x, p0y);
+                                pts.insert(2, (bend_x, p2y));
+                            }
+                        }
+                        (true, false) => {
+                            pts[1] = (p0x, p2y);
+                        }
+                        (false, true) => {
+                            pts[1] = (p2x, p0y);
+                        }
+                    }
+                } else {
+                    let (p0x, p0y) = pts[0];
+                    let cn_now = pts.len();
+                    let (pnx, pny) = pts[cn_now - 1];
+                    if src_axis_vertical {
+                        pts[1].0 = p0x;
+                    } else {
+                        pts[1].1 = p0y;
+                    }
+                    if tgt_axis_vertical {
+                        pts[cn_now - 2].0 = pnx;
+                    } else {
+                        pts[cn_now - 2].1 = pny;
+                    }
                 }
             }
             // #1292: For usecase diagrams, snap edge paths that cross system-boundary
