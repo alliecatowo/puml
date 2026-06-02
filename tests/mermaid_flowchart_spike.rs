@@ -9,7 +9,7 @@
 //! as a regression gate.
 
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, CompatMode,
+    normalize_family, parse_with_pipeline_options, render_artifact_pages_from_model, CompatMode,
     FrontendSelection, ParsePipelineOptions,
 };
 
@@ -63,9 +63,9 @@ fn mermaid_flowchart_fixture_renders_to_svg_with_expected_nodes() {
     let document =
         parse_with_pipeline_options(FIXTURE, &mermaid_options()).expect("fixture should adapt");
     let normalized = normalize_family(document).expect("should normalize");
-    let pages = render_svg_pages_from_model(&normalized);
-    assert_eq!(pages.len(), 1, "expected a single rendered page");
-    let svg = &pages[0];
+    let artifacts = render_artifact_pages_from_model(&normalized);
+    assert_eq!(artifacts.len(), 1, "expected a single rendered page");
+    let svg = &artifacts[0].svg;
 
     // The five node labels should appear in the rendered SVG. Mermaid's curly
     // brace decision shape collapses to a component with the inner label, so
