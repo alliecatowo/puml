@@ -461,6 +461,55 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         });
     }
 
+    // ── #1440: clamp outermost frame top-clip ────────────────────────────────
+    // When the outermost group frame has abs_y < canvas_margin + header_h the
+    // dark header band overlaps the title or sits above the SVG viewBox top edge
+    // and gets clipped.  Shift all layout results down so the topmost frame
+    // starts at ≥ canvas_margin + header_h (title area is reserved above).
+    //
+    // Only apply when pkg_layouts is non-empty (i.e., the diagram has at least
+    // one group/package frame).  For plain ungrouped components the graph layout
+    // already places nodes below the title band and the edge_paths from
+    // gl_result are NOT shifted here, so applying a y_shift would desync node
+    // bboxes from edge waypoints and break endpoint-anchoring assertions (#1318).
+    //
+    // When a y_shift IS applied, edge_paths must be shifted by the same amount
+    // so waypoint coordinates stay consistent with node bboxes (#1472 parity).
+    // Shifted edge paths — only populated when a y_shift is needed to keep the
+    // topmost group frame inside the SVG viewBox.
+    let edge_paths_shifted: Option<std::collections::BTreeMap<String, Vec<(f64, f64)>>>;
+    if !pkg_layouts.is_empty() {
+        let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
+        let min_allowed_y = canvas_margin + header_h;
+        let y_shift = (min_allowed_y - min_pkg_y).max(0);
+        if y_shift > 0 {
+            for p in pkg_layouts.iter_mut() {
+                p.abs_y += y_shift;
+            }
+            for v in positions.values_mut() {
+                v.1 += y_shift;
+            }
+            let dy = y_shift as f64;
+            edge_paths_shifted = Some(
+                gl_result
+                    .edge_paths
+                    .iter()
+                    .map(|(k, pts)| {
+                        (
+                            k.clone(),
+                            pts.iter().map(|&(px, py)| (px, py + dy)).collect(),
+                        )
+                    })
+                    .collect(),
+            );
+        } else {
+            edge_paths_shifted = None;
+        }
+    } else {
+        edge_paths_shifted = None;
+    }
+    let edge_paths_ref = edge_paths_shifted.as_ref().unwrap_or(&gl_result.edge_paths);
+
     // derive pkg_frame_widths/heights for compat
     let pkg_frame_widths: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_w).collect();
     let pkg_frame_heights: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_h).collect();
@@ -639,7 +688,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         &interface_nodes,
         &all_boxes,
         &pkg_frame_boxes,
-        &gl_result.edge_paths,
+        edge_paths_ref,
         &comp_style,
     );
     // Re-paint header label text (text only, NOT the dark band) AFTER edge-label

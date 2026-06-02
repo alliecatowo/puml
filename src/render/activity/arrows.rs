@@ -425,6 +425,47 @@ pub(super) fn collect_activity_arrow_waypoints(
     }
 }
 
+/// Compute a guard-label position for an L-bend arrow that avoids overlapping
+/// the source diamond shape.
+///
+/// Activity decision arrows exit a diamond at a lateral vertex.  The
+/// conventional midpoint (pts[n/2]) lands on the horizontal arm which is
+/// still within the diamond's bounding box (#1478).  This helper relocates
+/// the label to the VERTICAL segment, outside the diamond.
+///
+/// - Left exit (x2 ≤ x1): label to the left of x1, halfway down the first
+///   vertical segment.
+/// - Right exit (x2 > x1): label to the right of x1, halfway down the first
+///   vertical segment.
+/// - Straight-down (pts.len() < 4): conventional pts[n/2] + offset.
+///
+/// `x1`/`x2` are the original arrow start/end x coordinates (same as
+/// `pts[0].0` / `pts[last].0`).
+fn lbend_guard_label_pos(pts: &[(i32, i32)], x1: i32, x2: i32) -> (i32, i32) {
+    // 4-waypoint L-bend: [(x1,y1), (x1,mid_y), (x2,mid_y), (x2,y2)]
+    // Only apply to forward-going lateral exits (y2 > y1, guard arm going
+    // downward from the diamond).  Loop-back edges (y2 < y1) have the label
+    // placed conventionally to avoid misplacing it on upward segments.
+    if pts.len() == 4 {
+        let (_, y1) = pts[0];
+        let (_, y2_last) = pts[pts.len() - 1];
+        let (_, mid_y) = pts[1];
+        // Only fire for downward L-bends (forward exits, not loop-backs).
+        if y2_last > y1 {
+            let label_y = (y1 + mid_y) / 2;
+            if x2 <= x1 {
+                // Left-going exit: label to the left of the start point.
+                return (x1 - 28, label_y);
+            } else {
+                // Right-going exit: label to the right of the start point.
+                return (x1 + 14, label_y);
+            }
+        }
+    }
+    let mid = pts[pts.len() / 2];
+    (mid.0 + 6, mid.1)
+}
+
 /// Emit an activity arrow with explicit [`EdgeRouting`] control.
 ///
 /// - [`EdgeRouting::Ortho`] — delegates to the legacy `<line>`-segment emitter.
@@ -462,6 +503,13 @@ pub(super) fn emit_activity_arrow_with_style_routed(
 
             let pts = collect_activity_arrow_waypoints(x1, y1, x2, y2, bboxes);
 
+            // #1478: compute a guard-safe label position for L-bend arrows that
+            // exit a decision diamond horizontally.  The naive midpoint (pts[n/2])
+            // lands inside the diamond bbox when the exit arm is shorter than the
+            // diamond's half-width.  For left-going L-bends (x2 < x1), push the
+            // label to the left of the start point so it sits outside the diamond.
+            let (label_x, label_y) = lbend_guard_label_pos(&pts, x1, x2);
+
             if routing == EdgeRouting::Splines {
                 let d = crate::render::edge_smoothing::cubic_bezier_path_d(&pts);
                 // Arrowhead direction: last two waypoints.
@@ -487,12 +535,11 @@ pub(super) fn emit_activity_arrow_with_style_routed(
                         "<path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{stroke_width}\"{dash}/>",
                     ));
                 }
-                let mid = pts[pts.len() / 2];
                 if let Some(label) = &style.label {
                     out.push_str(&format!(
                         "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"{color}\">{}</text>",
-                        mid.0 + 6,
-                        mid.1,
+                        label_x,
+                        label_y,
                         crate::render::svg::escape_text(label)
                     ));
                 }
@@ -517,12 +564,11 @@ pub(super) fn emit_activity_arrow_with_style_routed(
                         base_y.round() as i32,
                     ));
                 }
-                let mid = pts[pts.len() / 2];
                 if let Some(label) = &style.label {
                     out.push_str(&format!(
                         "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"{color}\">{}</text>",
-                        mid.0 + 6,
-                        mid.1,
+                        label_x,
+                        label_y,
                         crate::render::svg::escape_text(label)
                     ));
                 }

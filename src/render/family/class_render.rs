@@ -604,6 +604,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
             arrow_stroke: arrow_stroke.as_str(),
             margin_x,
             margin_top,
+            canvas_margin_y: margin_top + title_block_height + group_top_reserve,
             svg_width,
             is_object_diagram,
             edge_routing: document.edge_routing,
