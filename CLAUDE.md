@@ -5,28 +5,29 @@ Read it fully before touching a file. For deeper runbooks, follow the links in s
 
 ---
 
-## 0. MANDATORY for every PR (2026-06-01 — clarified)
+## 0. MANDATORY for every PR (added 2026-06-01 per Allie)
 
-**Every PR body MUST inline rendered PNG images.** A description of "I rendered locally and confirmed" is NOT acceptable. The reviewer reads on MOBILE; images must render in the PR body without clicking links.
+**Every PR body MUST inline rendered image evidence.** Description text does not count — images must render in the body when viewed on github.com (Allie reads on mobile).
 
-**How to do it (the only acceptable patterns):**
+**Prefer SVG.** Our renderer produces SVG natively, GitHub renders SVG inline, and they're already committed under `docs/examples/*.svg`. Reference directly:
+```
+![after](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/examples/<family>/<fixture>.svg)
+```
+For BEFORE/AFTER, point one at main and one at the branch:
+```
+![before](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/examples/object/02_with_attributes.svg)
+![after](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/examples/object/02_with_attributes.svg)
+```
 
-1. **Commit the PNG to the branch** under `docs/pr-evidence/<pr-number>/before.png` and `.../after.png`, then reference in the body as:
-   ```
-   ![before](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/pr-evidence/<N>/before.png)
-   ![after](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/pr-evidence/<N>/after.png)
-   ```
-2. **OR**: upload to GitHub user-attachments via the web UI / `gh` API, then paste the `https://github.com/user-attachments/...` URL in the body.
-
-Either way: the image must appear inline when the PR body is viewed on github.com, not just be described.
+**PNG fallback** only when the fixture isn't in `docs/examples/` or you need a screenshot. Commit under `docs/pr-evidence/<N>/` and reference via raw URL.
 
 **Per-PR coverage:**
-- Render/layout/style change → BEFORE + AFTER PNG of at least 2 representative fixtures
-- Stdlib change (AWS/Azure/GCP/k8s) → PNG of a fixture using that stdlib
-- Bug fix → BEFORE PNG showing the bug + AFTER PNG showing the fix
-- Doc-only / CI-only → one sentence stating "no visual impact" is sufficient
+- Render/layout/style change → at least 2 representative fixtures (preferably SVG, BEFORE + AFTER)
+- Stdlib change (AWS/Azure/GCP/k8s) → fixture using that stdlib, rendered
+- Bug fix → BEFORE + AFTER demonstrating the fix
+- Doc-only / CI-only → "no visual impact" sentence
 
-**Trust but verify:** if a PR body lacks inline images for visual work, don't merge it — the agent must add the images.
+**Trust but verify:** if a PR body lacks inline images for visual work, don't merge it.
 
 **Direct-to-main is authorized for emergency visual rescue** (Allie 2026-06-01) when a recent merge has made fixtures look broken. Render every affected fixture locally, fix, re-render, confirm visually, push direct.
 
