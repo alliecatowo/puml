@@ -1,0 +1,6 @@
+flowchart TD
+    Start --> Decide{Need coffee?}
+    Decide -->|yes| Brew[Brew coffee]
+    Decide -->|no| Code[Start coding]
+    Brew --> Code
+    Code --> Stop

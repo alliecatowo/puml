@@ -1,0 +1,16 @@
+' Equivalent PUML translation of `01_basic_flowchart.mmd`.
+' This file documents what the Mermaid frontend produces internally — it is
+' NOT auto-generated. See docs/internal/spec/mermaid/README.md for how the
+' Mermaid → PlantUML translation works (`src/frontend/mermaid/flowchart.rs`).
+@startuml
+component Start
+component "Need coffee?" as Decide
+component "Brew coffee" as Brew
+component "Start coding" as Code
+component Stop
+Start --> Decide
+Decide --> Brew : yes
+Decide --> Code : no
+Brew --> Code
+Code --> Stop
+@enduml
