@@ -475,8 +475,9 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     //
     // When a y_shift IS applied, edge_paths must be shifted by the same amount
     // so waypoint coordinates stay consistent with node bboxes (#1472 parity).
-    let edge_paths_shifted: std::collections::BTreeMap<String, Vec<(f64, f64)>>;
-    let edge_paths_ref: &std::collections::BTreeMap<String, Vec<(f64, f64)>>;
+    // Shifted edge paths — only populated when a y_shift is needed to keep the
+    // topmost group frame inside the SVG viewBox.
+    let edge_paths_shifted: Option<std::collections::BTreeMap<String, Vec<(f64, f64)>>>;
     if !pkg_layouts.is_empty() {
         let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
         let min_allowed_y = canvas_margin + header_h;
@@ -489,25 +490,25 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
                 v.1 += y_shift;
             }
             let dy = y_shift as f64;
-            edge_paths_shifted = gl_result
-                .edge_paths
-                .iter()
-                .map(|(k, pts)| {
-                    (
-                        k.clone(),
-                        pts.iter().map(|&(px, py)| (px, py + dy)).collect(),
-                    )
-                })
-                .collect();
-            edge_paths_ref = &edge_paths_shifted;
+            edge_paths_shifted = Some(
+                gl_result
+                    .edge_paths
+                    .iter()
+                    .map(|(k, pts)| {
+                        (
+                            k.clone(),
+                            pts.iter().map(|&(px, py)| (px, py + dy)).collect(),
+                        )
+                    })
+                    .collect(),
+            );
         } else {
-            edge_paths_shifted = std::collections::BTreeMap::new();
-            edge_paths_ref = &gl_result.edge_paths;
+            edge_paths_shifted = None;
         }
     } else {
-        edge_paths_shifted = std::collections::BTreeMap::new();
-        edge_paths_ref = &gl_result.edge_paths;
+        edge_paths_shifted = None;
     }
+    let edge_paths_ref = edge_paths_shifted.as_ref().unwrap_or(&gl_result.edge_paths);
 
     // derive pkg_frame_widths/heights for compat
     let pkg_frame_widths: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_w).collect();
