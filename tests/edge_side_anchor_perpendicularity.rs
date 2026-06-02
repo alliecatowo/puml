@@ -187,7 +187,10 @@ C --> D
 
     let svg = render_svg(puml);
     let all_pts = extract_polyline_points(&svg);
-    assert!(!all_pts.is_empty(), "expected at least one relation polyline");
+    assert!(
+        !all_pts.is_empty(),
+        "expected at least one relation polyline"
+    );
 
     let node_ids = ["A", "B", "C", "D"];
     let bboxes: Vec<(i32, i32, i32, i32)> = node_ids

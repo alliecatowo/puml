@@ -518,14 +518,10 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             // natural L-corner.
             let cn = pts.len();
             if cn >= 3 && !from_anchor.is_row_port && !to_anchor.is_row_port {
-                let src_axis_vertical = matches!(
-                    from_anchor.side,
-                    ClassPortSide::Top | ClassPortSide::Bottom
-                );
-                let tgt_axis_vertical = matches!(
-                    to_anchor.side,
-                    ClassPortSide::Top | ClassPortSide::Bottom
-                );
+                let src_axis_vertical =
+                    matches!(from_anchor.side, ClassPortSide::Top | ClassPortSide::Bottom);
+                let tgt_axis_vertical =
+                    matches!(to_anchor.side, ClassPortSide::Top | ClassPortSide::Bottom);
                 if cn == 3 {
                     let (p0x, p0y) = pts[0];
                     let (p2x, p2y) = pts[2];
