@@ -1,8 +1,0 @@
-@startuml
-!theme amiga
-title Amiga Theme (Retro Orange+Blue)
-User -> System: request
-System -> Memory: allocate
-Memory --> System: block
-System --> User: result
-@enduml

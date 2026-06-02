@@ -1,0 +1,92 @@
+@startuml
+title Microservices Architecture
+class Gateway {
+  +route(req): Response
+  +authenticate(token): boolean
+}
+class UserController
+class UserService
+class UserRepository
+class OrderController
+class OrderService
+class OrderRepository
+Gateway --> UserController
+Gateway --> OrderController
+UserController --> UserService
+UserService --> UserRepository
+OrderController --> OrderService
+OrderService --> OrderRepository
+@enduml
+
+@startuml
+title Domain-Driven Design
+class Order {
+  -id: OrderId
+  -status: String
+  +addItem(product, qty): void
+  +confirm(): void
+  +cancel(): void
+}
+class OrderItem {
+  -productId: String
+  -quantity: int
+  -price: Money
+}
+class OrderId {
+  -value: UUID
+}
+class Money {
+  -amount: BigDecimal
+  -currency: String
+}
+Order *-- OrderItem
+Order *-- OrderId
+OrderItem *-- Money
+@enduml
+
+@startuml
+title Event Sourcing
+class Event {
+  +aggregateId(): String
+  +timestamp(): Instant
+}
+class EventStore {
+  +append(event: Event): void
+  +load(id: String): List
+}
+class Aggregate {
+  -id: String
+  -version: int
+  +apply(event: Event): void
+}
+class OrderCreated {
+  +orderId: String
+  +customerId: String
+}
+class OrderAggregate {
+  -status: String
+}
+OrderCreated <|-- Event
+OrderAggregate <|-- Aggregate
+EventStore --> Event
+@enduml
+
+@startuml
+title CQRS Pattern
+class Command
+class Query
+class CommandHandler {
+  +handle(command: Command): void
+}
+class QueryHandler {
+  +handle(query: Query): Object
+}
+class CommandBus {
+  +dispatch(command: Command): void
+}
+class QueryBus {
+  +execute(query: Query): Object
+}
+CommandBus --> CommandHandler
+QueryBus --> QueryHandler
+@enduml

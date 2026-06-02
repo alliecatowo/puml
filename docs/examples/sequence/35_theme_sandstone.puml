@@ -1,8 +1,0 @@
-@startuml
-!theme sandstone
-title Sandstone Theme
-Client -> Server: HTTP GET
-Server -> Cache: lookup
-Cache --> Server: hit
-Server --> Client: 200 OK
-@enduml

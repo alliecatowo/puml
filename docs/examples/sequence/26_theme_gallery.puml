@@ -1,0 +1,44 @@
+@startuml
+!theme aws-orange
+title AWS Orange Theme
+Client -> Lambda: invoke
+Lambda -> DynamoDB: query
+DynamoDB --> Lambda: items
+Lambda --> Client: response
+@enduml
+
+@startuml
+!theme blueprint
+title Blueprint Theme
+User -> API: GET /data
+API -> DB: SELECT
+DB --> API: rows
+API --> User: JSON
+@enduml
+
+@startuml
+!theme hacker
+title Hacker Theme
+Attacker -> Server: exploit
+Server -> DB: query
+DB --> Server: data
+Server --> Attacker: exfiltrate
+@enduml
+
+@startuml
+!theme materia
+title Material Design Theme
+User -> App: interaction
+App -> Service: request
+Service --> App: data
+App --> User: render
+@enduml
+
+@startuml
+!theme sketchy
+title Sketchy Theme
+Idea -> Design: sketch
+Design -> Dev: implement
+Dev --> Design: review
+Design --> Idea: iterate
+@enduml

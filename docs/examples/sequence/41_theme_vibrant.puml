@@ -1,8 +1,0 @@
-@startuml
-!theme vibrant
-title Vibrant Theme
-Alice -> Bob: colorful message
-Bob -> Charlie: another
-Charlie --> Bob: ack
-Bob --> Alice: done
-@enduml

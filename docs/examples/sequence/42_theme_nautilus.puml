@@ -1,8 +1,0 @@
-@startuml
-!theme nautilus
-title Nautilus Theme (Deep Blue)
-Ship -> Captain: navigate
-Captain -> Helm: steer
-Helm --> Captain: course
-Captain --> Ship: all clear
-@enduml

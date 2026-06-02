@@ -1,8 +1,0 @@
-@startuml
-!theme materia
-title Material Design Theme
-User -> App: interaction
-App -> Service: request
-Service --> App: data
-App --> User: render
-@enduml

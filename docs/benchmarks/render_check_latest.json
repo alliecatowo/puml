@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-06-01T07:59:52Z",
+  "generated_at_utc": "2026-06-01T22:56:02Z",
   "summary": {
-    "total": 343,
-    "passed": 340,
-    "excluded": 3,
+    "total": 290,
+    "passed": 283,
+    "excluded": 7,
     "failed": 0
   },
   "entries": [
@@ -890,36 +890,16 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/class/17_pattern_observer.puml",
-      "artifact_svg": "docs/examples/class/17_pattern_observer.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/18_pattern_factory.puml",
-      "artifact_svg": "docs/examples/class/18_pattern_factory.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/19_repository_pattern.puml",
-      "artifact_svg": "docs/examples/class/19_repository_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "source_ref": "docs/examples/class/17_design_patterns.puml",
+      "artifact_svg": "docs/examples/class/17_design_patterns.svg",
+      "artifact_exists": false,
+      "artifact_up_to_date": false,
+      "excluded": true,
+      "exclusion_reason": "multi-block design-patterns gallery (9 @startuml/@enduml slices); emits numbered -1.svg..-9.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)",
+      "status": "excluded",
+      "notes": [
+        "multi-block design-patterns gallery (9 @startuml/@enduml slices); emits numbered -1.svg..-9.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -934,113 +914,16 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/class/21_microservices.puml",
-      "artifact_svg": "docs/examples/class/21_microservices.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/22_ddd.puml",
-      "artifact_svg": "docs/examples/class/22_ddd.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/23_event_sourcing.puml",
-      "artifact_svg": "docs/examples/class/23_event_sourcing.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/24_cqrs.puml",
-      "artifact_svg": "docs/examples/class/24_cqrs.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/25_builder_pattern.puml",
-      "artifact_svg": "docs/examples/class/25_builder_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/26_strategy_pattern.puml",
-      "artifact_svg": "docs/examples/class/26_strategy_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/27_chain_of_responsibility.puml",
-      "artifact_svg": "docs/examples/class/27_chain_of_responsibility.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/28_composite_pattern.puml",
-      "artifact_svg": "docs/examples/class/28_composite_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/29_decorator_pattern.puml",
-      "artifact_svg": "docs/examples/class/29_decorator_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/class/30_command_pattern.puml",
-      "artifact_svg": "docs/examples/class/30_command_pattern.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "source_ref": "docs/examples/class/21_architecture_patterns.puml",
+      "artifact_svg": "docs/examples/class/21_architecture_patterns.svg",
+      "artifact_exists": false,
+      "artifact_up_to_date": false,
+      "excluded": true,
+      "exclusion_reason": "multi-block architecture-patterns gallery (4 @startuml/@enduml slices); emits numbered -1.svg..-4.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)",
+      "status": "excluded",
+      "notes": [
+        "multi-block architecture-patterns gallery (4 @startuml/@enduml slices); emits numbered -1.svg..-4.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -1257,6 +1140,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/creole/05_ch22_parity.puml",
       "artifact_svg": "docs/examples/creole/05_ch22_parity.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/creole/06_block_level_constructs.puml",
+      "artifact_svg": "docs/examples/creole/06_block_level_constructs.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -1728,17 +1622,6 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/nwdiag/02_multiple_nets.puml",
-      "artifact_svg": "docs/examples/nwdiag/02_multiple_nets.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
       "source_ref": "docs/examples/nwdiag/03_address_ranges.puml",
       "artifact_svg": "docs/examples/nwdiag/03_address_ranges.svg",
       "artifact_exists": true,
@@ -2014,6 +1897,17 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/salt/07_unsupported_constructs.puml",
+      "artifact_svg": "docs/examples/salt/07_unsupported_constructs.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/sdl/01_basic_process.puml",
       "artifact_svg": "docs/examples/sdl/01_basic_process.svg",
       "artifact_exists": true,
@@ -2060,17 +1954,6 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/sequence/03_autonumber.puml",
       "artifact_svg": "docs/examples/sequence/03_autonumber.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/04_autonumber_format.puml",
-      "artifact_svg": "docs/examples/sequence/04_autonumber_format.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -2313,223 +2196,16 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/26_theme_aws.puml",
-      "artifact_svg": "docs/examples/sequence/26_theme_aws.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/27_theme_blueprint.puml",
-      "artifact_svg": "docs/examples/sequence/27_theme_blueprint.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/28_theme_hacker.puml",
-      "artifact_svg": "docs/examples/sequence/28_theme_hacker.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/29_theme_materia.puml",
-      "artifact_svg": "docs/examples/sequence/29_theme_materia.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/30_theme_cyborg.puml",
-      "artifact_svg": "docs/examples/sequence/30_theme_cyborg.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/31_theme_crt_green.puml",
-      "artifact_svg": "docs/examples/sequence/31_theme_crt_green.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/32_theme_mars.puml",
-      "artifact_svg": "docs/examples/sequence/32_theme_mars.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/33_theme_metal.puml",
-      "artifact_svg": "docs/examples/sequence/33_theme_metal.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/34_theme_minty.puml",
-      "artifact_svg": "docs/examples/sequence/34_theme_minty.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/35_theme_sandstone.puml",
-      "artifact_svg": "docs/examples/sequence/35_theme_sandstone.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/36_theme_silver.puml",
-      "artifact_svg": "docs/examples/sequence/36_theme_silver.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/37_theme_sketchy.puml",
-      "artifact_svg": "docs/examples/sequence/37_theme_sketchy.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/38_theme_united.puml",
-      "artifact_svg": "docs/examples/sequence/38_theme_united.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/39_theme_superhero.puml",
-      "artifact_svg": "docs/examples/sequence/39_theme_superhero.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/40_theme_amiga.puml",
-      "artifact_svg": "docs/examples/sequence/40_theme_amiga.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/41_theme_vibrant.puml",
-      "artifact_svg": "docs/examples/sequence/41_theme_vibrant.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/42_theme_nautilus.puml",
-      "artifact_svg": "docs/examples/sequence/42_theme_nautilus.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/43_theme_toy.puml",
-      "artifact_svg": "docs/examples/sequence/43_theme_toy.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/44_theme_mono.puml",
-      "artifact_svg": "docs/examples/sequence/44_theme_mono.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/sequence/45_theme_carbon_gray.puml",
-      "artifact_svg": "docs/examples/sequence/45_theme_carbon_gray.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "source_ref": "docs/examples/sequence/26_theme_gallery.puml",
+      "artifact_svg": "docs/examples/sequence/26_theme_gallery.svg",
+      "artifact_exists": false,
+      "artifact_up_to_date": false,
+      "excluded": true,
+      "exclusion_reason": "multi-block theme gallery (5 @startuml/@enduml slices); emits numbered -1.svg..-5.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)",
+      "status": "excluded",
+      "notes": [
+        "multi-block theme gallery (5 @startuml/@enduml slices); emits numbered -1.svg..-5.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)"
+      ]
     },
     {
       "source_kind": "source_file",
@@ -3083,28 +2759,6 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/03_plain_sequence.puml",
-      "artifact_svg": "docs/examples/themes/03_plain_sequence.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/04_spacelab_complex.puml",
-      "artifact_svg": "docs/examples/themes/04_spacelab_complex.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
       "source_ref": "docs/examples/themes/05_plain_class.puml",
       "artifact_svg": "docs/examples/themes/05_plain_class.svg",
       "artifact_exists": true,
@@ -3140,28 +2794,6 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/08_plain_with_groups.puml",
-      "artifact_svg": "docs/examples/themes/08_plain_with_groups.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/09_plain_notes.puml",
-      "artifact_svg": "docs/examples/themes/09_plain_notes.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
       "source_ref": "docs/examples/themes/10_spacelab_box.puml",
       "artifact_svg": "docs/examples/themes/10_spacelab_box.svg",
       "artifact_exists": true,
@@ -3173,228 +2805,21 @@
     },
     {
       "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_amiga.puml",
-      "artifact_svg": "docs/examples/themes/theme_amiga.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_bluegray.puml",
-      "artifact_svg": "docs/examples/themes/theme_bluegray.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_carbon_gray.puml",
-      "artifact_svg": "docs/examples/themes/theme_carbon_gray.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_crt_amber.puml",
-      "artifact_svg": "docs/examples/themes/theme_crt_amber.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_crt_green.puml",
-      "artifact_svg": "docs/examples/themes/theme_crt_green.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_materia_outline.puml",
-      "artifact_svg": "docs/examples/themes/theme_materia_outline.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_mono.puml",
-      "artifact_svg": "docs/examples/themes/theme_mono.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_nautilus.puml",
-      "artifact_svg": "docs/examples/themes/theme_nautilus.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_not_so_funny.puml",
-      "artifact_svg": "docs/examples/themes/theme_not_so_funny.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_darkgreen.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_darkgreen.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_darkorange.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_darkorange.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_darkred.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_darkred.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_lightblue.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_lightblue.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_lightgreen.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_lightgreen.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_lightorange.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_lightorange.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_reddress_lightred.puml",
-      "artifact_svg": "docs/examples/themes/theme_reddress_lightred.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_sketchy_outline.puml",
-      "artifact_svg": "docs/examples/themes/theme_sketchy_outline.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_spacelab_white.puml",
-      "artifact_svg": "docs/examples/themes/theme_spacelab_white.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
+      "source_ref": "docs/examples/themes/theme_showcase.puml",
+      "artifact_svg": "docs/examples/themes/theme_showcase.svg",
+      "artifact_exists": false,
+      "artifact_up_to_date": false,
+      "excluded": true,
+      "exclusion_reason": "multi-block theme showcase (6 @startuml/@enduml slices); emits numbered -1.svg..-6.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)",
+      "status": "excluded",
+      "notes": [
+        "multi-block theme showcase (6 @startuml/@enduml slices); emits numbered -1.svg..-6.svg artifacts rather than a single .svg, so it is excluded from the single-artifact drift gate (#1504)"
+      ]
     },
     {
       "source_kind": "source_file",
       "source_ref": "docs/examples/themes/theme_sunlust.puml",
       "artifact_svg": "docs/examples/themes/theme_sunlust.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_toy.puml",
-      "artifact_svg": "docs/examples/themes/theme_toy.svg",
-      "artifact_exists": true,
-      "artifact_up_to_date": true,
-      "excluded": false,
-      "exclusion_reason": null,
-      "status": "pass",
-      "notes": []
-    },
-    {
-      "source_kind": "source_file",
-      "source_ref": "docs/examples/themes/theme_vibrant.puml",
-      "artifact_svg": "docs/examples/themes/theme_vibrant.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
