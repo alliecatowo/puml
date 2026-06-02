@@ -1,8 +1,7 @@
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
 use crate::render::layout_constants::{
-    COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, COMPONENT_NODE_BOX_HEIGHT,
-    COMPONENT_NODE_BOX_WIDTH, COMPONENT_RANK_EXTRA_GAP, DEPLOYMENT_BOX_HEIGHT,
-    DEPLOYMENT_BOX_WIDTH, DEPLOYMENT_RANK_EXTRA_GAP, PKG_INNER_GAP, PKG_PADDING, PKG_TAB_HEIGHT,
+    layout_density, style_mode_for_document, COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH,
+    COMPONENT_CANVAS_MARGIN, PKG_TAB_HEIGHT,
 };
 use crate::render::relation::{render_ie_marker_defs, render_relation_marker_defs};
 use crate::render::svg::escape_text;
@@ -58,27 +57,32 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         _ => ComponentStyle::default(),
     };
 
+    // Per-mode density (#1514 wiring): in Phase A `density` returns identical
+    // values for both modes, so output is byte-identical to the bare-constant
+    // reads this replaces.  Phase B (#1516) will diverge the Puml branch.
+    let density = layout_density(style_mode_for_document(doc));
+
     // Per-family per-node dimensions (#1426, #1427):
     //   component → COMPONENT_NODE_BOX (~130×50px, PlantUML denser layout)
     //   deployment → DEPLOYMENT_BOX (~110×44px, PlantUML denser layout)
     //   other families → COMPONENT_BOX (200×80px graph-layout default)
     let cell_w = if family == "component" {
-        COMPONENT_NODE_BOX_WIDTH
+        density.component_node_box_width
     } else if family == "deployment" {
-        DEPLOYMENT_BOX_WIDTH
+        density.deployment_box_width
     } else {
         COMPONENT_BOX_WIDTH
     };
     let cell_h = if family == "component" {
-        COMPONENT_NODE_BOX_HEIGHT
+        density.component_node_box_height
     } else if family == "deployment" {
-        DEPLOYMENT_BOX_HEIGHT
+        density.deployment_box_height
     } else {
         COMPONENT_BOX_HEIGHT
     };
     let inner_cols = 3i32;
-    let inner_gap = PKG_INNER_GAP;
-    let pkg_pad = PKG_PADDING;
+    let inner_gap = density.pkg_inner_gap;
+    let pkg_pad = density.pkg_padding;
     let pkg_tab = PKG_TAB_HEIGHT;
     let canvas_margin = COMPONENT_CANVAS_MARGIN;
     let pkg_gap = 32i32;
@@ -256,9 +260,9 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // for flat diagrams those padding pixels inflated every inter-rank gap
     // without serving any layout purpose.
     let rank_extra = if family == "component" {
-        COMPONENT_RANK_EXTRA_GAP
+        density.component_rank_extra_gap
     } else if family == "deployment" {
-        DEPLOYMENT_RANK_EXTRA_GAP
+        density.deployment_rank_extra_gap
     } else {
         40.0
     };

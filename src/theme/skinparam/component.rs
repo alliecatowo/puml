@@ -1,6 +1,7 @@
 use super::helpers::{parse_bool_value, split_stereotype_scope};
 use super::SkinParamSupport;
 use crate::theme::color::parse_color_value;
+use crate::theme::skinparam::class::StyleMode;
 use crate::theme::style_builder::StyleBuilder;
 use crate::theme::StyleSource;
 use std::collections::BTreeMap;
@@ -42,6 +43,17 @@ pub struct ComponentStyle {
     /// Phase B (#1404): resolved `<style>` block rules for this diagram.
     /// `None` when no `<style>` block was present.
     pub style_builder: Option<Box<StyleBuilder>>,
+    /// Chrome rendering mode for component/deployment diagrams (#1514).
+    /// `Puml` (default) keeps PUML-enhanced output; `Plantuml` renders a
+    /// neutral look matching PlantUML's defaults.  Only paint and per-mode
+    /// layout density are affected — layout is identical within a given
+    /// mode.  Set by the CLI `--style puml|plantuml` flag through
+    /// `apply_style_mode` in `src/cli_run/render.rs`.
+    ///
+    /// Phase A (#1514 wiring PR) does not yet diverge the density values per
+    /// mode; this field is read by `layout_density()` once Phase B (#1516)
+    /// lands the divergent values.
+    pub style_mode: StyleMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -68,6 +80,7 @@ impl Default for ComponentStyle {
             stereotype_styles: BTreeMap::new(),
             sources: ComponentStyleSources::default(),
             style_builder: None,
+            style_mode: StyleMode::default(),
         }
     }
 }
