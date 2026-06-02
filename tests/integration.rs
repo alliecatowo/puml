@@ -6235,7 +6235,10 @@ fn grouped_hierarchical_examples_avoid_pathological_wide_ranks() {
         // axis more than the horizontal when many node types are in one diagram,
         // producing wider aspect ratios without any pathological whitespace.
         // Still well below an unconstrained one-row whitespace layout.
-        ("deployment/07_ch08_keyword_parity.puml", 2600, 2.0),
+        // 2026-06-01 emergency visual rescue (#1519): DEPLOYMENT_BOX_WIDTH 110→140 widens
+        // nodes, increasing the aspect ratio. Relaxed 2.0→2.2 to accommodate the intentional
+        // visual-integrity improvement.
+        ("deployment/07_ch08_keyword_parity.puml", 2600, 2.2),
         // aspect relaxed to 2.1: is_real_usecase_layout now detects this
         // diagram (actors + usecases + rectangle groups) as a usecase layout,
         // reducing row_gap from 64→46 which produces a wider aspect.
