@@ -312,6 +312,104 @@ pub const ACTIVITY_STEP_HEIGHT: i32 = 60;
 pub const ACTIVITY_ARROW_OUT_OFFSET: i32 = 42;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Per-mode layout density (Phase A — zero-behavior-change wiring, #1514)
+//
+// `LayoutDensity` is the single struct through which the box-grid and class
+// renderers read their family-specific density constants.  In Phase A (this
+// wiring PR), `layout_density(mode)` returns the same values regardless of
+// `mode`, so output is byte-identical to the bare-constant reads it replaces.
+//
+// Phase B (#1515 object+class, #1516 component+deployment) will switch the
+// `StyleMode::Puml` branch to return more generous values that give PUML
+// chrome (yellow object banner, kind badges, port lugs, 3D cubes) breathing
+// room without touching PlantUML mode's tightly-tuned parity values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+use crate::theme::StyleMode;
+
+/// Per-mode layout density constants for the box-grid (component/deployment)
+/// and class/object renderers.  Centralises every constant that the
+/// 2026-06-01 PUML-mode-vs-PlantUML-mode forensic audit
+/// (`docs/internal/forensics/2026-06-01-puml-mode-visual-integrity-audit.md`)
+/// identified as a candidate for per-mode tuning.
+///
+/// Phase A invariant: `layout_density(StyleMode::Puml) ==
+/// layout_density(StyleMode::Plantuml)`.  Asserted in
+/// `tests/per_mode_density_wiring_1514.rs`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayoutDensity {
+    pub class_box_min_width: i32,
+    pub class_margin_x: i32,
+    pub class_col_gap: i32,
+    pub class_row_gap: i32,
+    pub object_node_width_max: i32,
+    pub object_col_gap: i32,
+    pub object_row_gap: i32,
+    pub object_margin_x: i32,
+    pub component_node_box_width: i32,
+    pub component_node_box_height: i32,
+    pub component_rank_extra_gap: f64,
+    pub deployment_box_width: i32,
+    pub deployment_box_height: i32,
+    pub deployment_rank_extra_gap: f64,
+    pub pkg_inner_gap: i32,
+    pub pkg_padding: i32,
+}
+
+/// Return the layout-density constants for the given style mode.
+///
+/// Phase A (this wiring PR — #1514) returns identical values for both modes
+/// so output is byte-identical regardless of `mode`.  Phase B (#1515, #1516)
+/// will diverge the `StyleMode::Puml` branch with more generous spacing for
+/// PUML chrome.
+pub const fn layout_density(mode: StyleMode) -> LayoutDensity {
+    let common = LayoutDensity {
+        class_box_min_width: CLASS_BOX_MIN_WIDTH,
+        class_margin_x: CLASS_MARGIN_X,
+        class_col_gap: CLASS_COL_GAP,
+        class_row_gap: CLASS_ROW_GAP,
+        object_node_width_max: OBJECT_NODE_WIDTH_MAX,
+        object_col_gap: OBJECT_COL_GAP,
+        object_row_gap: OBJECT_ROW_GAP,
+        object_margin_x: OBJECT_MARGIN_X,
+        component_node_box_width: COMPONENT_NODE_BOX_WIDTH,
+        component_node_box_height: COMPONENT_NODE_BOX_HEIGHT,
+        component_rank_extra_gap: COMPONENT_RANK_EXTRA_GAP,
+        deployment_box_width: DEPLOYMENT_BOX_WIDTH,
+        deployment_box_height: DEPLOYMENT_BOX_HEIGHT,
+        deployment_rank_extra_gap: DEPLOYMENT_RANK_EXTRA_GAP,
+        pkg_inner_gap: PKG_INNER_GAP,
+        pkg_padding: PKG_PADDING,
+    };
+    match mode {
+        // Phase A: both arms return the same values.  Phase B (#1515, #1516)
+        // will give the Puml arm a separate `LayoutDensity` literal.
+        StyleMode::Puml => common,
+        StyleMode::Plantuml => common,
+    }
+}
+
+/// Resolve the active `StyleMode` for a `FamilyDocument`.
+///
+/// Reads from the document's `family_style` if it is a variant that carries a
+/// `style_mode` (`Class` or `Component` — the latter is shared by deployment
+/// diagrams).  All other variants fall back to the default `StyleMode`
+/// (`Puml`).  This is the single chokepoint where renderers translate
+/// `FamilyStyle` to a density-policy input; future variants that gain a
+/// `style_mode` field need only be added here.
+///
+/// Used by:
+/// - `render_class_artifact` (class + object diagrams)
+/// - `render_box_grid_artifact` (component + deployment diagrams)
+pub fn style_mode_for_document(doc: &crate::model::FamilyDocument) -> StyleMode {
+    match &doc.family_style {
+        Some(crate::model::FamilyStyle::Class(cs)) => cs.style_mode,
+        Some(crate::model::FamilyStyle::Component(cps)) => cps.style_mode,
+        _ => StyleMode::default(),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Compile-time relational invariant assertions.
 //
 // These fire at compile time (const-eval) so a future edit that violates the

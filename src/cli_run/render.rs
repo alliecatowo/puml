@@ -25,22 +25,38 @@ use std::path::{Path, PathBuf};
 
 /// Apply the CLI `--style` mode to the normalized model's class/component style.
 ///
-/// When `style == StyleMode::Plantuml`, the `ClassStyle.style_mode` on every
-/// `Family` / `FamilyPages` variant is set to `ThemeStyleMode::Plantuml` so the
-/// renderer suppresses PUML-enhanced chrome (yellow object header, type badges,
-/// UML 2.x visibility glyphs). Layout coordinates are never touched.
+/// When `style == StyleMode::Plantuml`, the `style_mode` field on every
+/// chrome-bearing `FamilyStyle` variant (`Class`, `Component` — which is also
+/// used by deployment diagrams) is set to `ThemeStyleMode::Plantuml`.  The
+/// renderer reads this to suppress PUML-enhanced chrome (yellow object
+/// header, type badges, UML 2.x visibility glyphs, port lugs, 3D cubes) and
+/// — once #1515/#1516 land — to pick PlantUML-tight layout density values.
+/// Phase A wiring (#1514) only plumbs the mode through; both modes still
+/// return the same `LayoutDensity` so layout is byte-identical.
 fn apply_style_mode(model: &mut NormalizedDocument, style: StyleMode) {
     if style == StyleMode::Puml {
         return; // default — nothing to override
     }
     let theme_mode = ThemeStyleMode::Plantuml;
-    match model {
-        NormalizedDocument::Family(doc) => {
-            if let Some(FamilyStyle::Class(ref mut cs)) = doc.family_style {
+    fn apply_to_doc(doc: &mut puml::model::FamilyDocument, theme_mode: ThemeStyleMode) {
+        match doc.family_style {
+            Some(FamilyStyle::Class(ref mut cs)) => {
                 cs.style_mode = theme_mode;
-            } else if doc.family_style.is_none() {
-                // Inject a default ClassStyle with the requested mode so the renderer
-                // picks it up even when no skinparam block was present.
+            }
+            Some(FamilyStyle::Component(ref mut cps)) => {
+                cps.style_mode = theme_mode;
+            }
+            Some(_) => {
+                // Other families don't yet carry a `style_mode` field. When
+                // they gain one, add the matching arm here.
+            }
+            None => {
+                // Inject a default ClassStyle with the requested mode so the
+                // renderer picks it up even when no skinparam block was
+                // present.  Component/deployment diagrams that need the mode
+                // plumbed should already have a `Component` family_style at
+                // normalization time; if they don't, they fall back to the
+                // default `Puml` mode, matching pre-#1514 behavior.
                 let cs = puml::theme::ClassStyle {
                     style_mode: theme_mode,
                     ..Default::default()
@@ -48,20 +64,15 @@ fn apply_style_mode(model: &mut NormalizedDocument, style: StyleMode) {
                 doc.family_style = Some(FamilyStyle::Class(cs));
             }
         }
+    }
+    match model {
+        NormalizedDocument::Family(doc) => apply_to_doc(doc, theme_mode),
         NormalizedDocument::FamilyPages(pages) => {
             for doc in pages.iter_mut() {
-                if let Some(FamilyStyle::Class(ref mut cs)) = doc.family_style {
-                    cs.style_mode = theme_mode;
-                } else if doc.family_style.is_none() {
-                    let cs = puml::theme::ClassStyle {
-                        style_mode: theme_mode,
-                        ..Default::default()
-                    };
-                    doc.family_style = Some(FamilyStyle::Class(cs));
-                }
+                apply_to_doc(doc, theme_mode);
             }
         }
-        _ => {} // other families don't yet carry chrome that needs mode-gating
+        _ => {} // other top-level variants don't carry per-family chrome
     }
 }
 
