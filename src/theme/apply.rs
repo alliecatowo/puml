@@ -71,6 +71,7 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
             arrow_color: StyleSource::ThemePreset,
         },
         style_builder: None,
+        style_mode: crate::theme::StyleMode::default(),
     }
 }
 

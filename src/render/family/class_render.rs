@@ -1,9 +1,6 @@
 use crate::ast::DiagramKind;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle, MetadataHAlign};
-use crate::render::layout_constants::{
-    CLASS_BOX_MIN_WIDTH, CLASS_COL_GAP, CLASS_MARGIN_X, CLASS_ROW_GAP, OBJECT_COL_GAP,
-    OBJECT_MARGIN_TOP, OBJECT_MARGIN_X, OBJECT_NODE_WIDTH_MAX, OBJECT_ROW_GAP,
-};
+use crate::render::layout_constants::{layout_density, style_mode_for_document, OBJECT_MARGIN_TOP};
 use crate::render::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
 };
@@ -52,6 +49,11 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         _ => ClassStyle::default(),
     };
 
+    // Per-mode density (#1514 wiring): in Phase A `density` returns identical
+    // values for both modes, so output is byte-identical to the bare-constant
+    // reads this replaces.  Phase B (#1515) will diverge the Puml branch.
+    let density = layout_density(style_mode_for_document(document));
+
     // Determine diagram sub-family for family-specific constant selection.
     // Object and UseCase diagrams share this renderer but have their own retune
     // schedules (#1425 object, #1359 usecase).  Only `DiagramKind::Class` uses
@@ -66,9 +68,9 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     // defined in layout_constants.rs and tuned to close the 2-4× area gap vs
     // PlantUML observed in the wave-4 audit.
     let margin_x: i32 = if is_class_diagram {
-        CLASS_MARGIN_X
+        density.class_margin_x
     } else if is_object {
-        OBJECT_MARGIN_X
+        density.object_margin_x
     } else {
         32
     };
@@ -112,7 +114,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         // Class density retune (#1427): tighten minimum box width for class
         // diagrams only.  Object/usecase retain the old 160px floor.
         let min_w = if is_class_diagram {
-            CLASS_BOX_MIN_WIDTH
+            density.class_box_min_width
         } else {
             160
         };
@@ -124,7 +126,7 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
         if is_real_usecase_layout(document) {
             base_w.min(120)
         } else if is_object {
-            base_w.min(OBJECT_NODE_WIDTH_MAX)
+            base_w.min(density.object_node_width_max)
         } else {
             base_w
         }
@@ -160,18 +162,18 @@ pub fn render_class_artifact(document: &FamilyDocument) -> RenderArtifact {
     let col_gap: i32 = if is_usecase {
         30
     } else if is_class_diagram {
-        CLASS_COL_GAP.max(relation_label_gap)
+        density.class_col_gap.max(relation_label_gap)
     } else if is_object {
-        OBJECT_COL_GAP.max(relation_label_gap)
+        density.object_col_gap.max(relation_label_gap)
     } else {
         80_i32.max(relation_label_gap)
     };
     let row_gap: i32 = if is_usecase {
         20
     } else if is_class_diagram {
-        CLASS_ROW_GAP
+        density.class_row_gap
     } else if is_object {
-        OBJECT_ROW_GAP
+        density.object_row_gap
     } else {
         64
     };
