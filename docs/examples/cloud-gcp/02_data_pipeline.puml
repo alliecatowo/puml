@@ -1,0 +1,25 @@
+@startuml
+title GCP analytics data pipeline
+!include <gcp/CloudStorage>
+!include <gcp/CloudFunctions>
+!include <gcp/PubSub>
+!include <gcp/BigQuery>
+!include <gcp/CloudSQL>
+!include <gcp/IAM>
+
+CloudStorage(raw, "Raw Bucket", "Standard")
+CloudFunctions(ingest, "Ingestor", "GCS Trigger")
+PubSub(events, "Ingest Events", "Pull")
+CloudFunctions(enrich, "Enricher", "PubSub Trigger")
+CloudSQL(meta, "Metadata DB", "Postgres 15")
+BigQuery(warehouse, "Analytics DW", "Partitioned")
+IAM(role, "Pipeline SA", "ServiceAccount")
+
+raw --> ingest : event
+ingest --> events : publish
+events --> enrich : pull
+enrich --> meta : lookup
+enrich --> warehouse : streamInsert
+role ..> ingest : grants
+role ..> enrich : grants
+@enduml

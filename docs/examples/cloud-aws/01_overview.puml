@@ -1,0 +1,32 @@
+@startuml
+title AWS architecture overview — compute, storage, database, networking
+!include <awslib14/Compute/EC2>
+!include <awslib14/Compute/Lambda>
+!include <awslib14/Compute/ECS>
+!include <awslib14/Storage/S3>
+!include <awslib14/Database/RDS>
+!include <awslib14/Database/DynamoDB>
+!include <awslib14/Networking/CloudFront>
+!include <awslib14/Networking/APIGateway>
+!include <awslib14/Networking/ELB>
+!include <awslib14/Security/IAM>
+
+CloudFront(cdn, "Edge CDN", "Global")
+ELB(lb, "Application LB", "HTTPS")
+APIGateway(api, "Public API", "REST")
+EC2(web, "Web Tier", "t3.medium")
+Lambda(auth, "Auth Function", "Node.js 20")
+ECS(workers, "Workers", "Fargate")
+RDS(db, "Primary DB", "Postgres 15")
+DynamoDB(ddb, "Session Store", "On-demand")
+S3(bucket, "Asset Bucket", "Standard")
+IAM(role, "Service Role", "AssumeRole")
+
+cdn --> lb : forwards
+lb --> web : routes
+api --> auth : invokes
+auth --> ddb : reads
+web --> db : queries
+workers --> bucket : writes
+role ..> auth : grants
+@enduml
