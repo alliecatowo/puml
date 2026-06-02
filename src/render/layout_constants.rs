@@ -150,7 +150,15 @@ pub const COMPONENT_CANVAS_MARGIN: i32 = DEFAULT_CANVAS_MARGIN as i32;
 /// Width of a component node when rendered in the component diagram family,
 /// in user units.  Narrower than the shared `COMPONENT_BOX_WIDTH` default to
 /// produce denser layouts closer to PlantUML's output.
-pub const COMPONENT_NODE_BOX_WIDTH: i32 = 130;
+///
+/// **2026-06-01 emergency visual rescue (#1519):** widened 130→165 to restore
+/// breathing room for stereotype tags and multi-word component labels. The
+/// previous 130px value was tuned for PlantUML parity but produced visually
+/// busted output (header label overlap, badges clipping into titles, edge
+/// labels overstrike). PlantUML-mode parity metrics regress; that is intentional
+/// per the emergency visual integrity audit
+/// (`docs/internal/forensics/2026-06-01-puml-mode-visual-integrity-audit.md`).
+pub const COMPONENT_NODE_BOX_WIDTH: i32 = 165;
 
 /// Height of a component node when rendered in the component diagram family
 /// (single-line label), in user units.  Shorter than the shared
@@ -181,7 +189,13 @@ pub const COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
 /// then tightened to 120px in the wave-7 cross-family pass-2 density sweep to
 /// closer match PlantUML's compact class box sizing (~110–125px for typical
 /// short names).
-pub const CLASS_BOX_MIN_WIDTH: i32 = 120;
+///
+/// **2026-06-01 emergency visual rescue (#1519):** widened 120→150 to restore
+/// breathing room for typed member declarations and stereotype tags. The 120px
+/// floor truncated long type annotations and forced class headers into
+/// overlapping the type-badge circle. PlantUML-mode parity metrics regress;
+/// that is intentional per the emergency visual integrity audit.
+pub const CLASS_BOX_MIN_WIDTH: i32 = 150;
 
 /// Horizontal margin (left/right gutter) inside the class diagram canvas, in
 /// user units.  The left margin is where the first column of node boxes starts;
@@ -224,7 +238,13 @@ pub const CLASS_ROW_GAP: i32 = 30;
 /// capped tight).  Class diagrams use 160–600px.  Capping objects at 160
 /// brings the horizontal canvas much closer to PlantUML parity while still
 /// accommodating typical attribute-value text (#1425).
-pub const OBJECT_NODE_WIDTH_MAX: i32 = 130;
+///
+/// **2026-06-01 emergency visual rescue (#1519):** raised 130→165 to restore
+/// breathing room for the type-badge circle + bold object title. At 130px the
+/// "O" badge overlapped the underlined title text and object attribute rows
+/// truncated long string values. PlantUML-mode parity metrics regress; that
+/// is intentional per the emergency visual integrity audit.
+pub const OBJECT_NODE_WIDTH_MAX: i32 = 165;
 
 /// Horizontal column gap between adjacent object nodes, in user units.
 ///
@@ -282,7 +302,15 @@ pub const REF_BODY_BASELINE_Y: i32 = 32;
 /// Width of a deployment node in the deployment renderer, in user units.
 /// Tuned to approximate PlantUML's default node width (~114px) for the
 /// deployment family, reducing the 4.90× area ratio on 02_databases (#1426).
-pub const DEPLOYMENT_BOX_WIDTH: i32 = 110;
+///
+/// **2026-06-01 emergency visual rescue (#1519):** widened 110→140 to restore
+/// breathing room for the 3-D node chrome and `<<container>>` stereotype
+/// banner. At 110px the deployment node titles ("ingress-controller",
+/// "queue-consumer", "react-build") were clipping into the right edge and
+/// package frames were stacking too tight, producing visually broken output.
+/// PlantUML-mode parity metrics regress; that is intentional per the
+/// emergency visual integrity audit.
+pub const DEPLOYMENT_BOX_WIDTH: i32 = 140;
 
 /// Height of a deployment node in the deployment renderer (single-line label),
 /// in user units.  Tuned to approximate PlantUML's default node height (~44px).
