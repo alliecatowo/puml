@@ -5,14 +5,28 @@ Read it fully before touching a file. For deeper runbooks, follow the links in s
 
 ---
 
-## 0. MANDATORY for every PR (added 2026-06-01 per Allie)
+## 0. MANDATORY for every PR (2026-06-01 — clarified)
 
-**Every PR body MUST include image evidence** of what the change does visually.
+**Every PR body MUST inline rendered PNG images.** A description of "I rendered locally and confirmed" is NOT acceptable. The reviewer reads on MOBILE; images must render in the PR body without clicking links.
 
-- For any render/layout/style change: BEFORE PNG + AFTER PNG inline in the PR description (paste as markdown ![](url) using GitHub upload — comment with `gh pr edit` is fine).
-- For stdlib changes (AWS/Azure/GCP/k8s etc): include a fixture using the stdlib + its rendered PNG so the reviewer can confirm the icons + colors actually load.
-- For doc-only / CI-only changes: a sentence stating no visual impact is sufficient.
-- "Trust but verify": if a PR body doesn't include images for visual work, don't merge it — the agent should regenerate + attach.
+**How to do it (the only acceptable patterns):**
+
+1. **Commit the PNG to the branch** under `docs/pr-evidence/<pr-number>/before.png` and `.../after.png`, then reference in the body as:
+   ```
+   ![before](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/pr-evidence/<N>/before.png)
+   ![after](https://raw.githubusercontent.com/alliecatowo/puml/<branch>/docs/pr-evidence/<N>/after.png)
+   ```
+2. **OR**: upload to GitHub user-attachments via the web UI / `gh` API, then paste the `https://github.com/user-attachments/...` URL in the body.
+
+Either way: the image must appear inline when the PR body is viewed on github.com, not just be described.
+
+**Per-PR coverage:**
+- Render/layout/style change → BEFORE + AFTER PNG of at least 2 representative fixtures
+- Stdlib change (AWS/Azure/GCP/k8s) → PNG of a fixture using that stdlib
+- Bug fix → BEFORE PNG showing the bug + AFTER PNG showing the fix
+- Doc-only / CI-only → one sentence stating "no visual impact" is sufficient
+
+**Trust but verify:** if a PR body lacks inline images for visual work, don't merge it — the agent must add the images.
 
 **Direct-to-main is authorized for emergency visual rescue** (Allie 2026-06-01) when a recent merge has made fixtures look broken. Render every affected fixture locally, fix, re-render, confirm visually, push direct.
 
