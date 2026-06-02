@@ -1,0 +1,24 @@
+@startuml
+title AWS serverless event pipeline
+!include <awslib14/Compute/Lambda>
+!include <awslib14/Storage/S3>
+!include <awslib14/Database/DynamoDB>
+!include <awslib14/Networking/APIGateway>
+!include <awslib14/Security/KMS>
+
+APIGateway(ingress, "Upload API", "POST /assets")
+Lambda(validate, "Validator", "Python 3.11")
+S3(raw, "Raw Bucket", "Object Lock")
+Lambda(transform, "Transformer", "S3 Trigger")
+S3(processed, "Processed Bucket", "Lifecycle: IA")
+DynamoDB(catalog, "Asset Catalog", "GSI: ownerId")
+KMS(key, "Encryption Key", "Customer Managed")
+
+ingress --> validate : invoke
+validate --> raw : putObject
+raw --> transform : event
+transform --> processed : putObject
+transform --> catalog : putItem
+key ..> raw : encrypts
+key ..> processed : encrypts
+@enduml

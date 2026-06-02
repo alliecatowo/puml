@@ -1,0 +1,33 @@
+@startuml
+title Azure architecture overview — compute, data, identity, messaging
+!include <azure/AzureFunction>
+!include <azure/AzureSQLDatabase>
+!include <azure/AzureCosmosDB>
+!include <azure/AzureVM>
+!include <azure/AzureBlobStorage>
+!include <azure/AzureKubernetesService>
+!include <azure/AzureKeyVault>
+!include <azure/AzureActiveDirectory>
+!include <azure/AzureServiceBus>
+!include <azure/AzureLogicApps>
+
+AzureActiveDirectory(aad, "Identity", "Tenant")
+AzureFunction(fn, "Order Processor", "Queue Trigger")
+AzureLogicApps(flow, "Approval Flow", "HTTP Trigger")
+AzureKubernetesService(aks, "App Cluster", "v1.28")
+AzureVM(vm, "Reporting VM", "Standard_D2s")
+AzureSQLDatabase(sql, "Orders DB", "S3 tier")
+AzureCosmosDB(cosmos, "Audit Store", "Serverless")
+AzureBlobStorage(blob, "Document Storage", "Hot tier")
+AzureServiceBus(sb, "Order Bus", "Standard")
+AzureKeyVault(kv, "Secrets Vault", "Standard")
+
+aad --> aks : authenticates
+aks --> sb : publishes
+sb --> fn : triggers
+fn --> sql : writes
+fn --> cosmos : logs
+flow --> blob : archives
+kv ..> fn : provides secret
+vm --> sql : reads
+@enduml

@@ -1,0 +1,33 @@
+@startuml
+title GCP architecture overview — compute, data, messaging, security
+!include <gcp/ComputeEngine>
+!include <gcp/CloudStorage>
+!include <gcp/BigQuery>
+!include <gcp/CloudSQL>
+!include <gcp/CloudFunctions>
+!include <gcp/GKE>
+!include <gcp/PubSub>
+!include <gcp/CloudCDN>
+!include <gcp/CloudLoadBalancing>
+!include <gcp/IAM>
+
+CloudCDN(cdn, "Edge CDN", "Global")
+CloudLoadBalancing(lb, "HTTP(S) LB", "Anycast")
+GKE(gke, "App Cluster", "Autopilot")
+ComputeEngine(vm, "Batch VM", "n2-standard-4")
+CloudFunctions(fn, "Image Resize", "Python 3.11")
+CloudStorage(bucket, "Media Lake", "Standard")
+CloudSQL(sql, "App DB", "Postgres 15")
+BigQuery(bq, "Analytics Warehouse", "On-demand")
+PubSub(ps, "Event Bus", "Standard")
+IAM(role, "Workload Identity", "Service Account")
+
+cdn --> lb : forwards
+lb --> gke : routes
+gke --> sql : queries
+gke --> ps : publishes
+ps --> fn : triggers
+fn --> bucket : writes
+vm --> bq : loads
+role ..> gke : grants
+@enduml

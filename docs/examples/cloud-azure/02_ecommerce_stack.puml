@@ -1,0 +1,30 @@
+@startuml
+title Azure e-commerce stack — frontend, services, data
+!include <azure/AzureKubernetesService>
+!include <azure/AzureSQLDatabase>
+!include <azure/AzureCosmosDB>
+!include <azure/AzureBlobStorage>
+!include <azure/AzureServiceBus>
+!include <azure/AzureFunction>
+!include <azure/AzureKeyVault>
+
+AzureKubernetesService(frontend, "Frontend Pods", "nginx-ingress")
+AzureKubernetesService(api, "API Pods", "REST + gRPC")
+AzureServiceBus(events, "Domain Events", "Topic + Subscriptions")
+AzureFunction(billing, "Billing Worker", "Service Bus Trigger")
+AzureFunction(notify, "Notify Worker", "Service Bus Trigger")
+AzureSQLDatabase(orders, "Orders DB", "Geo-Replicated")
+AzureCosmosDB(cart, "Cart Store", "Multi-region")
+AzureBlobStorage(media, "Product Images", "CDN-backed")
+AzureKeyVault(kv, "Secrets", "Customer Managed")
+
+frontend --> api : HTTPS
+api --> cart : sessions
+api --> orders : checkout
+api --> events : publish OrderPlaced
+events --> billing : OrderPlaced
+events --> notify : OrderPlaced
+billing --> orders : updates payment
+frontend --> media : reads assets
+kv ..> api : connection strings
+@enduml
