@@ -472,6 +472,11 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
     // already places nodes below the title band and the edge_paths from
     // gl_result are NOT shifted here, so applying a y_shift would desync node
     // bboxes from edge waypoints and break endpoint-anchoring assertions (#1318).
+    //
+    // When a y_shift IS applied, edge_paths must be shifted by the same amount
+    // so waypoint coordinates stay consistent with node bboxes (#1472 parity).
+    let edge_paths_shifted: std::collections::BTreeMap<String, Vec<(f64, f64)>>;
+    let edge_paths_ref: &std::collections::BTreeMap<String, Vec<(f64, f64)>>;
     if !pkg_layouts.is_empty() {
         let min_pkg_y = pkg_layouts.iter().map(|p| p.abs_y).min().unwrap_or(0);
         let min_allowed_y = canvas_margin + header_h;
@@ -483,7 +488,25 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
             for v in positions.values_mut() {
                 v.1 += y_shift;
             }
+            let dy = y_shift as f64;
+            edge_paths_shifted = gl_result
+                .edge_paths
+                .iter()
+                .map(|(k, pts)| {
+                    (
+                        k.clone(),
+                        pts.iter().map(|&(px, py)| (px, py + dy)).collect(),
+                    )
+                })
+                .collect();
+            edge_paths_ref = &edge_paths_shifted;
+        } else {
+            edge_paths_shifted = std::collections::BTreeMap::new();
+            edge_paths_ref = &gl_result.edge_paths;
         }
+    } else {
+        edge_paths_shifted = std::collections::BTreeMap::new();
+        edge_paths_ref = &gl_result.edge_paths;
     }
 
     // derive pkg_frame_widths/heights for compat
@@ -664,7 +687,7 @@ fn render_box_grid_artifact(doc: &FamilyDocument, family: &str) -> RenderArtifac
         &interface_nodes,
         &all_boxes,
         &pkg_frame_boxes,
-        &gl_result.edge_paths,
+        edge_paths_ref,
         &comp_style,
     );
     // Re-paint header label text (text only, NOT the dark band) AFTER edge-label
