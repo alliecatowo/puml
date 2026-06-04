@@ -94,7 +94,7 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
         let mut depth1_count = 0usize;
         for i in 0..n {
             if nodes[i].depth == 1 {
-                let assigned = if depth1_count % 2 == 0 {
+                let assigned = if depth1_count.is_multiple_of(2) {
                     MindMapSide::Right
                 } else {
                     MindMapSide::Left
