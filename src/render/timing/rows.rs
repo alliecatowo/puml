@@ -357,13 +357,17 @@ fn render_robust_signal(out: &mut String, signal: &FamilyNode, ctx: RowRender<'_
             escape_text(fill),
             escape_text(stroke)
         ));
-        render_state_label(
+        // #1543: pass half the cell pixel width so the label squishes to fit
+        // rather than overflowing into adjacent cells.
+        let cell_half_w = ((x2 - x1) / 2).max(8);
+        render_state_label_bounded(
             out,
             (x1 + x2) / 2,
             ctx.wave_mid + 4,
             &display,
             "#0f172a",
             true,
+            cell_half_w,
         );
     }
 }
@@ -417,13 +421,16 @@ fn render_concise_signal(out: &mut String, ctx: RowRender<'_>) {
             wave_y_hi = ctx.wave_y_hi,
             wave_y_lo = ctx.wave_y_lo
         ));
-        render_state_label(
+        // #1543: bound the label to the cell width to prevent overflow.
+        let cell_half_w = ((x2 - x1) / 2).max(8);
+        render_state_label_bounded(
             out,
             (x1 + x2) / 2,
             ctx.wave_mid + 4,
             &display,
             "#1e293b",
             false,
+            cell_half_w,
         );
     }
     let last_x = ctx.layout.time_to_x(end_t).min(ctx.layout.content_x_max);
@@ -440,19 +447,36 @@ fn render_hidden_state(out: &mut String, x1: i32, x2: i32, wave_mid: i32) {
     ));
 }
 
-fn render_state_label(
+/// Like `render_state_label_bounded` but clips the text to `max_half_w` pixels on each
+/// side of the centre.  Used by concise/robust rows so adjacent short cells don't
+/// bleed their labels into each other (#1543).
+fn render_state_label_bounded(
     out: &mut String,
     label_x: i32,
     label_ty: i32,
     display: &str,
     fill: &str,
     bold: bool,
+    max_half_w: i32,
 ) {
     let weight = if bold { " font-weight=\"600\"" } else { "" };
-    out.push_str(&format!(
-        "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight}>{}</text>",
-        escape_text(display)
-    ));
+    // Estimate text width at 11px monospace (~6.5 px/char).
+    let char_w_px = 6.5f32;
+    let estimated_w = (display.chars().count() as f32 * char_w_px).ceil() as i32;
+    let half_w = estimated_w / 2;
+    if max_half_w < i32::MAX && half_w > max_half_w && max_half_w > 8 {
+        // Shrink to fit: use textLength to squish the label into the available width.
+        let available = (max_half_w * 2).max(16);
+        out.push_str(&format!(
+            "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight} textLength=\"{available}\" lengthAdjust=\"spacingAndGlyphs\">{}</text>",
+            escape_text(display)
+        ));
+    } else {
+        out.push_str(&format!(
+            "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight}>{}</text>",
+            escape_text(display)
+        ));
+    }
 }
 
 fn waveform_end_t(layout: &TimingLayout) -> i64 {

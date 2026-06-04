@@ -114,6 +114,12 @@ ALLOWLIST_REASONS = {
     # arrays, canvas sizing, and edge-drawing pass; sub-module extraction would require
     # threading subtree_block_w/h arrays through callers. Split tracked in #590.
     "src/render/mindmap/wbs.rs": "wave-17 PlantUML Fork+vstack WBS layout added ~186 lines; split tracked in #590",
+    # Was ~592 lines before #1539 (sequential-chain detection for state layout) and
+    # #1543 (timing clip cell-width fix); grew to 627 after the is_sequential_chain
+    # heuristic added 35 lines. Logic is tightly coupled to the top-level-node
+    # transition scan; extraction would require threading transition-count state.
+    # Split tracked in #590.
+    "src/render/state.rs": "wave-22 sequential-chain detection added 35 lines; split tracked in #590",
     # Was 530 lines on main; grew to 602 after Phase B <style> cascade resolver added
     # the CascadeContext struct, resolve_style_cascade, and class/component migration
     # helpers (~72 lines). The cascade logic is tightly coupled to the StyleBlock AST

@@ -152,11 +152,10 @@ fn mindmap_depth_style_block_applies_depth_specific_colors() {
 
 /// #1467 — PlantUML layout parity: without explicit `left side` markers, all
 /// depth-1 branches default to the right side (vertical-stack mindmap), matching
-/// upstream PlantUML. The auto-balance heuristic that previously distributed
-/// half the branches to the left was a PUML chrome flourish that broke 1:1
-/// layout parity and is no longer applied.
+/// (#1538) PlantUML parity: without explicit `left side` markers the renderer
+/// auto-balances depth-1 branches using even→right, odd→left heuristic.
 #[test]
-fn mindmap_default_layout_keeps_all_branches_on_right_side() {
+fn mindmap_default_layout_auto_balances_branches() {
     let src = "@startmindmap\n\
                * Root\n\
                ** Frontend\n\
@@ -164,11 +163,11 @@ fn mindmap_default_layout_keeps_all_branches_on_right_side() {
                ** DevOps\n\
                @endmindmap\n";
     let svg = puml::render_source_to_svg(src).expect("mindmap should render");
-    // All depth-1 branches must sit on the right side — none on the left.
+    // Auto-balance: even-indexed → right, odd-indexed → left.
+    // Frontend(0)=right, Backend(1)=left, DevOps(2)=right.
     assert!(
-        !svg.contains("data-mindmap-side=\"left\""),
-        "without explicit `left side` markers, no branches should be on the left \
-         (PlantUML vertical-stack convention #1467): {svg}"
+        svg.contains("data-mindmap-side=\"left\""),
+        "auto-balance should put odd-indexed depth-1 branches on the left (#1538): {svg}"
     );
     assert!(
         svg.contains("data-mindmap-side=\"right\""),

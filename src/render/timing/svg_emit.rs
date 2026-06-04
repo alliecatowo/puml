@@ -43,9 +43,13 @@ pub(super) fn render_timing_svg_header(
 
     ty += 8;
     if let Some(title) = &doc.title {
+        // #1543: centre the title text so long titles don't clip at the right
+        // canvas edge.  `x=width/2` + `text-anchor="middle"` mirrors what the
+        // other diagram families do for their title elements.
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                "<text x=\"{}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                layout.width / 2,
                 escape_text(&style.font_color),
                 escape_text(line)
             ));
