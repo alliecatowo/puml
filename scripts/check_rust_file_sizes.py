@@ -131,6 +131,14 @@ ALLOWLIST_REASONS = {
     # (~458 lines net). Tests are tightly coupled to the cascade resolver; sub-module
     # extraction would require moving the resolver itself. Split tracked in #590.
     "src/theme/shared_cascade_tests.rs": "wave-17 Phase D #1416 coverage uplift added 24 tests (+7 keyword-branch coverage); split tracked in #590",
+    # Was ~592 lines on main; grew to 631 after wave-22 fixes added alt/else label
+    # placement fix, note connector line, and blueprint background color (~39 lines).
+    # Logic is tightly coupled to the sequence event emission loop; extraction would
+    # require threading separator-geometry state. Split tracked in #590.
+    "src/render/sequence.rs": "wave-22 alt-else label, note connector, blueprint bg added 39 lines; split tracked in #590",
+    # Was ~597 lines on main; grew to 601 after wave-22 blueprint dark-canvas fix
+    # added 4 lines to the preset definition. Split tracked in #590.
+    "src/theme/presets.rs": "wave-22 blueprint dark-canvas background added 4 lines; split tracked in #590",
 }
 
 
