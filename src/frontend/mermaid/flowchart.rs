@@ -40,19 +40,27 @@ use super::common::strip_mermaid_comment;
 pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Diagnostic> {
     use std::collections::{BTreeMap, BTreeSet};
 
+    // We use a two-phase approach so that bare-id component declarations are
+    // emitted BEFORE the edge lines that reference them. This ensures the parser
+    // sees the `component X` declarations first and classifies the output as a
+    // component diagram rather than a sequence diagram (which would emit
+    // W_SEQUENCE_UNSUPPORTED_SYNTAX warnings for the component keyword).
+    //
+    // Phase 1: scan the source, collecting class defs, diagnostics, declared IDs,
+    //          referenced IDs, and the body lines (edges + node decls) into a buffer.
+    // Phase 2: emit `component <id>` for any referenced-but-undeclared IDs, then
+    //          flush the body buffer.
+
     let mut out = FrontendBuilder::new();
     let mut first = true;
     let mut directive_span = Span::new(0, 0);
     let mut class_defs: BTreeMap<String, String> = BTreeMap::new();
-    // Track which node ids have been emitted with an explicit
-    // `component ...` declaration. We use this to backfill bare-id
-    // declarations after the main pass so every referenced node has an
-    // explicit ComponentDecl statement in the AST. Without this the
-    // PlantUML renderer infers components from arrow endpoints but the
-    // AST surface visible to language-service consumers (hover,
-    // completion, semantic tokens) would be missing those decls.
     let mut declared_ids: BTreeSet<String> = BTreeSet::new();
+    // referenced_ids: (id, span) tuples for backfill step.
     let mut referenced_ids: Vec<(String, Span)> = Vec::new();
+    // body_lines: deferred output lines (edges, node decls, subgraph) collected
+    // during the main pass so we can prepend component declarations before them.
+    let mut body_lines: Vec<(String, Span)> = Vec::new();
     let mut offset = 0usize;
 
     for raw_line in source.lines() {
@@ -90,7 +98,9 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
             for id in ids {
                 declared_ids.insert(id);
             }
-            out.push_lines(converted, span);
+            for body_line in converted.lines() {
+                body_lines.push((body_line.to_string(), span));
+            }
             continue;
         }
 
@@ -115,21 +125,23 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
                     declared_ids.insert(id.to_string());
                 }
             }
-            out.push_lines(converted, span);
+            for body_line in converted.lines() {
+                body_lines.push((body_line.to_string(), span));
+            }
             continue;
         }
 
         // Node declaration: `ID[Label]`, `ID{Label}`, `ID(Label)`, bare `ID`.
         if let Some((converted, id)) = adapt_flowchart_node(line) {
             declared_ids.insert(id);
-            out.push_line(converted, span);
+            body_lines.push((converted, span));
             continue;
         }
 
         // Subgraph / end – map to `package`/`end`.
         if let Some(rest) = line.strip_prefix("subgraph ") {
             let (sub_id, sub_label) = parse_subgraph_header(rest.trim());
-            out.push_line(format!("package \"{sub_label}\" {{"), span);
+            body_lines.push((format!("package \"{sub_label}\" {{"), span));
             // Track the synthetic subgraph id so a later `end` line
             // doesn't trigger a spurious bare-id backfill.
             declared_ids.insert(sub_id);
@@ -137,7 +149,7 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
         }
         let lower = line.to_ascii_lowercase();
         if lower == "end" || lower == "end subgraph" {
-            out.push_line("}", span);
+            body_lines.push(("}".to_string(), span));
             continue;
         }
 
@@ -148,14 +160,18 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
         .with_span(span));
     }
 
-    // Backfill explicit `component <id>` declarations for any arrow endpoint
-    // that was referenced without a shape/label suffix. Emitting these
-    // gives downstream consumers (language service, semantic tokens,
-    // diagnostic source-maps) a stable AST node per Mermaid identifier.
+    // Phase 2: emit component declarations for referenced-but-undeclared IDs
+    // BEFORE the edge lines. This ensures the parser classifies the output as a
+    // component diagram, not a sequence diagram.
     for (id, original_span) in &referenced_ids {
         if declared_ids.insert(id.clone()) {
             out.push_line(format!("component {id}"), *original_span);
         }
+    }
+
+    // Now flush the deferred body lines (edges, node decls, subgraphs).
+    for (line, span) in body_lines {
+        out.push_line(line, span);
     }
 
     out.push_line("@enduml", directive_span);
@@ -204,14 +220,7 @@ fn parse_subgraph_header(rest: &str) -> (String, String) {
         if let Some(close) = after.rfind(']') {
             let label = after[..close].trim().trim_matches('"').to_string();
             if !label.is_empty() {
-                return (
-                    if id.is_empty() {
-                        label.clone()
-                    } else {
-                        id
-                    },
-                    label,
-                );
+                return (if id.is_empty() { label.clone() } else { id }, label);
             }
         }
     }
@@ -383,18 +392,7 @@ fn line_contains_edge_connector(line: &str) -> bool {
     // terminator variants `--x`/`--o`/`==x`/`==o`/`-.-x`/`-.-o`.
     // Order doesn't matter here — any hit means "not a pure node".
     const CONNECTORS: &[&str] = &[
-        "-.->",
-        "-.-x",
-        "-.-o",
-        "-.-",
-        "==>",
-        "==x",
-        "==o",
-        "===",
-        "-->",
-        "--x",
-        "--o",
-        "---",
+        "-.->", "-.-x", "-.-o", "-.-", "==>", "==x", "==o", "===", "-->", "--x", "--o", "---",
     ];
     CONNECTORS.iter().any(|c| line.contains(c))
 }
