@@ -266,6 +266,83 @@ fn component_cascade_all_absent_falls_back_to_default() {
     assert_eq!(result.source(), Src::Default);
 }
 
+// ── style-block tier (Phase B) exercises ────────────────────────────────
+
+/// style_block beats skinparam-sourced diagram color.
+#[test]
+fn class_cascade_style_block_beats_skinparam() {
+    let result = class_node_cascade("#112233", Src::SkinParam, None, Some("#778899"), None);
+    assert_eq!(result.as_str(), "#778899");
+    assert_eq!(result.source(), Src::StyleBlock);
+}
+
+/// style_block beats stereotype when stereotype is lower precedence.
+#[test]
+fn class_cascade_style_block_beats_stereotype() {
+    let result = class_node_cascade(
+        "#112233",
+        Src::SkinParam,
+        Some("#334455"),
+        Some("#778899"),
+        None,
+    );
+    assert_eq!(result.as_str(), "#778899");
+    assert_eq!(result.source(), Src::StyleBlock);
+}
+
+/// Inline beats style_block (inline is highest precedence).
+#[test]
+fn class_cascade_inline_beats_style_block() {
+    let result = class_node_cascade(
+        "#112233",
+        Src::SkinParam,
+        Some("#334455"),
+        Some("#778899"),
+        Some("#ff0000"),
+    );
+    assert_eq!(result.as_str(), "#ff0000");
+    assert_eq!(result.source(), Src::Inline);
+}
+
+/// component cascade: style_block tier beats skinparam.
+#[test]
+fn component_cascade_style_block_beats_skinparam() {
+    let result =
+        component_node_cascade("#f0f4f8", Src::SkinParam, None, None, Some("#aabbcc"), None);
+    assert_eq!(result.as_str(), "#aabbcc");
+    assert_eq!(result.source(), Src::StyleBlock);
+}
+
+/// component cascade: style_block tier beats stereotype.
+#[test]
+fn component_cascade_style_block_beats_stereotype() {
+    let result = component_node_cascade(
+        "#f0f4f8",
+        Src::SkinParam,
+        None,
+        Some("#334455"),
+        Some("#aabbcc"),
+        None,
+    );
+    assert_eq!(result.as_str(), "#aabbcc");
+    assert_eq!(result.source(), Src::StyleBlock);
+}
+
+/// component cascade: inline beats style_block.
+#[test]
+fn component_cascade_inline_beats_style_block() {
+    let result = component_node_cascade(
+        "#f0f4f8",
+        Src::SkinParam,
+        None,
+        None,
+        Some("#aabbcc"),
+        Some("#ff0000"),
+    );
+    assert_eq!(result.as_str(), "#ff0000");
+    assert_eq!(result.source(), Src::Inline);
+}
+
 // ── component_node_effective_style integration tests ──────────────────────
 
 /// Default diagram style, plain component node — fill/stroke/font resolve to defaults.
@@ -402,4 +479,385 @@ fn component_effective_target_and_stereotype_precedence() {
     );
     assert_eq!(result2.fill.as_str(), "#aabbcc");
     assert_eq!(result2.fill.source(), Src::Stereotype);
+}
+
+// ── Phase D (#1416): class_node_effective_style with style-builder properties ──
+
+/// Phase D: `LineThickness` in a style-builder sets stroke_width.
+#[test]
+fn class_effective_phase_d_line_thickness_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::LineThickness, StyleValue::Number(3.0))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert!(
+        (result.stroke_width - 3.0).abs() < 0.01,
+        "LineThickness 3 must set stroke_width=3.0, got {}",
+        result.stroke_width
+    );
+}
+
+/// Phase D: `RoundCorner` in a style-builder sets style_round_corner.
+#[test]
+fn class_effective_phase_d_round_corner_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::RoundCorner, StyleValue::Number(20.0))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.style_round_corner,
+        Some(20),
+        "RoundCorner 20 must set style_round_corner=Some(20)"
+    );
+}
+
+/// Phase D: `FontWeight bold` keyword in a style-builder sets font_weight=700.
+#[test]
+fn class_effective_phase_d_font_weight_bold_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::FontWeight, StyleValue::Keyword("bold".to_string()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.font_weight, 700,
+        "FontWeight bold must set font_weight=700"
+    );
+}
+
+/// Phase D: `LineStyle dashed` in a style-builder sets EffectiveLineStyle::Dashed.
+#[test]
+fn class_effective_phase_d_line_style_dashed_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::effective::EffectiveLineStyle;
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::LineStyle, StyleValue::Keyword("dashed".to_string()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.line_style, EffectiveLineStyle::Dashed);
+    assert_eq!(result.line_style.stroke_dasharray(), "8 4");
+}
+
+/// Phase D: `HorizontalAlignment right` in a style-builder sets EffectiveHAlign::Right.
+#[test]
+fn class_effective_phase_d_h_align_right_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::effective::EffectiveHAlign;
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(
+            PName::HorizontalAlignment,
+            StyleValue::Keyword("right".to_string()),
+        )]
+        .iter()
+        .cloned()
+        .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.h_align, EffectiveHAlign::Right);
+    assert_eq!(result.h_align.text_anchor(), "end");
+}
+
+/// Phase D: `EffectiveLineStyle::Solid` returns empty dasharray (used when no LineStyle is set).
+#[test]
+fn effective_line_style_solid_returns_empty_dasharray() {
+    use crate::theme::effective::EffectiveLineStyle;
+    assert_eq!(EffectiveLineStyle::Solid.stroke_dasharray(), "");
+    assert_eq!(EffectiveLineStyle::Dashed.stroke_dasharray(), "8 4");
+    assert_eq!(EffectiveLineStyle::Dotted.stroke_dasharray(), "2 3");
+}
+
+/// Phase D: `EffectiveHAlign::Center` returns "middle" text-anchor.
+#[test]
+fn effective_h_align_center_returns_middle() {
+    use crate::theme::effective::EffectiveHAlign;
+    assert_eq!(EffectiveHAlign::Center.text_anchor(), "middle");
+    assert_eq!(EffectiveHAlign::Left.text_anchor(), "start");
+    assert_eq!(EffectiveHAlign::Right.text_anchor(), "end");
+}
+
+/// Phase D: `Shadowing true` in a style-builder sets shadowing=true.
+#[test]
+fn class_effective_phase_d_shadowing_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::Shadowing, StyleValue::Keyword("true".to_string()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.shadowing = false; // start with false
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert!(
+        result.shadowing,
+        "Shadowing true in style-builder must override skinparam false"
+    );
+}
+
+/// Phase D: `Padding` in a style-builder sets padding field.
+#[test]
+fn class_effective_phase_d_padding_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::Padding, StyleValue::Number(12.0))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.padding, 12, "Padding 12 must set padding=12");
+}
+
+/// Phase D: `MaximumWidth` in a style-builder sets max_width.
+#[test]
+fn class_effective_phase_d_max_width_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::MaximumWidth, StyleValue::Number(200.0))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.max_width, 200,
+        "MaximumWidth 200 must set max_width=200"
+    );
+}
+
+/// Phase D: `MinimumWidth` in a style-builder sets min_width.
+#[test]
+fn class_effective_phase_d_min_width_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::MinimumWidth, StyleValue::Number(100.0))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.min_width, 100,
+        "MinimumWidth 100 must set min_width=100"
+    );
 }
