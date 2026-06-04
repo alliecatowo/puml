@@ -213,7 +213,14 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
             })
     }
 
-    let depth_bias = (max_left_depth as i32) * x_step + 240;
+    // When there are no left-side nodes, the root needs no depth bias — the margin +
+    // extra_left mechanism below will provide the correct left padding (bug #1549).
+    // When left nodes exist, reserve their full horizontal span so they don't underflow.
+    let depth_bias = if left_roots.is_empty() {
+        0
+    } else {
+        (max_left_depth as i32) * x_step + 240
+    };
     let root_cx_prelim = MARGIN + depth_bias + root_w / 2;
     let root_min_x = root_cx_prelim - root_w / 2;
     let root_max_x = root_cx_prelim + root_w / 2;

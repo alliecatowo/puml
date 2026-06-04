@@ -22,7 +22,14 @@ pub(crate) fn with_sprite_registry<T>(sprites: &SpriteRegistry, f: impl FnOnce()
 }
 
 pub(crate) fn render_sprite_sheet(sprites: &SpriteRegistry) -> String {
-    let sprites = sprites_with_builtins(sprites);
+    // listsprites shows user-defined sprites merged with the openiconic set (PlantUML parity).
+    // We intentionally exclude bootstrap/material builtins — including all 4471+ icons
+    // produces a 196 000px-tall blank canvas (bug #1536).
+    let mut sheet_sprites = openiconic_sprites();
+    for (name, sprite) in sprites {
+        sheet_sprites.insert(name.clone(), sprite.clone());
+    }
+    let sprites = sheet_sprites;
     let count = sprites.len();
     let row_h = 44_i32;
     let width = 420_i32;
