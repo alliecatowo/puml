@@ -447,18 +447,7 @@ fn render_hidden_state(out: &mut String, x1: i32, x2: i32, wave_mid: i32) {
     ));
 }
 
-fn render_state_label(
-    out: &mut String,
-    label_x: i32,
-    label_ty: i32,
-    display: &str,
-    fill: &str,
-    bold: bool,
-) {
-    render_state_label_bounded(out, label_x, label_ty, display, fill, bold, i32::MAX);
-}
-
-/// Like `render_state_label` but clips the text to `max_half_w` pixels on each
+/// Like `render_state_label_bounded` but clips the text to `max_half_w` pixels on each
 /// side of the centre.  Used by concise/robust rows so adjacent short cells don't
 /// bleed their labels into each other (#1543).
 fn render_state_label_bounded(
