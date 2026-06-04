@@ -79,12 +79,39 @@ pub fn render_mindmap_artifact(doc: &FamilyDocument) -> RenderArtifact {
         }
     }
 
-    // PlantUML parity (#1467): without explicit `left side` markers, all depth-1
-    // branches stay on the right, matching upstream PlantUML's vertical-stack
-    // mindmap convention. Users who want a symmetric splay can opt in by
-    // tagging individual branches with `left side`. The auto-balance heuristic
-    // that previously redistributed half the branches to the left was a PUML
-    // chrome flourish that broke 1:1 layout parity (median +0.20×).
+    // PlantUML parity (#1538): auto-distribute depth-1 branches between left
+    // and right sides when no depth-1 node carries an explicit `-` (Left)
+    // prefix. PlantUML's heuristic: even-indexed depth-1 children (0-based)
+    // go right, odd-indexed go left, giving a balanced radial layout.
+    // When any depth-1 node has an explicit Left side marker, honour all
+    // explicit markers and skip auto-balancing.
+    let any_explicit_left = (0..n)
+        .filter(|&i| nodes[i].depth == 1)
+        .any(|i| nodes[i].mindmap_side == MindMapSide::Left);
+
+    if !any_explicit_left {
+        // Auto-balance: even indices → right, odd indices → left.
+        let mut depth1_count = 0usize;
+        for i in 0..n {
+            if nodes[i].depth == 1 {
+                let assigned = if depth1_count % 2 == 0 {
+                    MindMapSide::Right
+                } else {
+                    MindMapSide::Left
+                };
+                side[i] = assigned;
+                // Propagate to all descendants of this depth-1 node.
+                let depth = nodes[i].depth;
+                for j in (i + 1)..n {
+                    if nodes[j].depth <= depth {
+                        break;
+                    }
+                    side[j] = assigned;
+                }
+                depth1_count += 1;
+            }
+        }
+    }
 
     // Collect left/right subtrees at depth 1+.
     let right_roots: Vec<usize> = (0..n)

@@ -97,17 +97,26 @@ pub fn render_wire_artifact(document: &WireDocument) -> RenderArtifact {
         ));
     }
 
-    // Collect port-label identifiers that are "covered" by a same-named edge
-    // label so port labels are suppressed in those cases (#1301).
-    // A port label is considered covered when every link that touches it
-    // carries an identical `label` — i.e. the wire already names the signal.
+    // Build the set of port-label identifiers whose labels should be suppressed.
+    // Two suppression cases:
+    //
+    // 1. (#1301) The edge label is identical to the port label on every link that
+    //    touches this port — the wire already names the signal so the port label
+    //    would duplicate it.
+    //
+    // 2. (#1540) Two ports with the same label are connected by a link with no
+    //    edge label (or any edge label).  In that case the destination port's label
+    //    is suppressed so the signal name appears only once (on the source side).
     let covered_ports: BTreeSet<String> = {
+        let mut suppressed: BTreeSet<String> = BTreeSet::new();
+
+        // Case 1: edge label == port label on every touching link.
         let mut candidate_port_labels: BTreeMap<String, bool> = BTreeMap::new();
         for link in &document.links {
             let edge_label = link.label.as_deref().unwrap_or("");
             for endpoint in [&link.from, &link.to] {
                 if let Some(port_label) = &endpoint.port {
-                    let key = format!("{}::{}", endpoint.component, port_label);
+                    let key = port_key(&endpoint.component, port_label);
                     let covered = edge_label == port_label;
                     candidate_port_labels
                         .entry(key)
@@ -116,10 +125,26 @@ pub fn render_wire_artifact(document: &WireDocument) -> RenderArtifact {
                 }
             }
         }
-        candidate_port_labels
-            .into_iter()
-            .filter_map(|(k, v)| if v { Some(k) } else { None })
-            .collect()
+        for (k, v) in candidate_port_labels {
+            if v {
+                suppressed.insert(k);
+            }
+        }
+
+        // Case 2: both endpoints carry the same port label on a link — suppress
+        // the destination port so the label appears only on the source side.
+        for link in &document.links {
+            let (from_port, to_port) = match (&link.from.port, &link.to.port) {
+                (Some(fp), Some(tp)) => (fp, tp),
+                _ => continue,
+            };
+            if from_port.trim() == to_port.trim() {
+                // Suppress the destination port label.
+                suppressed.insert(port_key(&link.to.component, to_port));
+            }
+        }
+
+        suppressed
     };
     for component in &document.components {
         render_component_svg(&mut out, component, &layout, &covered_ports);
@@ -176,11 +201,10 @@ fn render_component_svg(
             "<circle class=\"wire-port\" data-wire-port=\"{}\" cx=\"{px:.1}\" cy=\"{py:.1}\" r=\"{PORT_R}\" fill=\"#ffffff\" stroke=\"#0f766e\" stroke-width=\"1.5\"/>",
             escape_text(&port.id)
         ));
-        // Suppress port label when an edge already carries the same text on
-        // every wire that touches this port — avoids strikethrough overlap
-        // (issue #1301).
-        let port_key = format!("{}::{}", component.id, port.label);
-        if covered_ports.contains(&port_key) {
+        // Suppress port label when covered by an edge label or when the same
+        // label appears on both endpoints of a direct connection (#1301, #1540).
+        let pk = port_key(&component.id, &port.label);
+        if covered_ports.contains(&pk) {
             continue;
         }
         let (tx, anchor) = match port.side {

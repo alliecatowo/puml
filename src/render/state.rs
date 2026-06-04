@@ -89,11 +89,43 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
         !child_node_names.contains(n.name.as_str())
             && n.regions.iter().any(|region| !region.is_empty())
     });
-    let cols: i32 = if has_fork_join_choice || has_top_level_composite || top_level_count <= 3 {
-        1
-    } else {
-        2
+    // #1539: detect a sequential chain (each top-level node has ≤1 outgoing
+    // and ≤1 incoming transition) and force single-column layout.  A 2-column
+    // grid for a linear sequence produces an extreme horizontal zigzag because
+    // the depth-sort alternates placement between column 0 and column 1.
+    let is_sequential_chain = {
+        let top_names: std::collections::BTreeSet<&str> =
+            top_level_nodes.iter().map(|n| n.name.as_str()).collect();
+        let max_out = top_level_nodes
+            .iter()
+            .map(|n| {
+                transitions
+                    .iter()
+                    .filter(|t| t.from == n.name && top_names.contains(t.to.as_str()))
+                    .count()
+            })
+            .max()
+            .unwrap_or(0);
+        let max_in = top_level_nodes
+            .iter()
+            .map(|n| {
+                transitions
+                    .iter()
+                    .filter(|t| t.to == n.name && top_names.contains(t.from.as_str()))
+                    .count()
+            })
+            .max()
+            .unwrap_or(0);
+        max_out <= 1 && max_in <= 1
     };
+    let cols: i32 =
+        if has_fork_join_choice || has_top_level_composite || top_level_count <= 3
+            || is_sequential_chain
+        {
+            1
+        } else {
+            2
+        };
 
     // ── Sink-state heuristic ────────────────────────────────────────────────
     // Top-level nodes that have ONLY incoming error transitions (no outgoing
