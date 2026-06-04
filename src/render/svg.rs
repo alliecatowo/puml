@@ -2,9 +2,9 @@ use std::cell::RefCell;
 
 use crate::creole::{render_creole_line_to_tspans, render_creole_to_svg_tspans, tokenize_creole};
 use crate::sprites::{
-    bootstrap_icon_sprite, bootstrap_icon_sprites, material_icon_sprite, material_icon_sprites,
-    openiconic_sprite, openiconic_sprites, parse_openiconic_ref_at, parse_sprite_ref_at,
-    render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
+    bootstrap_icon_sprite, material_icon_sprite, openiconic_sprite, openiconic_sprites,
+    parse_openiconic_ref_at, parse_sprite_ref_at, render_sprite, SpriteDefinition, SpriteRef,
+    SpriteRegistry,
 };
 use crate::text_markup::{decode_unicode_escapes, escape_svg_text};
 
@@ -22,7 +22,14 @@ pub(crate) fn with_sprite_registry<T>(sprites: &SpriteRegistry, f: impl FnOnce()
 }
 
 pub(crate) fn render_sprite_sheet(sprites: &SpriteRegistry) -> String {
-    let sprites = sprites_with_builtins(sprites);
+    // listsprites shows user-defined sprites merged with the openiconic set (PlantUML parity).
+    // We intentionally exclude bootstrap/material builtins — including all 4471+ icons
+    // produces a 196 000px-tall blank canvas (bug #1536).
+    let mut sheet_sprites = openiconic_sprites();
+    for (name, sprite) in sprites {
+        sheet_sprites.insert(name.clone(), sprite.clone());
+    }
+    let sprites = sheet_sprites;
     let count = sprites.len();
     let row_h = 44_i32;
     let width = 420_i32;
@@ -252,16 +259,6 @@ fn active_sprite(name: &str) -> Option<SpriteDefinition> {
         .or_else(|| openiconic_sprite(name))
         .or_else(|| bootstrap_icon_sprite(name))
         .or_else(|| material_icon_sprite(name))
-}
-
-fn sprites_with_builtins(sprites: &SpriteRegistry) -> SpriteRegistry {
-    let mut combined = openiconic_sprites();
-    combined.extend(bootstrap_icon_sprites());
-    combined.extend(material_icon_sprites());
-    for (name, sprite) in sprites {
-        combined.insert(name.clone(), sprite.clone());
-    }
-    combined
 }
 
 fn label_has_inline_sprite(label: &str) -> bool {

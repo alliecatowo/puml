@@ -7310,21 +7310,27 @@ Alice -> Bob : Testing <$foo,scale=2,color=orange>\n\
 
 #[test]
 fn sprites_encoded_z_payload_decodes_and_listsprites_renders_sheet() {
+    // listsprites only renders the openiconic set (223 icons) + user-defined sprites.
+    // bootstrap/material icons are excluded from the sheet to avoid an oversized canvas (bug #1536).
     let src = "@startuml\n\
 sprite $printer [15x15/8z] NOtH3W0W208HxFz_kMAhj7lHWpa1XC716sz0Pq4MVPEWfBHIuxP3L6kbTcizR8tAhzaqFvXwvFfPEqm0\n\
 listsprites\n\
 @enduml\n";
     let svg = render_source_to_svg(src).expect("compressed sprite should render");
     assert!(svg.contains("data-sprite-list=\"true\""));
-    assert!(svg.contains("data-sprite-count=\"4472\""));
+    assert!(svg.contains("data-sprite-count=\"224\""));
     assert!(svg.contains("$printer"));
     assert!(svg.contains("data-sprite=\"printer\""));
     assert!(svg.contains("$folder"));
     assert!(svg.contains("data-sprite=\"folder\""));
-    assert!(svg.contains("$bi-globe"));
-    assert!(svg.contains("data-sprite=\"bi-globe\""));
-    assert!(svg.contains("$ma_folder"));
-    assert!(svg.contains("data-sprite=\"ma_folder\""));
+    assert!(
+        !svg.contains("data-sprite=\"bi-globe\""),
+        "bootstrap icons should not appear in sheet"
+    );
+    assert!(
+        !svg.contains("data-sprite=\"ma_folder\""),
+        "material icons should not appear in sheet"
+    );
 }
 
 #[test]
@@ -7402,16 +7408,23 @@ Alice -> Bob : Store <$ma_folder,scale=2,color=#2563eb> then <$ma-cloud-upload{s
 
 #[test]
 fn listsprites_includes_bundled_openiconic_icons() {
+    // listsprites intentionally only renders the openiconic set (223 icons) to avoid
+    // a 196 000px-tall blank canvas (bug #1536). bootstrap/material icons are accessible
+    // via inline <$bi-...> / <$ma_...> refs but are not listed in the sheet.
     let src = "@startuml\nlistsprites\n@enduml\n";
     let svg = render_source_to_svg(src).expect("built-in sprite sheet should render");
     assert!(svg.contains("data-sprite-list=\"true\""));
-    assert!(svg.contains("data-sprite-count=\"4471\""));
+    assert!(svg.contains("data-sprite-count=\"223\""));
     assert!(svg.contains("$folder"));
     assert!(svg.contains("data-sprite=\"folder\""));
-    assert!(svg.contains("$bi-globe"));
-    assert!(svg.contains("data-sprite=\"bi-globe\""));
-    assert!(svg.contains("$ma_folder"));
-    assert!(svg.contains("data-sprite=\"ma_folder\""));
+    assert!(
+        !svg.contains("data-sprite=\"bi-globe\""),
+        "bootstrap icons should not appear in sheet"
+    );
+    assert!(
+        !svg.contains("data-sprite=\"ma_folder\""),
+        "material icons should not appear in sheet"
+    );
     assert!(svg.contains("puml-sprite-svg"));
 }
 
