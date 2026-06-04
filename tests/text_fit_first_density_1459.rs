@@ -15,7 +15,7 @@
 //!
 //! 1. **Text-fit minimum respected** — a deployment node with a long label
 //!    ("Ingress Controller", 18 chars) must produce an SVG node rect wider
-//!    than the family minimum (110 px), proving the pre-layout pass fired.
+//!    than the family minimum (140 px post-#1528), proving the pre-layout pass fired.
 //!
 //! 2. **Short-label density preserved** — a deployment node with a short
 //!    label ("nginx", 5 chars) must not exceed the family minimum (110 px),
@@ -176,8 +176,9 @@ IC --> N
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A node whose display label is "nginx" (5 chars) must produce a rect at
-/// exactly the DEPLOYMENT_BOX_WIDTH minimum (110 px) — not wider — confirming
-/// the floor clamp preserves density for compact diagrams.
+/// the DEPLOYMENT_BOX_WIDTH minimum (140 px post-emergency-rescue, was 110 px)
+/// — not wider — confirming the floor clamp preserves density for compact
+/// diagrams. Floor raised in #1528 to restore PUML chrome breathing room.
 #[test]
 fn short_label_deployment_node_at_minimum_width() {
     let src = r#"
@@ -190,11 +191,12 @@ N --> A
     let svg = render(src);
     let widths = node_rect_widths(&svg);
     assert!(!widths.is_empty(), "expected at least one node rect in SVG");
-    // Every rect should be ≤ 110 px (the floor) since both labels are short.
+    // Every rect should be ≤ 145 px (the 140 px floor + 5 px slack) since both
+    // labels are short. Floor was 110 px pre-#1528 emergency-rescue.
     let max_w = widths.iter().copied().max().unwrap_or(0);
     assert!(
-        max_w <= 115, // 5 px slack for any future heuristic micro-tuning
-        "max node rect width {max_w}px should be ≤ 115px for short labels; \
+        max_w <= 145,
+        "max node rect width {max_w}px should be ≤ 145px for short labels; \
          all widths: {widths:?}"
     );
 }
