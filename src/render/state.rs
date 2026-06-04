@@ -118,14 +118,15 @@ pub fn render_state_artifact(document: &StateDocument) -> RenderArtifact {
             .unwrap_or(0);
         max_out <= 1 && max_in <= 1
     };
-    let cols: i32 =
-        if has_fork_join_choice || has_top_level_composite || top_level_count <= 3
-            || is_sequential_chain
-        {
-            1
-        } else {
-            2
-        };
+    let cols: i32 = if has_fork_join_choice
+        || has_top_level_composite
+        || top_level_count <= 3
+        || is_sequential_chain
+    {
+        1
+    } else {
+        2
+    };
 
     // ── Sink-state heuristic ────────────────────────────────────────────────
     // Top-level nodes that have ONLY incoming error transitions (no outgoing
