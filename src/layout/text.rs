@@ -228,24 +228,13 @@ pub(super) fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     for word in words {
         let word_visual = visual_char_count(word);
         if current.is_empty() {
-            if word_visual <= max_chars {
-                current.push_str(word);
-                current_visual = word_visual;
-            } else {
-                // Word is visually longer than max_chars.  If it contains
-                // markup (visual_len < raw len) keep it whole rather than
-                // splitting mid-tag; otherwise chunk it the old way.
-                let word_raw = word.chars().count();
-                if word_visual < word_raw {
-                    // Contains markup — don't chunk it.
-                    current.push_str(word);
-                    current_visual = word_visual;
-                } else {
-                    for chunk in chunk_text(word, max_chars) {
-                        lines.push(chunk);
-                    }
-                }
-            }
+            // Keep every word atomic — never split mid-character. A word
+            // longer than max_chars is allowed to overflow its column rather
+            // than being broken at an arbitrary byte boundary, which produces
+            // garbled text (e.g. "deterministically" → "deterministicc /
+            // ally"). The SVG renderer handles long single words gracefully.
+            current.push_str(word);
+            current_visual = word_visual;
             continue;
         }
 
@@ -256,21 +245,10 @@ pub(super) fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
             current_visual = next_visual;
         } else {
             lines.push(current);
-            let word_raw = word.chars().count();
-            if word_visual <= max_chars {
-                current = word.to_string();
-                current_visual = word_visual;
-            } else if word_visual < word_raw {
-                // Contains markup — keep whole.
-                current = word.to_string();
-                current_visual = word_visual;
-            } else {
-                let mut chunks = chunk_text(word, max_chars);
-                let tail = chunks.pop().unwrap_or_default();
-                lines.extend(chunks);
-                current_visual = visual_char_count(&tail);
-                current = tail;
-            }
+            // Start new line with this word — keep it whole even if it
+            // exceeds max_chars (same no-mid-word-break policy as above).
+            current = word.to_string();
+            current_visual = word_visual;
         }
     }
     if !current.is_empty() {

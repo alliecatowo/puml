@@ -303,12 +303,14 @@ pub fn render_svg(scene: &Scene) -> String {
                 scene.style.group_border_color
             ));
             if let Some(label) = &sep.label {
-                // Place the label above the dashed divider so it doesn't
-                // overlap the rule.  A baseline of sep.y - 4 sits just above
-                // the 1 px stroke and leaves a small gap.
+                // Place the label just below the dashed divider so it sits
+                // inside the else-branch and does not overlap message arrows
+                // drawn above the separator line. Placing the label above
+                // (sep.y - 14) caused arrowhead glyphs from the last message
+                // in the preceding branch to visually overlap the text.
                 out.push_str(&creole_text(
                     g.x + 8,
-                    sep.y - 14,
+                    sep.y + 14,
                     "font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
                     label,
                     "#333",
@@ -537,6 +539,39 @@ pub fn render_svg(scene: &Scene) -> String {
 
     for n in &scene.notes {
         render_sequence_note_shape(&mut out, n.kind, n.x, n.y, n.width, n.height, scene);
+
+        // Draw a horizontal connector from the note box edge to the target
+        // participant's lifeline when the note is placed to the left or right
+        // of a participant. Without this line the note floats visually
+        // disconnected from its lifeline anchor.
+        if let Some(target_id) = &n.target_id {
+            if let Some(lifeline) = scene
+                .lifelines
+                .iter()
+                .find(|l| l.participant_id == *target_id)
+            {
+                let lx = lifeline.x;
+                let connector_y = n.y + n.height / 2;
+                let note_right = n.x + n.width;
+                if lx < n.x {
+                    // Note is to the right of the participant: connector goes
+                    // from lifeline center to the note's left edge.
+                    out.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        lx, connector_y, n.x, connector_y,
+                        scene.style.note_border_color
+                    ));
+                } else if lx > note_right {
+                    // Note is to the left of the participant: connector goes
+                    // from note's right edge to the lifeline center.
+                    out.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        note_right, connector_y, lx, connector_y,
+                        scene.style.note_border_color
+                    ));
+                }
+            }
+        }
 
         let mut text_y = n.y + 20;
         for line in n.text.lines() {

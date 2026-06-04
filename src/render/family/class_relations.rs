@@ -126,26 +126,29 @@ fn actor_generalization_pick_port(
 /// header band, nudge it below the header so the visible edge line does not
 /// cross the frame label text (#1292, #1446).
 ///
-/// Only horizontal segments are adjusted: when a horizontal segment's y falls
-/// inside the frame's header band (frame.y .. frame.y + label_header), push
-/// it below the header so the segment routes in the frame content area, not
-/// over the label text.
+/// Two cases are handled:
 ///
-/// NOTE: A former Case 1 (downward-vertical segment crossing a frame top) was
-/// removed because it truncated paths targeting a node inside a child frame at
-/// the frame border, producing bare arrowhead glyphs with no connecting line
-/// body (#1541, #1546).  The frame boundary is not a valid edge endpoint for
-/// edges that pass through it on the way to an enclosed node.
+/// 1. **Downward vertical** segment that enters a frame from above: snap the
+///    endpoint to the frame top (original #1292 behaviour).
+/// 2. **Horizontal** segment whose y sits inside the frame's header band
+///    (frame.y .. frame.y + label_header): push the y below the header so
+///    the segment routes in the frame content area, not over the label text.
 fn snap_path_to_frame_boundaries(pts: &mut [(i32, i32)], frame_rects: &[ClassGroupFrameRect]) {
     if frame_rects.is_empty() || pts.len() < 3 {
         return;
     }
+    // NOTE: Case 1 (downward-vertical segment crossing a frame top) was removed
+    // because it truncated paths TARGETING a node INSIDE a child frame at the
+    // frame border, producing bare arrowhead glyphs with no connecting line
+    // body. The frame boundary is not a valid edge endpoint for edges that pass
+    // through it on the way to an enclosed node.
     let n = pts.len();
     for i in 0..n.saturating_sub(1) {
         let (ax, ay) = pts[i];
         let (bx, by) = pts[i + 1];
 
-        // Only adjust horizontal segments (ay == by).
+        // Case 2: horizontal segment whose y falls inside a frame header band.
+        // Only check segments that are strictly horizontal (ay == by).
         if ay != by {
             continue;
         }
