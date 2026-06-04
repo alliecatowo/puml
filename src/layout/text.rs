@@ -1,4 +1,4 @@
-use crate::render::text_metrics::{chunk_text, default_monospace_width};
+use crate::render::text_metrics::default_monospace_width;
 use crate::scene::{Label, LayoutOptions, TextOverflowPolicy};
 use crate::theme::MessageAlign;
 
