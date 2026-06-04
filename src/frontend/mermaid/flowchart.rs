@@ -474,11 +474,10 @@ fn match_edge_connector_at(line: &str, pos: usize) -> Option<(EdgeKind, usize)> 
 
 /// Find the first edge connector in `line`, returning its (kind, position, length).
 fn find_first_edge_connector(line: &str) -> Option<(EdgeKind, usize, usize)> {
-    let bytes = line.as_bytes();
-    for pos in 0..bytes.len() {
-        // Only consider start positions where the next char could begin a
-        // connector ('-' or '=') to skip work.
-        match bytes[pos] {
+    // Only consider start positions where the next char could begin a
+    // connector ('-' or '=') to skip work.
+    for (pos, &byte) in line.as_bytes().iter().enumerate() {
+        match byte {
             b'-' | b'=' => {
                 if let Some((kind, len)) = match_edge_connector_at(line, pos) {
                     return Some((kind, pos, len));
