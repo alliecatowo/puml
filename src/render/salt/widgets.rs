@@ -95,6 +95,12 @@ fn render_control_or_advanced(
         SaltCellRender::ProgressBar { fill_ratio } => {
             advanced::render_progress_bar(out, cell_box, *fill_ratio, style);
         }
+        SaltCellRender::Password(label) => {
+            advanced::render_password(out, cell_box, label, style);
+        }
+        SaltCellRender::Slider { min, max, value } => {
+            advanced::render_slider(out, cell_box, *min, *max, *value, style);
+        }
         SaltCellRender::Label(_)
         | SaltCellRender::Header(_)
         | SaltCellRender::TableEmpty

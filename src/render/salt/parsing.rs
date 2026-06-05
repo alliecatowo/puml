@@ -186,6 +186,69 @@ pub(super) fn parse_salt_open_combo_payload(inner: &str) -> Option<(String, Vec<
     Some((label, items))
 }
 
+/// Parse a password field: `"*hint*"` or `"****"` — a quoted string where
+/// the content consists entirely of `*` characters or is wrapped in `*...*`.
+/// Returns the hint label (empty string for fully-masked `"****"` input).
+pub(super) fn parse_salt_password(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    // Must be a quoted string.
+    let inner = trimmed.strip_prefix('"')?.strip_suffix('"')?;
+    if inner.is_empty() {
+        return None;
+    }
+    // Pattern 1: all asterisks inside quotes → masked input with no hint.
+    if inner.chars().all(|c| c == '*') && inner.len() >= 2 {
+        return Some(String::new());
+    }
+    // Pattern 2: `*hint*` — wrapped in asterisks with non-asterisk content inside.
+    if let Some(hint) = inner.strip_prefix('*').and_then(|r| r.strip_suffix('*')) {
+        if !hint.is_empty() && !hint.contains('"') {
+            return Some(hint.to_string());
+        }
+    }
+    None
+}
+
+/// Parse a slider: `{slider:min,max,value}`, `{slider:value}`, or bare `{slider}`.
+/// Returns `(min, max, value)`. Defaults: min=0, max=100, value=50.
+pub(super) fn parse_salt_slider(line: &str) -> Option<(i32, i32, i32)> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if !lower.starts_with("{slider") && !lower.starts_with("slider") {
+        return None;
+    }
+    // Strip surrounding braces if present.
+    let inner = trimmed.trim_start_matches('{').trim_end_matches('}').trim();
+    let lower_inner = inner.to_ascii_lowercase();
+    let payload = lower_inner
+        .strip_prefix("slider")?
+        .trim_start_matches(':')
+        .trim();
+    if payload.is_empty() {
+        // Bare `{slider}` — use defaults.
+        return Some((0, 100, 50));
+    }
+    // Parse up to three comma-separated integers.
+    let nums: Vec<i32> = payload
+        .split(',')
+        .filter_map(|p| p.trim().parse::<i32>().ok())
+        .collect();
+    match nums.as_slice() {
+        [val] => Some((0, 100, (*val).clamp(0, 100))),
+        [min, max] => {
+            let lo = (*min).min(*max);
+            let hi = (*min).max(*max);
+            Some((lo, hi, (lo + hi) / 2))
+        }
+        [min, max, val] => {
+            let lo = (*min).min(*max);
+            let hi = (*min).max(*max);
+            Some((lo, hi, (*val).clamp(lo, hi)))
+        }
+        _ => Some((0, 100, 50)),
+    }
+}
+
 /// Parse a progress bar: `[=====   ]` or `[========]`.
 /// Returns fill ratio [0.0, 1.0] if the cell looks like a progress bar.
 pub(super) fn parse_salt_progress_bar(line: &str) -> Option<f32> {
@@ -205,6 +268,74 @@ pub(super) fn parse_salt_progress_bar(line: &str) -> Option<f32> {
         return None;
     }
     Some(filled as f32 / total as f32)
+}
+
+/// Unit tests for Salt widget parsers added in #1503.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_password_all_stars_returns_empty_hint() {
+        // `"****"` → password with no hint label.
+        let result = parse_salt_password("\"****\"").expect("all-star quoted string");
+        assert_eq!(result, "", "all-star password should have empty hint");
+    }
+
+    #[test]
+    fn parse_password_starred_hint_returns_hint_text() {
+        let result = parse_salt_password("\"*current password*\"").expect("starred hint");
+        assert_eq!(result, "current password");
+    }
+
+    #[test]
+    fn parse_password_plain_quoted_string_returns_none() {
+        // Plain quoted string (no asterisk wrapping) must NOT parse as password.
+        assert!(
+            parse_salt_password("\"Enter your name\"").is_none(),
+            "plain quoted string must not be a password field"
+        );
+    }
+
+    #[test]
+    fn parse_slider_bare_returns_defaults() {
+        let (min, max, val) = parse_salt_slider("{slider}").expect("bare slider");
+        assert_eq!((min, max, val), (0, 100, 50));
+    }
+
+    #[test]
+    fn parse_slider_single_value() {
+        let (min, max, val) = parse_salt_slider("{slider:60}").expect("single-value slider");
+        assert_eq!((min, max, val), (0, 100, 60));
+    }
+
+    #[test]
+    fn parse_slider_min_max_value() {
+        let (min, max, val) = parse_salt_slider("{slider:0,100,75}").expect("full slider spec");
+        assert_eq!((min, max, val), (0, 100, 75));
+    }
+
+    #[test]
+    fn parse_slider_clamps_value_to_range() {
+        let (min, max, val) = parse_salt_slider("{slider:10,50,200}").expect("out-of-range value");
+        assert_eq!(min, 10);
+        assert_eq!(max, 50);
+        assert_eq!(val, 50, "value must be clamped to max");
+    }
+
+    #[test]
+    fn parse_slider_non_slider_returns_none() {
+        assert!(parse_salt_slider("\"some text\"").is_none());
+        assert!(parse_salt_slider("[====   ]").is_none());
+        assert!(parse_salt_slider("Name").is_none());
+    }
+
+    #[test]
+    fn parse_slider_without_braces() {
+        // Bare `slider:0,100,40` (no braces) also parses.
+        let (min, max, val) = parse_salt_slider("slider:0,100,40").expect("bare syntax");
+        assert_eq!((min, max, val), (0, 100, 40));
+    }
 }
 
 /// Decode a salt cell from the encoded string `"X:text"`.

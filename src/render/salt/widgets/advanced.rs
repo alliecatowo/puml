@@ -450,3 +450,156 @@ pub(super) fn render_progress_bar(
         ));
     }
 }
+
+/// Render a password input field — identical layout to a text input but with the
+/// placeholder replaced by masking `●` dots to signal that the content is secret.
+///
+/// A small lock glyph (SVG path) at the right edge reinforces the security intent.
+pub(super) fn render_password(
+    out: &mut String,
+    cell_box: SaltCellBox,
+    label: &str,
+    style: &SaltRenderStyle,
+) {
+    let SaltCellBox { x, y, w, h } = cell_box;
+    let pad = 8;
+    let field_h = (h - 6).max(14);
+    // Input rectangle — same look as a text input field.
+    out.push_str(&format!(
+        "<rect data-salt-widget=\"password\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"3\" ry=\"3\"/>",
+        x + 4,
+        y + 3,
+        w - 8,
+        field_h,
+        style.input_fill,
+        style.border_color
+    ));
+    // Masking dots: six `●` characters in the input text color.
+    let dots = "● ● ● ● ● ●";
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\" \
+         letter-spacing=\"1\" data-salt-mask=\"true\">{}</text>",
+        x + pad,
+        y + 3 + field_h / 2 + 4,
+        style.font_family,
+        style.input_text_color,
+        dots,
+    ));
+    // Optional hint text shown to the right of the dots when a label is provided.
+    if !label.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"9\" fill=\"{}\" \
+             opacity=\"0.55\">{}</text>",
+            x + pad,
+            y + 3 + field_h - 3,
+            style.font_family,
+            style.input_text_color,
+            crate::render::svg::escape_text(label),
+        ));
+    }
+    // Small lock icon path (keyhole + body) at right edge.
+    let lock_cx = x + w - 14;
+    let lock_cy = y + h / 2;
+    out.push_str(&format!(
+        "<g data-salt-lock-icon=\"true\" transform=\"translate({},{})\" opacity=\"0.6\">\
+         <rect x=\"-5\" y=\"-4\" width=\"10\" height=\"8\" rx=\"2\" ry=\"2\" \
+         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>\
+         <path d=\"M-3,-4 C-3,-8 3,-8 3,-4\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>\
+         <circle cx=\"0\" cy=\"0\" r=\"1.5\" fill=\"{}\"/>\
+         </g>",
+        lock_cx,
+        lock_cy,
+        style.input_fill,
+        style.border_color,
+        style.border_color,
+        style.border_color,
+    ));
+}
+
+/// Render a horizontal range slider.
+///
+/// Visual layout:
+/// ```text
+///  ├──────────●─────────────────────────┤
+///  min                                 max
+/// ```
+/// The track is a rounded rectangle; the thumb is a filled circle; tick marks
+/// indicate the current value position.
+pub(super) fn render_slider(
+    out: &mut String,
+    cell_box: SaltCellBox,
+    min: i32,
+    max: i32,
+    value: i32,
+    style: &SaltRenderStyle,
+) {
+    let SaltCellBox { x, y, w, h } = cell_box;
+    let pad = 10;
+    let track_y = y + h / 2;
+    let track_x = x + pad;
+    let track_w = (w - pad * 2).max(20);
+    let track_h = 4;
+
+    // Clamp value to [min, max] and compute thumb offset.
+    let range = (max - min).max(1);
+    let clamped = value.clamp(min, max);
+    let thumb_offset = ((clamped - min) as f64 / range as f64 * track_w as f64).round() as i32;
+    let thumb_x = track_x + thumb_offset;
+    let thumb_r = 6;
+
+    // Track background.
+    out.push_str(&format!(
+        "<rect data-salt-widget=\"slider\" data-salt-min=\"{}\" data-salt-max=\"{}\" \
+         data-salt-value=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" \
+         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        min,
+        max,
+        clamped,
+        track_x,
+        track_y - track_h / 2,
+        track_w,
+        track_h,
+        track_h / 2,
+        track_h / 2,
+        style.scroll_fill,
+        style.border_color,
+    ));
+
+    // Filled portion (left of thumb) using accent color.
+    if thumb_offset > 0 {
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" \
+             fill=\"{}\"/>",
+            track_x,
+            track_y - track_h / 2,
+            thumb_offset,
+            track_h,
+            track_h / 2,
+            track_h / 2,
+            style.accent_fill,
+        ));
+    }
+
+    // Thumb circle.
+    out.push_str(&format!(
+        "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        thumb_x, track_y, thumb_r, style.panel_fill, style.border_color,
+    ));
+
+    // Min / max labels below the track.
+    let label_y = track_y + thumb_r + 11;
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"9\" fill=\"{}\">{}</text>",
+        track_x, label_y, style.font_family, style.muted_text_color, min,
+    ));
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"9\" fill=\"{}\" \
+         text-anchor=\"end\">{}</text>",
+        track_x + track_w,
+        label_y,
+        style.font_family,
+        style.muted_text_color,
+        max,
+    ));
+}

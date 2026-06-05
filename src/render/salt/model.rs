@@ -43,6 +43,17 @@ pub(super) enum SaltCellRender {
         vertical: bool,
         percent: u8,
     },
+    /// Password input field — placeholder text is masked with `●` characters.
+    /// The `label` is the visible hint text (shown masked). Used via `"*hint*"` syntax.
+    Password(String),
+    /// Horizontal range slider.
+    /// `min`/`max` define the range; `value` is the current thumb position.
+    /// Syntax: `{slider:min,max,value}` or `{slider:value}`.
+    Slider {
+        min: i32,
+        max: i32,
+        value: i32,
+    },
 }
 
 impl SaltCellRender {
@@ -68,6 +79,8 @@ impl SaltCellRender {
             Self::ScrollBar { .. } => "scrollbar",
             Self::OpenCombo { label, .. } => label,
             Self::ProgressBar { .. } => "",
+            Self::Password(label) => label,
+            Self::Slider { .. } => "",
         }
     }
 
@@ -108,6 +121,8 @@ impl SaltCellRender {
             Self::SpriteRef(_) => 48,
             Self::TableEmpty => 24,
             Self::TableSpan => 42,
+            Self::Password(text) => estimate_salt_text_width(text) + 29,
+            Self::Slider { .. } => 120,
             _ => estimate_salt_text_width(self.text()) + 20,
         }
     }
@@ -143,6 +158,8 @@ impl SaltCellRender {
                 }
             }
             Self::MenuBar(items) if items.len() > 4 => 24 + ((items.len() - 1) as i32 * 16),
+            // Slider needs extra room for the thumb (6px radius) + min/max labels below.
+            Self::Slider { .. } => 36,
             _ => 20,
         }
     }
