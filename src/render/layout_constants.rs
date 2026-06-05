@@ -340,20 +340,172 @@ pub const ACTIVITY_STEP_HEIGHT: i32 = 60;
 pub const ACTIVITY_ARROW_OUT_OFFSET: i32 = 42;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-mode layout density (Phase A — zero-behavior-change wiring, #1514)
+// Per-mode layout density (Phase B — diverged values, #1515 + #1516)
 //
 // `LayoutDensity` is the single struct through which the box-grid and class
-// renderers read their family-specific density constants.  In Phase A (this
-// wiring PR), `layout_density(mode)` returns the same values regardless of
-// `mode`, so output is byte-identical to the bare-constant reads it replaces.
+// renderers read their family-specific density constants.
 //
-// Phase B (#1515 object+class, #1516 component+deployment) will switch the
-// `StyleMode::Puml` branch to return more generous values that give PUML
-// chrome (yellow object banner, kind badges, port lugs, 3D cubes) breathing
-// room without touching PlantUML mode's tightly-tuned parity values.
+// Phase A wiring (#1514) proved byte-identical output for both modes.
+// Phase B (#1515 object+class, #1516 component+deployment) diverges the two
+// mode branches:
+//
+//   StyleMode::Puml      → PUML_MODE_* constants (pre-#1346 looser spacing,
+//                          breathing room for kind badges, port lugs, 3D cubes,
+//                          yellow banners — the current main values as of #1563)
+//   StyleMode::Plantuml  → PLANTUML_MODE_* constants (post-#1346 tight
+//                          parity values, matching upstream PlantUML 1.2026.x)
+//
+// Invariant: within a mode, layout is fully deterministic (same input →
+// byte-identical output).  Across modes the layout may differ, governed by
+// each mode's chrome requirements.  Every PUML-mode field is >= the
+// corresponding PlantUML-mode field; asserted in
+// `tests/per_mode_density_phase_b_1515_1516.rs`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 use crate::theme::StyleMode;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUML-mode density constants (#1515 object+class, #1516 component+deployment)
+//
+// These are the pre-#1346 looser values that give PUML chrome (kind badges,
+// port lugs, 3D cube extrusion, yellow object banner) enough breathing room.
+// They match the emergency-rescue values introduced in #1519 and the global
+// layout constants restored by #1563.  PUML mode is allowed to produce larger
+// canvases than PlantUML mode; visual integrity for PUML chrome takes
+// precedence over parity with upstream PlantUML output.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// PUML-mode minimum class box width.  Wider than PlantUML mode to give the
+/// kind-badge (C/I/E/A) halo clearance from the rounded header corner.
+pub const PUML_MODE_CLASS_BOX_MIN_WIDTH: i32 = 150;
+
+/// PUML-mode class horizontal canvas margin.  Wider gutter gives stereotype
+/// bands room to clear the rounded header corner.
+pub const PUML_MODE_CLASS_MARGIN_X: i32 = 16;
+
+/// PUML-mode class column gap (node separation within a rank).  Extra space
+/// lets relation-label text sit clear of adjacent node bodies.
+pub const PUML_MODE_CLASS_COL_GAP: i32 = 60;
+
+/// PUML-mode class row gap (rank separation between rows).  Extra headroom
+/// lets edge labels route between rows without grazing the chrome above/below.
+pub const PUML_MODE_CLASS_ROW_GAP: i32 = 44;
+
+/// PUML-mode maximum object node width.  Wider than PlantUML mode to give
+/// the yellow underlined banner + orange (O) badge breathing room on both sides.
+pub const PUML_MODE_OBJECT_NODE_WIDTH_MAX: i32 = 165;
+
+/// PUML-mode object column gap.  Extra space prevents stereotype band edges
+/// from visually touching adjacent node borders.
+pub const PUML_MODE_OBJECT_COL_GAP: i32 = 40;
+
+/// PUML-mode object row gap.  Extra headroom lets edge labels sit clear of the
+/// chrome row above.
+pub const PUML_MODE_OBJECT_ROW_GAP: i32 = 36;
+
+/// PUML-mode object horizontal canvas margin.
+pub const PUML_MODE_OBJECT_MARGIN_X: i32 = 16;
+
+/// PUML-mode component node box width.  Wider to give UML2 port-lug projections
+/// clearance from the left edge of the box.
+pub const PUML_MODE_COMPONENT_NODE_BOX_WIDTH: i32 = 165;
+
+/// PUML-mode component node box height (single-line label).  Taller to give
+/// port lugs vertical clearance on the node face.
+pub const PUML_MODE_COMPONENT_NODE_BOX_HEIGHT: i32 = 60;
+
+/// PUML-mode component rank extra gap (added to cell_h + inner_gap).  Extra
+/// gap prevents edge labels from grazing the port-lug chrome on the row above.
+pub const PUML_MODE_COMPONENT_RANK_EXTRA_GAP: f64 = 20.0;
+
+/// PUML-mode deployment node box width.  Wider to give the 3D-cube
+/// extrusion chrome and `<<stereotype>>` banner clearance from label text.
+pub const PUML_MODE_DEPLOYMENT_BOX_WIDTH: i32 = 140;
+
+/// PUML-mode deployment node box height.  Taller to let edge labels
+/// route above the 3D top-face slant without collision.
+pub const PUML_MODE_DEPLOYMENT_BOX_HEIGHT: i32 = 56;
+
+/// PUML-mode deployment rank extra gap.  Extra headroom prevents edge labels
+/// from overlapping the 3D extrusion on the cube in the next rank.
+pub const PUML_MODE_DEPLOYMENT_RANK_EXTRA_GAP: f64 = 30.0;
+
+/// PUML-mode package inner gap (also used as gutter between adjacent frames).
+/// Restored to pre-#1346 value by #1563 to give package-tab labels breathing room.
+pub const PUML_MODE_PKG_INNER_GAP: i32 = 40;
+
+/// PUML-mode package frame padding (left/right inset of member bounding box).
+/// Restored to pre-#1346 value by #1563.
+pub const PUML_MODE_PKG_PADDING: i32 = 24;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PlantUML-mode density constants (#1515 object+class, #1516 component+deployment)
+//
+// These are the post-#1346 parity-retune tight values that approximate
+// upstream PlantUML 1.2026.x layout density.  PlantUML mode renders flat
+// rectangles with no extra chrome, so these tighter values produce canvases
+// that match upstream PlantUML's area ratios (median ~1.61× post wave-7).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// PlantUML-mode minimum class box width.  Matches PlantUML's ~110–125px
+/// compact class box sizing for typical short names.
+pub const PLANTUML_MODE_CLASS_BOX_MIN_WIDTH: i32 = 120;
+
+/// PlantUML-mode class horizontal canvas margin.  Matches PlantUML's ~4–8px
+/// outer gutter for class diagrams.
+pub const PLANTUML_MODE_CLASS_MARGIN_X: i32 = 8;
+
+/// PlantUML-mode class column gap.  Matches PlantUML's compact inter-node
+/// spacing for class diagrams.
+pub const PLANTUML_MODE_CLASS_COL_GAP: i32 = 40;
+
+/// PlantUML-mode class row gap.  Matches PlantUML's ~25–30px inter-rank gap
+/// for class diagrams.
+pub const PLANTUML_MODE_CLASS_ROW_GAP: i32 = 30;
+
+/// PlantUML-mode maximum object node width.  Matches PlantUML's tight
+/// ~120px object box sizing (content-driven, capped tight).
+pub const PLANTUML_MODE_OBJECT_NODE_WIDTH_MAX: i32 = 130;
+
+/// PlantUML-mode object column gap.  Matches PlantUML's tight horizontal
+/// spacing for object diagrams.
+pub const PLANTUML_MODE_OBJECT_COL_GAP: i32 = 20;
+
+/// PlantUML-mode object row gap.  Matches PlantUML's compact vertical spacing
+/// for object diagrams.
+pub const PLANTUML_MODE_OBJECT_ROW_GAP: i32 = 20;
+
+/// PlantUML-mode object horizontal canvas margin.
+pub const PLANTUML_MODE_OBJECT_MARGIN_X: i32 = 8;
+
+/// PlantUML-mode component node box width.  Matches PlantUML's ~120px
+/// component box sizing.
+pub const PLANTUML_MODE_COMPONENT_NODE_BOX_WIDTH: i32 = 130;
+
+/// PlantUML-mode component node box height (single-line label).
+pub const PLANTUML_MODE_COMPONENT_NODE_BOX_HEIGHT: i32 = 50;
+
+/// PlantUML-mode component rank extra gap.
+pub const PLANTUML_MODE_COMPONENT_RANK_EXTRA_GAP: f64 = 8.0;
+
+/// PlantUML-mode deployment node box width.  Matches PlantUML's ~114px
+/// deployment node width.
+pub const PLANTUML_MODE_DEPLOYMENT_BOX_WIDTH: i32 = 110;
+
+/// PlantUML-mode deployment node box height.  Matches PlantUML's ~44px
+/// deployment node height.
+pub const PLANTUML_MODE_DEPLOYMENT_BOX_HEIGHT: i32 = 44;
+
+/// PlantUML-mode deployment rank extra gap.
+pub const PLANTUML_MODE_DEPLOYMENT_RANK_EXTRA_GAP: f64 = 16.0;
+
+/// PlantUML-mode package inner gap.  Matches PlantUML's ~20px inter-frame
+/// gutter (the #1346 tight value).
+pub const PLANTUML_MODE_PKG_INNER_GAP: i32 = 20;
+
+/// PlantUML-mode package frame padding.  Matches PlantUML's ~10–12px inset
+/// (the #1346 tight value).
+pub const PLANTUML_MODE_PKG_PADDING: i32 = 12;
 
 /// Per-mode layout density constants for the box-grid (component/deployment)
 /// and class/object renderers.  Centralises every constant that the
@@ -361,9 +513,10 @@ use crate::theme::StyleMode;
 /// (`docs/internal/forensics/2026-06-01-puml-mode-visual-integrity-audit.md`)
 /// identified as a candidate for per-mode tuning.
 ///
-/// Phase A invariant: `layout_density(StyleMode::Puml) ==
-/// layout_density(StyleMode::Plantuml)`.  Asserted in
-/// `tests/per_mode_density_wiring_1514.rs`.
+/// Phase B invariant: every `LayoutDensity` field returned for
+/// `StyleMode::Puml` is `>=` the corresponding field for
+/// `StyleMode::Plantuml`.  Asserted per-field in
+/// `tests/per_mode_density_phase_b_1515_1516.rs`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayoutDensity {
     pub class_box_min_width: i32,
@@ -386,34 +539,48 @@ pub struct LayoutDensity {
 
 /// Return the layout-density constants for the given style mode.
 ///
-/// Phase A (this wiring PR — #1514) returns identical values for both modes
-/// so output is byte-identical regardless of `mode`.  Phase B (#1515, #1516)
-/// will diverge the `StyleMode::Puml` branch with more generous spacing for
-/// PUML chrome.
+/// Phase B (#1515 object+class, #1516 component+deployment) returns diverged
+/// values: PUML mode gets the pre-#1346 looser values that give PUML chrome
+/// breathing room; PlantUML mode gets the post-#1346 tight parity values
+/// that approximate upstream PlantUML 1.2026.x.
 pub const fn layout_density(mode: StyleMode) -> LayoutDensity {
-    let common = LayoutDensity {
-        class_box_min_width: CLASS_BOX_MIN_WIDTH,
-        class_margin_x: CLASS_MARGIN_X,
-        class_col_gap: CLASS_COL_GAP,
-        class_row_gap: CLASS_ROW_GAP,
-        object_node_width_max: OBJECT_NODE_WIDTH_MAX,
-        object_col_gap: OBJECT_COL_GAP,
-        object_row_gap: OBJECT_ROW_GAP,
-        object_margin_x: OBJECT_MARGIN_X,
-        component_node_box_width: COMPONENT_NODE_BOX_WIDTH,
-        component_node_box_height: COMPONENT_NODE_BOX_HEIGHT,
-        component_rank_extra_gap: COMPONENT_RANK_EXTRA_GAP,
-        deployment_box_width: DEPLOYMENT_BOX_WIDTH,
-        deployment_box_height: DEPLOYMENT_BOX_HEIGHT,
-        deployment_rank_extra_gap: DEPLOYMENT_RANK_EXTRA_GAP,
-        pkg_inner_gap: PKG_INNER_GAP,
-        pkg_padding: PKG_PADDING,
-    };
     match mode {
-        // Phase A: both arms return the same values.  Phase B (#1515, #1516)
-        // will give the Puml arm a separate `LayoutDensity` literal.
-        StyleMode::Puml => common,
-        StyleMode::Plantuml => common,
+        StyleMode::Puml => LayoutDensity {
+            class_box_min_width: PUML_MODE_CLASS_BOX_MIN_WIDTH,
+            class_margin_x: PUML_MODE_CLASS_MARGIN_X,
+            class_col_gap: PUML_MODE_CLASS_COL_GAP,
+            class_row_gap: PUML_MODE_CLASS_ROW_GAP,
+            object_node_width_max: PUML_MODE_OBJECT_NODE_WIDTH_MAX,
+            object_col_gap: PUML_MODE_OBJECT_COL_GAP,
+            object_row_gap: PUML_MODE_OBJECT_ROW_GAP,
+            object_margin_x: PUML_MODE_OBJECT_MARGIN_X,
+            component_node_box_width: PUML_MODE_COMPONENT_NODE_BOX_WIDTH,
+            component_node_box_height: PUML_MODE_COMPONENT_NODE_BOX_HEIGHT,
+            component_rank_extra_gap: PUML_MODE_COMPONENT_RANK_EXTRA_GAP,
+            deployment_box_width: PUML_MODE_DEPLOYMENT_BOX_WIDTH,
+            deployment_box_height: PUML_MODE_DEPLOYMENT_BOX_HEIGHT,
+            deployment_rank_extra_gap: PUML_MODE_DEPLOYMENT_RANK_EXTRA_GAP,
+            pkg_inner_gap: PUML_MODE_PKG_INNER_GAP,
+            pkg_padding: PUML_MODE_PKG_PADDING,
+        },
+        StyleMode::Plantuml => LayoutDensity {
+            class_box_min_width: PLANTUML_MODE_CLASS_BOX_MIN_WIDTH,
+            class_margin_x: PLANTUML_MODE_CLASS_MARGIN_X,
+            class_col_gap: PLANTUML_MODE_CLASS_COL_GAP,
+            class_row_gap: PLANTUML_MODE_CLASS_ROW_GAP,
+            object_node_width_max: PLANTUML_MODE_OBJECT_NODE_WIDTH_MAX,
+            object_col_gap: PLANTUML_MODE_OBJECT_COL_GAP,
+            object_row_gap: PLANTUML_MODE_OBJECT_ROW_GAP,
+            object_margin_x: PLANTUML_MODE_OBJECT_MARGIN_X,
+            component_node_box_width: PLANTUML_MODE_COMPONENT_NODE_BOX_WIDTH,
+            component_node_box_height: PLANTUML_MODE_COMPONENT_NODE_BOX_HEIGHT,
+            component_rank_extra_gap: PLANTUML_MODE_COMPONENT_RANK_EXTRA_GAP,
+            deployment_box_width: PLANTUML_MODE_DEPLOYMENT_BOX_WIDTH,
+            deployment_box_height: PLANTUML_MODE_DEPLOYMENT_BOX_HEIGHT,
+            deployment_rank_extra_gap: PLANTUML_MODE_DEPLOYMENT_RANK_EXTRA_GAP,
+            pkg_inner_gap: PLANTUML_MODE_PKG_INNER_GAP,
+            pkg_padding: PLANTUML_MODE_PKG_PADDING,
+        },
     }
 }
 
@@ -455,8 +622,10 @@ const _: () = const { assert!(DEFAULT_RANK_SEPARATION >= DEFAULT_NODE_SEPARATION
 const _: () = const { assert!(PKG_HEADER_ROUTING_CLEARANCE as i32 > PKG_TAB_HEIGHT) };
 
 // PKG_PADDING < PKG_INNER_GAP: padding alone must not push adjacent frames
-// together before the inter-frame gap is applied.
+// together before the inter-frame gap is applied.  Assert for both modes.
 const _: () = const { assert!(PKG_PADDING < PKG_INNER_GAP) };
+const _: () = const { assert!(PUML_MODE_PKG_PADDING < PUML_MODE_PKG_INNER_GAP) };
+const _: () = const { assert!(PLANTUML_MODE_PKG_PADDING < PLANTUML_MODE_PKG_INNER_GAP) };
 
 // ACTIVITY_ARROW_OUT_OFFSET < ACTIVITY_STEP_HEIGHT: the arrow exit must be
 // within the step slot.
