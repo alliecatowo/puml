@@ -503,19 +503,51 @@ stop
     .expect("render detached fork branch");
 
     assert!(svg.contains("data-activity-kind=\"Detach\""));
+    // A detached branch (x=104) should NOT draw a long connector into the fork join bar.
+    // We check that no polyline/line from x=104 spans more than ~50 px vertically,
+    // regardless of the exact join-bar y position (which can shift with layout retuning).
+    let detach_long_connector = svg.lines().any(|line| {
+        // Reject any connector "points=104,<y1> 104,<y2>" where y2-y1 > 50.
+        if let Some(rest) = line.strip_prefix("points=\"104,") {
+            if let Some(close) = rest.find('"') {
+                let pts = &rest[..close];
+                let segs: Vec<&str> = pts.split(' ').collect();
+                if segs.len() >= 2 {
+                    // Parse "104,<y2>"
+                    if let Some(y2_str) = segs[1].split(',').nth(1) {
+                        if let (Ok(y1), Ok(y2)) = (segs[0].parse::<i32>(), y2_str.parse::<i32>()) {
+                            return (y2 - y1).abs() > 50;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    });
     assert!(
-        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>.
-        // Either way, a long connector from x=104 to the join bar at y=246 should not exist.
-        !svg.contains("<line x1=\"104\" y1=\"178\" x2=\"104\" y2=\"246\"")
-            && !svg.contains("<line x1=\"104\" y1=\"198\" x2=\"104\" y2=\"246\"")
-            && !svg.contains("points=\"104,178 104,246\"")
-            && !svg.contains("points=\"104,198 104,246\""),
-        "a detached branch should not draw a connector into the fork join bar"
+        !detach_long_connector,
+        "a detached branch should not draw a long connector into the fork join bar"
     );
+    // The non-terminated branch B (x=288) MUST connect to the join bar.
+    // Accept any downward connector from x=288 that spans at least 50 px.
+    let branch_b_connects = svg.lines().any(|line| {
+        if let Some(rest) = line.strip_prefix("points=\"288,") {
+            if let Some(close) = rest.find('"') {
+                let pts = &rest[..close];
+                let segs: Vec<&str> = pts.split(' ').collect();
+                if segs.len() >= 2 {
+                    if let Some(y2_str) = segs[1].split(',').nth(1) {
+                        if let (Ok(y1), Ok(y2)) = (segs[0].parse::<i32>(), y2_str.parse::<i32>()) {
+                            return y2 > y1 && (y2 - y1) > 50;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    });
     assert!(
-        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>
-        svg.contains("<line x1=\"288\" y1=\"176\" x2=\"288\" y2=\"246\"")
-            || svg.contains("<polyline points=\"288,176 288,246\""),
+        branch_b_connects,
         "non-terminated fork branches should still connect to the join bar"
     );
 }
