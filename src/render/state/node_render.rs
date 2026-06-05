@@ -503,13 +503,30 @@ pub(super) fn render_node<'a>(
                                 stroke, sw, dash, hidden, dir
                             ));
                             if let Some(label) = &t.label {
+                                // #1485: exclude the source and target nodes from
+                                // the obstacle set so the label can be placed in
+                                // the space between them (e.g. "play" on a
+                                // Stopped→Playing back-edge in a parallel region).
+                                // Without this, nodes spanning the full composite
+                                // width block all candidates and the label escapes
+                                // to the left of the composite box.
+                                let placed_for_edge: std::collections::BTreeMap<
+                                    String,
+                                    PlacedNode,
+                                > = inner_placed
+                                    .iter()
+                                    .filter(|(k, _)| {
+                                        k.as_str() != t.from.as_str() && k.as_str() != t.to.as_str()
+                                    })
+                                    .map(|(k, v)| (k.clone(), *v))
+                                    .collect();
                                 let layout = place_state_transition_label(
                                     label,
                                     ox1,
                                     oy1,
                                     ox2,
                                     oy2,
-                                    &inner_placed,
+                                    &placed_for_edge,
                                     occupied_label_bounds,
                                 );
                                 render_state_transition_label(
@@ -543,13 +560,25 @@ pub(super) fn render_node<'a>(
                         if let Some(label) = &t.label {
                             let (lx1, ly1, lx2, ly2) =
                                 state_orthogonal_label_segment(x1, y1, x2, y2);
+                            // #1485: exclude source and target nodes from the
+                            // obstacle set so intra-composite edge labels are
+                            // not pushed outside the composite boundary by the
+                            // nodes they connect.
+                            let placed_for_edge: std::collections::BTreeMap<String, PlacedNode> =
+                                inner_placed
+                                    .iter()
+                                    .filter(|(k, _)| {
+                                        k.as_str() != t.from.as_str() && k.as_str() != t.to.as_str()
+                                    })
+                                    .map(|(k, v)| (k.clone(), *v))
+                                    .collect();
                             let layout = place_state_transition_label(
                                 label,
                                 lx1,
                                 ly1,
                                 lx2,
                                 ly2,
-                                &inner_placed,
+                                &placed_for_edge,
                                 occupied_label_bounds,
                             );
                             render_state_transition_label(
