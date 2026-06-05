@@ -136,11 +136,17 @@ pub fn bounds(node: Node<'_, '_>) -> Bounds {
 }
 
 pub fn text_content(node: Node<'_, '_>) -> String {
+    // Collect text nodes, inserting a space between each sibling tspan's
+    // text so that multi-line wrapped labels reconstruct as readable strings
+    // (e.g. "<tspan>Receive order</tspan><tspan>notification</tspan>"
+    // becomes "Receive order notification" rather than "Receive ordernotification").
     node.descendants()
         .filter_map(|descendant| descendant.text())
-        .collect::<String>()
-        .trim()
-        .to_string()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub fn has_class(node: Node<'_, '_>, class_name: &str) -> bool {

@@ -1,5 +1,6 @@
 use crate::model::{FamilyDocument, FamilyNodeKind};
 use crate::render::svg::escape_text;
+use crate::render::text_metrics::wrap_line_by_chars;
 use crate::theme::ActivityStyle;
 
 use super::arrows::{emit_activity_arrow, ActivityArrowStyle, NodeBbox};
@@ -527,11 +528,30 @@ pub(super) fn emit_activity_action_box(
     font_color: &str,
     sdl_shape: Option<&str>,
 ) {
+    // #1550: wrap label text to fit the box width.
+    // Monospace font-size 12 ≈ 7.3 px/char; allow a 4px margin on each side.
+    let char_w_px = 7i32;
+    let inner_w = (box_w - 8).max(1);
+    let max_chars = ((inner_w / char_w_px) as usize).max(1);
+    let wrapped_lines = wrap_line_by_chars(label, max_chars);
+    let n_lines = wrapped_lines.len() as i32;
+
+    // Box height is always 36px so the layout slot (step_h=44) is never
+    // violated.  Tighter line-height (12px) keeps 2–3 lines within 36px.
+    let h = 36i32;
+    let line_h = 12i32;
+
     let x = cx - box_w / 2;
     let top = y + 4;
-    let h = 36i32;
     let bottom = top + h;
-    let text_y = y + 27;
+    // Single-line: use the original y+27 baseline to avoid any SVG drift on
+    // unchanged diagrams.  Multi-line: vertically centre the text block.
+    let first_line_y = if n_lines == 1 {
+        y + 27
+    } else {
+        let text_block_h = n_lines * line_h;
+        top + (h - text_block_h) / 2 + line_h - 2
+    };
 
     match sdl_shape {
         None => {
@@ -624,8 +644,28 @@ pub(super) fn emit_activity_action_box(
         }
     }
 
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-        cx, text_y, escape_text(font_color), escape_text(label)
-    ));
+    if n_lines == 1 {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+            cx, first_line_y, escape_text(font_color), escape_text(&wrapped_lines[0])
+        ));
+    } else {
+        // Carry `x` on the <text> element so SVG helpers that read the `x`
+        // attribute can still locate the node's horizontal position.
+        out.push_str(&format!(
+            "<text x=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">",
+            cx,
+            escape_text(font_color)
+        ));
+        for (idx, line) in wrapped_lines.iter().enumerate() {
+            let ty = first_line_y + idx as i32 * line_h;
+            out.push_str(&format!(
+                "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+                cx,
+                ty,
+                escape_text(line)
+            ));
+        }
+        out.push_str("</text>");
+    }
 }

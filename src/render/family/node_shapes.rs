@@ -484,8 +484,24 @@ pub(super) fn render_family_node_shape_styled(
     }
 
     // Label
+    // #1525: for non-rectangular glyphs (actor/person stick figures and
+    // boundary/control/entity ellipses) the shape outline intersects the
+    // default label position (cy+6).  Move the label to clear the glyph.
+    // Rectangular shapes (node, frame, component, database…) keep the
+    // centred placement.
     let (label_x, label_y) = match node.kind {
         FamilyNodeKind::Interface | FamilyNodeKind::Port => (cx, cy + 28),
+        // Stick figures: label placed below the bounding box so it does not
+        // cross the arm or leg lines.  For the typical h=44 deployment node
+        // the arms and leg tips are at y+h-8; placing the baseline at y+h+13
+        // keeps the name clearly under the glyph (PlantUML parity).
+        FamilyNodeKind::Actor | FamilyNodeKind::Person => (cx, y + h + 13),
+        // Boundary/Control/Entity: the small ellipse (ry≈10) is drawn at
+        // cy-4; the label at cy+6 lands on its bottom edge.  Push it down
+        // below the ellipse and the horizontal rule beneath it.
+        FamilyNodeKind::Boundary | FamilyNodeKind::Control | FamilyNodeKind::Entity => {
+            (cx, cy + 22)
+        }
         _ => (cx, cy + 6),
     };
     let label_last_y = render_centered_multiline_text(
