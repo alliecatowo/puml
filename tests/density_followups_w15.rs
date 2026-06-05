@@ -55,6 +55,37 @@ fn usecase_multi_system_boundary_width_le_1500() {
     );
 }
 
+/// #1484 — usecase/06 routing artifacts: no waypoint x-coordinate may exceed the
+/// canvas width + 20px margin (guards against the x=1352 U-turn regression).
+#[test]
+fn usecase_multi_system_boundary_no_extreme_waypoints() {
+    let svg = render_fixture("docs/examples/usecase/06_multi_system_boundary.puml");
+    let (w, _h) = svg_dimensions(&svg);
+    let max_allowed = w + 20;
+    // Scan all polyline `points="..."` attributes for individual x values.
+    let mut pos = 0;
+    while let Some(start) = svg[pos..].find("points=\"") {
+        let abs_start = pos + start + 8; // skip 'points="'
+        let end = svg[abs_start..].find('"').unwrap_or(0) + abs_start;
+        let points_str = &svg[abs_start..end];
+        for token in points_str.split_whitespace() {
+            if let Some((x_str, _y_str)) = token.split_once(',') {
+                if let Ok(x) = x_str.parse::<u32>() {
+                    assert!(
+                        x <= max_allowed,
+                        "usecase/06 has waypoint x={x} which exceeds canvas+20 ({max_allowed}); \
+                         U-turn routing artifact regression (#1484)"
+                    );
+                }
+            }
+        }
+        pos = end + 1;
+        if pos >= svg.len() {
+            break;
+        }
+    }
+}
+
 /// #1360 — activity bespoke slots: 02_if_then_else.puml must be ≤ 500 px wide and ≤ 500 px tall.
 #[test]
 fn activity_if_then_else_fits_500x500() {

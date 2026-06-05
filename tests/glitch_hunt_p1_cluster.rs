@@ -102,6 +102,31 @@ fn state_10_unmute_mute_labels_separated() {
 }
 
 // ---------------------------------------------------------------------------
+// #1485 – state/10 "play" label inside composite
+// ---------------------------------------------------------------------------
+
+#[test]
+fn state_10_play_label_inside_composite() {
+    // #1485: "play" (Stopped→Playing) was placed at x=56 (off-canvas, left of the
+    // composite box whose left edge is x≈90).  After the fix, the label must be
+    // to the right of the composite left wall (x > 90) and inside the composite
+    // right wall (x < 270).
+    let svg = render(STATE_10);
+    let play_xs = state_label_xs(&svg, "play");
+    assert!(!play_xs.is_empty(), "no 'play' label found in state-10 SVG");
+    let px = play_xs[0];
+    assert!(
+        px > 90,
+        "play label x={px} is to the left of the composite boundary (expected > 90); \
+         label is still escaping the composite box (#1485)"
+    );
+    assert!(
+        px < 270,
+        "play label x={px} is past the composite right boundary (expected < 270)"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // #1454 – class/32 multiplicity label clearance
 // ---------------------------------------------------------------------------
 
