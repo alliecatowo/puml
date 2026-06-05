@@ -139,6 +139,13 @@ ALLOWLIST_REASONS = {
     # Was ~597 lines on main; grew to 601 after wave-22 blueprint dark-canvas fix
     # added 4 lines to the preset definition. Split tracked in #590.
     "src/theme/presets.rs": "wave-22 blueprint dark-canvas background added 4 lines; split tracked in #590",
+    # New file added for Mermaid flowchart / graph adapter (Phase complete, #1568).
+    # 704 lines implementing the full flowchart→PlantUML translation: node-shape
+    # detection, edge-direction parsing, subgraph mapping, style token lowering, and
+    # direction normalization. The translator is a single tightly-coupled recursive
+    # descent; splitting into sub-modules would require threading parser cursor and
+    # node-map state through all sub-parsers. Split tracked in #590.
+    "src/frontend/mermaid/flowchart.rs": "wave-22 Mermaid flowchart adapter added as new 704-line file; split tracked in #590",
 }
 
 
