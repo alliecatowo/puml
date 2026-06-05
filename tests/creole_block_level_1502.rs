@@ -72,11 +72,11 @@ fn heading_svg_contains_bold_and_text() {
 // Bullet lists
 // ---------------------------------------------------------------------------
 
-/// Depth-1 `* item` uses `- ` as the prefix.
+/// Depth-1 `* item` uses the Unicode BULLET glyph (•) as the prefix (#1554).
 #[test]
 fn bullet_list_depth1_prefix() {
     let lines = tokenize_creole("* Alpha");
-    assert_eq!(lines[0][0].text, "- ");
+    assert_eq!(lines[0][0].text, "\u{2022} "); // • BULLET
     assert_eq!(lines[0][1].text, "Alpha");
 }
 
