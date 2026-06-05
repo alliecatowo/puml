@@ -458,7 +458,7 @@ pub fn render_cloud_icon_box(
     let icon_cy = y + header_h + icon_zone_h / 2;
 
     if let Some(glyph_svg) = glyph {
-        let icon_size = (icon_zone_h - 8).min(24).max(10);
+        let icon_size = (icon_zone_h - 8).clamp(10, 24);
         let scale = icon_size as f64 / 16.0;
         out.push_str(&format!(
             "<g transform=\"translate({icon_cx},{icon_cy}) scale({scale:.3})\" \
