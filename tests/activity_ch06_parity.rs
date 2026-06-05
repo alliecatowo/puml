@@ -503,51 +503,41 @@ stop
     .expect("render detached fork branch");
 
     assert!(svg.contains("data-activity-kind=\"Detach\""));
-    // A detached branch (x=104) should NOT draw a long connector into the fork join bar.
-    // We check that no polyline/line from x=104 spans more than ~50 px vertically,
-    // regardless of the exact join-bar y position (which can shift with layout retuning).
-    let detach_long_connector = svg.lines().any(|line| {
-        // Reject any connector "points=104,<y1> 104,<y2>" where y2-y1 > 50.
-        if let Some(rest) = line.strip_prefix("points=\"104,") {
-            if let Some(close) = rest.find('"') {
-                let pts = &rest[..close];
-                let segs: Vec<&str> = pts.split(' ').collect();
-                if segs.len() >= 2 {
-                    // Parse "104,<y2>"
-                    if let Some(y2_str) = segs[1].split(',').nth(1) {
-                        if let (Ok(y1), Ok(y2)) = (segs[0].parse::<i32>(), y2_str.parse::<i32>()) {
-                            return (y2 - y1).abs() > 50;
-                        }
+    // A detached branch (left fork, x≈104) should NOT draw a long connector into the
+    // fork join bar.  We extract all points="..." attributes from the SVG and check that
+    // no polyline starting at x=104 spans more than ~50 px vertically.
+    let polyline_spans_over_50_from_x = |svg: &str, x: i32| -> bool {
+        let mut search = svg;
+        while let Some(start) = search.find("points=\"") {
+            search = &search[start + 8..];
+            if let Some(end) = search.find('"') {
+                let pts_str = &search[..end];
+                let pts: Vec<(i32, i32)> = pts_str
+                    .split_whitespace()
+                    .filter_map(|pair| {
+                        let mut it = pair.splitn(2, ',');
+                        let px: i32 = it.next()?.parse().ok()?;
+                        let py: i32 = it.next()?.parse().ok()?;
+                        Some((px, py))
+                    })
+                    .collect();
+                if let (Some(&(x0, y0)), Some(&(_, y_last))) = (pts.first(), pts.last()) {
+                    if x0 == x && (y_last - y0).abs() > 50 {
+                        return true;
                     }
                 }
             }
         }
         false
-    });
+    };
     assert!(
-        !detach_long_connector,
+        !polyline_spans_over_50_from_x(&svg, 104),
         "a detached branch should not draw a long connector into the fork join bar"
     );
-    // The non-terminated branch B (x=288) MUST connect to the join bar.
-    // Accept any downward connector from x=288 that spans at least 50 px.
-    let branch_b_connects = svg.lines().any(|line| {
-        if let Some(rest) = line.strip_prefix("points=\"288,") {
-            if let Some(close) = rest.find('"') {
-                let pts = &rest[..close];
-                let segs: Vec<&str> = pts.split(' ').collect();
-                if segs.len() >= 2 {
-                    if let Some(y2_str) = segs[1].split(',').nth(1) {
-                        if let (Ok(y1), Ok(y2)) = (segs[0].parse::<i32>(), y2_str.parse::<i32>()) {
-                            return y2 > y1 && (y2 - y1) > 50;
-                        }
-                    }
-                }
-            }
-        }
-        false
-    });
+    // The non-terminated branch B (right fork, x≈288) MUST connect downward to the join bar
+    // with a span > 50 px.
     assert!(
-        branch_b_connects,
+        polyline_spans_over_50_from_x(&svg, 288),
         "non-terminated fork branches should still connect to the join bar"
     );
 }
