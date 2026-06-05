@@ -368,16 +368,24 @@ fn extract_text_contents(svg: &str) -> Vec<String> {
 
 /// Strip XML tags from the inner content of a `<text>` element, preserving
 /// the visible text only.
+///
+/// Closing tags (`</tspan>` etc.) emit a space so that labels wrapped across
+/// multiple `<tspan>` elements reconstruct as word-separated text — e.g.
+/// `<tspan>Update</tspan><tspan>inventory</tspan>` → `"Update inventory"`.
 fn strip_inner_tags(inner: &str) -> String {
     let bytes = inner.as_bytes();
     let mut out = String::with_capacity(inner.len());
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'<' {
-            // Skip to matching '>'.
             let rest = &inner[i..];
+            // Closing tag: emit a space so adjacent tspan texts stay separated.
+            let is_closing = rest.starts_with("</");
             if let Some(j) = rest.find('>') {
                 i += j + 1;
+                if is_closing {
+                    out.push(' ');
+                }
                 continue;
             } else {
                 break;
@@ -386,7 +394,9 @@ fn strip_inner_tags(inner: &str) -> String {
         out.push(bytes[i] as char);
         i += 1;
     }
-    decode_xml_entities(out.trim())
+    // Collapse multiple spaces to one and trim.
+    let collapsed: String = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    decode_xml_entities(&collapsed)
 }
 
 fn decode_xml_entities(s: &str) -> String {
