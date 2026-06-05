@@ -513,8 +513,7 @@ fn class_effective_phase_d_line_thickness_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert!(
@@ -554,8 +553,7 @@ fn class_effective_phase_d_round_corner_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -595,8 +593,7 @@ fn class_effective_phase_d_font_weight_bold_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -636,8 +633,7 @@ fn class_effective_phase_d_line_style_dashed_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Dashed);
@@ -678,8 +674,7 @@ fn class_effective_phase_d_h_align_right_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.h_align, EffectiveHAlign::Right);
@@ -734,9 +729,11 @@ fn class_effective_phase_d_shadowing_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.shadowing = false; // start with false
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle {
+        shadowing: false, // start with false
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert!(
@@ -775,8 +772,7 @@ fn class_effective_phase_d_padding_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.padding, 12, "Padding 12 must set padding=12");
@@ -812,8 +808,7 @@ fn class_effective_phase_d_max_width_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -852,8 +847,7 @@ fn class_effective_phase_d_min_width_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -893,8 +887,7 @@ fn class_effective_phase_d_line_style_dotted_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Dotted);
@@ -931,8 +924,7 @@ fn class_effective_phase_d_line_style_solid_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Solid);
@@ -972,8 +964,7 @@ fn class_effective_phase_d_h_align_left_from_style_builder() {
     };
     builder.push(rule);
 
-    let mut class_style = ClassStyle::default();
-    class_style.style_builder = Some(Box::new(builder));
+    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.h_align, EffectiveHAlign::Left);
