@@ -1,7 +1,6 @@
 use super::model::{timing_control_i64, timing_signal_is_analog, TimingLayout, TimingModel};
 use super::*;
 mod analog;
-use crate::render::text_metrics::ellipsize_with_dots;
 use analog::{render_timing_analog_signal, TimingAnalogRender};
 use std::collections::BTreeMap;
 
@@ -452,23 +451,27 @@ fn render_state_label(
     bold: bool,
     cell_w: i32,
 ) {
-    // #1524: truncate label to fit cell width so adjacent labels never overlap.
-    // Monospace font-size 11 ≈ 7 px/char; keep a 4 px margin on each side.
-    // Very narrow cells (< 20 px) get the full label — they are either tail
-    // extensions or zero-width bookmarks, never truly adjacent to another label.
-    let truncated = if cell_w < 20 {
-        display.to_string()
-    } else {
-        let char_w_px = 7usize;
-        let inner_px = (cell_w.saturating_sub(8)).max(0) as usize;
-        let max_chars = inner_px.checked_div(char_w_px).unwrap_or(usize::MAX);
-        ellipsize_with_dots(display, max_chars)
-    };
+    // #1524: squish label to fit cell width so adjacent labels never collide.
+    // Estimate text width at 11px monospace (~6.5 px/char).  If the label
+    // would overflow the cell, use SVG textLength to compress it into the
+    // available space.  Narrow cells (≤ 10 px) carry the full label without
+    // compression — they are tail extensions that have no visible neighbour.
+    let char_w_px = 6.5_f32;
+    let label_w = (display.chars().count() as f32 * char_w_px).ceil() as i32;
+    let available = (cell_w - 8).max(0);
     let weight = if bold { " font-weight=\"600\"" } else { "" };
-    out.push_str(&format!(
-        "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight}>{}</text>",
-        escape_text(&truncated)
-    ));
+    if available > 10 && label_w > available {
+        let squeezed = available.max(16);
+        out.push_str(&format!(
+            "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight} textLength=\"{squeezed}\" lengthAdjust=\"spacingAndGlyphs\">{}</text>",
+            escape_text(display)
+        ));
+    } else {
+        out.push_str(&format!(
+            "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight}>{}</text>",
+            escape_text(display)
+        ));
+    }
 }
 
 fn waveform_end_t(layout: &TimingLayout) -> i64 {
