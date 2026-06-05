@@ -456,11 +456,7 @@ fn render_state_label(
     // Monospace font-size 11 ≈ 7 px/char; keep a 4 px margin on each side.
     let char_w_px = 7usize;
     let inner_px = (cell_w.saturating_sub(8)).max(0) as usize;
-    let max_chars = if char_w_px > 0 {
-        inner_px / char_w_px
-    } else {
-        usize::MAX
-    };
+    let max_chars = inner_px.checked_div(char_w_px).unwrap_or(usize::MAX);
     let truncated = ellipsize_with_dots(display, max_chars);
     let weight = if bold { " font-weight=\"600\"" } else { "" };
     out.push_str(&format!(
