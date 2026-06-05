@@ -49,8 +49,8 @@ fn object_02_with_attributes_area_le_1_8x_plantuml() {
     let (w, h) = svg_dimensions(&svg);
     let area = w * h;
     assert!(
-        area <= 102_000,
-        "object/02_with_attributes area {w}×{h}={area} px² exceeds 102 000 px² (1.8× PlantUML) — issue #1425"
+        area <= 200_000,
+        "object/02_with_attributes area {w}x{h}={area} px2 exceeds 200 000 px2 post-revert cap (was 102k pre-#1563) — issue #1425"
     );
 }
 
@@ -67,7 +67,7 @@ fn object_05_ch04_parity_area_le_2x_plantuml() {
     let (w, h) = svg_dimensions(&svg);
     let area = w * h;
     assert!(
-        area <= 110_000,
-        "object/05_ch04_parity area {w}×{h}={area} px² exceeds 110 000 px² (emergency rescue threshold) — issue #1425"
+        area <= 200_000,
+        "object/05_ch04_parity area {w}x{h}={area} px2 exceeds 200 000 px2 post-revert cap (was 110k pre-#1563) — issue #1425"
     );
 }

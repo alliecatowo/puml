@@ -1,5 +1,12 @@
 //! Cross-family density sweep — wave-7 pass-2 area-ratio guards.
 //!
+//! 2026-06-04 (density-revert PR #1563): the global layout_constants reverted to
+//! their pre-#1346 looser values (rank_sep 44→80, node_sep 30→60, group_padding
+//! 12→28, canvas_margin 8→40, pkg_padding 12→24, pkg_inner_gap 20→40) to restore
+//! PUML chrome breathing room. The wave-7 ratio guards below act as *regression
+//! caps* rather than parity targets — per-mode density wiring
+//! (#1514/#1515/#1516) will reintroduce tight PlantUML-mode ratios later.
+//!
 //! After prior per-family density retunes (waves 4-6), 8 fixtures remained in
 //! the 1.55–2.45× range.  This wave-7 pass-2 addresses the structural causes:
 //!
@@ -71,10 +78,9 @@ fn attr_u64(tag: &str, attr: &str) -> u64 {
 // Class family pass-2 guards (≤1.75× after wave-7)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// class/01_basic: was 1.82×, wave-7 target ≤1.75×.
-/// 2026-06-01 emergency visual rescue (#1519): CLASS_BOX_MIN_WIDTH 120→150 for
-/// breathing room; threshold relaxed to ≤1.85× to accommodate the intentional
-/// visual-integrity improvement (parity metrics intentionally regress).
+/// class/01_basic: density-revert (#1563) intentionally regresses parity to
+/// restore PUML chrome breathing room. Cap relaxed to ≤3.5× as a regression
+/// guard (pre-#1427 was 3.24×; post-revert is similar territory).
 #[test]
 fn w7_class_01_area_ratio_le_1x75() {
     let src = include_str!("../docs/examples/class/01_basic.puml");
@@ -82,13 +88,13 @@ fn w7_class_01_area_ratio_le_1x75() {
     let pl_area: u64 = 134 * 276; // 36,984 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 185,
-        "class/01 area ratio {:.2}× exceeds 1.85× emergency-rescue threshold (area={area}, pl={pl_area})",
+        ratio_x100 <= 350,
+        "class/01 area ratio {:.2}× exceeds 3.50× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// class/03_composition: was 1.58×, target ≤1.75×.
+/// class/03_composition: density-revert (#1563) regression cap ≤3.5×.
 #[test]
 fn w7_class_03_area_ratio_le_1x75() {
     let src = include_str!("../docs/examples/class/03_composition_aggregation.puml");
@@ -96,13 +102,13 @@ fn w7_class_03_area_ratio_le_1x75() {
     let pl_area: u64 = 148 * 384; // 56,832 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 175,
-        "class/03 area ratio {:.2}× exceeds 1.75× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 350,
+        "class/03 area ratio {:.2}× exceeds 3.50× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// class/05_visibility: was 1.61×, target ≤1.75×.
+/// class/05_visibility: density-revert (#1563) regression cap ≤3.5×.
 #[test]
 fn w7_class_05_area_ratio_le_1x75() {
     let src = include_str!("../docs/examples/class/05_visibility.puml");
@@ -110,13 +116,13 @@ fn w7_class_05_area_ratio_le_1x75() {
     let pl_area: u64 = 259 * 198; // 51,282 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 175,
-        "class/05 area ratio {:.2}× exceeds 1.75× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 350,
+        "class/05 area ratio {:.2}× exceeds 3.50× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// class/11_generics: was 1.63×, target ≤1.75×.
+/// class/11_generics: density-revert (#1563) regression cap ≤3.5×.
 #[test]
 fn w7_class_11_area_ratio_le_1x75() {
     let src = include_str!("../docs/examples/class/11_generics.puml");
@@ -124,8 +130,8 @@ fn w7_class_11_area_ratio_le_1x75() {
     let pl_area: u64 = 361 * 316; // 114,076 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 175,
-        "class/11 area ratio {:.2}× exceeds 1.75× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 350,
+        "class/11 area ratio {:.2}× exceeds 3.50× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
@@ -134,8 +140,7 @@ fn w7_class_11_area_ratio_le_1x75() {
 // Component family pass-2 guards
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// component/02_interfaces: was 2.30×, target ≤1.5× after removing max(400) floor
-/// and conditional group_top_overhead.
+/// component/02_interfaces: density-revert (#1563) regression cap ≤5.0× (pre-#1431 was 4.09×).
 #[test]
 fn w7_component_02_area_ratio_le_1x5() {
     let src = include_str!("../docs/examples/component/02_interfaces.puml");
@@ -143,14 +148,14 @@ fn w7_component_02_area_ratio_le_1x5() {
     let pl_area: u64 = 280 * 205; // 57,400 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 150,
-        "component/02 area ratio {:.2}× exceeds 1.5× wave-7 target (area={area}, pl={pl_area})",
+        ratio_x100 <= 500,
+        "component/02 area ratio {:.2}× exceeds 5.0× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// component/08 (grouped): was 1.67×, must remain ≤2.0× and unchanged by flat
-/// diagram fixes (groups still get full pkg_pad + pkg_tab overhead).
+/// component/08 (grouped): density-revert (#1563) regression cap ≤4.0× — grouped
+/// diagrams gain extra padding from the larger PKG_PADDING/PKG_INNER_GAP.
 #[test]
 fn w7_component_08_grouped_not_regressed() {
     let src = include_str!("../docs/examples/component/08_cloud_db_queue_stereotypes.puml");
@@ -158,9 +163,8 @@ fn w7_component_08_grouped_not_regressed() {
     let pl_area: u64 = 660 * 803; // 529,980 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 200,
-        "component/08 area ratio {:.2}× exceeds 2.0× (area={area}, pl={pl_area}) — \
-         wave-7 flat fixes may have unexpectedly shrunk grouped component diagrams",
+        ratio_x100 <= 400,
+        "component/08 area ratio {:.2}× exceeds 4.0× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
@@ -169,10 +173,8 @@ fn w7_component_08_grouped_not_regressed() {
 // Deployment family pass-2 guards
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// deployment/02_databases: was 2.43×, wave-7 target ≤1.5×.
-/// 2026-06-01 emergency visual rescue (#1519): DEPLOYMENT_BOX_WIDTH 110→140 for
-/// breathing room; threshold relaxed to ≤1.65× to accommodate the intentional
-/// visual-integrity improvement (parity metrics intentionally regress).
+/// deployment/02_databases: density-revert (#1563) regression cap ≤5.0×
+/// (pre-#1426 was 4.90×).
 #[test]
 fn w7_deployment_02_area_ratio_le_1x5() {
     let src = include_str!("../docs/examples/deployment/02_databases.puml");
@@ -180,14 +182,14 @@ fn w7_deployment_02_area_ratio_le_1x5() {
     let pl_area: u64 = 254 * 322; // 81,788 px²
     let ratio_x100 = area * 100 / pl_area;
     assert!(
-        ratio_x100 <= 165,
-        "deployment/02 area ratio {:.2}× exceeds 1.65× emergency-rescue threshold (area={area}, pl={pl_area})",
+        ratio_x100 <= 500,
+        "deployment/02 area ratio {:.2}× exceeds 5.0× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// deployment/03_cloud: ratio may legitimately dip below 1.0× for text-heavy
-/// fixtures.  Guard: 0.70× ≤ ratio ≤ 1.5×.
+/// deployment/03_cloud: density-revert (#1563) regression cap ≤4.0×
+/// (pre-#1426 was 3.68×). Lower bound preserved for text-overflow check.
 #[test]
 fn w7_deployment_03_area_ratio_in_range() {
     let src = include_str!("../docs/examples/deployment/03_cloud.puml");
@@ -201,15 +203,14 @@ fn w7_deployment_03_area_ratio_in_range() {
         ratio_x100 as f64 / 100.0
     );
     assert!(
-        ratio_x100 <= 150,
-        "deployment/03 area ratio {:.2}× exceeds 1.5× upper bound (area={area}, pl={pl_area})",
+        ratio_x100 <= 400,
+        "deployment/03 area ratio {:.2}× exceeds 4.0× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }
 
-/// deployment/06_kubernetes (deeply grouped): conditional group_top_overhead
-/// must preserve full overhead for grouped diagrams.  Was 1.16×, must stay
-/// between 0.80× and 1.8× (pre-wave-7 bounds).
+/// deployment/06_kubernetes (deeply grouped): density-revert (#1563) regression
+/// cap ≤3.0× — deeply nested groups inflate substantially with looser padding.
 #[test]
 fn w7_deployment_06_grouped_not_regressed() {
     let src = include_str!("../docs/examples/deployment/06_kubernetes_pods_containers.puml");
@@ -223,9 +224,8 @@ fn w7_deployment_06_grouped_not_regressed() {
         ratio_x100 as f64 / 100.0
     );
     assert!(
-        ratio_x100 <= 180,
-        "deployment/06 area ratio {:.2}× exceeds 1.80× — deployment-06 regressed \
-         (area={area}, pl={pl_area})",
+        ratio_x100 <= 300,
+        "deployment/06 area ratio {:.2}× exceeds 3.0× post-revert regression cap (area={area}, pl={pl_area})",
         ratio_x100 as f64 / 100.0
     );
 }

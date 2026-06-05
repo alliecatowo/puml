@@ -28,7 +28,7 @@
 /// the parity density retune (#1346). The constraint
 /// `DEFAULT_RANK_SEPARATION >= DEFAULT_NODE_SEPARATION` is preserved via the
 /// compile-time assertion below.
-pub const DEFAULT_RANK_SEPARATION: f64 = 44.0;
+pub const DEFAULT_RANK_SEPARATION: f64 = 80.0;
 
 /// Default horizontal gap between nodes that share the same rank, in user
 /// units.  Applies to all diagram families that use the hierarchical layout
@@ -36,7 +36,7 @@ pub const DEFAULT_RANK_SEPARATION: f64 = 44.0;
 ///
 /// Tuned to approximate PlantUML's default node separation (~30px) as part of
 /// the parity density retune (#1346).
-pub const DEFAULT_NODE_SEPARATION: f64 = 30.0;
+pub const DEFAULT_NODE_SEPARATION: f64 = 60.0;
 
 /// Default inset padding inside a group/package container, in user units.
 /// The rendered group frame rectangle is expanded outward by this amount on
@@ -44,7 +44,7 @@ pub const DEFAULT_NODE_SEPARATION: f64 = 30.0;
 ///
 /// Tuned to approximate PlantUML's default group padding (~10-12px) as part
 /// of the parity density retune (#1346).
-pub const DEFAULT_GROUP_PADDING: f64 = 12.0;
+pub const DEFAULT_GROUP_PADDING: f64 = 28.0;
 
 /// Default left/top canvas margin, in user units.  Also used as the x-origin
 /// for the first node column.  Titles and package-label tabs are drawn inside
@@ -52,7 +52,7 @@ pub const DEFAULT_GROUP_PADDING: f64 = 12.0;
 ///
 /// Tuned to approximate PlantUML's default canvas margin (~5-10px) as part of
 /// the parity density retune (#1346).
-pub const DEFAULT_CANVAS_MARGIN: f64 = 8.0;
+pub const DEFAULT_CANVAS_MARGIN: f64 = 40.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Orthogonal edge routing (graph_layout.rs / route_edges)
@@ -111,14 +111,14 @@ pub const PKG_TAB_HEIGHT: i32 = 40;
 /// Tuned to approximate PlantUML's package padding (~10-12px) as part of the
 /// parity density retune (#1346). The compile-time invariant
 /// `PKG_PADDING < PKG_INNER_GAP` is preserved below.
-pub const PKG_PADDING: i32 = 12;
+pub const PKG_PADDING: i32 = 24;
 
 /// Horizontal gap between component nodes inside a package, and also the
 /// minimum visible gutter between adjacent package frames, in user units.
 ///
 /// Tuned to approximate PlantUML's package inner gap (~20px) as part of the
 /// parity density retune (#1346).
-pub const PKG_INNER_GAP: i32 = 20;
+pub const PKG_INNER_GAP: i32 = 40;
 
 /// Width of a component box in the component/deployment renderer, in user
 /// units.  All component nodes share this fixed width; height varies with label
