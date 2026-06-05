@@ -20,9 +20,18 @@ pub(super) struct BoxGridPendingLabel {
     pub(super) edge_points: Vec<(i32, i32)>,
 }
 
+/// Height of the dark header band rendered at the top of each component /
+/// deployment package frame (dark rect 40 px + 8 px extension = 48 px).
+/// Edge labels whose baseline falls within [frame.y, frame.y + FRAME_HEADER_H)
+/// are pushed above the header so the text is not obscured (#1496).
+const FRAME_HEADER_H: i32 = 48;
+
+#[allow(clippy::type_complexity)] // pkg_frame_boxes pairs a rect tuple with its member names; matches box_grid_edges convention
 pub(super) fn render_box_grid_relation_labels(
     out: &mut String,
     positions: &BTreeMap<String, (i32, i32, i32, i32)>,
+    // (x, y, w, h) of each package frame, paired with its member node-id list.
+    pkg_frame_boxes: &[((i32, i32, i32, i32), &[String])],
     pending_labels: Vec<BoxGridPendingLabel>,
 ) {
     let mut by_target: BTreeMap<String, Vec<usize>> = BTreeMap::new();
@@ -168,6 +177,21 @@ pub(super) fn render_box_grid_relation_labels(
     }
 
     clear_labels_from_obstacles(&pending_labels, &mut adjusted_labels, positions);
+
+    // #1496: push edge labels out of frame-header bands so they don't overlap
+    // the white package-name text rendered in the dark top strip of each frame.
+    for entry in adjusted_labels.iter_mut().flatten() {
+        let (lx, ly, _, _) = entry;
+        for &((fx, fy, fw, _fh), _members) in pkg_frame_boxes {
+            let header_top = fy;
+            let header_bot = fy + FRAME_HEADER_H;
+            // Is the label baseline inside the header band horizontally and vertically?
+            if *lx >= fx && *lx <= fx + fw && *ly >= header_top && *ly < header_bot {
+                // Push the label above the header with a small gap.
+                *ly = header_top - 6;
+            }
+        }
+    }
 
     for (idx, entry) in adjusted_labels.iter_mut().enumerate() {
         if entry.is_none() {

@@ -954,7 +954,7 @@ pub(super) fn render_box_grid_relations_and_labels(
         }
     }
 
-    render_box_grid_relation_labels(out, positions, pending_labels);
+    render_box_grid_relation_labels(out, positions, pkg_frame_boxes, pending_labels);
 }
 
 /// Check if a line segment (x1,y1)→(x2,y2) intersects a rectangle (bx,by,bw,bh).
