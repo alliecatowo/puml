@@ -513,7 +513,10 @@ fn class_effective_phase_d_line_thickness_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert!(
@@ -553,7 +556,10 @@ fn class_effective_phase_d_round_corner_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -593,7 +599,10 @@ fn class_effective_phase_d_font_weight_bold_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -633,7 +642,10 @@ fn class_effective_phase_d_line_style_dashed_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Dashed);
@@ -674,7 +686,10 @@ fn class_effective_phase_d_h_align_right_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.h_align, EffectiveHAlign::Right);
@@ -772,7 +787,10 @@ fn class_effective_phase_d_padding_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.padding, 12, "Padding 12 must set padding=12");
@@ -808,7 +826,10 @@ fn class_effective_phase_d_max_width_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -847,7 +868,10 @@ fn class_effective_phase_d_min_width_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(
@@ -887,7 +911,10 @@ fn class_effective_phase_d_line_style_dotted_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Dotted);
@@ -924,7 +951,10 @@ fn class_effective_phase_d_line_style_solid_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.line_style, EffectiveLineStyle::Solid);
@@ -964,8 +994,299 @@ fn class_effective_phase_d_h_align_left_from_style_builder() {
     };
     builder.push(rule);
 
-    let class_style = ClassStyle { style_builder: Some(Box::new(builder)), ..ClassStyle::default() };
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
     let inline = FamilyNodeInlineStyle::default();
     let result = class_node_effective_style(&class_style, None, &inline, None, None);
     assert_eq!(result.h_align, EffectiveHAlign::Left);
+}
+
+/// Phase D: `LineThickness` with a keyword string value parses as float.
+#[test]
+fn class_effective_phase_d_line_thickness_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::LineThickness, StyleValue::Keyword("2.5".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert!(
+        (result.stroke_width - 2.5).abs() < 0.01,
+        "keyword LineThickness 2.5 must set stroke_width≈2.5, got {}",
+        result.stroke_width
+    );
+}
+
+/// Phase D: `RoundCorner` with a keyword string parses as int.
+#[test]
+fn class_effective_phase_d_round_corner_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::RoundCorner, StyleValue::Keyword("12".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.style_round_corner,
+        Some(12),
+        "keyword RoundCorner 12 must set style_round_corner=Some(12)"
+    );
+}
+
+/// Phase D: `Padding` with a keyword multi-value string parses the first token.
+#[test]
+fn class_effective_phase_d_padding_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::Padding, StyleValue::Keyword("8 4".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.padding, 8,
+        "keyword Padding '8 4' must parse first token=8"
+    );
+}
+
+/// Phase D: `Margin` with a keyword string exercises the Margin parsing path
+/// (`_sb_margin` placeholder, stored for Phase D follow-up wiring).
+#[test]
+fn class_effective_phase_d_margin_keyword_branch_no_crash() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::Margin, StyleValue::Keyword("10".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    // Margin is parsed but not yet wired to the output struct (Phase D follow-up).
+    // This exercises the Keyword branch of the _sb_margin parsing closure.
+    let _result = class_node_effective_style(&class_style, None, &inline, None, None);
+}
+
+/// Phase D: `MaximumWidth` with a keyword string parses as int.
+#[test]
+fn class_effective_phase_d_max_width_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::MaximumWidth, StyleValue::Keyword("150".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.max_width, 150,
+        "keyword MaximumWidth 150 must set max_width=150"
+    );
+}
+
+/// Phase D: `MinimumWidth` with a keyword string parses as int.
+#[test]
+fn class_effective_phase_d_min_width_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::MinimumWidth, StyleValue::Keyword("60".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.min_width, 60,
+        "keyword MinimumWidth 60 must set min_width=60"
+    );
+}
+
+/// Phase D: `FontWeight` with a numeric keyword (e.g., "300") parses as u32.
+#[test]
+fn class_effective_phase_d_font_weight_numeric_keyword_branch() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::FontWeight, StyleValue::Keyword("300".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+    let class_style = ClassStyle {
+        style_builder: Some(Box::new(builder)),
+        ..ClassStyle::default()
+    };
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(
+        result.font_weight, 300,
+        "keyword FontWeight '300' must parse numeric value 300"
+    );
 }

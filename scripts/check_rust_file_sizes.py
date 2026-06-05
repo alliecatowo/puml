@@ -130,7 +130,7 @@ ALLOWLIST_REASONS = {
     # tests exercising the style_block_color tier and Phase D style_builder paths
     # (~458 lines net). Tests are tightly coupled to the cascade resolver; sub-module
     # extraction would require moving the resolver itself. Split tracked in #590.
-    "src/theme/shared_cascade_tests.rs": "wave-17 Phase D #1416 coverage uplift added 17 tests; split tracked in #590",
+    "src/theme/shared_cascade_tests.rs": "wave-17 Phase D #1416 coverage uplift added 24 tests (+7 keyword-branch coverage); split tracked in #590",
 }
 
 
