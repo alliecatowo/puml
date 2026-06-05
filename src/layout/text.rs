@@ -225,25 +225,26 @@ pub(super) fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     let mut current = String::new();
     // Track the *visual* length of `current` separately from its raw length.
     let mut current_visual: usize = 0;
+    // Threshold above which a single word is chunked at the column boundary.
+    // Common words like "deterministically" (17 chars) over a 14-char column
+    // stay whole — but a 60-char URL or identifier still gets chunked so it
+    // can't bust the scene viewBox. Tune knob; 2× max_chars matches the
+    // observation that 1.5× rarely matters but 3× starts to overflow notes.
+    let hard_chunk_limit = max_chars.saturating_mul(2).max(28);
     for word in words {
         let word_visual = visual_char_count(word);
+        let word_raw = word.chars().count();
+        let is_markup_word = word_visual < word_raw;
         if current.is_empty() {
-            if word_visual <= max_chars {
+            if word_visual <= hard_chunk_limit || is_markup_word {
+                // Keep word atomic — small overflow OK, markup must not split.
                 current.push_str(word);
                 current_visual = word_visual;
             } else {
-                // Word is visually longer than max_chars.  If it contains
-                // markup (visual_len < raw len) keep it whole rather than
-                // splitting mid-tag; otherwise chunk it the old way.
-                let word_raw = word.chars().count();
-                if word_visual < word_raw {
-                    // Contains markup — don't chunk it.
-                    current.push_str(word);
-                    current_visual = word_visual;
-                } else {
-                    for chunk in chunk_text(word, max_chars) {
-                        lines.push(chunk);
-                    }
+                // Word is very long and plain text — chunk so it can't bust
+                // the scene viewBox (overflow tests guard this).
+                for chunk in chunk_text(word, max_chars) {
+                    lines.push(chunk);
                 }
             }
             continue;
@@ -256,12 +257,7 @@ pub(super) fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
             current_visual = next_visual;
         } else {
             lines.push(current);
-            let word_raw = word.chars().count();
-            if word_visual <= max_chars {
-                current = word.to_string();
-                current_visual = word_visual;
-            } else if word_visual < word_raw {
-                // Contains markup — keep whole.
+            if word_visual <= hard_chunk_limit || is_markup_word {
                 current = word.to_string();
                 current_visual = word_visual;
             } else {

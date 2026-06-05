@@ -57,6 +57,10 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#7eb4d4".to_string(),
                 group_background_color: "#0f2d4a".to_string(),
                 group_border_color: "#7eb4d4".to_string(),
+                // Blueprint is a dark theme — set a matching canvas background so
+                // the white (#ffffff) arrows are visible against the page (#0a1628).
+                // Without this, white arrows are invisible on the default white canvas.
+                background_color: Some("#0a1628".to_string()),
                 ..SequenceStyle::default()
             },
         }),

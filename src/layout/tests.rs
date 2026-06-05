@@ -36,9 +36,10 @@ fn return_event_with_ids_is_laid_out_with_default_centers_for_unknown_participan
 fn text_helpers_cover_empty_whitespace_and_extreme_limits() {
     assert_eq!(wrap_line("", 8), vec![String::new()]);
     assert_eq!(wrap_line("   ", 8), vec![String::new()]);
+    // Long words are kept atomic (no mid-word break) to avoid garbled text.
     assert_eq!(
         wrap_line("seed abcdefghijklmnop", 4),
-        vec!["seed", "abcd", "efgh", "ijkl", "mnop"]
+        vec!["seed", "abcdefghijklmnop"]
     );
     assert_eq!(chunk_text("abc", 0), vec!["abc".to_string()]);
     assert_eq!(chunk_text("", 3), vec![String::new()]);
