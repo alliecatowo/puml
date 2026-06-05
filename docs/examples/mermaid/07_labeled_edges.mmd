@@ -1,0 +1,8 @@
+flowchart TD
+    Start --> Check{Check condition}
+    Check -- true --> Process[Do work]
+    Check -- false --> Skip[Skip work]
+    Process --> Merge[Merge results]
+    Skip --> Merge
+    Merge --> Notify[Send notification]
+    Notify -.-> Log[(Audit log)]

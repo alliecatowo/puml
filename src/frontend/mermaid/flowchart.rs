@@ -62,11 +62,24 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
     // during the main pass so we can prepend component declarations before them.
     let mut body_lines: Vec<(String, Span)> = Vec::new();
     let mut offset = 0usize;
+    // Track whether we are inside a `---` YAML front-matter block.
+    // Mermaid supports optional front matter before the diagram directive.
+    let mut in_front_matter = false;
 
     for raw_line in source.lines() {
         let span = Span::new(offset, offset + raw_line.len());
         offset += raw_line.len() + 1;
         let line = strip_mermaid_comment(raw_line).trim();
+
+        // Handle YAML front-matter blocks (`---` ... `---`).
+        if line == "---" {
+            in_front_matter = !in_front_matter;
+            continue;
+        }
+        if in_front_matter {
+            continue;
+        }
+
         if line.is_empty() || line.starts_with("%%") {
             continue;
         }
@@ -104,12 +117,28 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
             continue;
         }
 
+        // Strip a trailing semicolon: Mermaid allows `A-.->B;` as valid syntax.
+        let line = line.trim_end_matches(';').trim();
+
         if is_unsupported_flowchart_directive(line) {
             return Err(Diagnostic::error_code(
                 "E_MERMAID_FEATURE_LOSS",
                 format!("unsupported mermaid flowchart construct would be dropped: `{line}`"),
             )
             .with_span(span));
+        }
+
+        // `direction` keyword inside a subgraph — silently skip.
+        // Mermaid uses it to override subgraph layout direction; we ignore it
+        // since PlantUML's component/package layout doesn't have an equivalent.
+        let lower_line = line.to_ascii_lowercase();
+        if lower_line == "direction tb"
+            || lower_line == "direction td"
+            || lower_line == "direction bt"
+            || lower_line == "direction lr"
+            || lower_line == "direction rl"
+        {
+            continue;
         }
 
         // Try to parse as an arrow statement first.
@@ -139,6 +168,11 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
         }
 
         // Subgraph / end – map to `package`/`end`.
+        // Bare `subgraph` keyword (no label) is valid Mermaid — treat as anonymous.
+        if line.eq_ignore_ascii_case("subgraph") {
+            body_lines.push(("package {".to_string(), span));
+            continue;
+        }
         if let Some(rest) = line.strip_prefix("subgraph ") {
             let (sub_id, sub_label) = parse_subgraph_header(rest.trim());
             body_lines.push((format!("package \"{sub_label}\" {{"), span));
@@ -184,6 +218,101 @@ fn is_unsupported_flowchart_directive(line: &str) -> bool {
         lower.split_ascii_whitespace().next(),
         Some("click" | "linkstyle" | "accdescr" | "acctitle")
     )
+}
+
+/// Normalize Mermaid's variable-length edge connectors to their canonical
+/// 3/4-character forms so the downstream parser only needs to handle those.
+///
+/// Mermaid allows extra dashes/dots/equals to make a link span more ranks:
+/// - `---->` and `----->` etc. → `-->`   (more dashes before arrow head)
+/// - `---->` (no head variant) → `---`
+/// - `====>` etc.              → `==>`
+/// - `-..->` etc.              → `-.->` (extra dots inside dotted arrow)
+/// - `A-- text ---> B`         → normalised mid-text label form
+///
+/// We do a simple pass: collapse runs of `-` between `--` and `>` to `-->`,
+/// runs of `=` to `==>`, and extra dots to `-.->`.
+fn normalize_edge_connectors(line: &str) -> std::borrow::Cow<'_, str> {
+    // Fast path: no extra dashes/dots (the vast majority of lines).
+    // Detect: 4+ consecutive `-`, 4+ consecutive `=`, or `-.` followed by `.`
+    // (two or more dots inside a dotted connector, e.g. `-..-`).
+    let bytes = line.as_bytes();
+    let has_long_run = bytes.windows(4).any(|w| {
+        (w[0] == b'-' && w[1] == b'-' && w[2] == b'-' && w[3] == b'-')
+            || (w[0] == b'=' && w[1] == b'=' && w[2] == b'=' && w[3] == b'=')
+            || (w[0] == b'-' && w[1] == b'.' && w[2] == b'.' && w[3] == b'.')
+    }) || bytes.windows(3).any(|w| {
+        // Two-dot dotted forms: `-..` starts a multi-dot connector.
+        w[0] == b'-' && w[1] == b'.' && w[2] == b'.'
+    });
+    if !has_long_run {
+        return std::borrow::Cow::Borrowed(line);
+    }
+
+    // Walk the string, collapsing multi-char connector runs.
+    let mut result = String::with_capacity(line.len());
+    let chars: Vec<char> = line.chars().collect();
+    let n = chars.len();
+    let mut i = 0;
+    while i < n {
+        // Detect start of a connector run.
+        // Dotted: `-.-`, `-..->` etc. (starts with `-.`)
+        if i + 1 < n && chars[i] == '-' && chars[i + 1] == '.' {
+            // Consume `-` then run of `.` then optional `-` then optional `>`/`x`/`o`
+            result.push('-');
+            i += 1; // consumed `-`
+                    // skip extra dots
+            while i < n && chars[i] == '.' {
+                i += 1;
+            }
+            // normalise to single `.`
+            result.push('.');
+            // optional trailing `-` before terminator
+            if i < n && chars[i] == '-' {
+                result.push('-');
+                i += 1;
+            }
+            // terminator `>`, `x`, `o` if present
+            if i < n && (chars[i] == '>' || chars[i] == 'x' || chars[i] == 'o') {
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+        // Solid: `---`, `---->` etc. (2+ dashes)
+        if i + 1 < n && chars[i] == '-' && chars[i + 1] == '-' {
+            // consume all consecutive `-`
+            while i < n && chars[i] == '-' {
+                i += 1;
+            }
+            // terminator `>`, `x`, `o` or end of connector
+            if i < n && (chars[i] == '>' || chars[i] == 'x' || chars[i] == 'o') {
+                result.push_str("--");
+                result.push(chars[i]);
+                i += 1;
+            } else {
+                result.push_str("---");
+            }
+            continue;
+        }
+        // Thick: `===`, `====>` etc.
+        if i + 1 < n && chars[i] == '=' && chars[i + 1] == '=' {
+            while i < n && chars[i] == '=' {
+                i += 1;
+            }
+            if i < n && (chars[i] == '>' || chars[i] == 'x' || chars[i] == 'o') {
+                result.push_str("==");
+                result.push(chars[i]);
+                i += 1;
+            } else {
+                result.push_str("===");
+            }
+            continue;
+        }
+        result.push(chars[i]);
+        i += 1;
+    }
+    std::borrow::Cow::Owned(result)
 }
 
 /// Extract the id from a generated `component <id>` or `component "label" as <id>`
@@ -232,12 +361,26 @@ fn parse_subgraph_header(rest: &str) -> (String, String) {
 /// Returns `(id, label)`. The bracket order is significant: longer / more
 /// specific delimiters must be tried before the shorter ones so
 /// `A((label))` is not misread as `A(label)` with a stray `)`.
+///
+/// Shapes handled:
+/// - `A[label]`    rectangle
+/// - `A(label)`    rounded rectangle
+/// - `A((label))`  circle
+/// - `A([label])`  stadium / pill
+/// - `A[[label]]`  subroutine
+/// - `A[(label)]`  cylinder / DB
+/// - `A{label}`    rhombus / diamond
+/// - `A{{label}}`  hexagon
+/// - `A>label]`    asymmetric / flag
 fn parse_flowchart_node_id_label(token: &str) -> (String, Option<String>) {
-    // Order matters: try `[[`, `[(`, `((`, `[`, `{`, `(`, then asymmetric `>...]`.
+    // Order matters: longer / more specific delimiters must be tried before the
+    // shorter ones that share a prefix.
     for (open, close) in [
         ("[[", "]]"),
         ("[(", ")]"),
+        ("([", "])"),
         ("((", "))"),
+        ("{{", "}}"),
         ("[", "]"),
         ("{", "}"),
         ("(", ")"),
@@ -388,6 +531,9 @@ fn ignored_mermaid_style_attrs(attrs: &str) -> String {
 /// in any of the recognized Mermaid forms. Used to distinguish a
 /// "pure node declaration" line from an "arrow expression" line.
 fn line_contains_edge_connector(line: &str) -> bool {
+    // Normalise first so multi-dash forms (`---->`, etc.) are detected.
+    let normalised = normalize_edge_connectors(line);
+    let line = normalised.as_ref();
     // Note: `-->` and friends, `==>`/`===`, `-.->`/`-.-`, plus the
     // terminator variants `--x`/`--o`/`==x`/`==o`/`-.-x`/`-.-o`.
     // Order doesn't matter here — any hit means "not a pure node".
@@ -495,6 +641,9 @@ fn find_first_edge_connector(line: &str) -> Option<(EdgeKind, usize, usize)> {
 /// Returns `(generated_plantuml_lines, [referenced_ids])`. The id list
 /// drives the bare-id backfill step in the outer adapter.
 fn adapt_flowchart_edge(line: &str) -> Option<(String, Vec<String>)> {
+    // Normalise multi-dash forms before parsing so `---->` is treated as `-->`.
+    let normalised = normalize_edge_connectors(line);
+    let line = normalised.as_ref();
     let (kind, arrow_pos, arrow_len) = find_first_edge_connector(line)?;
     let lhs_raw = line[..arrow_pos].trim();
     let rhs_raw = line[arrow_pos + arrow_len..].trim();
