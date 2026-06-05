@@ -270,6 +270,29 @@ pub(super) fn parse_salt_progress_bar(line: &str) -> Option<f32> {
     Some(filled as f32 / total as f32)
 }
 
+/// Decode a salt cell from the encoded string `"X:text"`.
+pub(super) fn decode_salt_cell(s: &str) -> SaltCellRender {
+    if let Some(rest) = s.strip_prefix("I:") {
+        SaltCellRender::Input(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("B:") {
+        SaltCellRender::Button(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("C:") {
+        SaltCellRender::Combo(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("CX:") {
+        SaltCellRender::CheckboxChecked(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("CU:") {
+        SaltCellRender::CheckboxUnchecked(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("RO:") {
+        SaltCellRender::RadioOn(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("RF:") {
+        SaltCellRender::RadioOff(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("L:") {
+        SaltCellRender::Label(rest.to_string())
+    } else {
+        SaltCellRender::Label(s.to_string())
+    }
+}
+
 /// Unit tests for Salt widget parsers added in #1503.
 #[cfg(test)]
 mod tests {
@@ -335,28 +358,5 @@ mod tests {
         // Bare `slider:0,100,40` (no braces) also parses.
         let (min, max, val) = parse_salt_slider("slider:0,100,40").expect("bare syntax");
         assert_eq!((min, max, val), (0, 100, 40));
-    }
-}
-
-/// Decode a salt cell from the encoded string `"X:text"`.
-pub(super) fn decode_salt_cell(s: &str) -> SaltCellRender {
-    if let Some(rest) = s.strip_prefix("I:") {
-        SaltCellRender::Input(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("B:") {
-        SaltCellRender::Button(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("C:") {
-        SaltCellRender::Combo(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("CX:") {
-        SaltCellRender::CheckboxChecked(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("CU:") {
-        SaltCellRender::CheckboxUnchecked(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("RO:") {
-        SaltCellRender::RadioOn(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("RF:") {
-        SaltCellRender::RadioOff(rest.to_string())
-    } else if let Some(rest) = s.strip_prefix("L:") {
-        SaltCellRender::Label(rest.to_string())
-    } else {
-        SaltCellRender::Label(s.to_string())
     }
 }
