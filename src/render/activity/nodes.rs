@@ -544,9 +544,14 @@ pub(super) fn emit_activity_action_box(
     let x = cx - box_w / 2;
     let top = y + 4;
     let bottom = top + h;
-    // Vertically centre the text block inside the box.
-    let text_block_h = n_lines * line_h;
-    let first_line_y = top + (h - text_block_h) / 2 + line_h - 2;
+    // Single-line: use the original y+27 baseline to avoid any SVG drift on
+    // unchanged diagrams.  Multi-line: vertically centre the text block.
+    let first_line_y = if n_lines == 1 {
+        y + 27
+    } else {
+        let text_block_h = n_lines * line_h;
+        top + (h - text_block_h) / 2 + line_h - 2
+    };
 
     match sdl_shape {
         None => {
