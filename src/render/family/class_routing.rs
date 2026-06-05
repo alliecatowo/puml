@@ -5,6 +5,7 @@ use super::class_members::{
 };
 use super::class_relation_labels::resolve_relation_endpoint_key;
 use super::class_types::{ClassEndpointAnchor, ClassNodeBox, ClassPortSide};
+use super::group_frames::ClassGroupFrameRect;
 
 pub(super) fn class_port_side_from_box_anchor(
     x: i32,
@@ -141,11 +142,25 @@ pub(super) fn class_nudge_label_y(
     label_half_w: i32,
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
 ) -> (i32, i32) {
+    class_nudge_label_y_with_frames(lx, ly, label_half_w, node_boxes, &[])
+}
+
+/// Variant of `class_nudge_label_y` that also avoids group-frame header bands
+/// (#1496).  When `group_frames` is non-empty, any label that would land inside
+/// a frame's header band (frame.y .. frame.y + frame.label_header) is pushed
+/// above the band.
+pub(super) fn class_nudge_label_y_with_frames(
+    lx: i32,
+    ly: i32,
+    label_half_w: i32,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+    group_frames: &[ClassGroupFrameRect],
+) -> (i32, i32) {
     // Height of the text block above the baseline (monospace 11px font).
     const LABEL_TEXT_H: i32 = 14;
     let mut adjusted_y = ly;
     for _ in 0..8 {
-        let overlap = node_boxes.values().find(|bbox| {
+        let node_overlap = node_boxes.values().find(|bbox| {
             let box_bottom = bbox.y + bbox.h;
             lx + label_half_w >= bbox.x - 8
                 && lx - label_half_w <= bbox.x + bbox.w + 8
@@ -157,17 +172,31 @@ pub(super) fn class_nudge_label_y(
                 // text top clips the box bottom from below (#1551).
                 && adjusted_y < box_bottom + LABEL_TEXT_H
         });
-        match overlap {
-            Some(bbox) => {
-                let box_bottom = bbox.y + bbox.h;
-                if adjusted_y > box_bottom {
-                    // Baseline below box bottom — text top clips in: push DOWN.
-                    adjusted_y = box_bottom + 18;
-                } else {
-                    // Baseline inside the box — push UP.
-                    adjusted_y = bbox.y - 18;
-                }
+        if let Some(bbox) = node_overlap {
+            let box_bottom = bbox.y + bbox.h;
+            if adjusted_y > box_bottom {
+                // Baseline below box bottom — text top clips in: push DOWN.
+                adjusted_y = box_bottom + 18;
+            } else {
+                // Baseline inside the box — push UP.
+                adjusted_y = bbox.y - 18;
             }
+            continue;
+        }
+        // Also avoid group-frame header bands: push the label above the header
+        // when it would land inside frame.y .. frame.y + label_header (#1496).
+        let frame_overlap = group_frames.iter().find(|frame| {
+            let header_top = frame.y;
+            let header_bot = frame.y + frame.label_header;
+            lx + label_half_w >= frame.x
+                && lx - label_half_w <= frame.x + frame.w
+                && adjusted_y + 2 >= header_top
+                && adjusted_y - 14 <= header_bot
+        });
+        match frame_overlap {
+            // Push above the frame top with a comfortable 14 px margin so the
+            // label is visually clear of the header band (#1496).
+            Some(frame) => adjusted_y = frame.y - 14,
             None => break,
         }
     }
