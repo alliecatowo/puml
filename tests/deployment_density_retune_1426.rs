@@ -1,5 +1,10 @@
 //! Structural density-ratio assertions for the deployment family per-shape retune (#1426).
 //!
+//! 2026-06-04 (density-revert PR #1563): global layout_constants reverted to pre-#1346
+//! looser values. Deployment-family per-shape constants (DEPLOYMENT_BOX_WIDTH, etc.)
+//! remain post-#1426, but the global rank/node separation and pkg padding now push
+//! ratios above the original ≤2.5× target. Caps relaxed as regression guards.
+//!
 //! These tests guard against regressions that would re-inflate deployment diagram canvas
 //! sizes back toward the 2-5× PlantUML area ratios observed in the wave-4 audit:
 //!
@@ -73,9 +78,9 @@ PostgreSQL --> BackupServer : backup
     let plantuml_area: u64 = 81_788;
     let ratio = our_area as f64 / plantuml_area as f64;
     assert!(
-        ratio <= 2.5,
-        "deployment/02_databases area ratio {:.2}× exceeds 2.5× target \
-         (our canvas {}px², PlantUML reference {}px²)",
+        ratio <= 5.0,
+        "deployment/02_databases area ratio {:.2}x exceeds 5.0x post-revert regression cap \
+         (our canvas {}px2, PlantUML reference {}px2)",
         ratio,
         our_area,
         plantuml_area,
@@ -105,9 +110,9 @@ Lambda --> S3 : reads
     let plantuml_area: u64 = 68_456;
     let ratio = our_area as f64 / plantuml_area as f64;
     assert!(
-        ratio <= 2.5,
-        "deployment/03_cloud area ratio {:.2}× exceeds 2.5× target \
-         (our canvas {}px², PlantUML reference {}px²)",
+        ratio <= 4.0,
+        "deployment/03_cloud area ratio {:.2}x exceeds 4.0x post-revert regression cap \
+         (our canvas {}px2, PlantUML reference {}px2)",
         ratio,
         our_area,
         plantuml_area,
@@ -170,9 +175,9 @@ ENV --> API : mTLS
     let plantuml_area: u64 = 783_626;
     let ratio = our_area as f64 / plantuml_area as f64;
     assert!(
-        ratio <= 1.8,
-        "deployment/06_kubernetes area ratio {:.2}× exceeds 1.8× target \
-         (our canvas {}px², PlantUML reference {}px²)",
+        ratio <= 3.0,
+        "deployment/06_kubernetes area ratio {:.2}x exceeds 3.0x post-revert regression cap \
+         (our canvas {}px2, PlantUML reference {}px2)",
         ratio,
         our_area,
         plantuml_area,

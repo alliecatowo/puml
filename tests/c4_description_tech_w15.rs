@@ -157,19 +157,19 @@ fn c4_layout_density_matches_plantuml_within_parity_bounds() {
     let w = svg_attr(&out, "width");
     let h = svg_attr(&out, "height");
     assert!(
-        w <= 1600,
-        "C4 container canvas width must stay ≤1600px after density retune; got {w}"
+        w <= 2400,
+        "C4 container canvas width must stay <=2400px post-revert (#1563); got {w}"
     );
     assert!(
-        h <= 1100,
-        "C4 container canvas height must stay ≤1100px after density retune; got {h}"
+        h <= 1800,
+        "C4 container canvas height must stay <=1800px post-revert (#1563); got {h}"
     );
     let area = (w as i64) * (h as i64);
     let plantuml_area: i64 = 989 * 774;
     let ratio_x100 = (area * 100) / plantuml_area;
     assert!(
-        ratio_x100 <= 145,
-        "C4 container area ratio must be ≤1.45× PlantUML's; got {}.{:02}× ({}×{} = {} px²)",
+        ratio_x100 <= 300,
+        "C4 container area ratio must be <=3.00x PlantUML's post-revert (#1563); got {}.{:02}x ({}x{} = {} px2)",
         ratio_x100 / 100,
         ratio_x100 % 100,
         w,

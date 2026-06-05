@@ -1,5 +1,9 @@
 //! Structural area-ratio guards for the component-family density retune.
 //!
+//! 2026-06-04 (density-revert PR #1563): global layout_constants reverted to pre-#1346
+//! looser values. Component-family per-shape constants stay post-retune, but ratios
+//! inflate due to looser rank/node separation. Caps raised as regression guards.
+//!
 //! Wave-4 audit identified three component fixtures with area ratios well above
 //! the ≤1.5× target vs PlantUML:
 //!   - component/02_interfaces:          4.09×
@@ -66,8 +70,8 @@ fn component_02_interfaces_area_ratio_le_3x() {
     let area = (w as u64) * (h as u64);
     let ratio_x100 = area * 100 / PLANTUML_02_AREA;
     assert!(
-        ratio_x100 <= 300,
-        "component/02_interfaces area ratio {:.2}× exceeds 3.0× ({}×{} = {} px²; plantuml est {})",
+        ratio_x100 <= 500,
+        "component/02_interfaces area ratio {:.2}x exceeds 5.0x post-revert cap ({}x{} = {} px2; plantuml est {})",
         ratio_x100 as f64 / 100.0,
         w,
         h,
@@ -86,8 +90,8 @@ fn component_07_ports_lollipop_area_ratio_le_2x5() {
     let area = (w as u64) * (h as u64);
     let ratio_x100 = area * 100 / PLANTUML_07_AREA;
     assert!(
-        ratio_x100 <= 250,
-        "component/07_ports_lollipop area ratio {:.2}× exceeds 2.5× ({}×{} = {} px²; plantuml est {})",
+        ratio_x100 <= 400,
+        "component/07_ports_lollipop area ratio {:.2}x exceeds 4.0x post-revert cap ({}x{} = {} px2; plantuml est {})",
         ratio_x100 as f64 / 100.0,
         w,
         h,
@@ -106,8 +110,8 @@ fn component_08_cloud_db_queue_area_ratio_le_2x5() {
     let area = (w as u64) * (h as u64);
     let ratio_x100 = area * 100 / PLANTUML_08_AREA;
     assert!(
-        ratio_x100 <= 250,
-        "component/08_cloud_db_queue area ratio {:.2}× exceeds 2.5× ({}×{} = {} px²; plantuml est {})",
+        ratio_x100 <= 400,
+        "component/08_cloud_db_queue area ratio {:.2}x exceeds 4.0x post-revert cap ({}x{} = {} px2; plantuml est {})",
         ratio_x100 as f64 / 100.0,
         w,
         h,

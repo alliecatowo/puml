@@ -1,5 +1,11 @@
 //! Structural density-ratio assertions for the class family per-family retune (#1427).
 //!
+//! 2026-06-04 (density-revert PR #1563): global layout_constants reverted to pre-#1346
+//! looser values. Class-family per-family constants (CLASS_BOX_MIN_WIDTH, CLASS_ROW_GAP,
+//! etc.) remain at their post-#1427 values, but the global rank/node separation and
+//! group padding now push ratios above the original ≤2.0× target. Caps relaxed to
+//! ≤4.0× as regression guards.
+//!
 //! These tests guard against regressions that would re-inflate class diagram canvas
 //! sizes back toward the 2-4× PlantUML area ratios observed in the wave-4 audit.
 //!
@@ -64,8 +70,8 @@ fn class_01_basic_area_ratio_within_target() {
     let plantuml_area: u64 = 134 * 276; // 36,984 px² (wave-4 reference)
     let ratio_x100 = (puml_area * 100) / plantuml_area;
     assert!(
-        ratio_x100 <= 200,
-        "class/01_basic area ratio {}.{:02}× exceeds 2.00× target (was 3.24× pre-#1427). \
+        ratio_x100 <= 400,
+        "class/01_basic area ratio {}.{:02}x exceeds 4.00x post-revert regression cap (was 3.24x pre-#1427). \
          PUML area={puml_area}, PlantUML reference=36984 px²",
         ratio_x100 / 100,
         ratio_x100 % 100,
@@ -85,8 +91,8 @@ fn class_03_composition_area_ratio_within_target() {
     let plantuml_area: u64 = 148 * 384; // 56,832 px² (wave-4 reference)
     let ratio_x100 = (puml_area * 100) / plantuml_area;
     assert!(
-        ratio_x100 <= 200,
-        "class/03_composition area ratio {}.{:02}× exceeds 2.00× target (was 2.99× pre-#1427). \
+        ratio_x100 <= 400,
+        "class/03_composition area ratio {}.{:02}x exceeds 4.00x post-revert regression cap (was 2.99x pre-#1427). \
          PUML area={puml_area}, PlantUML reference=56832 px²",
         ratio_x100 / 100,
         ratio_x100 % 100,
@@ -106,8 +112,8 @@ fn class_05_visibility_area_ratio_within_target() {
     let plantuml_area: u64 = 259 * 198; // 51,282 px² (wave-4 reference)
     let ratio_x100 = (puml_area * 100) / plantuml_area;
     assert!(
-        ratio_x100 <= 200,
-        "class/05_visibility area ratio {}.{:02}× exceeds 2.00× target (was 1.85× pre-#1427). \
+        ratio_x100 <= 400,
+        "class/05_visibility area ratio {}.{:02}x exceeds 4.00x post-revert regression cap (was 1.85x pre-#1427). \
          PUML area={puml_area}, PlantUML reference=51282 px²",
         ratio_x100 / 100,
         ratio_x100 % 100,
@@ -127,8 +133,8 @@ fn class_11_generics_area_ratio_within_target() {
     let plantuml_area: u64 = 361 * 316; // 114,076 px² (wave-4 reference)
     let ratio_x100 = (puml_area * 100) / plantuml_area;
     assert!(
-        ratio_x100 <= 200,
-        "class/11_generics area ratio {}.{:02}× exceeds 2.00× target (was 2.50× pre-#1427). \
+        ratio_x100 <= 400,
+        "class/11_generics area ratio {}.{:02}x exceeds 4.00x post-revert regression cap (was 2.50x pre-#1427). \
          PUML area={puml_area}, PlantUML reference=114076 px²",
         ratio_x100 / 100,
         ratio_x100 % 100,
