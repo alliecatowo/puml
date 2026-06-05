@@ -454,10 +454,16 @@ fn render_state_label(
 ) {
     // #1524: truncate label to fit cell width so adjacent labels never overlap.
     // Monospace font-size 11 ≈ 7 px/char; keep a 4 px margin on each side.
-    let char_w_px = 7usize;
-    let inner_px = (cell_w.saturating_sub(8)).max(0) as usize;
-    let max_chars = inner_px.checked_div(char_w_px).unwrap_or(usize::MAX);
-    let truncated = ellipsize_with_dots(display, max_chars);
+    // Very narrow cells (< 20 px) get the full label — they are either tail
+    // extensions or zero-width bookmarks, never truly adjacent to another label.
+    let truncated = if cell_w < 20 {
+        display.to_string()
+    } else {
+        let char_w_px = 7usize;
+        let inner_px = (cell_w.saturating_sub(8)).max(0) as usize;
+        let max_chars = inner_px.checked_div(char_w_px).unwrap_or(usize::MAX);
+        ellipsize_with_dots(display, max_chars)
+    };
     let weight = if bold { " font-weight=\"600\"" } else { "" };
     out.push_str(&format!(
         "<text x=\"{label_x}\" y=\"{label_ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{fill}\"{weight}>{}</text>",
