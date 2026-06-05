@@ -199,6 +199,13 @@ impl SequenceNormalizeState {
         if let Some(mode) = self.monochrome_mode {
             apply_monochrome_to_sequence_style(&mut self.style, mode);
         }
+        // Phase E (#1417): apply StyleBuilder rules to flat SequenceStyle fields.
+        // The compat shim previously translated e.g. `sequenceDiagram { ArrowColor red }`
+        // into `SequenceArrowColor` skinparam triples.  Now we bridge via StyleBuilder.
+        if let Some(builder) = self.style.style_builder.take() {
+            apply_style_builder_to_sequence(&mut self.style, &builder);
+            self.style.style_builder = Some(builder);
+        }
 
         Ok(SequenceDocument {
             participants: self.participants,
@@ -231,6 +238,56 @@ impl SequenceNormalizeState {
     pub(super) fn push_event(&mut self, span: crate::source::Span, kind: SequenceEventKind) {
         groups::mark_group_content(&mut self.group_stack);
         self.events.push(SequenceEvent { span, kind });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → SequenceStyle bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Query `builder` for `<style>` rules targeting sequence diagram elements
+/// and apply the resulting colours to the flat `SequenceStyle` fields.
+///
+/// Replaces the `StyleParam` compat shim path removed in Phase E (#1417).
+fn apply_style_builder_to_sequence(
+    style: &mut crate::theme::SequenceStyle,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::color::resolve_css3_color_or_original;
+    use crate::theme::style_builder::StyleQuery;
+
+    // Resolve and CSS3-normalise a colour property from the builder.
+    let color = |query: &StyleQuery, pname: PName| -> Option<String> {
+        let raw = builder.resolve(query).color(pname)?.to_string();
+        resolve_css3_color_or_original(&raw)
+    };
+
+    // sequenceDiagram { ArrowColor / LineColor } — diagram-level arrow colour.
+    let diagram_q = StyleQuery::tags([SName::SequenceDiagram]);
+    if let Some(c) = color(&diagram_q, PName::LineColor) {
+        style.arrow_color = c;
+    }
+
+    // sequenceDiagram { participant { BackgroundColor / BorderColor / FontColor } }
+    let part_q = StyleQuery::tags([SName::SequenceDiagram, SName::Participant]);
+    if let Some(c) = color(&part_q, PName::BackgroundColor) {
+        style.participant_background_color = c;
+    }
+    if let Some(c) = color(&part_q, PName::LineColor) {
+        style.participant_border_color = c;
+    }
+    if let Some(c) = color(&part_q, PName::FontColor) {
+        style.participant_font_color = Some(c);
+    }
+
+    // sequenceDiagram { note { BackgroundColor / BorderColor } }
+    let note_q = StyleQuery::tags([SName::SequenceDiagram, SName::Note]);
+    if let Some(c) = color(&note_q, PName::BackgroundColor) {
+        style.note_background_color = c;
+    }
+    if let Some(c) = color(&note_q, PName::LineColor) {
+        style.note_border_color = c;
     }
 }
 
