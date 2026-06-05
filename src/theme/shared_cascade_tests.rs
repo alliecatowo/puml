@@ -883,7 +883,7 @@ fn class_effective_phase_d_line_style_dotted_from_style_builder() {
                 segments: vec![SelectorSegment::Tag(SName::Class_)],
             },
         ],
-        properties: [(PName::LineStyle, StyleValue::String("dotted".into()))]
+        properties: [(PName::LineStyle, StyleValue::Keyword("dotted".into()))]
             .iter()
             .cloned()
             .collect(),
@@ -921,7 +921,7 @@ fn class_effective_phase_d_line_style_solid_from_style_builder() {
                 segments: vec![SelectorSegment::Tag(SName::Class_)],
             },
         ],
-        properties: [(PName::LineStyle, StyleValue::String("solid".into()))]
+        properties: [(PName::LineStyle, StyleValue::Keyword("solid".into()))]
             .iter()
             .cloned()
             .collect(),
@@ -961,7 +961,7 @@ fn class_effective_phase_d_h_align_left_from_style_builder() {
         ],
         properties: [(
             PName::HorizontalAlignment,
-            StyleValue::String("left".into()),
+            StyleValue::Keyword("left".into()),
         )]
         .iter()
         .cloned()
