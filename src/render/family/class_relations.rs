@@ -177,6 +177,78 @@ fn snap_path_to_frame_boundaries(pts: &mut [(i32, i32)], frame_rects: &[ClassGro
     }
 }
 
+/// #1484: Remove U-turn detours from a polyline path.
+///
+/// The channel router sometimes generates horizontal runs that detour far
+/// outside the expected source-to-target x-range, producing visible zigzags.
+///
+/// For each horizontal run (consecutive points sharing the same y), define the
+/// "expected" x-range as [min(entry_x, last_x), max(entry_x, last_x)] where
+/// `entry_x` is the x of the immediately preceding non-horizontal point and
+/// `last_x` is the run's terminal x.  Any run point whose x overshoots that
+/// range by more than `UTURN_THRESHOLD` is dropped.  When the first run point
+/// itself is a detour (also outside the range), the stub corner (entry_x, run_y)
+/// is inserted so the path stays orthogonal.
+///
+/// Example: ...(593,186)→(1352,290)→(1352,290)→(743,290)→...
+///   entry_x=593, last_x=743.  Expected range [593,743].  Threshold = ±50.
+///   (1352,290): 1352 > 793 → drop.  (1352,290): drop.  (743,290): keep.
+///   First run point was dropped → insert stub (593,290) before the kept points.
+///   Result: ...(593,186)→(593,290)→(743,290)→... (clean L-shape, no diagonal).
+fn remove_horizontal_uturn_waypoints(pts: &mut Vec<(i32, i32)>) {
+    const UTURN_THRESHOLD: i32 = 50;
+    if pts.len() < 3 {
+        return;
+    }
+    // Identify all horizontal runs and the detour points within them.
+    // A "run" is a maximal sequence of consecutive points sharing the same y.
+    // We collect (run_start, run_end, entry_x, last_x) for each run with ≥2 points.
+    let n = pts.len();
+    let mut result: Vec<(i32, i32)> = Vec::with_capacity(n + 4);
+    let mut i = 0;
+    while i < n {
+        let run_y = pts[i].1;
+        let run_start = i;
+        while i + 1 < n && pts[i + 1].1 == run_y {
+            i += 1;
+        }
+        let run_end = i;
+        if run_end == run_start {
+            result.push(pts[run_start]);
+            i += 1;
+            continue;
+        }
+        // Horizontal run from run_start to run_end (inclusive, ≥ 2 pts).
+        let entry_x = if run_start > 0 {
+            pts[run_start - 1].0
+        } else {
+            pts[run_start].0
+        };
+        let last_x = pts[run_end].0;
+        let lo = entry_x.min(last_x) - UTURN_THRESHOLD;
+        let hi = entry_x.max(last_x) + UTURN_THRESHOLD;
+        // Collect kept run points (those within [lo, hi]).
+        let kept: Vec<(i32, i32)> = (run_start..=run_end)
+            .filter(|&k| {
+                let bx = pts[k].0;
+                bx >= lo && bx <= hi
+            })
+            .map(|k| pts[k])
+            .collect();
+        let first_run_dropped = pts[run_start].0 < lo || pts[run_start].0 > hi;
+        if first_run_dropped && !kept.is_empty() {
+            // The run started with a detour — insert the orthogonal stub corner.
+            result.push((entry_x, run_y));
+        } else if !first_run_dropped {
+            // Normal case: first run point is already in range; include it.
+            // (It will be the first element of `kept` anyway, so just extend.)
+        }
+        result.extend_from_slice(&kept);
+        i = run_end + 1;
+    }
+    *pts = result;
+}
+
 /// Render all edges (relations) for a class/object/usecase SVG diagram.
 ///
 /// Emits `<line>` / `<polyline>` / `<path>` elements for edges, plus
@@ -570,6 +642,13 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
             // frame top borders.
             if ctx.is_usecase_layout {
                 snap_path_to_frame_boundaries(pts, &ctx.group_frame_rects);
+                // #1484: Remove U-turn waypoints that cause edges to extend far
+                // outside the expected routing area.  When the channel router
+                // produces a path like A→B→C where B.x greatly overshoots both
+                // A.x and C.x (or undershoots), replace the detour with the
+                // simpler L-route A→C.  This collapses redundant horizontal
+                // detours without changing the endpoints.
+                remove_horizontal_uturn_waypoints(pts);
             }
             // ── Splines-mode dispatch (#1412) ────────────────────────────────
             // When EdgeRouting::Splines is active, attempt the spline-native
