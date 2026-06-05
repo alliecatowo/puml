@@ -127,8 +127,13 @@ pub(super) fn render_node<'a>(
         }
 
         StateNodeKind::EntryPoint | StateNodeKind::ExitPoint => {
+            // Glyph sits at the TOP of the enlarged allocation (h=42) so the
+            // name label can be placed BELOW the shape without overlapping it
+            // (#1523).  Circle centre is 13 px below the box top (r=10 + 3 px
+            // margin), giving glyph bottom at y+23.  Label baseline follows at
+            // y+29 (6 px gap below glyph bottom).
             let cx = x + w / 2;
-            let cy = y + h / 2;
+            let cy = y + 13;
             let border = state_node_border(node, state_style);
             let fill = state_node_fill(node, state_style);
             out.push_str(&format!(
@@ -145,49 +150,75 @@ pub(super) fn render_node<'a>(
                     cx + 5, cy - 5, cx - 5, cy + 5, border
                 ));
             }
-            // Name label below the glyph (closes #1305)
+            // dy=16 from cy=y+13 → label baseline at y+29, below glyph bottom y+23 (#1523)
             push_pseudostate_name_label(out, node, cx, cy, 16, state_style);
         }
 
         StateNodeKind::InputPin | StateNodeKind::OutputPin => {
+            // Glyph occupies the top 24×24 px of the enlarged 34×46 allocation
+            // so the name label sits below the shape without overlap (#1523).
+            // Visible rect: x+5, y+5, w-10=24, height=24 (fixed, not h-10).
+            // Label baseline: y + 5 + 24 + 6 = y+35.
             let fill = state_node_fill(node, state_style);
             let border = state_node_border(node, state_style);
             let sw = state_node_stroke_width(node, 1.5);
+            let glyph_h = 24i32;
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{} />",
                 x + 5,
                 y + 5,
                 w - 10,
-                h - 10,
+                glyph_h,
                 fill,
                 border,
                 sw,
                 state_node_border_dash(node)
             ));
-            // Name label below the glyph (closes #1305)
-            push_pseudostate_name_label(out, node, x + w / 2, y + h / 2, 18, state_style);
+            // Label baseline at y+35 — below glyph bottom y+29 with 6 px gap (#1523)
+            let glyph_cy = y + 5 + glyph_h / 2;
+            push_pseudostate_name_label(
+                out,
+                node,
+                x + w / 2,
+                glyph_cy,
+                glyph_h / 2 + 6,
+                state_style,
+            );
         }
 
         StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => {
+            // Glyph occupies the top 20 px of the enlarged 46×42 allocation
+            // so the name label sits below the shape without overlap (#1523).
+            // Visible segment rects: y+5, height=20 (fixed, not h-10).
+            // Label baseline: y + 5 + 20 + 6 = y+31.
             let fill = state_node_fill(node, state_style);
             let border = state_node_border(node, state_style);
             let sw = state_node_stroke_width(node, 1.5);
             let segment_w = (w - 8) / 3;
+            let glyph_h = 20i32;
             for idx in 0..3 {
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{} />",
                     x + 4 + idx * segment_w,
                     y + 5,
                     segment_w,
-                    h - 10,
+                    glyph_h,
                     fill,
                     border,
                     sw,
                     state_node_border_dash(node)
                 ));
             }
-            // Name label below the glyph (closes #1305)
-            push_pseudostate_name_label(out, node, x + w / 2, y + h / 2, 16, state_style);
+            // Label baseline at y+31 — below glyph bottom y+25 with 6 px gap (#1523)
+            let glyph_cy = y + 5 + glyph_h / 2;
+            push_pseudostate_name_label(
+                out,
+                node,
+                x + w / 2,
+                glyph_cy,
+                glyph_h / 2 + 6,
+                state_style,
+            );
         }
 
         StateNodeKind::Terminate => {

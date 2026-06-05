@@ -32,9 +32,16 @@ pub(in crate::render::state) fn compute_node_size(
         StateNodeKind::Fork | StateNodeKind::Join => (STATE_NODE_W, 8),
         StateNodeKind::Choice => (44, 44),
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (34, 34),
-        StateNodeKind::EntryPoint | StateNodeKind::ExitPoint => (26, 26),
-        StateNodeKind::InputPin | StateNodeKind::OutputPin => (34, 34),
-        StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => (46, 30),
+        // Taller allocations so the name label (font-size 10) sits BELOW the
+        // glyph shape rather than overlapping it.  Glyph drawn at top of box;
+        // extra height reserves label space at the bottom (#1523).
+        // EntryPoint/ExitPoint: r=10 circle (20 px tall) + 4 gap + 14 label = 38,
+        //   rounded to 42 so the circle has a small top margin.
+        // InputPin/OutputPin: visible rect 24 px tall + 4 gap + 14 label = 42, padded to 46.
+        // ExpansionInput/ExpansionOutput: visible rect 20 px tall + 4 gap + 14 label = 38, padded to 42.
+        StateNodeKind::EntryPoint | StateNodeKind::ExitPoint => (26, 42),
+        StateNodeKind::InputPin | StateNodeKind::OutputPin => (34, 46),
+        StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => (46, 42),
         StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
         StateNodeKind::Terminate => (26, 26),
         StateNodeKind::SdlReceive | StateNodeKind::SdlSend => (STATE_NODE_W, STATE_NODE_H),

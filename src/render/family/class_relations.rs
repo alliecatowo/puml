@@ -12,7 +12,7 @@ use crate::render::svg::escape_text;
 
 use super::class_relation_labels::{relation_label_svg, resolve_relation_endpoint_key};
 use super::class_routing::{
-    class_box_anchor_toward_point, class_nudge_label_x, class_nudge_label_y,
+    class_box_anchor_toward_point, class_nudge_label_x, class_nudge_label_y_with_frames,
     class_port_side_from_box_anchor, class_route_with_row_ports, qualified_row_anchor,
 };
 use super::class_types::{ClassEndpointAnchor, ClassNodeBox, ClassPortSide};
@@ -64,6 +64,39 @@ fn is_actor_kind(kind: crate::model::FamilyNodeKind) -> bool {
         kind,
         crate::model::FamilyNodeKind::Actor | crate::model::FamilyNodeKind::BusinessActor
     )
+}
+
+/// For usecase diagrams: compute the glyph-aware anchor for an Actor node so
+/// that edges exit from below the name label (downward) or above the head top
+/// (upward), rather than from the corner of the bounding box which visually
+/// pierces the label text (#1461).
+///
+/// `render_actor_stick_figure` is called with `cy = actor_box.y + 21`, and it
+/// places the head circle centre at `cy - 15 = actor_box.y + 6`.  Geometry:
+///   head centre  = actor_box.y + 6
+///   head top     = actor_box.y + 0  (r=6)
+///   feet bottom  = actor_box.y + 6 + 20 + 16 = actor_box.y + 42
+///   name label baseline ≈ actor_box.y + 48  (fig_cy+27 = (y+21)+27 = y+48)
+///
+/// Returns `(cx, ay)`:
+/// - target below (or same y) → edge exits just below the label: `(cx, bbox_bottom)`
+///   but centred on the actor so the line leaves the glyph vertically (#1461).
+///   Using bbox_bottom keeps the straight-line path correct while changing just x.
+/// - target above → edge exits just above the head circle: `(cx, head_top - 2)`
+fn actor_glyph_anchor(actor_box: &ClassNodeBox, toward_y: i32) -> (i32, i32) {
+    let cx = actor_box.x + actor_box.w / 2;
+    // Head top sits at actor_box.y (head centre y+6, r=6 → top at y+0).
+    let head_top = actor_box.y;
+    // Bbox bottom is below the name label — use it for downward exits so the
+    // edge still starts inside the allocation and below the label text.
+    let bbox_bottom = actor_box.y + actor_box.h;
+    if toward_y >= actor_box.y + actor_box.h / 2 {
+        // Downward: centre x, bbox bottom — label is safely above this point.
+        (cx, bbox_bottom)
+    } else {
+        // Upward: centre x, just above head circle.
+        (cx, head_top - 2)
+    }
 }
 
 /// For usecase diagrams: when both endpoints are Actor nodes AND the relation
@@ -457,6 +490,47 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         } else {
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
+        // #1461: In usecase diagrams, Actor nodes have a name label below the
+        // stick-figure glyph; the bounding box includes the label so `pick_port`
+        // can return an anchor that visually lies inside the label text.  Override
+        // the anchor to the glyph body (head-top or feet-bottom) so edges start
+        // and end at the stick figure, not through the label.
+        // Skip for actor-to-actor generalization edges — those already have a
+        // dedicated override in `actor_generalization_pick_port` (#1291) which uses
+        // the bbox boundary intentionally.
+        let is_actor_generalization = actor_gen_override;
+        if ctx.is_usecase_layout && !is_actor_generalization {
+            let from_is_actor = ctx
+                .nodes
+                .iter()
+                .find(|n| {
+                    n.alias.as_deref().unwrap_or(&n.name) == render_from_name.as_str()
+                        || n.name == render_from_name.as_str()
+                })
+                .map(|n| is_actor_kind(n.kind))
+                .unwrap_or(false);
+            if from_is_actor {
+                let to_cy = to.y + to.h / 2;
+                let (ax, ay) = actor_glyph_anchor(from, to_cy);
+                x1 = ax;
+                y1 = ay;
+            }
+            let to_is_actor = ctx
+                .nodes
+                .iter()
+                .find(|n| {
+                    n.alias.as_deref().unwrap_or(&n.name) == render_to_name.as_str()
+                        || n.name == render_to_name.as_str()
+                })
+                .map(|n| is_actor_kind(n.kind))
+                .unwrap_or(false);
+            if to_is_actor {
+                let from_cy = from.y + from.h / 2;
+                let (ax, ay) = actor_glyph_anchor(to, from_cy);
+                x2 = ax;
+                y2 = ay;
+            }
+        }
         let mut from_anchor = ClassEndpointAnchor {
             x: x1,
             y: y1,
@@ -974,7 +1048,15 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
-            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // #1496: also avoid group-frame header bands — pass frame rects so
+            // labels landing on a header band are pushed above it.
+            let (lx, ly) = class_nudge_label_y_with_frames(
+                lx,
+                ly,
+                label_half_w,
+                ctx.node_boxes,
+                &ctx.group_frame_rects,
+            );
             // #1463/#1464: class_nudge_label_y can push a label above the
             // diagram content area (into the title band) when the source node
             // sits near the top of the canvas.  Re-clamp to canvas_margin_y
@@ -1028,7 +1110,14 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
             );
             let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
-            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            // #1496: also avoid group-frame header bands.
+            let (lx, ly) = class_nudge_label_y_with_frames(
+                lx,
+                ly,
+                label_half_w,
+                ctx.node_boxes,
+                &ctx.group_frame_rects,
+            );
             // #1464: re-clamp after nudge to prevent upward escape into title area.
             let ly = ly.max(ctx.canvas_margin_y + 4);
             let lx = if label_on_vertical_edge && !ctx.is_object_diagram {
