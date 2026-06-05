@@ -287,8 +287,26 @@ pub(super) fn class_build_label_overrides(
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
             let center_offset = cursor + label_half_w;
             // Keep y on the edge (use the per-edge midpoint y, not node-box y).
-            let anchor =
+            let (lx_a, ly_a) =
                 class_nudge_label_y(mean_lx + center_offset, rl.ly, label_half_w, node_boxes);
+            // #1546: if the upward nudge pushed the label more than LABEL_FAN_GAP
+            // above the raw midpoint (escaping into the source-node area), try
+            // placing below the edge (+24 px) instead to keep it on the arrow.
+            let anchor = if rl.ly - ly_a > LABEL_FAN_GAP {
+                let below = class_nudge_label_y(
+                    mean_lx + center_offset,
+                    rl.ly + 24,
+                    label_half_w,
+                    node_boxes,
+                );
+                if below.1 >= rl.ly {
+                    below
+                } else {
+                    (lx_a, ly_a)
+                }
+            } else {
+                (lx_a, ly_a)
+            };
             label_override.insert(rl.rel_idx, anchor);
             cursor += label_half_w * 2 + LABEL_FAN_GAP;
         }
@@ -322,8 +340,25 @@ pub(super) fn class_build_label_overrides(
             let rl = &raw_labels[raw_idx];
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
             let center_offset = cursor + label_half_w;
-            let (lx, ly) =
+            let (lx_a, ly_a) =
                 class_nudge_label_y(mean_lx + center_offset, rl.ly, label_half_w, node_boxes);
+            // #1546: if the upward nudge pushed the label more than LABEL_FAN_GAP
+            // above the raw midpoint, try below the edge instead.
+            let (lx, ly) = if rl.ly - ly_a > LABEL_FAN_GAP {
+                let below = class_nudge_label_y(
+                    mean_lx + center_offset,
+                    rl.ly + 24,
+                    label_half_w,
+                    node_boxes,
+                );
+                if below.1 >= rl.ly {
+                    below
+                } else {
+                    (lx_a, ly_a)
+                }
+            } else {
+                (lx_a, ly_a)
+            };
             label_override.insert(rl.rel_idx, (lx, ly));
             cursor += label_half_w * 2 + LABEL_FAN_GAP;
         }
