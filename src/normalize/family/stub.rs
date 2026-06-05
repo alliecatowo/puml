@@ -3,9 +3,7 @@ use crate::ast::RawSyntaxCategory;
 use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 mod salt_cells;
-use self::salt_cells::{
-    collect_salt_ascii_sprite_names, encode_salt_cells, salt_scan_unsupported, StyleParamRecord,
-};
+use self::salt_cells::{collect_salt_ascii_sprite_names, encode_salt_cells, salt_scan_unsupported};
 
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
@@ -36,7 +34,6 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     };
     let mut style_cascade = crate::theme::GraphStyleCascade::new(graph_family);
     let mut salt_style = crate::theme::SaltStyle::default();
-    let mut style_params: Vec<StyleParamRecord> = Vec::new();
     // Phase B (#1404): accumulate `<style>` block rules into a StyleBuilder.
     let mut style_builder = crate::theme::StyleBuilder::new();
     let mut warnings: Vec<Diagnostic> = Vec::new();
@@ -72,20 +69,6 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     continue;
                 }
                 style_cascade.apply_skinparam(&key, &value, stmt.span, &mut warnings);
-            }
-            StatementKind::StyleParam {
-                selector,
-                property,
-                key,
-                value,
-            } => {
-                style_params.push(StyleParamRecord {
-                    selector,
-                    property,
-                    key,
-                    value,
-                    span: stmt.span,
-                });
             }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection {
@@ -410,10 +393,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             // Phase B (#1404): accumulate typed `<style>` block rules into the builder
             // so they can be queried per-element at cascade time.  Only Regular-scheme
             // rules are consumed; Dark rules are stored for future `--scheme dark` flag.
+            // Phase E (#1417): emit W_STYLE_UNKNOWN_TAG / W_STYLE_UNKNOWN_PROPERTY /
+            // E_STYLE_BAD_VALUE diagnostics via push_with_warnings.
             StatementKind::StyleBlock(block) => {
                 for rule in block.rules {
                     if rule.scheme == crate::ast::style::StyleScheme::Regular {
-                        style_builder.push(rule);
+                        style_builder.push_with_warnings(rule, &mut warnings);
                     }
                 }
             }
@@ -559,34 +544,6 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
-    for param in style_params {
-        if family_kind == DiagramKind::Salt {
-            let applied = if let Some(key) = param.key.as_deref() {
-                salt_style.apply_key(key, &param.value)
-            } else {
-                salt_style.apply_property(param.selector.as_deref(), &param.property, &param.value)
-            };
-            if !applied {
-                warnings.push(
-                    Diagnostic::warning(format!(
-                        "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
-                        param.property,
-                        param.selector.as_deref().unwrap_or("saltDiagram")
-                    ))
-                    .with_span(param.span),
-                );
-            }
-        } else {
-            style_cascade.apply_style_param(
-                param.selector.as_deref(),
-                &param.property,
-                param.key.as_deref(),
-                &param.value,
-                param.span,
-                &mut warnings,
-            );
-        }
-    }
     common::sort_diagnostics_by_message_and_span(&mut warnings);
     let sepia = style_cascade.sepia();
     let mut family_style = if family_kind == DiagramKind::Salt {

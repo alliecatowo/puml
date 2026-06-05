@@ -88,22 +88,6 @@ impl SequenceNormalizeState {
             StatementKind::Caption(v) => self.common.caption(v),
             StatementKind::Legend(v) => self.common.legend(v, LegendTextMode::ParsePackedPosition),
             StatementKind::SkinParam { key, value } => self.handle_skinparam(stmt.span, key, value),
-            StatementKind::StyleParam {
-                selector,
-                property,
-                key,
-                value,
-            } => {
-                if let Some(key) = key {
-                    self.handle_skinparam(stmt.span, key, value);
-                } else {
-                    self.warnings.push(common::unsupported_style_warning(
-                        selector.as_deref(),
-                        &property,
-                        stmt.span,
-                    ));
-                }
-            }
             StatementKind::Theme(name) => self.handle_theme(stmt.span, name)?,
             StatementKind::Pragma(value) => self.handle_pragma(stmt.span, value),
             StatementKind::Footbox(v) => {
@@ -143,8 +127,7 @@ impl SequenceNormalizeState {
             | StatementKind::Undef(_)
             | StatementKind::RawBlockContent(_) => {}
             // Phase C (#1404): push typed `<style>` block rules into the sequence
-            // style builder.  The compat shim still emits legacy StyleParam triples
-            // for backward compat with families not yet on the new resolver.
+            // style builder.  Phase E (#1417): diagnostic emission via push_with_warnings.
             StatementKind::StyleBlock(block) => {
                 for rule in block.rules {
                     if rule.scheme == crate::ast::style::StyleScheme::Regular {
@@ -152,7 +135,7 @@ impl SequenceNormalizeState {
                             .style
                             .style_builder
                             .get_or_insert_with(|| Box::new(crate::theme::StyleBuilder::new()));
-                        builder.push(rule);
+                        builder.push_with_warnings(rule, &mut self.warnings);
                     }
                 }
             }

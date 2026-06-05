@@ -386,10 +386,16 @@ class A\n\
     let NormalizedDocument::Family(family) = normalized else {
         panic!("expected family document");
     };
+    // Phase E (#1417): unknown properties now emit W_STYLE_UNKNOWN_PROPERTY via
+    // StyleBuilder::push_with_warnings, replacing the legacy W_STYLE_UNSUPPORTED
+    // from the removed compat shim.
     assert_eq!(family.warnings.len(), 1);
-    assert_eq!(
-        family.warnings[0].message,
-        "[W_STYLE_UNSUPPORTED] unsupported style `TotallyMadeUp` in selector `class`"
+    assert!(
+        family.warnings[0]
+            .message
+            .contains("W_STYLE_UNKNOWN_PROPERTY"),
+        "expected W_STYLE_UNKNOWN_PROPERTY for unknown property; got: {}",
+        family.warnings[0].message
     );
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class)
         .expect("unsupported graph style should still render");
