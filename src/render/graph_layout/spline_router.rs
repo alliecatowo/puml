@@ -169,16 +169,27 @@ fn cubic_bezier_point(
 }
 
 /// Fraction of the source→target euclidean distance used as the Bézier
-/// handle length. 0.4 is a Graphviz-like value that produces a natural sweep
-/// without overshoot at typical diagram densities.
-const HANDLE_FRACTION: f64 = 0.4;
+/// handle length. 0.35 keeps curves tighter at typical diagram densities —
+/// slightly less than the Graphviz 0.4 to reduce overshoot on short edges.
+const HANDLE_FRACTION: f64 = 0.35;
 
-/// Minimum handle length in pixels — even very short edges should curve.
-const MIN_HANDLE_LEN: f64 = 12.0;
+/// Minimum handle length in pixels — short edges should still curve gently.
+const MIN_HANDLE_LEN: f64 = 8.0;
 
-/// Maximum handle length in pixels — caps the bulge of very long edges so
-/// the curve doesn't wander far outside the source/target rectangle.
-const MAX_HANDLE_LEN: f64 = 120.0;
+/// Maximum handle length in pixels — caps the bulge of very long edges.
+/// Reduced from 120 → 80 to prevent wide-sweeping arcs on cross-rank edges.
+const MAX_HANDLE_LEN: f64 = 80.0;
+
+/// Lateral-blend factor: how strongly the source/target tangents are blended
+/// toward the chord direction when there is significant lateral displacement.
+/// 0.55 gives a smooth trade-off — arcs lean toward the target rather than
+/// curling back on themselves in S-shape patterns.
+const LATERAL_BLEND: f64 = 0.55;
+
+/// Threshold: if the lateral (perpendicular-to-tangent) component of the
+/// chord exceeds this fraction of the euclidean distance, blend the tangent
+/// toward the chord direction to avoid S-curves.
+const LATERAL_BLEND_THRESHOLD: f64 = 0.22;
 
 /// If the cubic between source and target passes within this many pixels of
 /// any obstacle bbox, we treat it as a pierce and either insert a detour
@@ -214,6 +225,14 @@ pub fn generate_spline_path(input: SplinePathInput) -> Option<SplinePath> {
     // Apply tangent jitter (rotate tangent by jitter radians).
     let src_tangent = rotate(input.src_tangent, input.src_tangent_jitter);
     let tgt_tangent = rotate(input.tgt_tangent, input.tgt_tangent_jitter);
+
+    // Blend tangents toward the chord direction when there is significant
+    // lateral displacement. This prevents S-curve artefacts where the default
+    // bbox-side normal (e.g. straight down from a bottom anchor) would pull
+    // the curve back on itself when the target is diagonally displaced.
+    let src_tangent = blend_tangent_toward_chord(src_tangent, (dx / dist, dy / dist));
+    // Target tangent points INTO the target; negate chord to get inward vector.
+    let tgt_tangent = blend_tangent_toward_chord(tgt_tangent, (-dx / dist, -dy / dist));
 
     // Build the single-segment cubic candidate first.
     let handle_len = (dist * HANDLE_FRACTION).clamp(MIN_HANDLE_LEN, MAX_HANDLE_LEN);
@@ -452,6 +471,41 @@ fn try_obstacle_detour(
     None
 }
 
+/// Blend the edge tangent toward the chord direction when there is
+/// significant lateral displacement, reducing S-curve artefacts.
+///
+/// `tangent` is the bbox-side outward normal (unit vector).
+/// `chord`   is the unit vector from this endpoint toward the other.
+///
+/// When the chord has a large component *perpendicular* to the tangent, the
+/// standard cubic control-point placement drags the curve back along the
+/// source boundary before turning toward the target, producing a visible
+/// S-shape. Blending toward the chord direction fixes this by tilting the
+/// control point toward the actual connection direction.
+///
+/// The blend is proportional to the lateral component of the chord:
+///   - pure alignment (chord ‖ tangent): blend = 0, tangent unchanged.
+///   - fully perpendicular chord: blend = `LATERAL_BLEND`, tangent tilted.
+fn blend_tangent_toward_chord(tangent: (f64, f64), chord: (f64, f64)) -> (f64, f64) {
+    // Dot product gives the cosine of the angle between tangent and chord.
+    let dot = tangent.0 * chord.0 + tangent.1 * chord.1;
+    // Lateral component = sine of that angle = sqrt(1 - cos²), clamped.
+    let lateral = (1.0 - dot * dot).max(0.0).sqrt();
+    if lateral < LATERAL_BLEND_THRESHOLD {
+        return tangent;
+    }
+    // Blend factor increases with lateral, capped at LATERAL_BLEND.
+    let blend = (lateral * LATERAL_BLEND).min(LATERAL_BLEND);
+    let mixed_x = tangent.0 * (1.0 - blend) + chord.0 * blend;
+    let mixed_y = tangent.1 * (1.0 - blend) + chord.1 * blend;
+    // Re-normalise to keep it a unit vector.
+    let len = mixed_x.hypot(mixed_y);
+    if len < 1e-9 {
+        return tangent;
+    }
+    (mixed_x / len, mixed_y / len)
+}
+
 /// Rotate the 2D vector `(x, y)` by `theta` radians (positive = CCW in
 /// standard math coordinates, which is *clockwise* in screen y-down).
 fn rotate((x, y): (f64, f64), theta: f64) -> (f64, f64) {
@@ -680,5 +734,74 @@ mod tests {
         let p = path.point_at(1.0);
         assert!((p.0 - 110.0).abs() < 1e-6);
         assert!((p.1 - 120.0).abs() < 1e-6);
+    }
+
+    /// Lateral blend test: when a vertical-tangent edge has large lateral
+    /// displacement (source bottom → target top but offset horizontally), the
+    /// blended cp1 must lean toward the target rather than straight down.
+    /// Before the fix, cp1 would be directly below the source, causing an
+    /// S-curve. After the fix, cp1 shifts laterally toward the target.
+    #[test]
+    fn lateral_blend_shifts_cp1_toward_target_on_diagonal_edge() {
+        // Simulate a bottom→top connection with significant horizontal offset:
+        // src at (249, 90) with downward tangent, tgt at (122, 188) with
+        // upward-into-target tangent — like Load Balancer → App Server 1.
+        let input = SplinePathInput {
+            src_anchor: (249.0, 90.0),
+            tgt_anchor: (122.0, 188.0),
+            src_tangent: (0.0, 1.0), // pointing down (out of src bottom)
+            tgt_tangent: (0.0, 1.0), // pointing down (into tgt top)
+            obstacles: vec![],
+            src_tangent_jitter: 0.0,
+            tgt_tangent_jitter: 0.0,
+        };
+        let path = generate_spline_path(input).unwrap();
+        let cp1 = path.segments[0].cp1;
+        // Without lateral blend: cp1.x == 249.0 (straight down from src).
+        // With lateral blend:    cp1.x < 249.0 (leaning left toward target).
+        assert!(
+            cp1.0 < 249.0,
+            "cp1.x should shift left toward target (was {}), not stay at 249",
+            cp1.0
+        );
+        // cp2 should also shift left (pulled from the right toward src→tgt chord).
+        let cp2 = path.segments[0].cp2;
+        assert!(
+            cp2.0 < 122.0 + 5.0,
+            "cp2.x should be near or left of target (was {})",
+            cp2.0
+        );
+    }
+
+    /// Straight edge (no lateral displacement) must NOT be blended away from
+    /// the correct tangent direction. A vertical src→tgt with vertical tangents
+    /// on both sides should produce symmetric control points on the same
+    /// vertical axis.
+    #[test]
+    fn lateral_blend_does_not_affect_aligned_vertical_edge() {
+        let input = SplinePathInput {
+            src_anchor: (100.0, 0.0),
+            tgt_anchor: (100.0, 200.0),
+            src_tangent: (0.0, 1.0), // straight down
+            tgt_tangent: (0.0, 1.0), // straight down (into target)
+            obstacles: vec![],
+            src_tangent_jitter: 0.0,
+            tgt_tangent_jitter: 0.0,
+        };
+        let path = generate_spline_path(input).unwrap();
+        let cp1 = path.segments[0].cp1;
+        let cp2 = path.segments[0].cp2;
+        // Both control points should remain on the same x-axis (within float
+        // tolerance) because the chord is perfectly aligned with the tangents.
+        assert!(
+            (cp1.0 - 100.0).abs() < 1e-6,
+            "cp1.x should stay at 100 on a vertical edge, got {}",
+            cp1.0
+        );
+        assert!(
+            (cp2.0 - 100.0).abs() < 1e-6,
+            "cp2.x should stay at 100 on a vertical edge, got {}",
+            cp2.0
+        );
     }
 }
