@@ -142,6 +142,7 @@ pub enum SName {
     Undone,
     Unstarted,
     Usecase,
+    UsecaseDiagram,
     VerticalSeparator,
     Year,
     // Visibility icons
@@ -312,6 +313,7 @@ impl SName {
             "undone" => Some(Self::Undone),
             "unstarted" => Some(Self::Unstarted),
             "usecase" => Some(Self::Usecase),
+            "usecasediagram" => Some(Self::UsecaseDiagram),
             "verticalseparator" => Some(Self::VerticalSeparator),
             "year" => Some(Self::Year),
             "visibilityicon" => Some(Self::VisibilityIcon),
