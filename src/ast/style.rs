@@ -1,9 +1,9 @@
 //! Typed AST surface for `<style>` blocks (Phase A of #1404).
 //!
 //! This module defines the full style-block AST that the recursive-descent
-//! parser in `src/parser/style_block.rs` produces.  Phase B will consume
-//! these types in the cascade resolver; Phase E will remove the legacy
-//! `StatementKind::StyleParam` flat triples once all families have migrated.
+//! parser in `src/parser/style_block.rs` produces.  The cascade resolver
+//! (Phase B) consumes these types.  The legacy `StatementKind::StyleParam`
+//! flat-triple compat shim was removed in Phase E (#1417).
 
 use std::collections::BTreeMap;
 
@@ -547,9 +547,8 @@ pub struct StyleRule {
 
 /// The typed AST node for a complete `<style> … </style>` block.
 ///
-/// This is the new `StatementKind::StyleBlock` variant.  Alongside it, the
-/// legacy flat `StyleParam` triples continue to be emitted by the compat shim
-/// until Phase E removes them.
+/// This is the canonical `StatementKind::StyleBlock` variant.  The legacy
+/// flat-triple compat shim (`StyleParam`) was removed in Phase E (#1417).
 #[derive(Debug, Clone)]
 pub struct StyleBlock {
     /// All rules produced by the parser, in source order.
