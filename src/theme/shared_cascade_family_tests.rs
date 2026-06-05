@@ -291,3 +291,147 @@ fn mindmap_effective_inline_beats_depth_style() {
     assert_eq!(result.stroke.as_str(), "#666666");
     assert_eq!(result.stroke.source(), Src::Default);
 }
+
+// ── Phase C/D style-builder paths ────────────────────────────────────────────
+
+/// Activity style-block fill overrides skinparam-sourced diagram value.
+#[test]
+fn activity_effective_style_block_fill_beats_skinparam() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::skinparam::ActivityStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ActivityDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Activity)],
+            },
+        ],
+        properties: [(
+            PName::BackgroundColor,
+            StyleValue::Color("#aabbcc".to_string()),
+        )]
+        .iter()
+        .cloned()
+        .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let style = ActivityStyle {
+        background_color: "#112233".to_string(),
+        style_builder: Some(Box::new(builder)),
+        ..ActivityStyle::default()
+    };
+    let result = activity_node_effective_style(&style, Src::SkinParam, None, None, None);
+    assert_eq!(result.fill.as_str(), "#aabbcc");
+    assert_eq!(result.fill.source(), Src::StyleBlock);
+}
+
+/// Sequence participant style-block fill overrides skinparam-sourced value.
+#[test]
+fn sequence_participant_effective_style_block_fill_beats_skinparam() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::style_builder::StyleBuilder;
+    use crate::theme::styles::SequenceStyle;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::SequenceDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Participant)],
+            },
+        ],
+        properties: [(
+            PName::BackgroundColor,
+            StyleValue::Color("#334455".to_string()),
+        )]
+        .iter()
+        .cloned()
+        .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let style = SequenceStyle {
+        participant_background_color: "#aabbcc".to_string(),
+        style_builder: Some(Box::new(builder)),
+        ..SequenceStyle::default()
+    };
+    let result = sequence_participant_effective_style(&style, Src::SkinParam, None);
+    assert_eq!(result.fill.as_str(), "#334455");
+    assert_eq!(result.fill.source(), Src::StyleBlock);
+}
+
+/// Sequence participant style-block with stereotype lookup exercises Phase C path.
+#[test]
+fn sequence_participant_effective_style_block_with_stereotype() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::style_builder::StyleBuilder;
+    use crate::theme::styles::SequenceStyle;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    // Rule targeting sequence participants with stereotype "actor"
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::SequenceDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Participant)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Stereotype("actor".to_string())],
+            },
+        ],
+        properties: [(
+            PName::BackgroundColor,
+            StyleValue::Color("#ffccaa".to_string()),
+        )]
+        .iter()
+        .cloned()
+        .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let style = SequenceStyle {
+        style_builder: Some(Box::new(builder)),
+        ..SequenceStyle::default()
+    };
+    // With stereotype "actor" — the stereotype rule must apply.
+    let result = sequence_participant_effective_style_with_stereotype(
+        &style,
+        Src::Default,
+        None,
+        Some("actor"),
+    );
+    assert_eq!(result.fill.as_str(), "#ffccaa");
+    assert_eq!(result.fill.source(), Src::StyleBlock);
+
+    // Without stereotype — the default must be returned.
+    let result_no_stereo = sequence_participant_effective_style(&style, Src::Default, None);
+    assert_ne!(result_no_stereo.fill.as_str(), "#ffccaa");
+}

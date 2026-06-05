@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    HorizontalAlignment left
+  }
+}
+</style>
+class LeftAlignedClass {
+  field
+}
+@enduml

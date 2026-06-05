@@ -1,0 +1,12 @@
+@startuml
+<style>
+classDiagram {
+  class {
+    Margin 15
+  }
+}
+</style>
+class MarginNode
+class Other
+MarginNode --> Other
+@enduml

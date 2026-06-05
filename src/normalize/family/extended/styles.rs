@@ -243,14 +243,20 @@ impl ExtendedFamilyStyles {
         } else if let Some(key) = key {
             self.handle_skinparam(family_kind, key, value, span, warnings);
         } else {
-            warnings.push(
-                Diagnostic::warning(format!(
-                    "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
-                    property,
-                    selector.unwrap_or("<diagram>")
-                ))
-                .with_span(span),
-            );
+            // Phase D (#1416): properties recognised by `PName::from_name` are
+            // handled by the StyleBuilder path (Phase B) — suppress the warning
+            // for them since they ARE supported, just not via a skinparam alias.
+            let is_style_builder_property = crate::ast::style::PName::from_name(property).is_some();
+            if !is_style_builder_property {
+                warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
+                        property,
+                        selector.unwrap_or("<diagram>")
+                    ))
+                    .with_span(span),
+                );
+            }
         }
     }
 

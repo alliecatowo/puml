@@ -6031,7 +6031,8 @@ fn usecase_inline_element_style_reaches_node_geometry() {
     assert!(svg.contains("fill=\"#f5deb3\""));
     assert!(svg.contains("stroke=\"#ff0000\""));
     assert!(svg.contains("stroke-width=\"3\""));
-    assert!(svg.contains("stroke-dasharray=\"5 3\""));
+    // Phase D (#1416): line.dashed routes through EffectiveLineStyle::Dashed → "8 4"
+    assert!(svg.contains("stroke-dasharray=\"8 4\""));
     assert!(svg.contains("fill=\"#0000ff\">Checkout</text>"));
     assert!(svg.contains("fill=\"#00008b\">Shopper</text>"));
 }

@@ -65,15 +65,26 @@ pub(super) fn render_class_node(
     let stroke = effective_style.stroke.as_str();
     let font_color = effective_style.font_color.as_str();
     let member_color = effective_style.member_color.as_str();
-    let stroke_dash = if effective_style.border_dashed {
-        " stroke-dasharray=\"5 3\""
+    // Phase D (#1416): LineStyle from `<style>` block supersedes the inline
+    // border-dashed flag when the style block sets a line style explicitly.
+    let stroke_dash_pattern = effective_style.line_style.stroke_dasharray();
+    let stroke_dash = if !stroke_dash_pattern.is_empty() {
+        format!(" stroke-dasharray=\"{stroke_dash_pattern}\"")
+    } else if effective_style.border_dashed {
+        // Fallback: honour legacy inline dashed flag even when line_style is Solid
+        // (line_style is Solid by default; border_dashed from inline takes over).
+        " stroke-dasharray=\"5 3\"".to_string()
     } else {
-        ""
+        String::new()
     };
     let stroke_width = effective_style.stroke_width;
     let font_family = effective_style.font_family.as_str();
     let title_font_size = effective_style.title_font_size;
     let member_font_size = effective_style.member_font_size;
+    // Phase D (#1416): FontWeight from `<style>` block (default 400 = normal).
+    let title_font_weight = effective_style.font_weight;
+    // Phase D (#1416): HorizontalAlignment for label text-anchor.
+    let label_text_anchor = effective_style.h_align.text_anchor();
     // Determine the header fill colour — inspect the leading type-marker member so
     // that enum / annotation / interface / abstract classes get a distinct header (#769).
     let builtin_type_marker = node
@@ -232,7 +243,7 @@ pub(super) fn render_class_node(
             fill,
             stroke,
             stroke_width,
-            stroke_dash,
+            &stroke_dash,
             font_family,
             font_color,
             member_color,
@@ -281,10 +292,12 @@ pub(super) fn render_class_node(
     // Members to display: skip all header stereotype members
     let display_members = &node.members[header_skip..];
 
-    // Corner radius from `skinparam roundcorner <N>`; 4px default keeps historical visual.
-    let rx = class_style.round_corner.unwrap_or(4);
-    // `skinparam shadowing true` drops a soft shadow; header rect is intentionally unshadowed.
-    let shadow_attr = if class_style.shadowing {
+    // Corner radius: Phase D `<style>` RoundCorner wins over skinparam, then built-in default 4.
+    let rx = effective_style
+        .style_round_corner
+        .unwrap_or_else(|| class_style.round_corner.unwrap_or(4));
+    // Shadowing: Phase D `<style>` Shadowing wins over skinparam shadowing flag.
+    let shadow_attr = if effective_style.shadowing {
         " filter=\"url(#shadow)\""
     } else {
         ""
@@ -431,13 +444,28 @@ pub(super) fn render_class_node(
         }
     }
 
+    // Phase D (#1416): use FontWeight and HorizontalAlignment from effective style.
+    // The x-position shifts when alignment is not center.
+    let label_tx = match effective_style.h_align {
+        crate::theme::EffectiveHAlign::Left => x + 4,
+        crate::theme::EffectiveHAlign::Right => x + w - 4,
+        crate::theme::EffectiveHAlign::Center => x + w / 2,
+    };
+    let eff_font_weight = if title_font_weight == 400 {
+        // Default (400 = normal) — keep historical 600 for visual consistency.
+        600
+    } else {
+        title_font_weight
+    };
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}{cv}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"{ta}\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\" fill=\"{fc}\"{td}{fi}{cv}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
+        fw = eff_font_weight,
         fc = escape_text(font_color),
-        tx = x + w / 2,
+        tx = label_tx,
         ty = name_ty,
+        ta = label_text_anchor,
         td = text_decoration,
         fi = name_font_style,
         cv = class_visibility_attr,
