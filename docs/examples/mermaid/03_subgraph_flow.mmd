@@ -1,0 +1,13 @@
+flowchart TB
+    A[Request] --> B[Validate]
+    subgraph auth [Authentication]
+        B --> C{Valid token?}
+        C -->|No| D[Reject]
+        C -->|Yes| E[Authorize]
+    end
+    subgraph process [Processing]
+        E --> F[Fetch data]
+        F --> G[Transform]
+        G --> H[Return result]
+    end
+    D --> Z[Error response]

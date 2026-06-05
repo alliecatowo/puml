@@ -25,7 +25,6 @@ fn mermaid_options() -> ParsePipelineOptions {
 }
 
 #[test]
-#[ignore = "Spike incomplete — parser not yet implemented; ticket follow-up"]
 fn mermaid_flowchart_fixture_parses_to_component_statements() {
     let document = parse_with_pipeline_options(FIXTURE, &mermaid_options())
         .expect("01_basic_flowchart.mmd should adapt + parse cleanly");

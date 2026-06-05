@@ -1,0 +1,18 @@
+flowchart LR
+    subgraph build [Build Stage]
+        Checkout[Checkout code] --> Install[Install deps]
+        Install --> Compile[Compile]
+    end
+    subgraph test [Test Stage]
+        Compile --> Lint[Lint]
+        Lint --> UnitTests[Unit tests]
+        UnitTests --> IntegrationTests[Integration tests]
+    end
+    subgraph deploy [Deploy Stage]
+        IntegrationTests --> Package[Package]
+        Package --> Push[Push image]
+        Push --> Release{Release?}
+        Release -->|Yes| Deploy[Deploy to prod]
+        Release -->|No| End[Done]
+        Deploy --> End
+    end
