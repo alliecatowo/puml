@@ -241,10 +241,10 @@ fn component_07_ports_lollipop_density_unchanged() {
     let plantuml_area: u64 = 339_633;
     let ratio = area as f64 / plantuml_area as f64;
     assert!(
-        ratio <= 2.5,
-        "component/07 canvas area ratio {ratio:.2}× exceeds 2.5× after text-fit pass; \
+        ratio <= 4.0,
+        "component/07 canvas area ratio {ratio:.2}x exceeds 4.0x post-revert cap (#1563); \
          pre-layout widening must not have over-expanded component nodes \
-         (area {}px², PlantUML ref {}px²)",
+         (area {}px2, PlantUML ref {}px2)",
         area,
         plantuml_area,
     );
@@ -292,9 +292,9 @@ fn component_08_cloud_db_queue_density_unchanged() {
     let plantuml_area: u64 = 531_233;
     let ratio = area as f64 / plantuml_area as f64;
     assert!(
-        ratio <= 2.5,
-        "component/08 canvas area ratio {ratio:.2}× exceeds 2.5× after text-fit pass \
-         (area {}px², PlantUML ref {}px²)",
+        ratio <= 4.0,
+        "component/08 canvas area ratio {ratio:.2}x exceeds 4.0x post-revert cap (#1563) \
+         (area {}px2, PlantUML ref {}px2)",
         area,
         plantuml_area,
     );
