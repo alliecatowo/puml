@@ -117,7 +117,23 @@ pub(super) fn class_route_with_row_ports(
     Some(class_dedup_consecutive_points(points))
 }
 
-/// Nudge a label's y-coordinate upward until it no longer overlaps any node box.
+/// Nudge a label's y-coordinate until it no longer visually overlaps any node box.
+///
+/// The label baseline is at `adjusted_y`; the visible text body extends upward
+/// ~14px (one font em) from that baseline.  Two overlap cases are resolved:
+///
+/// 1. **Label baseline inside the box** (`adjusted_y > bbox.y + 2` AND
+///    `adjusted_y <= bbox.y + bbox.h`): the entire text block is inside or
+///    straddles the box — push the label UP to `bbox.y - 18`.
+/// 2. **Label text top clips into box bottom** (baseline `adjusted_y` is below
+///    `bbox.y + bbox.h` but within one text-height): push the label DOWN to
+///    `bbox.y + bbox.h + 18` so the text clears the bottom edge (#1551).
+///
+/// The tight `adjusted_y > bbox.y + 2` guard on the upper bound prevents
+/// spurious triggers when the label is merely near the box top and the 14px
+/// look-ahead from the bottom of an adjacent box.  This avoids oscillation when
+/// a label sits in the narrow gap between two vertically-adjacent class boxes.
+///
 /// Used by `render_class_svg` for both the pre-pass and the inline placement.
 pub(super) fn class_nudge_label_y(
     lx: i32,
@@ -125,16 +141,33 @@ pub(super) fn class_nudge_label_y(
     label_half_w: i32,
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
 ) -> (i32, i32) {
+    // Height of the text block above the baseline (monospace 11px font).
+    const LABEL_TEXT_H: i32 = 14;
     let mut adjusted_y = ly;
     for _ in 0..8 {
         let overlap = node_boxes.values().find(|bbox| {
+            let box_bottom = bbox.y + bbox.h;
             lx + label_half_w >= bbox.x - 8
                 && lx - label_half_w <= bbox.x + bbox.w + 8
-                && adjusted_y >= bbox.y - 14
-                && adjusted_y <= bbox.y + bbox.h + 6
+                // Baseline must be clearly below box top (>2px) to trigger —
+                // prevents false positives on labels approaching from above.
+                && adjusted_y > bbox.y + 2
+                // Baseline within text-height below box bottom catches both
+                // internal labels (baseline <= box_bottom) and labels whose
+                // text top clips the box bottom from below (#1551).
+                && adjusted_y < box_bottom + LABEL_TEXT_H
         });
         match overlap {
-            Some(bbox) => adjusted_y = bbox.y - 18,
+            Some(bbox) => {
+                let box_bottom = bbox.y + bbox.h;
+                if adjusted_y > box_bottom {
+                    // Baseline below box bottom — text top clips in: push DOWN.
+                    adjusted_y = box_bottom + 18;
+                } else {
+                    // Baseline inside the box — push UP.
+                    adjusted_y = bbox.y - 18;
+                }
+            }
             None => break,
         }
     }
