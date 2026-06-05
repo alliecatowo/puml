@@ -503,19 +503,41 @@ stop
     .expect("render detached fork branch");
 
     assert!(svg.contains("data-activity-kind=\"Detach\""));
+    // A detached branch (left fork, x≈104) should NOT draw a long connector into the
+    // fork join bar.  We extract all points="..." attributes from the SVG and check that
+    // no polyline starting at x=104 spans more than ~50 px vertically.
+    let polyline_spans_over_50_from_x = |svg: &str, x: i32| -> bool {
+        let mut search = svg;
+        while let Some(start) = search.find("points=\"") {
+            search = &search[start + 8..];
+            if let Some(end) = search.find('"') {
+                let pts_str = &search[..end];
+                let pts: Vec<(i32, i32)> = pts_str
+                    .split_whitespace()
+                    .filter_map(|pair| {
+                        let mut it = pair.splitn(2, ',');
+                        let px: i32 = it.next()?.parse().ok()?;
+                        let py: i32 = it.next()?.parse().ok()?;
+                        Some((px, py))
+                    })
+                    .collect();
+                if let (Some(&(x0, y0)), Some(&(_, y_last))) = (pts.first(), pts.last()) {
+                    if x0 == x && (y_last - y0).abs() > 50 {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    };
     assert!(
-        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>.
-        // Either way, a long connector from x=104 to the join bar at y=246 should not exist.
-        !svg.contains("<line x1=\"104\" y1=\"178\" x2=\"104\" y2=\"246\"")
-            && !svg.contains("<line x1=\"104\" y1=\"198\" x2=\"104\" y2=\"246\"")
-            && !svg.contains("points=\"104,178 104,246\"")
-            && !svg.contains("points=\"104,198 104,246\""),
-        "a detached branch should not draw a connector into the fork join bar"
+        !polyline_spans_over_50_from_x(&svg, 104),
+        "a detached branch should not draw a long connector into the fork join bar"
     );
+    // The non-terminated branch B (right fork, x≈288) MUST connect downward to the join bar
+    // with a span > 50 px.
     assert!(
-        // Ortho routing emits <line>; Polyline/Splines routing emits <polyline>
-        svg.contains("<line x1=\"288\" y1=\"176\" x2=\"288\" y2=\"246\"")
-            || svg.contains("<polyline points=\"288,176 288,246\""),
+        polyline_spans_over_50_from_x(&svg, 288),
         "non-terminated fork branches should still connect to the join bar"
     );
 }

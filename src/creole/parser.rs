@@ -204,11 +204,21 @@ fn parse_list_line(line: &str) -> Option<(String, &str)> {
         return None;
     }
 
+    // Use a Unicode bullet glyph for unordered lists (#1554) and a numeric
+    // prefix for ordered lists.  Nested items are indented by 2 spaces per level.
+    let bullet = if marker == '*' {
+        match depth {
+            1 => "\u{2022} ", // • BULLET
+            2 => "\u{25E6} ", // ◦ WHITE BULLET
+            _ => "\u{2023} ", // ‣ TRIANGULAR BULLET
+        }
+    } else {
+        "1. "
+    };
     let prefix = format!(
-        "{}{}{}",
+        "{}{}",
         " ".repeat(leading_spaces + depth.saturating_sub(1) * 2),
-        if marker == '*' { "- " } else { "1. " },
-        ""
+        bullet,
     );
     Some((prefix, rest.trim_start()))
 }

@@ -598,9 +598,20 @@ pub(in crate::render::activity) fn compute_layout(
                     suppress_prev_arrow.insert(i);
                     current_slot_y = next_slot_y;
                 } else {
+                    // Terminal nodes (Stop/End/Kill/Detach) need extra vertical
+                    // clearance so the bullseye circle does not appear to overlap
+                    // the preceding action box (#1486).  A 12 px bump on top of
+                    // step_h gives a visible gap between the action bottom and the
+                    // stop circle top regardless of branch depth.
+                    const TERMINAL_EXTRA_Y: i32 = 12;
+                    let effective_step_h = if is_activity_terminal_step(&meta.step_kind) {
+                        step_h + TERMINAL_EXTRA_Y
+                    } else {
+                        step_h
+                    };
                     let slot_y = current_slot_y;
                     let arrow_out_y = slot_y + ARROW_OUT;
-                    let next_slot_y = slot_y + step_h;
+                    let next_slot_y = slot_y + effective_step_h;
                     node_layouts.push(NodeLayout {
                         cx,
                         slot_y,

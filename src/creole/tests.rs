@@ -249,10 +249,11 @@ fn headings_become_bold_sized_lines() {
 
 #[test]
 fn list_lines_add_indented_prefixes_without_triggering_bold() {
+    // #1554: unordered lists use Unicode bullet glyphs; ordered lists use "1. ".
     let lines = tokenize_creole("* Bullet\n** Nested\n# Numbered\n## Nested number");
-    assert_eq!(lines[0][0].text, "- ");
+    assert_eq!(lines[0][0].text, "\u{2022} "); // • BULLET (depth 1)
     assert_eq!(lines[0][1].text, "Bullet");
-    assert_eq!(lines[1][0].text, "  - ");
+    assert_eq!(lines[1][0].text, "  \u{25E6} "); // ◦ WHITE BULLET (depth 2, 2 indent spaces)
     assert_eq!(lines[2][0].text, "1. ");
     assert_eq!(lines[3][0].text, "  1. ");
     assert!(!lines[1][1].bold);
