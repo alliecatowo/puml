@@ -546,6 +546,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let relations = merge_duplicate_rel_labels(relations);
     common::sort_diagnostics_by_message_and_span(&mut warnings);
     let sepia = style_cascade.sepia();
+    // Phase E (#1417): apply StyleBuilder rules to the flat style structs for
+    // families that read from skinparam fields rather than querying StyleBuilder
+    // at render time (salt).  This replaces the former StyleParam compat shim.
+    if !style_builder.is_empty() && family_kind == DiagramKind::Salt {
+        apply_style_builder_to_salt(&mut salt_style, &style_builder);
+    }
     let mut family_style = if family_kind == DiagramKind::Salt {
         crate::model::FamilyStyle::Salt(Box::new(salt_style))
     } else {
@@ -553,12 +559,15 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     };
     // Phase B (#1404): attach the accumulated StyleBuilder to the family style so
     // the cascade resolver can query `<style>` block rules per element at render time.
+    // Phase E (#1417): also apply diagram-level arrow colour from StyleBuilder.
     if !style_builder.is_empty() {
         let boxed = Box::new(style_builder);
         if let crate::model::FamilyStyle::Class(cs) = &mut family_style {
+            // Apply diagram-level arrow colour: usecaseDiagram { arrow { LineColor … } }
+            // or classDiagram { arrow { LineColor … } }.
+            apply_arrow_color_from_style_builder(cs, family_kind, &boxed);
             cs.style_builder = Some(boxed);
         }
-        // Salt / unexpected family: builder is unused.
     }
 
     Ok(FamilyDocument {
@@ -593,4 +602,110 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         edge_routing,
         warnings,
     })
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → SaltStyle bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Query `builder` for `<style>` rules that target Salt widget elements and
+/// apply the resulting colours to the flat `SaltStyle` fields.
+///
+/// This replaces the `StyleParam` compat shim path that previously translated
+/// `saltDiagram { BackgroundColor … }` into `SaltBackgroundColor` skinparam
+/// triples consumed by `SaltStyle::apply_key`.
+fn apply_style_builder_to_salt(
+    salt: &mut crate::theme::SaltStyle,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let color = |query: &StyleQuery, pname: PName| -> Option<String> {
+        builder.resolve(query).color(pname).map(str::to_string)
+    };
+
+    // saltDiagram { BackgroundColor / FontColor / LineColor }
+    let diagram_q = StyleQuery::tags([SName::SaltDiagram]);
+    if let Some(c) = color(&diagram_q, PName::BackgroundColor) {
+        salt.canvas_fill = c;
+    }
+    if let Some(c) = color(&diagram_q, PName::FontColor) {
+        salt.text_color = c;
+    }
+    if let Some(c) = color(&diagram_q, PName::LineColor) {
+        salt.border_color = c;
+    }
+
+    // Salt widget selectors may appear as top-level selectors.
+
+    // button { BackgroundColor / FontColor }
+    let button_q = StyleQuery::tags([SName::Button]);
+    if let Some(c) = color(&button_q, PName::BackgroundColor) {
+        salt.button_fill = c;
+    }
+    if let Some(c) = color(&button_q, PName::FontColor) {
+        salt.button_text_color = c;
+    }
+
+    // input / textfield / textarea { BackgroundColor / FontColor }
+    let input_q = StyleQuery::tags([SName::Input]);
+    if let Some(c) = color(&input_q, PName::BackgroundColor) {
+        salt.input_fill = c;
+    }
+    if let Some(c) = color(&input_q, PName::FontColor) {
+        salt.input_text_color = c;
+    }
+
+    // menu { BackgroundColor }
+    let menu_q = StyleQuery::tags([SName::Menu]);
+    if let Some(c) = color(&menu_q, PName::BackgroundColor) {
+        salt.menu_fill = c;
+    }
+
+    // tab { BackgroundColor }
+    let tab_q = StyleQuery::tags([SName::Tab]);
+    if let Some(c) = color(&tab_q, PName::BackgroundColor) {
+        salt.tab_fill = c;
+    }
+
+    // header { BackgroundColor / FontColor }
+    let header_q = StyleQuery::tags([SName::Header]);
+    if let Some(c) = color(&header_q, PName::BackgroundColor) {
+        salt.header_fill = c;
+    }
+    if let Some(c) = color(&header_q, PName::FontColor) {
+        salt.header_text_color = c;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → ClassStyle arrow-colour bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Apply diagram-level arrow colour from `<style>` block rules to `ClassStyle`.
+///
+/// The `arrow { LineColor … }` (or `arrowColor`) selector inside a family
+/// style block sets the default edge/relation colour for that diagram family.
+/// This was previously handled by the compat shim; now it goes through the
+/// StyleBuilder.
+fn apply_arrow_color_from_style_builder(
+    cs: &mut crate::theme::ClassStyle,
+    family_kind: DiagramKind,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let diagram_sname = match family_kind {
+        DiagramKind::UseCase => SName::UsecaseDiagram,
+        _ => SName::ClassDiagram,
+    };
+
+    // diagram { arrow { LineColor / ArrowColor } } — "arrowcolor" is
+    // now an alias for PName::LineColor in the retrieve function.
+    let arrow_q = StyleQuery::tags([diagram_sname, SName::Arrow]);
+    if let Some(c) = builder.resolve(&arrow_q).color(PName::LineColor) {
+        cs.arrow_color = c.to_string();
+    }
 }

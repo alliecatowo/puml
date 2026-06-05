@@ -228,9 +228,11 @@ impl ExtendedFamilyStyles {
                 if let Some(mode) = self.activity_monochrome_mode {
                     apply_monochrome_to_activity_style(&mut self.activity_style, mode);
                 }
-                // Phase C (#1404): attach the StyleBuilder so the cascade resolver can
-                // query `<style>` rules per element at render time.
+                // Phase E (#1417): apply StyleBuilder rules to the flat ActivityStyle fields
+                // so the renderer (which reads directly from these fields) picks up <style>
+                // block colours.  The compat shim previously handled this translation.
                 if !self.style_builder.is_empty() {
+                    apply_style_builder_to_activity(&mut self.activity_style, &self.style_builder);
                     self.activity_style.style_builder = Some(Box::new(self.style_builder.clone()));
                 }
                 Some(FamilyStyle::Activity(self.activity_style))
@@ -251,4 +253,57 @@ fn unsupported_value_warning(key: &str, value: &str) -> Diagnostic {
         "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
         value, key
     ))
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → ActivityStyle bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Query `builder` for `<style>` rules that target activity diagram elements
+/// and apply the resulting colours to the flat `ActivityStyle` fields.
+///
+/// This replaces the `StyleParam` compat shim path that previously translated
+/// e.g. `activityDiagram { activity { BackgroundColor … } }` into
+/// `ActivityBackgroundColor` skinparam triples.
+fn apply_style_builder_to_activity(
+    act: &mut crate::theme::ActivityStyle,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let color = |query: &StyleQuery, pname: PName| -> Option<String> {
+        builder.resolve(query).color(pname).map(str::to_string)
+    };
+
+    // activityDiagram { ArrowColor #... } (diagram-level; arrowcolor is an alias for linecolor)
+    let diagram_q = StyleQuery::tags([SName::ActivityDiagram]);
+    if let Some(c) = color(&diagram_q, PName::LineColor) {
+        act.arrow_color = c;
+    }
+
+    // activityDiagram { activity { BackgroundColor / BorderColor / FontColor } }
+    let act_q = StyleQuery::tags([SName::ActivityDiagram, SName::Activity]);
+    if let Some(c) = color(&act_q, PName::BackgroundColor) {
+        act.background_color = c;
+    }
+    if let Some(c) = color(&act_q, PName::LineColor) {
+        act.border_color = c;
+    }
+    if let Some(c) = color(&act_q, PName::FontColor) {
+        act.font_color = c;
+    }
+
+    // activityDiagram { diamond { BackgroundColor } }
+    let diamond_q = StyleQuery::tags([SName::ActivityDiagram, SName::Diamond]);
+    if let Some(c) = color(&diamond_q, PName::BackgroundColor) {
+        act.diamond_color = c;
+    }
+
+    // activityDiagram { bar { BackgroundColor } } (also covers fork/start/stop)
+    // The selector is `bar` → SName::Bar.
+    let bar_q = StyleQuery::tags([SName::ActivityDiagram, SName::Bar]);
+    if let Some(c) = color(&bar_q, PName::BackgroundColor) {
+        act.fork_color = c;
+    }
 }
