@@ -169,7 +169,7 @@ pub(super) fn adapt_mermaid_flowchart(source: &str) -> Result<FrontendResult, Di
 
         // Subgraph / end – map to `package`/`end`.
         // Bare `subgraph` keyword (no label) is valid Mermaid — treat as anonymous.
-        if line.to_ascii_lowercase() == "subgraph" {
+        if line.eq_ignore_ascii_case("subgraph") {
             body_lines.push(("package {".to_string(), span));
             continue;
         }
