@@ -1,0 +1,15 @@
+' Kubernetes stdlib — all resource macros in one include.
+' Usage: !include <k8s/all>
+!include <k8s/KubernetesCommon>
+!include <k8s/Pod>
+!include <k8s/Service>
+!include <k8s/Deployment>
+!include <k8s/Ingress>
+!include <k8s/ConfigMap>
+!include <k8s/Secret>
+!include <k8s/StatefulSet>
+!include <k8s/DaemonSet>
+!include <k8s/PersistentVolume>
+!include <k8s/Namespace>
+!include <k8s/Node>
+!include <k8s/HPA>

@@ -1,0 +1,6 @@
+' Kubernetes Node resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Node($alias, $label="", $descr="")
+K8sIcon($alias, Node, $label, $descr)
+!endprocedure

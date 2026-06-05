@@ -1,0 +1,6 @@
+' Kubernetes PersistentVolume resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure PersistentVolume($alias, $label="", $descr="")
+K8sIcon($alias, PersistentVolume, $label, $descr)
+!endprocedure

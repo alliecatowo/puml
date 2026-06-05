@@ -1,0 +1,33 @@
+@startuml
+title Kubernetes stateful workload - Postgres database cluster
+!include <k8s/all>
+
+Namespace(ns, "database", "k8s namespace")
+StatefulSet(pg, "postgres-sts", "3 replicas")
+Pod(primary, "pg-0", "primary")
+Pod(replica1, "pg-1", "replica")
+Pod(replica2, "pg-2", "replica")
+Service(headless, "postgres-headless", "Headless :5432")
+Service(readSvc, "postgres-read", "ClusterIP :5432")
+PersistentVolume(pv0, "pg-data-0", "50Gi SSD")
+PersistentVolume(pv1, "pg-data-1", "50Gi SSD")
+PersistentVolume(pv2, "pg-data-2", "50Gi SSD")
+ConfigMap(pgcfg, "pg-config", "postgresql.conf")
+Secret(pgpwd, "pg-credentials", "superuser pwd")
+
+pg ..> primary : owns
+pg ..> replica1 : owns
+pg ..> replica2 : owns
+headless --> primary : routes
+headless --> replica1 : routes
+headless --> replica2 : routes
+readSvc --> replica1 : read-only
+readSvc --> replica2 : read-only
+primary --> pv0 : mounts
+replica1 --> pv1 : mounts
+replica2 --> pv2 : mounts
+primary --> pgcfg : mounts
+primary --> pgpwd : reads
+primary --> replica1 : replicates
+primary --> replica2 : replicates
+@enduml

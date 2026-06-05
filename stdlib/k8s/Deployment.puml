@@ -1,0 +1,6 @@
+' Kubernetes Deployment resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Deployment($alias, $label="", $descr="")
+K8sIcon($alias, Deployment, $label, $descr)
+!endprocedure

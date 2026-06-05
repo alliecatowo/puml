@@ -146,6 +146,18 @@ ALLOWLIST_REASONS = {
     # descent; splitting into sub-modules would require threading parser cursor and
     # node-map state through all sub-parsers. Split tracked in #590.
     "src/frontend/mermaid/flowchart.rs": "wave-22 Mermaid flowchart adapter added as new 704-line file; split tracked in #590",
+    # New file added for cloud icon library (AWS/Azure/GCP/k8s/tupadr3 stdlib #1570).
+    # 797 lines implementing the cloud-icon renderer: stereotype-detection registry,
+    # per-provider border/fill/badge constants, and SVG path glyph table for each
+    # service icon. The registry is a single tightly-coupled data + render pass;
+    # splitting into sub-files would require threading the registry state. Split tracked in #590.
+    "src/render/family/cloud_icons.rs": "wave-22 cloud icon library added as new 797-line file; split tracked in #590",
+    # Was ~556 lines before #1503 (Salt advanced widgets: sliders, password fields);
+    # grew to 605 after adding render_slider, render_password, render_open_combo_list,
+    # render_table_span, and render_sprite_ref widget implementations. The advanced
+    # widget render functions are tightly coupled to shared SaltCellBox geometry helpers;
+    # sub-module extraction would require duplicating layout state. Split tracked in #590.
+    "src/render/salt/widgets/advanced.rs": "wave-22 Salt advanced widgets (slider, password, open-combo, table-span, sprite) added ~49 lines; split tracked in #590",
 }
 
 

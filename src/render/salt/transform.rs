@@ -1,7 +1,7 @@
 use super::model::SaltCellRender;
 use super::parsing::{
-    parse_salt_items, parse_salt_open_combo, parse_salt_open_combo_payload,
-    parse_salt_progress_bar, parse_salt_scroll_container, parse_salt_scrollbar,
+    parse_salt_items, parse_salt_open_combo, parse_salt_open_combo_payload, parse_salt_password,
+    parse_salt_progress_bar, parse_salt_scroll_container, parse_salt_scrollbar, parse_salt_slider,
     parse_salt_sprite_def, parse_salt_sprite_ref, parse_salt_tab_bar, parse_salt_tree_line,
 };
 use super::style::{apply_salt_style_directive, SaltRenderStyle};
@@ -183,6 +183,17 @@ pub(super) fn transform_salt_row(
         return Some(vec![SaltCellRender::ProgressBar { fill_ratio }]);
     }
 
+    // Slider `{slider:min,max,val}` / `{slider}`.
+    if let Some((min, max, value)) = parse_salt_slider(trimmed) {
+        return Some(vec![SaltCellRender::Slider { min, max, value }]);
+    }
+
+    // Password field `"****"` / `"*hint*"` — must come after other quoted-string
+    // checks (Input, Combo) to avoid false-positive masking of plain inputs.
+    if let Some(label) = parse_salt_password(trimmed) {
+        return Some(vec![SaltCellRender::Password(label)]);
+    }
+
     if state.in_tree {
         state.in_tree = false;
     }
@@ -215,6 +226,12 @@ fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCell
             } else if let Some(fill_ratio) = parse_salt_progress_bar(trimmed) {
                 // Progress bars in table cells
                 SaltCellRender::ProgressBar { fill_ratio }
+            } else if let Some((min, max, value)) = parse_salt_slider(trimmed) {
+                // Sliders in table cells
+                SaltCellRender::Slider { min, max, value }
+            } else if let Some(label) = parse_salt_password(trimmed) {
+                // Password fields in table cells
+                SaltCellRender::Password(label)
             } else if header_row {
                 SaltCellRender::Header(trimmed.trim_start_matches('=').trim().to_string())
             } else {

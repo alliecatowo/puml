@@ -1,0 +1,6 @@
+' Kubernetes Namespace resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Namespace($alias, $label="", $descr="")
+K8sIcon($alias, Namespace, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Kubernetes Ingress resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Ingress($alias, $label="", $descr="")
+K8sIcon($alias, Ingress, $label, $descr)
+!endprocedure

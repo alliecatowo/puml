@@ -1,0 +1,6 @@
+' Kubernetes HorizontalPodAutoscaler (HPA) resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure HPA($alias, $label="", $descr="")
+K8sIcon($alias, HPA, $label, $descr)
+!endprocedure

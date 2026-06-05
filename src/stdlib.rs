@@ -75,7 +75,6 @@ pub const MISSING_UPSTREAM_STDLIB_PACKS: &[&str] = &[
     "edgy",
     "eip",
     "elastic",
-    "k8s",
     "material7",
 ];
 
@@ -422,6 +421,10 @@ mod tests {
         assert!(paths.contains(&"material/folder.puml"));
         assert!(paths.contains(&"openiconic/folder.puml"));
         assert!(paths.contains(&"openiconic/all.puml"));
+        // k8s pack should be available after #1495
+        assert!(paths.contains(&"k8s/Pod.puml"));
+        assert!(paths.contains(&"k8s/Deployment.puml"));
+        assert!(paths.contains(&"k8s/all.puml"));
 
         let mut sorted = paths.clone();
         sorted.sort();
@@ -468,5 +471,16 @@ mod tests {
             .find(|pack| pack.name == "bootstrap")
             .expect("bootstrap pack summary");
         assert_eq!(bootstrap.status, StdlibPackStatus::Unavailable);
+
+        // k8s must now be Available (bundled in stdlib/k8s/), not Unavailable (#1495)
+        let k8s = packs
+            .iter()
+            .find(|pack| pack.name == "k8s")
+            .expect("k8s pack summary");
+        assert_eq!(k8s.status, StdlibPackStatus::Available);
+        assert!(
+            k8s.files >= 10,
+            "k8s pack must have at least 10 .puml files"
+        );
     }
 }

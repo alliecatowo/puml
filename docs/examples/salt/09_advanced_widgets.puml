@@ -1,0 +1,21 @@
+@startsalt
+title Advanced Salt Widgets (#1503)
+{
+  {/ Settings | **Profile** | Security }
+  ---
+  Display Name | "Jane Smith"
+  Password     | "*current password*"
+  New Password | "****"
+  ---
+  Theme        | ^Dark^^Light^^System^
+  Font Size    | {slider:8,24,14}
+  Opacity      | {slider:0,100,85}
+  ---
+  Notifications
+  [X] Email alerts
+  [X] Push notifications
+  [ ] SMS messages
+  ---
+  [Save Changes] | [Reset] | [Cancel]
+}
+@endsalt
