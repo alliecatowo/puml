@@ -1,0 +1,25 @@
+@startuml
+title Kubernetes cluster - web tier deployment
+!include <k8s/all>
+
+Ingress(ingress, "nginx-ingress", "LoadBalancer")
+Service(webSvc, "web-service", "ClusterIP :80")
+Deployment(webDeploy, "web-deployment", "3 replicas")
+Pod(webPod1, "web-pod-1", "nginx:1.25")
+Pod(webPod2, "web-pod-2", "nginx:1.25")
+Pod(webPod3, "web-pod-3", "nginx:1.25")
+ConfigMap(webCfg, "nginx-config", "nginx.conf")
+Secret(tlsSecret, "tls-secret", "TLS cert")
+HPA(hpa, "web-hpa", "2–10 replicas")
+
+ingress --> webSvc : routes
+webSvc --> webPod1 : forwards
+webSvc --> webPod2 : forwards
+webSvc --> webPod3 : forwards
+webDeploy ..> webPod1 : owns
+webDeploy ..> webPod2 : owns
+webDeploy ..> webPod3 : owns
+webPod1 --> webCfg : mounts
+webPod1 --> tlsSecret : reads
+hpa ..> webDeploy : scales
+@enduml

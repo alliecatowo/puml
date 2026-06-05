@@ -1,0 +1,6 @@
+' Kubernetes Pod resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Pod($alias, $label="", $descr="")
+K8sIcon($alias, Pod, $label, $descr)
+!endprocedure

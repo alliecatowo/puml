@@ -1,0 +1,6 @@
+' Kubernetes StatefulSet resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure StatefulSet($alias, $label="", $descr="")
+K8sIcon($alias, StatefulSet, $label, $descr)
+!endprocedure

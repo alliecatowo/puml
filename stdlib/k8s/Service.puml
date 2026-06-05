@@ -1,0 +1,6 @@
+' Kubernetes Service resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure Service($alias, $label="", $descr="")
+K8sIcon($alias, Service, $label, $descr)
+!endprocedure

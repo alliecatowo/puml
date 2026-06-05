@@ -1,0 +1,6 @@
+' Kubernetes DaemonSet resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure DaemonSet($alias, $label="", $descr="")
+K8sIcon($alias, DaemonSet, $label, $descr)
+!endprocedure

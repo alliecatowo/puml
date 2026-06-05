@@ -1,0 +1,6 @@
+' Kubernetes ConfigMap resource stub.
+!include <k8s/KubernetesCommon>
+
+!procedure ConfigMap($alias, $label="", $descr="")
+K8sIcon($alias, ConfigMap, $label, $descr)
+!endprocedure

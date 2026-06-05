@@ -1,0 +1,14 @@
+' Kubernetes stdlib compatibility surface.
+' Macros emit <<k8s-SERVICE>> stereotypes so the PUML renderer
+' draws branded Kubernetes-coloured icon boxes.
+
+!procedure K8sIcon($alias, $service, $label="", $descr="")
+object $label as $alias <<k8s-$service>>
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure
