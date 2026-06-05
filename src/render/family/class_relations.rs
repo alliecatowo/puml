@@ -498,7 +498,48 @@ pub(super) fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_
         let raw_y1 = y1 + off_y;
         let clamped_x1 = raw_x1.clamp(from.x, from.x + from.w);
         let clamped_y1 = raw_y1.clamp(from.y, from.y + from.h);
-        let (x1, y1, x2, y2) = (clamped_x1, clamped_y1, x2 + off_x, y2 + off_y);
+        let (mut x1, mut y1, mut x2, mut y2) = (clamped_x1, clamped_y1, x2 + off_x, y2 + off_y);
+        // #1518: diamond markers (composition *--, aggregation o--) are rendered
+        // with `marker-start` / `marker-end` and extend *back* toward the source /
+        // target box along the edge.  Because nodes are rendered on top of edges,
+        // the diamond body lands inside the node rectangle and is hidden.  Push the
+        // endpoint outward by the diamond length (14px) so the diamond body sits in
+        // the gap between the box edge and the line start, outside the node rect.
+        //
+        // Direction "outward from box" = same as the edge exit direction:
+        //   Bottom side → push start/end downward (+y)
+        //   Top side    → push start/end upward   (-y)
+        //   Right side  → push start/end rightward (+x)
+        //   Left side   → push start/end leftward  (-x)
+        const DIAMOND_PUSH: i32 = 14;
+        if matches!(
+            normalized_arrow.start_marker(),
+            Some(
+                crate::model::FamilyRelationEndpointMarker::DiamondFilled
+                    | crate::model::FamilyRelationEndpointMarker::DiamondOpen
+            )
+        ) {
+            match from_anchor.side {
+                ClassPortSide::Bottom => y1 += DIAMOND_PUSH,
+                ClassPortSide::Top => y1 -= DIAMOND_PUSH,
+                ClassPortSide::Right => x1 += DIAMOND_PUSH,
+                ClassPortSide::Left => x1 -= DIAMOND_PUSH,
+            }
+        }
+        if matches!(
+            normalized_arrow.end_marker(),
+            Some(
+                crate::model::FamilyRelationEndpointMarker::DiamondFilled
+                    | crate::model::FamilyRelationEndpointMarker::DiamondOpen
+            )
+        ) {
+            match to_anchor.side {
+                ClassPortSide::Bottom => y2 += DIAMOND_PUSH,
+                ClassPortSide::Top => y2 -= DIAMOND_PUSH,
+                ClassPortSide::Right => x2 += DIAMOND_PUSH,
+                ClassPortSide::Left => x2 -= DIAMOND_PUSH,
+            }
+        }
         from_anchor.x = x1;
         from_anchor.y = y1;
         to_anchor.x = x2;
