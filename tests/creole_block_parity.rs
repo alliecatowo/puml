@@ -11,16 +11,19 @@ use puml::creole::{render_creole_line_to_tspans, render_creole_to_svg_tspans, to
 // ---------------------------------------------------------------------------
 
 /// `* item` lines produce an indented prefix span followed by the item text.
-/// Depth-1 bullets use "- " as the prefix.
+/// Depth-1 bullets use "• " (U+2022) as the prefix (#1554).
 #[test]
 fn creole_bullet_list_renders_indented_items() {
     let lines = tokenize_creole("* First item\n* Second item");
 
     // Each line must start with the bullet prefix span.
     assert_eq!(lines.len(), 2);
-    assert_eq!(lines[0][0].text, "- ", "depth-1 bullet prefix");
+    assert_eq!(lines[0][0].text, "\u{2022} ", "depth-1 bullet prefix"); // • BULLET
     assert_eq!(lines[0][1].text, "First item");
-    assert_eq!(lines[1][0].text, "- ", "second depth-1 bullet prefix");
+    assert_eq!(
+        lines[1][0].text, "\u{2022} ",
+        "second depth-1 bullet prefix"
+    ); // • BULLET
     assert_eq!(lines[1][1].text, "Second item");
 
     // The SVG output must contain the item text.
