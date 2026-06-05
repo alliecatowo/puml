@@ -139,6 +139,13 @@ ALLOWLIST_REASONS = {
     # Was ~597 lines on main; grew to 601 after wave-22 blueprint dark-canvas fix
     # added 4 lines to the preset definition. Split tracked in #590.
     "src/theme/presets.rs": "wave-22 blueprint dark-canvas background added 4 lines; split tracked in #590",
+    # Was ~453 lines on main; grew to 636 after Phase B per-mode density (#1515 + #1516)
+    # split all density constants into PUML_MODE_* and PLANTUML_MODE_* variants and
+    # expanded the LayoutDensity struct to carry both sets (~183 lines net). The struct
+    # and all constants form a single tightly-coupled data module; splitting would
+    # require threading mode-specific constant sets through all layout callers.
+    # Split tracked in #590.
+    "src/render/layout_constants.rs": "wave-22 per-mode density Phase B diverged constants added ~183 lines; split tracked in #590",
 }
 
 
