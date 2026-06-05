@@ -4,7 +4,6 @@
 //! while keeping coverage close to the implementation.
 
 use super::*;
-use crate::ast::style::SName;
 use crate::theme::values::StyleSource as Src;
 
 // ── resolve_color precedence tests ───────────────────────────────────────
@@ -525,8 +524,8 @@ fn class_effective_phase_d_line_thickness_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert!(
         (result.stroke_width - 3.0).abs() < 0.01,
@@ -576,8 +575,8 @@ fn class_effective_phase_d_round_corner_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.style_round_corner,
@@ -627,8 +626,8 @@ fn class_effective_phase_d_font_weight_bold_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.font_weight, 700,
@@ -678,8 +677,8 @@ fn class_effective_phase_d_line_style_dashed_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.line_style, EffectiveLineStyle::Dashed);
     assert_eq!(result.line_style.stroke_dasharray(), "8 4");
@@ -730,8 +729,8 @@ fn class_effective_phase_d_h_align_right_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.h_align, EffectiveHAlign::Right);
     assert_eq!(result.h_align.text_anchor(), "end");
@@ -797,8 +796,8 @@ fn class_effective_phase_d_shadowing_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert!(
         result.shadowing,
@@ -847,8 +846,8 @@ fn class_effective_phase_d_padding_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.padding, 12, "Padding 12 must set padding=12");
 }
@@ -894,8 +893,8 @@ fn class_effective_phase_d_max_width_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.max_width, 200,
@@ -944,8 +943,8 @@ fn class_effective_phase_d_min_width_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.min_width, 100,
@@ -995,8 +994,8 @@ fn class_effective_phase_d_line_style_dotted_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.line_style, EffectiveLineStyle::Dotted);
 }
@@ -1043,8 +1042,8 @@ fn class_effective_phase_d_line_style_solid_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.line_style, EffectiveLineStyle::Solid);
 }
@@ -1094,8 +1093,8 @@ fn class_effective_phase_d_h_align_left_from_style_builder() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(result.h_align, EffectiveHAlign::Left);
 }
@@ -1140,8 +1139,8 @@ fn class_effective_phase_d_line_thickness_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert!(
         (result.stroke_width - 2.5).abs() < 0.01,
@@ -1190,8 +1189,8 @@ fn class_effective_phase_d_round_corner_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.style_round_corner,
@@ -1240,8 +1239,8 @@ fn class_effective_phase_d_padding_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.padding, 8,
@@ -1292,8 +1291,8 @@ fn class_effective_phase_d_margin_keyword_branch_no_crash() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
 }
 
@@ -1337,8 +1336,8 @@ fn class_effective_phase_d_max_width_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.max_width, 150,
@@ -1386,8 +1385,8 @@ fn class_effective_phase_d_min_width_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.min_width, 60,
@@ -1435,8 +1434,8 @@ fn class_effective_phase_d_font_weight_numeric_keyword_branch() {
         &inline,
         None,
         None,
-        SName::ClassDiagram,
-        SName::Class_,
+        crate::ast::style::SName::ClassDiagram,
+        crate::ast::style::SName::Class_,
     );
     assert_eq!(
         result.font_weight, 300,
