@@ -650,8 +650,11 @@ pub(super) fn emit_activity_action_box(
             cx, first_line_y, escape_text(font_color), escape_text(&wrapped_lines[0])
         ));
     } else {
+        // Carry `x` on the <text> element so SVG helpers that read the `x`
+        // attribute can still locate the node's horizontal position.
         out.push_str(&format!(
-            "<text text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">",
+            "<text x=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">",
+            cx,
             escape_text(font_color)
         ));
         for (idx, line) in wrapped_lines.iter().enumerate() {
