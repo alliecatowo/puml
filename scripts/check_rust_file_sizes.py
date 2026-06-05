@@ -126,6 +126,11 @@ ALLOWLIST_REASONS = {
     # and resolver state; sub-module extraction would require threading context state.
     # Split tracked in #590.
     "src/theme/shared_cascade.rs": "wave-17 Phase B style cascade resolver added ~72 lines; split tracked in #590",
+    # Was 405 lines on main; grew to 863 after Phase D (#1416) coverage uplift added 17
+    # tests exercising the style_block_color tier and Phase D style_builder paths
+    # (~458 lines net). Tests are tightly coupled to the cascade resolver; sub-module
+    # extraction would require moving the resolver itself. Split tracked in #590.
+    "src/theme/shared_cascade_tests.rs": "wave-17 Phase D #1416 coverage uplift added 17 tests; split tracked in #590",
 }
 
 

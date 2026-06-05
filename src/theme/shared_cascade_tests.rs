@@ -861,3 +861,120 @@ fn class_effective_phase_d_min_width_from_style_builder() {
         "MinimumWidth 100 must set min_width=100"
     );
 }
+
+/// Phase D: `LineStyle: dotted` in a style-builder yields `EffectiveLineStyle::Dotted`.
+#[test]
+fn class_effective_phase_d_line_style_dotted_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::effective::EffectiveLineStyle;
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::LineStyle, StyleValue::String("dotted".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.line_style, EffectiveLineStyle::Dotted);
+}
+
+/// Phase D: `LineStyle: solid` in a style-builder yields `EffectiveLineStyle::Solid`.
+#[test]
+fn class_effective_phase_d_line_style_solid_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::effective::EffectiveLineStyle;
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(PName::LineStyle, StyleValue::String("solid".into()))]
+            .iter()
+            .cloned()
+            .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.line_style, EffectiveLineStyle::Solid);
+}
+
+/// Phase D: `HorizontalAlignment: left` in a style-builder yields `EffectiveHAlign::Left`.
+#[test]
+fn class_effective_phase_d_h_align_left_from_style_builder() {
+    use crate::ast::style::{
+        PName, SName, SelectorChain, SelectorSegment, StyleRule, StyleScheme, StyleValue,
+    };
+    use crate::theme::effective::EffectiveHAlign;
+    use crate::theme::skinparam::ClassStyle;
+    use crate::theme::style_builder::StyleBuilder;
+    use std::collections::BTreeMap;
+
+    let mut builder = StyleBuilder::new();
+    let rule = StyleRule {
+        selector_path: vec![
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::ClassDiagram)],
+            },
+            SelectorChain {
+                segments: vec![SelectorSegment::Tag(SName::Class_)],
+            },
+        ],
+        properties: [(
+            PName::HorizontalAlignment,
+            StyleValue::String("left".into()),
+        )]
+        .iter()
+        .cloned()
+        .collect(),
+        unknown_properties: BTreeMap::new(),
+        source_order: 1,
+        scheme: StyleScheme::Regular,
+    };
+    builder.push(rule);
+
+    let mut class_style = ClassStyle::default();
+    class_style.style_builder = Some(Box::new(builder));
+    let inline = FamilyNodeInlineStyle::default();
+    let result = class_node_effective_style(&class_style, None, &inline, None, None);
+    assert_eq!(result.h_align, EffectiveHAlign::Left);
+}
