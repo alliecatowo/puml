@@ -21,6 +21,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ast::style::{PName, SName, SelectorSegment, StyleRule, StyleValue};
+use crate::diagnostic::{
+    Diagnostic, E_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_PROPERTY, W_STYLE_UNKNOWN_TAG,
+};
 
 // ---------------------------------------------------------------------------
 // Public API types
@@ -114,6 +117,22 @@ impl StyleBuilder {
         self.rules.push(rule);
     }
 
+    /// Push a rule and collect validation diagnostics into `warnings`.
+    ///
+    /// Emits:
+    /// - [`W_STYLE_UNKNOWN_TAG`] for every [`SelectorSegment::Unknown`] segment in the
+    ///   rule's selector path (these segments never match any element).
+    /// - [`W_STYLE_UNKNOWN_PROPERTY`] for every entry in
+    ///   [`StyleRule::unknown_properties`] (property names not in the `PName` catalogue).
+    ///
+    /// `E_STYLE_BAD_VALUE` is emitted at parse time by the style-block parser when a
+    /// property value cannot be represented by any `StyleValue` variant; this method
+    /// does not re-emit it.
+    pub fn push_with_warnings(&mut self, rule: StyleRule, warnings: &mut Vec<Diagnostic>) {
+        emit_rule_warnings(&rule, warnings);
+        self.push(rule);
+    }
+
     /// Resolve the effective style for `query`.
     ///
     /// The result is memoised so subsequent calls with the same query are O(1).
@@ -162,6 +181,86 @@ impl StyleBuilder {
         }
         result
     }
+}
+
+// ---------------------------------------------------------------------------
+// Validation helpers — Phase E (#1417)
+// ---------------------------------------------------------------------------
+
+/// Emit `W_STYLE_UNKNOWN_TAG`, `W_STYLE_UNKNOWN_PROPERTY`, and `E_STYLE_BAD_VALUE`
+/// diagnostics for a single rule.  Called by [`StyleBuilder::push_with_warnings`].
+fn emit_rule_warnings(rule: &StyleRule, warnings: &mut Vec<Diagnostic>) {
+    // Unknown selector segments — never match, alert the user.
+    for chain in &rule.selector_path {
+        for segment in &chain.segments {
+            if let SelectorSegment::Unknown(tag) = segment {
+                warnings.push(Diagnostic::warning(format!(
+                    "[{W_STYLE_UNKNOWN_TAG}] unrecognised `<style>` selector `{tag}` \
+                     — this segment never matches any diagram element and will be ignored"
+                )));
+            }
+        }
+    }
+
+    // Unknown property names — not in the PName catalogue.
+    for prop in rule.unknown_properties.keys() {
+        warnings.push(Diagnostic::warning(format!(
+            "[{W_STYLE_UNKNOWN_PROPERTY}] unrecognised `<style>` property `{prop}` \
+             — check spelling; the property will be ignored"
+        )));
+    }
+
+    // Malformed values for colour-type properties.
+    for (pname, value) in &rule.properties {
+        if is_color_property(*pname) {
+            let raw_val = match value {
+                StyleValue::Raw(r) => Some(r.as_str()),
+                StyleValue::Color(c) => {
+                    // The parser stores anything starting with `#` as Color — validate here.
+                    let trimmed = c.trim();
+                    if trimmed.starts_with('#') && !is_valid_hex_color(trimmed) {
+                        Some(trimmed)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            if let Some(trimmed) = raw_val {
+                // Only flag if it looks like an attempted hex literal (starts with `#`)
+                // but has the wrong digit count or non-hex characters.
+                // Skip gradients ("a-#b") and CSS variables ("##var") — Raw is intentional.
+                if trimmed.starts_with('#') && !trimmed.contains('-') && !trimmed.starts_with("##")
+                {
+                    warnings.push(Diagnostic::error(format!(
+                        "[{E_STYLE_BAD_VALUE}] malformed colour value `{trimmed}` \
+                         for `<style>` property `{pname:?}` — \
+                         expected `#RGB`, `#RRGGBB`, `#AARRGGBB`, or a named colour"
+                    )));
+                }
+            }
+        }
+    }
+}
+
+/// Returns `true` if `pname` semantically requires a colour value.
+fn is_color_property(pname: PName) -> bool {
+    matches!(
+        pname,
+        PName::FontColor
+            | PName::BackgroundColor
+            | PName::LineColor
+            | PName::HeadColor
+            | PName::HyperLinkColor
+            | PName::MarkerColor
+    )
+}
+
+/// Returns `true` if `s` (which must start with `#`) is a valid hex colour:
+/// `#RGB` (3), `#RGBA` (4), `#RRGGBB` (6), or `#AARRGGBB` / `#RRGGBBAA` (8).
+fn is_valid_hex_color(s: &str) -> bool {
+    let hex = &s[1..]; // strip leading `#`
+    matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 // ---------------------------------------------------------------------------

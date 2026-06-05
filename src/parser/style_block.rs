@@ -13,9 +13,9 @@
 //! - Properties as `Key Value` or `Key: Value;`
 //!
 //! Returns:
-//! - A typed `StyleBlock` AST (new in Phase A)
-//! - A `Vec<StyleParam>` legacy flat triples for the compat shim (consumed by the
-//!   existing per-family resolvers until Phase E removes them)
+//! - A typed `StyleBlock` AST
+//! - A `Vec<CompatTriple>` (retained for callers that still pass compat triples; the
+//!   `StatementKind::StyleParam` compat shim was removed in Phase E — #1417)
 
 use std::collections::BTreeMap;
 
@@ -434,9 +434,9 @@ impl Parser {
 /// Parse the body of a `<style>` block (everything between the `<style>` and
 /// `</style>` tags, already pre-stripped of the tag lines themselves).
 ///
-/// Returns `(StyleBlock, Vec<CompatTriple>)`.  The `CompatTriple` list is used
-/// by `parse_style_block` in `directives.rs` to continue emitting legacy
-/// `StatementKind::StyleParam` triples alongside the new `StyleBlock`.
+/// Returns `(StyleBlock, Vec<CompatTriple>)`.  The `CompatTriple` list is
+/// retained for callers; the `StatementKind::StyleParam` compat shim that
+/// consumed these triples was removed in Phase E (#1417).
 pub fn parse_style_block_body(body: &str) -> (StyleBlock, Vec<CompatTriple>) {
     let tokens = lex(body);
     let mut stream = Stream::new(&tokens);

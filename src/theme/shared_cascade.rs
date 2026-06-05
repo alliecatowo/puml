@@ -233,17 +233,22 @@ pub fn class_node_effective_style(
     inline_style: &FamilyNodeInlineStyle,
     fill_inline: Option<&str>,
     element_stereotype: Option<&str>,
+    diagram_sname: crate::ast::style::SName,
+    element_sname: crate::ast::style::SName,
 ) -> EffectiveClassNodeStyle {
     use super::effective::{EffectiveHAlign, EffectiveLineStyle};
     use super::style_builder::StyleQuery;
-    use crate::ast::style::{PName, SName, StyleValue};
+    use crate::ast::style::{PName, StyleValue};
 
     let title_font_size = class_style.font_size.unwrap_or(13);
 
     // ── Phase B/D: resolve `<style>` block properties ─────────────────────────
     // Build a query for this class element and look up any style-block rules.
+    // diagram_sname / element_sname allow the caller to specify the correct
+    // selector tags for the diagram family (e.g. UsecaseDiagram / UseCase_
+    // for usecase diagrams, ClassDiagram / Class_ for class diagrams).
     let style_block_resolved = class_style.style_builder.as_deref().map(|builder| {
-        let mut query = StyleQuery::tags([SName::ClassDiagram, SName::Class_]);
+        let mut query = StyleQuery::tags([diagram_sname, element_sname]);
         if let Some(stereo) = element_stereotype {
             query = query.with_stereotype(stereo);
         }

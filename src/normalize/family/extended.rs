@@ -12,7 +12,7 @@ use self::activity::{
     ActivityNormalizeState,
 };
 use self::component::normalize_component_decl;
-use self::styles::{ExtendedFamilyStyles, StyleParamInput, StyleParamRecord};
+use self::styles::ExtendedFamilyStyles;
 use self::timing::{
     normalize_timing_decl, normalize_timing_event, normalize_timing_relation_endpoint,
     normalize_timing_scale_node, TimingNormalizeState,
@@ -29,7 +29,6 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut activity_state = ActivityNormalizeState::default();
     let mut timing_state = TimingNormalizeState::default();
     let mut family_styles = ExtendedFamilyStyles::new(family_kind);
-    let mut style_params: Vec<StyleParamRecord> = Vec::new();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut last_relation: Option<(String, String)> = None;
@@ -392,20 +391,6 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     );
                 }
             }
-            StatementKind::StyleParam {
-                selector,
-                property,
-                key,
-                value,
-            } => {
-                style_params.push(StyleParamRecord {
-                    selector,
-                    property,
-                    key,
-                    value,
-                    span: stmt.span,
-                });
-            }
             StatementKind::Theme(value) => {
                 family_styles.apply_theme(family_kind, &value, stmt.span)?;
             }
@@ -435,9 +420,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
             // Phase B (#1404): push typed `<style>` block rules into the builder.
-            // The compat shim still emits legacy StyleParam triples for backward compat.
+            // Phase E (#1417): diagnostic emission wired through push_with_warnings.
             StatementKind::StyleBlock(block) => {
-                family_styles.push_style_block(block);
+                family_styles.push_style_block(block, &mut ext_warnings);
             }
             StatementKind::Scale(body) => {
                 common.scale(&body);
@@ -511,17 +496,6 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         }
     }
 
-    for param in style_params {
-        family_styles.handle_style_param(StyleParamInput {
-            family_kind,
-            selector: param.selector.as_deref(),
-            property: &param.property,
-            key: param.key.as_deref(),
-            value: &param.value,
-            span: param.span,
-            warnings: &mut ext_warnings,
-        });
-    }
     common::sort_diagnostics_by_message_and_span(&mut ext_warnings);
     let sepia = family_styles.sepia();
     let family_style = family_styles.into_family_style(family_kind);

@@ -124,12 +124,3 @@ pub(super) fn salt_scan_unsupported(
         }
     }
 }
-
-/// Holds a deferred `<style>` block param for post-loop application.
-pub(super) struct StyleParamRecord {
-    pub(super) selector: Option<String>,
-    pub(super) property: String,
-    pub(super) key: Option<String>,
-    pub(super) value: String,
-    pub(super) span: Span,
-}

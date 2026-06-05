@@ -519,7 +519,6 @@ pub(crate) fn is_family_common_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Legend(_)
             | StatementKind::LegendPos(_)
             | StatementKind::SkinParam { .. }
-            | StatementKind::StyleParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Scale(_)
             | StatementKind::NewPage(_)
@@ -541,7 +540,6 @@ pub(crate) fn is_family_common_keyword_before_detection(kind: &StatementKind) ->
             | StatementKind::Legend(_)
             | StatementKind::LegendPos(_)
             | StatementKind::SkinParam { .. }
-            | StatementKind::StyleParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_)

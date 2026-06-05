@@ -916,6 +916,36 @@
       "png_baseline_required": false,
       "png_baseline_issue": 434,
       "png_baseline_deferred_reason": "Polyline-default + obstacles + header-band re-land (#1343); re-bless on Linux"
+    },
+    {
+      "path": "tests/fixtures/themes/cyborg_smoke.puml",
+      "family": "sequence",
+      "expected_text": [
+        "Cyborg Theme",
+        "Alice",
+        "Bob",
+        "hello",
+        "hi"
+      ],
+      "min_text_elements": 5,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1417,
+      "png_baseline_deferred_reason": "sequence layout may drift across platforms; Mac-blessed baseline; re-bless on Linux after merge"
+    },
+    {
+      "path": "tests/fixtures/themes/reddress-darkblue_smoke.puml",
+      "family": "sequence",
+      "expected_text": [
+        "Reddress Dark Blue Theme",
+        "Alice",
+        "Bob",
+        "hello",
+        "hi"
+      ],
+      "min_text_elements": 5,
+      "png_baseline_required": false,
+      "png_baseline_issue": 1417,
+      "png_baseline_deferred_reason": "sequence layout may drift across platforms; Mac-blessed baseline; re-bless on Linux after merge"
     }
   ]
 }

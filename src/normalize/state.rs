@@ -13,6 +13,8 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut projection_counter = 0usize;
     let mut last_transition: Option<(String, String)> = None;
     let mut edge_routing = crate::render::graph_layout::EdgeRouting::default();
+    // Phase E (#1417): accumulate `<style>` block rules for state diagrams.
+    let mut style_builder = crate::theme::StyleBuilder::new();
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -223,53 +225,6 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     }
                 }
             }
-            StatementKind::StyleParam {
-                selector,
-                property,
-                key,
-                value,
-            } => {
-                if let Some(key) = key {
-                    use crate::theme::StateSkinParamValue;
-                    match classify_state_skinparam(key, value) {
-                        SkinParamSupport::SupportedNoop => {}
-                        SkinParamSupport::SupportedWithValue(v) => match v {
-                            StateSkinParamValue::BackgroundColor(c) => {
-                                state_style.background_color = c;
-                            }
-                            StateSkinParamValue::BorderColor(c) => {
-                                state_style.border_color = c;
-                            }
-                            StateSkinParamValue::ArrowColor(c) => {
-                                state_style.arrow_color = c;
-                            }
-                            StateSkinParamValue::StartColor(c) => {
-                                state_style.start_color = c;
-                            }
-                            StateSkinParamValue::FontColor(c) => {
-                                state_style.font_color = c;
-                            }
-                            StateSkinParamValue::FontSize(n) => {
-                                state_style.font_size = Some(n);
-                            }
-                        },
-                        SkinParamSupport::UnsupportedKey => {
-                            warnings.push(common::unsupported_skinparam_warning(key, stmt.span));
-                        }
-                        SkinParamSupport::UnsupportedValue => {
-                            warnings.push(common::unsupported_skinparam_value_warning(
-                                key, value, stmt.span,
-                            ));
-                        }
-                    }
-                } else {
-                    warnings.push(common::unsupported_style_warning(
-                        selector.as_deref(),
-                        property,
-                        stmt.span,
-                    ));
-                }
-            }
             StatementKind::Theme(value) => {
                 state_style = state_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(value)
@@ -287,10 +242,15 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
-            // Phase A: StyleBlock is parsed but not yet applied by family normalizers.
-            // The compat shim already emits legacy StyleParam triples; skip the typed
-            // AST node silently until Phase B wires up per-family application.
-            StatementKind::StyleBlock(_) => {}
+            // Phase E (#1417): accumulate `<style>` block rules for state diagrams.
+            // Apply via the bridge at the end of normalization.
+            StatementKind::StyleBlock(block) => {
+                for rule in block.rules.clone() {
+                    if rule.scheme == crate::ast::style::StyleScheme::Regular {
+                        style_builder.push_with_warnings(rule, &mut warnings);
+                    }
+                }
+            }
             StatementKind::StateRegionDivider => {}
             kind if kind.raw_syntax().is_some() => {
                 let raw = kind.raw_syntax().expect("raw syntax guard");
@@ -360,6 +320,11 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         apply_monochrome_to_state_style(&mut state_style, mode);
     }
 
+    // Phase E (#1417): apply StyleBuilder rules to StateStyle fields.
+    if !style_builder.is_empty() {
+        apply_style_builder_to_state(&mut state_style, &style_builder);
+    }
+
     attach_scoped_history_endpoints(&mut nodes, &transitions);
 
     Ok(StateDocument {
@@ -381,3 +346,46 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
 mod nodes;
 
 use nodes::*;
+
+// ---------------------------------------------------------------------------
+// StyleBlock → StateStyle bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+fn apply_style_builder_to_state(state: &mut StateStyle, builder: &crate::theme::StyleBuilder) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let color = |query: &StyleQuery, pname: PName| -> Option<String> {
+        builder.resolve(query).color(pname).map(str::to_string)
+    };
+
+    // stateDiagram { ArrowColor #... } (arrowcolor is an alias for PName::LineColor)
+    let diagram_q = StyleQuery::tags([SName::StateDiagram]);
+    if let Some(c) = color(&diagram_q, PName::LineColor) {
+        state.arrow_color = c;
+    }
+
+    // stateDiagram { state { BackgroundColor / BorderColor / FontColor } }
+    let state_q = StyleQuery::tags([SName::StateDiagram, SName::State]);
+    if let Some(c) = color(&state_q, PName::BackgroundColor) {
+        state.background_color = c;
+    }
+    if let Some(c) = color(&state_q, PName::LineColor) {
+        state.border_color = c;
+    }
+    if let Some(c) = color(&state_q, PName::FontColor) {
+        state.font_color = c;
+    }
+    // FontSize: read from the properties map as a Number.
+    if let Some(crate::ast::style::StyleValue::Number(n)) =
+        builder.resolve(&state_q).properties.get(&PName::FontSize)
+    {
+        state.font_size = Some(*n as u32);
+    }
+
+    // stateDiagram { start { BackgroundColor } }
+    let start_q = StyleQuery::tags([SName::StateDiagram, SName::Start]);
+    if let Some(c) = color(&start_q, PName::BackgroundColor) {
+        state.start_color = c;
+    }
+}
