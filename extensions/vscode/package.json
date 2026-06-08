@@ -203,7 +203,7 @@
     "test:electron": "node ./tests/runElectronTests.js"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "@types/vscode": "^1.95.0",
     "@vscode/test-electron": "^2.4.1",
     "glob": "^13.0.6",
