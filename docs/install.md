@@ -7,6 +7,12 @@ SVG by default with optional PNG, JPG, WebP, PDF, HTML, and text outputs.
 The current package version is `0.1.0` and the crate requires Rust `1.88` or newer when
 you build from source.
 
+> **Status:** no GitHub release or crates.io package has been published yet, so the curl
+> installer, release-asset downloads and `cargo install puml` below don't work yet. Until
+> they do, install from source:
+> `cargo install --git https://github.com/alliecatowo/puml --bin puml` (or `cargo build --release`
+> from a checkout).
+
 ---
 
 ## Recommended install

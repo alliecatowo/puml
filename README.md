@@ -83,8 +83,8 @@ upstream is family-agnostic AST.
 ## Quick start
 
 ```bash
-# 1. Install (see all install options below)
-cargo install puml --bin puml
+# 1. Install from source (needs Rust 1.88+; see install options below)
+cargo install --git https://github.com/alliecatowo/puml --bin puml
 
 # 2. Write a diagram
 cat > hello.puml <<'EOF'
@@ -105,87 +105,22 @@ Open `hello.svg` in any browser or SVG viewer. Done.
 ---
 
 <details>
-<summary><b>Install options (curl installer, Cargo, binary, Homebrew, npm, Docker)</b></summary>
+<summary><b>Install options</b></summary>
 
-### curl installer — fastest no-Rust path (Linux &amp; macOS)
+**Right now, puml installs from source only.** No GitHub release, crates.io crate, npm
+package, Homebrew tap or container image has been published yet.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh
-```
+### Cargo from git (recommended)
 
-The installer:
-- Auto-detects your platform (Linux x86-64/arm64, macOS Apple Silicon/Intel)
-- Downloads the signed release tarball over HTTPS
-- Verifies the SHA-256 checksum against the release's `SHA256SUMS` file
-- Verifies the [cosign](https://docs.sigstore.dev/cosign/installation/) keyless signature when `cosign` is on your `PATH`
-- Installs to `/usr/local/bin/puml` (or `~/.local/bin/puml` when `/usr/local/bin` is not writable)
-- Runs `puml --version` as a self-test
-
-**The installer never executes the downloaded binary during the install step.**
-
-Options:
+Requires Rust 1.88 or newer:
 
 ```bash
-# Install a specific version
-curl -fsSL .../install.sh | sh -s -- --version v0.2.1
-
-# Install to a custom prefix
-curl -fsSL .../install.sh | sh -s -- --prefix ~/.local
-
-# Preview what would happen (no download, no install)
-curl -fsSL .../install.sh | sh -s -- --dry-run
-
-# Skip cosign (SHA-256 is always checked)
-curl -fsSL .../install.sh | sh -s -- --no-verify-sig
+cargo install --git https://github.com/alliecatowo/puml --bin puml
+# optional: the language server
+cargo install --git https://github.com/alliecatowo/puml --bin puml-lsp
 ```
 
-See the [install guide](docs/install.md) for manual download steps and checksum
-verification instructions.
-
-### Pre-built binary — manual download
-
-Download the latest release for your platform from the
-[Releases page](https://github.com/alliecatowo/puml/releases):
-
-| Platform | Archive | LSP Archive |
-|---|---|---|
-| Linux x86-64 | `puml-x86_64-unknown-linux-musl.tar.gz` | `puml-lsp-x86_64-unknown-linux-musl.tar.gz` |
-| Linux arm64 | `puml-aarch64-unknown-linux-musl.tar.gz` | `puml-lsp-aarch64-unknown-linux-musl.tar.gz` |
-| macOS (Apple Silicon) | `puml-aarch64-apple-darwin.tar.gz` | `puml-lsp-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `puml-x86_64-apple-darwin.tar.gz` | `puml-lsp-x86_64-apple-darwin.tar.gz` |
-| Windows x86-64 | `puml-x86_64-pc-windows-msvc.zip` | `puml-lsp-x86_64-pc-windows-msvc.zip` |
-
-Each release also includes a `SHA256SUMS` file and per-archive `.cosign.bundle` files
-for supply-chain verification.
-
-Extract and place the `puml` binary on your `$PATH`.
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew install alliecatowo/tap/puml
-```
-
-### npm / npx — Node users
-
-```bash
-npx puml-cli hello.puml          # one-off, no install needed
-npm install -g puml-cli          # global install
-```
-
-### Docker
-
-```bash
-docker run --rm -v "$PWD":/work ghcr.io/alliecatowo/puml:latest hello.puml
-```
-
-### Cargo — Rust toolchain
-
-```bash
-cargo install puml --bin puml
-```
-
-### Build from source
+### Build from a checkout
 
 ```bash
 git clone https://github.com/alliecatowo/puml.git
@@ -194,8 +129,21 @@ cargo build --release
 ./target/release/puml hello.puml
 ```
 
-See the full [install guide](docs/install.md) for proxy settings, checksum verification,
-and platform-specific notes.
+### Planned channels (not available yet)
+
+These are planned, but nothing has been published through them yet:
+
+| Channel | Planned command |
+|---|---|
+| curl installer (verifies SHA-256 and cosign signatures) | `curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \| sh` |
+| Pre-built binaries (Linux, macOS, Windows) | download from [Releases](https://github.com/alliecatowo/puml/releases) |
+| crates.io | `cargo install puml --bin puml` |
+| Homebrew | `brew install alliecatowo/tap/puml` |
+| npm | `npx puml-cli hello.puml` |
+| Docker | `docker run --rm -v "$PWD":/work ghcr.io/alliecatowo/puml:latest hello.puml` |
+
+The curl installer and pre-built binaries need a published GitHub release, which doesn't
+exist yet. See the [install guide](docs/install.md) for more detail.
 
 </details>
 
