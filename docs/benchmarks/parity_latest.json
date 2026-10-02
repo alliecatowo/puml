@@ -4,7 +4,7 @@
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/Users/allie/Develop/puml/.claude/worktrees/agent-a949cd86aae12fefc",
+    "cwd": ".",
     "quick_mode": false
   },
   "oracle": {

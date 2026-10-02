@@ -10,7 +10,7 @@
 [![docs](https://img.shields.io/badge/docs-alliecatowo.github.io%2Fpuml-16a34a)](https://alliecatowo.github.io/puml/)
 
 **puml** is a fast, offline-first PlantUML-compatible diagram renderer written in Rust.
-Give it a `.puml` file and get a pixel-perfect SVG, PNG, or PDF out — no Java, no Node,
+Give it a `.puml` file and get a PlantUML-compatible SVG, PNG, or PDF out — no Java, no Node,
 no network. It ships as a single static binary, a WebAssembly module for in-browser
 editing, and a Language Server (LSP) for editor integration across 25+ diagram families.
 
@@ -277,7 +277,7 @@ tracked separately.)*
 `puml` is PlantUML-compatible — not a claim of complete 1:1 parity. Many diagram
 families render well today; some advanced features are partial and tracked openly.
 
-Run `puml --check` on your files and compare output when pixel-perfect parity matters.
+Run `puml --check` on your files and compare output when exact parity matters.
 Current compatibility work is tracked through focused GitHub issues, executable
 fixtures, and the roadmap in [`docs/parity-roadmap.md`](docs/parity-roadmap.md).
 

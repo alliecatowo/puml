@@ -12,3 +12,12 @@ __pycache__/
 #   - tests/visual_baselines/**/*.png  (visual regression baselines)
 #   - docs/diagrams/*.png              (intentionally embedded in README/site)
 docs/examples/**/*.png
+
+# Agent local state (keep the shared settings.json)
+.claude/*
+!.claude/settings.json
+.env
+.env.*
+!.env.example
+.mcp.json
+*.log
