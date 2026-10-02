@@ -113,10 +113,9 @@ pub fn parse_cloud_stereotype(text: &str) -> Option<CloudIconStereotype> {
         .or_else(|| inner.strip_prefix("dev-"))
     {
         (CloudProvider::Devicons, r)
-    } else if let Some(r) = inner.strip_prefix("k8s-") {
-        (CloudProvider::Kubernetes, r)
     } else {
-        return None;
+        let r = inner.strip_prefix("k8s-")?;
+        (CloudProvider::Kubernetes, r)
     };
 
     if rest.is_empty() {
