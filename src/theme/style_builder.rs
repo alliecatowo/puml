@@ -204,14 +204,11 @@ fn rule_score(rule: &StyleRule, query: &StyleQuery) -> Option<u32> {
                         .iter()
                         .position(|t| t == sname)
                         .map(|offset| tag_cursor + offset);
-                    if let Some(pos) = found {
-                        tag_cursor = pos + 1;
-                        score = score.saturating_add(100);
-                        chain_matched = true;
-                    } else {
-                        // Required tag not found — rule does not match.
-                        return None;
-                    }
+                    // Required tag not found: the rule does not match.
+                    let pos = found?;
+                    tag_cursor = pos + 1;
+                    score = score.saturating_add(100);
+                    chain_matched = true;
                 }
                 SelectorSegment::Stereotype(name) => {
                     let lower = name.to_ascii_lowercase();
