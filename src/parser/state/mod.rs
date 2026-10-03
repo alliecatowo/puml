@@ -340,7 +340,6 @@ pub(crate) fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
             | StatementKind::Caption(_)
             | StatementKind::Legend(_)
             | StatementKind::SkinParam { .. }
-            | StatementKind::StyleParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
     )

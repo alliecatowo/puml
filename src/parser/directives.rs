@@ -113,11 +113,8 @@ pub(crate) fn parse_style_block(
         return Ok(None);
     }
 
-    // -----------------------------------------------------------------------
-    // Phase A: Collect the raw body text between <style> and </style>, then
-    // run the new recursive-descent parser to produce a typed StyleBlock AST.
-    // The legacy flat StyleParam path below continues to run (compat shim).
-    // -----------------------------------------------------------------------
+    // Collect the raw body text between <style> and </style>, then run the
+    // recursive-descent parser to produce a typed StyleBlock AST.
     let mut body_lines: Vec<&str> = Vec::new();
     let mut close_idx: Option<usize> = None;
     for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
@@ -133,15 +130,12 @@ pub(crate) fn parse_style_block(
     let body_text = body_lines.join("\n");
     let (style_block_ast, _compat_triples) =
         crate::parser::style_block::parse_style_block_body(&body_text);
-    // NOTE: _compat_triples are intentionally unused here — the legacy code
-    // path below independently emits StyleParam triples via `target.skinparam_key`.
-    // Phase E will wire these up and remove the legacy path.
+    // _compat_triples: the legacy StyleParam compat shim was removed in Phase E (#1417).
 
-    let Some(target) = style_block_target(lines, start_idx) else {
-        // Preserve unsupported style blocks as raw lines so family-specific
-        // style handling (e.g. mindmap depth styles) can consume them without
-        // generic top-level keyword parsing rewriting inner declarations.
-        // Also emit the new StyleBlock so Phase B can start consuming it.
+    if !has_known_style_target(lines, start_idx) {
+        // Preserve unrecognised style blocks as DeferredRaw lines so that
+        // family-specific raw handlers (e.g. mindmap depth styles) can still
+        // consume them. Also emit the typed StyleBlock for cascade resolution.
         let mut kinds = vec![
             StatementKind::StyleBlock(style_block_ast),
             StatementKind::DeferredRaw(line.to_string()),
@@ -159,82 +153,23 @@ pub(crate) fn parse_style_block(
             "[E_STYLE_BLOCK_UNCLOSED] `<style>` block is missing closing `</style>`",
         )
         .with_span(lines[start_idx].1));
-    };
+    }
 
-    // Emit the typed StyleBlock AST first, then the legacy flat triples.
-    let mut kinds: Vec<StatementKind> = vec![StatementKind::StyleBlock(style_block_ast)];
-    let mut in_target = false;
-    let mut nested_selector: Option<String> = None;
-    let mut salt_external_selector = false;
+    // Phase E (#1417): The legacy flat-triple compat shim is removed.
+    // Emit only the typed StyleBlock AST; the cascade resolver handles all families.
+    let kinds: Vec<StatementKind> = vec![StatementKind::StyleBlock(style_block_ast)];
 
+    // Scan to the closing </style> tag (we already found it above).
+    if let Some(end_idx) = close_idx {
+        return Ok(Some((kinds, end_idx)));
+    }
+
+    // Fall through: close_idx was None (close not found during look-ahead), scan again.
     for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
         let inner = strip_inline_plantuml_comment(raw).trim();
         if inner.eq_ignore_ascii_case("</style>") {
             return Ok(Some((kinds, idx)));
         }
-        if inner.is_empty() {
-            continue;
-        }
-        if target.matches_open_selector(inner) {
-            in_target = true;
-            nested_selector = None;
-            salt_external_selector = false;
-            continue;
-        }
-        if !in_target && matches!(target, StyleBlockTarget::Salt) && inner.ends_with('{') {
-            nested_selector = Some(inner.trim_end_matches('{').trim().to_ascii_lowercase());
-            in_target = true;
-            salt_external_selector = true;
-            continue;
-        }
-        if inner == "}" {
-            if nested_selector.is_some() {
-                nested_selector = None;
-                if salt_external_selector {
-                    in_target = false;
-                    salt_external_selector = false;
-                }
-            } else {
-                in_target = false;
-            }
-            continue;
-        }
-        if !in_target {
-            continue;
-        }
-        if inner.ends_with('{') {
-            let selector = inner.trim_end_matches('{').trim().to_ascii_lowercase();
-            nested_selector = Some(selector);
-            salt_external_selector = false;
-            continue;
-        }
-
-        let (raw_key, raw_value) = inner
-            .split_once(':')
-            .or_else(|| inner.split_once(|c: char| c.is_whitespace()))
-            .map(|(k, v)| (k.trim(), v.trim()))
-            .unwrap_or((inner, ""));
-        if raw_key.is_empty() || raw_value.is_empty() {
-            continue;
-        }
-        let value = raw_value.trim_end_matches(';').trim();
-        if value.is_empty() {
-            continue;
-        }
-
-        let key = target.skinparam_key(nested_selector.as_deref(), raw_key);
-        kinds.push(StatementKind::StyleParam {
-            selector: nested_selector.clone(),
-            property: raw_key.to_string(),
-            key,
-            value: value.to_string(),
-        });
-    }
-
-    // If we reach here, we never saw </style> — use the close_idx we found earlier
-    // for the early-return path; otherwise fall through to the error.
-    if let Some(end_idx) = close_idx {
-        return Ok(Some((kinds, end_idx)));
     }
 
     Err(
@@ -243,419 +178,36 @@ pub(crate) fn parse_style_block(
     )
 }
 
-#[derive(Clone, Copy)]
-pub(crate) enum StyleBlockTarget {
-    Sequence,
-    Class,
-    UseCase,
-    Component,
-    Deployment,
-    State,
-    Activity,
-    Salt,
+/// Returns `true` when the `<style>` block at `start_idx` in `lines` opens with
+/// a known top-level diagram selector (e.g. `sequenceDiagram { … }`).
+///
+/// Unknown selectors (e.g. mindmap-depth styles) are handled via the `DeferredRaw`
+/// path so that family-specific raw handlers can consume them.
+fn has_known_style_target(lines: &[(&str, Span)], start_idx: usize) -> bool {
+    style_block_has_target(lines, start_idx)
 }
 
-impl StyleBlockTarget {
-    fn matches_open_selector(self, line: &str) -> bool {
-        let selector = line.trim_end_matches('{').trim();
-        match self {
-            Self::Sequence => selector.eq_ignore_ascii_case("sequenceDiagram"),
-            Self::Class => selector.eq_ignore_ascii_case("classDiagram"),
-            Self::UseCase => selector.eq_ignore_ascii_case("usecaseDiagram"),
-            Self::Component => selector.eq_ignore_ascii_case("componentDiagram"),
-            Self::Deployment => selector.eq_ignore_ascii_case("deploymentDiagram"),
-            Self::State => selector.eq_ignore_ascii_case("stateDiagram"),
-            Self::Activity => selector.eq_ignore_ascii_case("activityDiagram"),
-            Self::Salt => selector.eq_ignore_ascii_case("saltDiagram"),
-        }
-    }
-
-    fn skinparam_key(self, nested_selector: Option<&str>, raw_key: &str) -> Option<String> {
-        let key = raw_key.to_ascii_lowercase();
-        match self {
-            Self::Sequence => sequence_style_skinparam_key(nested_selector, &key),
-            Self::Class | Self::UseCase => class_style_skinparam_key(nested_selector, &key),
-            Self::Component => component_style_skinparam_key(nested_selector, &key),
-            Self::Deployment => deployment_style_skinparam_key(nested_selector, &key),
-            Self::State => state_style_skinparam_key(nested_selector, &key),
-            Self::Activity => activity_style_skinparam_key(nested_selector, &key),
-            Self::Salt => salt_style_skinparam_key(nested_selector, &key),
-        }
-    }
-}
-
-pub(crate) fn style_block_target(
-    lines: &[(&str, Span)],
-    start_idx: usize,
-) -> Option<StyleBlockTarget> {
+fn style_block_has_target(lines: &[(&str, Span)], start_idx: usize) -> bool {
     for (raw, _) in lines.iter().skip(start_idx + 1) {
         let inner = strip_inline_plantuml_comment(raw).trim();
         if inner.eq_ignore_ascii_case("</style>") {
-            return None;
+            return false;
         }
         if inner.is_empty() {
             continue;
         }
         let selector = inner.trim_end_matches('{').trim();
-        if selector.eq_ignore_ascii_case("sequenceDiagram") {
-            return Some(StyleBlockTarget::Sequence);
-        }
-        if selector.eq_ignore_ascii_case("classDiagram") {
-            return Some(StyleBlockTarget::Class);
-        }
-        if selector.eq_ignore_ascii_case("usecaseDiagram") {
-            return Some(StyleBlockTarget::UseCase);
-        }
-        if selector.eq_ignore_ascii_case("componentDiagram") {
-            return Some(StyleBlockTarget::Component);
-        }
-        if selector.eq_ignore_ascii_case("deploymentDiagram") {
-            return Some(StyleBlockTarget::Deployment);
-        }
-        if selector.eq_ignore_ascii_case("stateDiagram") {
-            return Some(StyleBlockTarget::State);
-        }
-        if selector.eq_ignore_ascii_case("activityDiagram") {
-            return Some(StyleBlockTarget::Activity);
-        }
-        if selector.eq_ignore_ascii_case("saltDiagram") {
-            return Some(StyleBlockTarget::Salt);
-        }
-        return None;
+        return matches!(
+            selector.to_ascii_lowercase().as_str(),
+            "sequencediagram"
+                | "classdiagram"
+                | "usecasediagram"
+                | "componentdiagram"
+                | "deploymentdiagram"
+                | "statediagram"
+                | "activitydiagram"
+                | "saltdiagram"
+        );
     }
-    None
-}
-
-pub(crate) fn style_selector_stereotype(selector: &str, prefix: &str) -> Option<String> {
-    let trimmed = selector.trim();
-    let rest = trimmed.strip_prefix(prefix)?.trim();
-    let stereotype = rest.strip_prefix("<<")?.strip_suffix(">>")?.trim();
-    if stereotype.is_empty() {
-        None
-    } else {
-        Some(stereotype.to_string())
-    }
-}
-
-pub(crate) fn sequence_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    match nested_selector {
-        None => match key {
-            "arrowcolor" => Some("ArrowColor".to_string()),
-            "lifelinebordercolor" => Some("LifelineBorderColor".to_string()),
-            "backgroundcolor" => Some("BackgroundColor".to_string()),
-            _ => None,
-        },
-        Some("participant") => match key {
-            "backgroundcolor" => Some("ParticipantBackgroundColor".to_string()),
-            "bordercolor" => Some("ParticipantBorderColor".to_string()),
-            "fontcolor" => Some("ParticipantFontColor".to_string()),
-            _ => None,
-        },
-        Some("note") => match key {
-            "backgroundcolor" => Some("NoteBackgroundColor".to_string()),
-            "bordercolor" => Some("NoteBorderColor".to_string()),
-            _ => None,
-        },
-        Some("group") => match key {
-            "backgroundcolor" => Some("GroupBackgroundColor".to_string()),
-            "bordercolor" => Some("GroupBorderColor".to_string()),
-            "headerfontcolor" => Some("GroupHeaderFontColor".to_string()),
-            "headerfontstyle" => Some("GroupHeaderFontStyle".to_string()),
-            _ => None,
-        },
-        Some(_) => None,
-    }
-}
-
-pub(crate) fn salt_style_skinparam_key(nested_selector: Option<&str>, key: &str) -> Option<String> {
-    match nested_selector {
-        None => match key {
-            "backgroundcolor" => Some("SaltBackgroundColor".to_string()),
-            "fontcolor" => Some("SaltFontColor".to_string()),
-            "linecolor" | "bordercolor" => Some("SaltBorderColor".to_string()),
-            "gridcolor" => Some("SaltGridColor".to_string()),
-            "accentcolor" => Some("SaltAccentColor".to_string()),
-            _ => None,
-        },
-        Some("button") => match key {
-            "backgroundcolor" => Some("SaltButtonBackgroundColor".to_string()),
-            "fontcolor" => Some("SaltButtonFontColor".to_string()),
-            _ => None,
-        },
-        Some("input" | "textfield" | "textarea") => match key {
-            "backgroundcolor" => Some("SaltInputBackgroundColor".to_string()),
-            "fontcolor" => Some("SaltInputFontColor".to_string()),
-            _ => None,
-        },
-        Some("header") => match key {
-            "backgroundcolor" => Some("SaltHeaderColor".to_string()),
-            "fontcolor" => Some("SaltHeaderFontColor".to_string()),
-            _ => None,
-        },
-        Some("menu") => match key {
-            "backgroundcolor" => Some("SaltMenuBackgroundColor".to_string()),
-            _ => None,
-        },
-        Some("tab") => match key {
-            "backgroundcolor" => Some("SaltTabBackgroundColor".to_string()),
-            _ => None,
-        },
-        Some("scrollbar") => match key {
-            "backgroundcolor" => Some("SaltScrollbarColor".to_string()),
-            _ => None,
-        },
-        Some("checkbox") => match key {
-            "backgroundcolor" => Some("SaltCheckboxColor".to_string()),
-            _ => None,
-        },
-        Some("radio") => match key {
-            "backgroundcolor" => Some("SaltRadioColor".to_string()),
-            _ => None,
-        },
-        Some(_) => None,
-    }
-}
-
-pub(crate) fn class_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    let Some(selector) = nested_selector else {
-        return match key {
-            "arrowcolor" | "linecolor" => Some("ClassArrowColor".to_string()),
-            _ => None,
-        };
-    };
-    let selector = selector.trim();
-    let scope = style_selector_stereotype(selector, "class");
-    let scoped_key = |base: &str| {
-        scope
-            .as_ref()
-            .map(|stereotype| format!("{base}<<{stereotype}>>"))
-            .unwrap_or_else(|| base.to_string())
-    };
-    if selector == "arrow" || selector == "relation" {
-        return match key {
-            "linecolor" | "arrowcolor" | "bordercolor" => Some("ClassArrowColor".to_string()),
-            _ => None,
-        };
-    }
-    if selector == "class" || selector.starts_with("class<<") {
-        return match key {
-            "backgroundcolor" => Some(scoped_key("ClassBackgroundColor")),
-            "bordercolor" | "linecolor" => Some(scoped_key("ClassBorderColor")),
-            "headerbackgroundcolor" => Some(scoped_key("ClassHeaderBackgroundColor")),
-            "fontcolor" => Some(scoped_key("ClassFontColor")),
-            "fontsize" => Some("ClassFontSize".to_string()),
-            "fontname" => Some("ClassFontName".to_string()),
-            _ => None,
-        };
-    }
-    match selector {
-        _ if selector == "object" || selector.starts_with("object<<") => {
-            let scope = style_selector_stereotype(selector, "object");
-            let scoped_key = |base: &str| {
-                scope
-                    .as_ref()
-                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
-                    .unwrap_or_else(|| base.to_string())
-            };
-            match key {
-                "backgroundcolor" => Some(scoped_key("ObjectBackgroundColor")),
-                "bordercolor" | "linecolor" => Some(scoped_key("ObjectBorderColor")),
-                "fontcolor" => Some(scoped_key("ObjectFontColor")),
-                "fontsize" => Some("ObjectFontSize".to_string()),
-                "fontname" => Some("ObjectFontName".to_string()),
-                _ => None,
-            }
-        }
-        _ if selector == "usecase" || selector.starts_with("usecase<<") => {
-            let scope = style_selector_stereotype(selector, "usecase");
-            let scoped_key = |base: &str| {
-                scope
-                    .as_ref()
-                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
-                    .unwrap_or_else(|| base.to_string())
-            };
-            match key {
-                "backgroundcolor" => Some(scoped_key("UseCaseBackgroundColor")),
-                "bordercolor" | "linecolor" => Some(scoped_key("UseCaseBorderColor")),
-                "fontcolor" => Some(scoped_key("UseCaseFontColor")),
-                "fontsize" => Some("UseCaseFontSize".to_string()),
-                "fontname" => Some("UseCaseFontName".to_string()),
-                _ => None,
-            }
-        }
-        _ if selector == "actor" || selector.starts_with("actor<<") => {
-            let scope = style_selector_stereotype(selector, "actor");
-            let scoped_key = |base: &str| {
-                scope
-                    .as_ref()
-                    .map(|stereotype| format!("{base}<<{stereotype}>>"))
-                    .unwrap_or_else(|| base.to_string())
-            };
-            match key {
-                "backgroundcolor" => Some(scoped_key("ActorBackgroundColor")),
-                "bordercolor" | "linecolor" => Some(scoped_key("ActorBorderColor")),
-                "fontcolor" => Some(scoped_key("ActorFontColor")),
-                "fontsize" => Some("ActorFontSize".to_string()),
-                "fontname" => Some("ActorFontName".to_string()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-pub(crate) fn component_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    let selector = nested_selector?;
-    let selector = selector.trim();
-    let scoped_key = |base: &str, prefix: &str| {
-        style_selector_stereotype(selector, prefix)
-            .map(|stereotype| format!("{base}<<{stereotype}>>"))
-            .unwrap_or_else(|| base.to_string())
-    };
-    match selector {
-        _ if selector == "component" || selector.starts_with("component<<") => match key {
-            "backgroundcolor" => Some(scoped_key("ComponentBackgroundColor", "component")),
-            "bordercolor" | "linecolor" => Some(scoped_key("ComponentBorderColor", "component")),
-            "fontcolor" => Some(scoped_key("ComponentFontColor", "component")),
-            _ => None,
-        },
-        _ if selector == "interface" || selector.starts_with("interface<<") => match key {
-            "backgroundcolor" | "color" => {
-                Some(scoped_key("InterfaceBackgroundColor", "interface"))
-            }
-            "bordercolor" | "linecolor" => Some(scoped_key("InterfaceBorderColor", "interface")),
-            "fontcolor" => Some(scoped_key("InterfaceFontColor", "interface")),
-            _ => None,
-        },
-        _ if selector == "port" || selector.starts_with("port<<") => match key {
-            "backgroundcolor" | "color" => Some(scoped_key("PortBackgroundColor", "port")),
-            "bordercolor" | "linecolor" => Some(scoped_key("PortBorderColor", "port")),
-            "fontcolor" => Some(scoped_key("PortFontColor", "port")),
-            _ => None,
-        },
-        "arrow" | "relation" => match key {
-            "linecolor" | "arrowcolor" | "bordercolor" => Some("ComponentArrowColor".to_string()),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-pub(crate) fn deployment_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    let selector = nested_selector?;
-    let selector = selector.trim();
-    let scoped_key = |base: &str, prefix: &str| {
-        style_selector_stereotype(selector, prefix)
-            .map(|stereotype| format!("{base}<<{stereotype}>>"))
-            .unwrap_or_else(|| base.to_string())
-    };
-    match selector {
-        _ if selector == "node" || selector.starts_with("node<<") => match key {
-            "backgroundcolor" => Some(scoped_key("NodeBackgroundColor", "node")),
-            "bordercolor" | "linecolor" => Some(scoped_key("NodeBorderColor", "node")),
-            "fontcolor" => Some(scoped_key("NodeFontColor", "node")),
-            _ => None,
-        },
-        _ if selector == "artifact" || selector.starts_with("artifact<<") => match key {
-            "backgroundcolor" => Some(scoped_key("ArtifactBackgroundColor", "artifact")),
-            "bordercolor" | "linecolor" => Some(scoped_key("ArtifactBorderColor", "artifact")),
-            "fontcolor" => Some(scoped_key("ArtifactFontColor", "artifact")),
-            _ => None,
-        },
-        _ if selector == "database" || selector.starts_with("database<<") => match key {
-            "backgroundcolor" => Some(scoped_key("DatabaseBackgroundColor", "database")),
-            "bordercolor" | "linecolor" => Some(scoped_key("DatabaseBorderColor", "database")),
-            "fontcolor" => Some(scoped_key("DatabaseFontColor", "database")),
-            _ => None,
-        },
-        _ if selector == "cloud" || selector.starts_with("cloud<<") => match key {
-            "backgroundcolor" => Some(scoped_key("CloudBackgroundColor", "cloud")),
-            "bordercolor" | "linecolor" => Some(scoped_key("CloudBorderColor", "cloud")),
-            "fontcolor" => Some(scoped_key("CloudFontColor", "cloud")),
-            _ => None,
-        },
-        _ if selector == "queue" || selector.starts_with("queue<<") => match key {
-            "backgroundcolor" => Some(scoped_key("QueueBackgroundColor", "queue")),
-            "bordercolor" | "linecolor" => Some(scoped_key("QueueBorderColor", "queue")),
-            "fontcolor" => Some(scoped_key("QueueFontColor", "queue")),
-            _ => None,
-        },
-        _ if selector == "component" || selector.starts_with("component<<") => {
-            component_style_skinparam_key(Some(selector), key)
-        }
-        _ if selector == "interface" || selector.starts_with("interface<<") => {
-            component_style_skinparam_key(Some(selector), key)
-        }
-        _ if selector == "port" || selector.starts_with("port<<") => {
-            component_style_skinparam_key(Some(selector), key)
-        }
-        "arrow" | "relation" => match key {
-            "linecolor" | "arrowcolor" | "bordercolor" => Some("DeploymentArrowColor".to_string()),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-pub(crate) fn state_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    match nested_selector {
-        None => match key {
-            "arrowcolor" => Some("StateArrowColor".to_string()),
-            _ => None,
-        },
-        Some("state") => match key {
-            "backgroundcolor" => Some("StateBackgroundColor".to_string()),
-            "bordercolor" => Some("StateBorderColor".to_string()),
-            "fontcolor" => Some("StateFontColor".to_string()),
-            "fontsize" => Some("StateFontSize".to_string()),
-            _ => None,
-        },
-        Some("start") => match key {
-            "backgroundcolor" | "color" => Some("StateStartColor".to_string()),
-            _ => None,
-        },
-        Some(_) => None,
-    }
-}
-
-pub(crate) fn activity_style_skinparam_key(
-    nested_selector: Option<&str>,
-    key: &str,
-) -> Option<String> {
-    match nested_selector {
-        None => match key {
-            "arrowcolor" => Some("ActivityArrowColor".to_string()),
-            _ => None,
-        },
-        Some("activity") => match key {
-            "backgroundcolor" => Some("ActivityBackgroundColor".to_string()),
-            "bordercolor" => Some("ActivityBorderColor".to_string()),
-            "fontcolor" => Some("ActivityFontColor".to_string()),
-            _ => None,
-        },
-        Some("diamond") => match key {
-            "backgroundcolor" | "color" => Some("ActivityDiamondBackgroundColor".to_string()),
-            _ => None,
-        },
-        Some("bar") | Some("fork") | Some("start") | Some("stop") => match key {
-            "backgroundcolor" | "color" => Some("ActivityBarColor".to_string()),
-            _ => None,
-        },
-        Some(_) => None,
-    }
+    false
 }
