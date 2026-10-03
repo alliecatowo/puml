@@ -37,8 +37,10 @@ whole-corpus pixel diffs against the Linux-blessed baselines. Set
 For every fixture in `manifest.json`:
 
 1. Render SVG via `puml`, then rasterise to PNG at 96 DPI (scaled to ≤640 px
-   wide) using the same `resvg` + `tiny-skia` chain as the CLI, with system
-   fonts loaded and `Liberation Mono` selected for monospace text.
+   wide) using the same `resvg` + `tiny-skia` chain as the CLI, with only the
+   fonts bundled in `tests/fonts/` loaded (Liberation Mono for monospace, Noto
+   Sans Math for the math fixture) so results do not depend on the machine's
+   installed fonts.
 2. Load the stored baseline PNG from
    `tests/visual_baselines/<family>/<fixture>.png`.
 3. Run a per-pixel RGBA diff with a threshold of 3 per-channel delta

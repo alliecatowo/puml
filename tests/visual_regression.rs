@@ -159,9 +159,19 @@ fn should_skip_png_baselines_on_this_platform(test_name: &str) -> bool {
 /// Returns `(width, height, rgba_bytes)`.
 fn svg_to_rgba(svg: &str) -> Result<(u32, u32, Vec<u8>), String> {
     let mut opt = resvg::usvg::Options::default();
+    // Only the fonts bundled in tests/fonts are loaded, never system fonts:
+    // the math fixture's font stack falls through to whatever the machine has
+    // (STIX / Noto / DejaVu), so baselines blessed on one OS failed on another.
     let fontdb = opt.fontdb_mut();
-    fontdb.load_system_fonts();
+    let fonts_dir = workspace_root().join("tests/fonts");
+    fontdb.load_fonts_dir(&fonts_dir);
+    assert!(
+        fontdb.faces().count() > 0,
+        "no fonts loaded from {}",
+        fonts_dir.display()
+    );
     fontdb.set_monospace_family("Liberation Mono");
+    fontdb.set_serif_family("Noto Sans Math");
     let tree =
         resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| format!("usvg parse failed: {e}"))?;
 
