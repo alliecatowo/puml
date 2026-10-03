@@ -3,8 +3,17 @@
   "displayName": "puml — Instant PlantUML Sequence Diagrams",
   "description": "VS Code extension for native puml sequence diagrams: live preview, export, diagnostics, and LSP-backed language features.",
   "version": "0.1.0",
-  "publisher": "puml",
+  "publisher": "alliecatowo",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alliecatowo/puml.git",
+    "directory": "extensions/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/alliecatowo/puml/issues"
+  },
+  "homepage": "https://github.com/alliecatowo/puml#readme",
   "engines": {
     "vscode": "^1.95.0"
   },

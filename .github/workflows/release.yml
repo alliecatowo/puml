@@ -507,3 +507,85 @@ jobs:
           git add Formula/puml.rb
           git commit -m "puml ${VERSION}"
           git push origin HEAD:main
+
+  # VS Code extension (extensions/vscode). Ships with each puml release on the
+  # same `v*` tag; the extension needs the released `puml` CLI binary.
+  # Pre-release tags (containing '-') are skipped.
+  package-vscode:
+    name: Package VS Code extension
+    needs:
+      - build-and-publish
+      - merge-checksums
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Package vsix (version taken from the tag)
+        working-directory: extensions/vscode
+        run: |
+          npm ci
+          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+          npm run build
+          npx --yes @vscode/vsce package -o puml-vscode.vsix
+
+      - name: Upload vsix
+        uses: actions/upload-artifact@v7
+        with:
+          name: puml-vscode-vsix
+          path: extensions/vscode/puml-vscode.vsix
+          if-no-files-found: error
+
+  publish-vscode-open-vsx:
+    name: Publish extension to Open VSX
+    needs: package-vscode
+    runs-on: ubuntu-latest
+    # Open VSX trusted publishing is bound to this environment name.
+    environment: open-vsx
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download vsix
+        uses: actions/download-artifact@v8
+        with:
+          name: puml-vscode-vsix
+
+      - name: Publish
+        run: npx --yes ovsx@1.2.0 publish puml-vscode.vsix --trusted-publishing --skip-duplicate
+
+  publish-vscode-marketplace:
+    name: Publish extension to VS Code Marketplace
+    needs: package-vscode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download vsix
+        uses: actions/download-artifact@v8
+        with:
+          name: puml-vscode-vsix
+
+      - name: Publish (skipped when VSCE_PAT is not set)
+        if: ${{ env.VSCE_PAT != '' }}
+        run: npx --yes @vscode/vsce publish --skip-duplicate --packagePath puml-vscode.vsix
