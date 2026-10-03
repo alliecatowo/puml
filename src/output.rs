@@ -404,7 +404,7 @@ fn encode_webp(raster: &RasterizedSvg) -> Result<Vec<u8>, OutputError> {
 #[cfg(feature = "cli")]
 fn rgba_to_rgb_over_white(rgba: &[u8]) -> Vec<u8> {
     let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-    for pixel in rgba.chunks_exact(4) {
+    for pixel in rgba.as_chunks::<4>().0 {
         let alpha = pixel[3] as u16;
         for channel in &pixel[..3] {
             let value = ((*channel as u16 * alpha) + (255 * (255 - alpha)) + 127) / 255;

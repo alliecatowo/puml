@@ -155,10 +155,9 @@ fn parse_gantt_reference_day_offset(target: &str) -> Option<GanttReferenceOffset
         (1, idx, false)
     } else if let Some(idx) = lower.find(" days before ") {
         (-1, idx, false)
-    } else if let Some(idx) = lower.find(" day before ") {
-        (-1, idx, false)
     } else {
-        return None;
+        let idx = lower.find(" day before ")?;
+        (-1, idx, false)
     };
     target[..marker]
         .split_whitespace()
