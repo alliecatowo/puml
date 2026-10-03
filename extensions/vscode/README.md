@@ -3,6 +3,15 @@
 VS Code extension for `puml` — live preview, export, inline diagnostics, and LSP-backed
 language features for `.puml` / `.plantuml` / `.iuml` files.
 
+## Requirements: install the puml binary
+
+This extension does not bundle the renderer. Install the `puml` CLI (and `puml-lsp`) first:
+
+- Homebrew (macOS and Linux): `brew install alliecatowo/tap/puml`
+- Or download the archive for your platform from
+  [GitHub Releases](https://github.com/alliecatowo/puml/releases) and put `puml` on your `PATH`
+  (or set `puml.cli.path`).
+
 ## Commands
 
 | Command | Title | Description |
