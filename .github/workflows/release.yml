@@ -554,7 +554,7 @@ jobs:
     if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
