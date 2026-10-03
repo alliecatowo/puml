@@ -29,7 +29,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+          # Releases are immutable once published, so assets must be attached
+          # while the release is a draft; publish-release flips it at the end.
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" >/dev/null 2>&1 || \
+             gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" -q ".[]|select(.tag_name==\"${TAG_NAME}\")|.id" | grep -q .; then
             echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -37,7 +40,8 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "puml $TAG_NAME" \
             --notes "Automated release $TAG_NAME" \
-            --verify-tag
+            --verify-tag \
+            --draft
           echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
   build-and-publish:
@@ -238,6 +242,7 @@ jobs:
         if: matrix.os_family == 'unix'
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: |
             dist/${{ matrix.archive_stem }}.tar.gz
@@ -252,6 +257,7 @@ jobs:
         if: matrix.os_family == 'windows'
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: |
             dist/${{ matrix.archive_stem }}.zip
@@ -270,13 +276,19 @@ jobs:
       - build-and-publish
     runs-on: ubuntu-latest
     steps:
-      - name: Download per-platform checksum files
-        uses: robinraju/release-downloader@v1
-        with:
-          tag: ${{ needs.create-release.outputs.tag_name }}
-          fileName: "checksums-*.sha256"
-          out-file-path: "checksums"
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download per-platform checksum files (draft release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p checksums
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            -q ".[]|select(.tag_name==\"${TAG_NAME}\")|.assets[]|select(.name|test(\"^checksums-.*[.]sha256$\"))|\"\\(.id) \\(.name)\"" |
+          while read -r id name; do
+            gh api -H "Accept: application/octet-stream" "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" > "checksums/${name}"
+          done
+          ls checksums
 
       - name: Merge into SHA256SUMS
         run: |
@@ -288,6 +300,7 @@ jobs:
       - name: Upload merged SHA256SUMS
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: SHA256SUMS
         env:
@@ -345,6 +358,7 @@ jobs:
       - name: Upload wasm artifact to GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           tag_name: ${{ needs.create-release.outputs.tag_name }}
           files: |
             ${{ steps.package_wasm.outputs.artifact_path }}
@@ -352,13 +366,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  publish-release:
+    name: Publish GitHub release
+    needs:
+      - create-release
+      - build-and-publish
+      - merge-checksums
+      - build-wasm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Undraft release (makes it immutable)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          id="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" -q ".[]|select(.tag_name==\"${TAG_NAME}\" and .draft)|.id" | head -1)"
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" -F draft=false
+
   publish-to-cargo:
     name: Publish crate
     runs-on: ubuntu-latest
     needs:
-      - build-and-publish
-      - build-wasm
-      - merge-checksums
+      - publish-release
     permissions:
       contents: read
     if: github.ref_type == 'tag'
@@ -410,7 +440,7 @@ jobs:
     name: Update Homebrew formula
     needs:
       - create-release
-      - merge-checksums
+      - publish-release
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
     permissions:
@@ -515,7 +545,7 @@ jobs:
     name: Package VS Code extension
     needs:
       - build-and-publish
-      - merge-checksums
+      - publish-release
     runs-on: ubuntu-latest
     permissions:
       contents: read
