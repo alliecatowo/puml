@@ -1,6 +1,6 @@
 # Contributing to PUML
 
-Welcome! PUML is an experiment in AI-driven development: most of the code lands via Claude Code agents working in parallel, with a human (allisonemilycoleman@gmail.com) orchestrating from above. Human contributions are very welcome too — both forms are first-class here, and the docs below treat them equally.
+Welcome! PUML is an experiment in AI-driven development: most of the code lands via Claude Code agents working in parallel, with a human (me@allisons.dev) orchestrating from above. Human contributions are very welcome too — both forms are first-class here, and the docs below treat them equally.
 
 If you're here because you saw something broken, missing, or interesting and want to help — thank you. Read on.
 
