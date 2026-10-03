@@ -85,11 +85,11 @@ flate2 = "1.1"
 clap = { version = "4.5", features = ["derive"], optional = true }
 glob = { version = "0.3", optional = true }
 regex = { version = "1", optional = true }
-resvg = { version = "0.47", optional = true }
+resvg = { version = "0.48", optional = true }
 tiny-skia = { version = "0.12", optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"], optional = true }
 svg2pdf = { version = "0.13", optional = true }
-ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
 sha2 = { version = "0.11", optional = true }
 hex = { version = "0.4", optional = true }
 
@@ -104,7 +104,7 @@ roxmltree = "0.21"
 # versions already locked as optional `cli`-feature dependencies, so no
 # new crates are fetched — we just make them available to the test harness
 # without requiring the `cli` feature flag at build time.
-resvg = "0.47"
+resvg = "0.48"
 tiny-skia = "0.12"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
