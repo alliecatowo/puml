@@ -1,6 +1,6 @@
 {
   "name": "puml-vscode",
-  "displayName": "puml — Instant PlantUML Sequence Diagrams",
+  "displayName": "puml \u2014 Instant PlantUML Sequence Diagrams",
   "description": "VS Code extension for native puml sequence diagrams: live preview, export, diagnostics, and LSP-backed language features.",
   "version": "0.1.0",
   "publisher": "alliecatowo",
@@ -40,8 +40,15 @@
     "languages": [
       {
         "id": "puml",
-        "aliases": ["puml", "PlantUML Sequence"],
-        "extensions": [".puml", ".plantuml", ".iuml"],
+        "aliases": [
+          "puml",
+          "PlantUML Sequence"
+        ],
+        "extensions": [
+          ".puml",
+          ".plantuml",
+          ".iuml"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -184,7 +191,11 @@
         },
         "puml.lsp.trace": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Trace level for puml-lsp language client logs."
         },
@@ -217,7 +228,9 @@
     "@vscode/test-electron": "^2.4.1",
     "glob": "^13.0.6",
     "mocha": "^11.7.6",
-    "typescript": "^6.0.3",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
     "vscode-languageclient": "^9.0.1"
   }
 }
