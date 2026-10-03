@@ -94,7 +94,8 @@ Tradeoffs:
 - Visual output is not pixel-identical to PlantUML because `puml` has its own layout
   and rendering engine.
 - Some distribution channels are not yet stable user-facing install paths: no supported
-  Homebrew tap, Docker image, npm CLI, or Marketplace extension is documented here.
+  Docker image, npm CLI, or Marketplace extension is documented here. The Homebrew tap
+  (`brew install alliecatowo/tap/puml`) goes live with the first tagged release.
 
 ---
 

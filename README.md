@@ -108,7 +108,9 @@ Open `hello.svg` in any browser or SVG viewer. Done.
 <summary><b>Install options</b></summary>
 
 **Right now, puml installs from source only.** No GitHub release, crates.io crate, npm
-package, Homebrew tap or container image has been published yet.
+package or container image has been published yet. The Homebrew formula
+(`brew install alliecatowo/tap/puml`) is pushed by the release workflow, so it works from the
+first tagged release on.
 
 ### Cargo from git (recommended)
 
@@ -138,7 +140,7 @@ These are planned, but nothing has been published through them yet:
 | curl installer (verifies SHA-256 and cosign signatures) | `curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \| sh` |
 | Pre-built binaries (Linux, macOS, Windows) | download from [Releases](https://github.com/alliecatowo/puml/releases) |
 | crates.io | `cargo install puml --bin puml` |
-| Homebrew | `brew install alliecatowo/tap/puml` |
+| Homebrew (macOS, Linux; from the first release) | `brew install alliecatowo/tap/puml` |
 | npm | `npx puml-cli hello.puml` |
 | Docker | `docker run --rm -v "$PWD":/work ghcr.io/alliecatowo/puml:latest hello.puml` |
 

@@ -128,11 +128,15 @@ cargo install puml --bin puml --force
 | Cargo release | You want the published CLI and already have Rust | `cargo install puml --bin puml` |
 | GitHub HEAD | You need an unreleased fix from `main` | `cargo install --git https://github.com/alliecatowo/puml --bin puml` |
 | Source checkout | You are developing or auditing the project | `cargo build --release --bin puml` |
+| Homebrew | macOS or Linux with Homebrew; available from the first tagged release | `brew install alliecatowo/tap/puml` |
 | GitHub release asset | You do not want to compile and prefer manual steps | Download from GitHub Releases |
 | WASM crate | You are embedding rendering in the browser/site build | Build `crates/puml-wasm` from this repo |
 
-There is not currently a supported Homebrew tap, Docker image, npm CLI package, or VS
-Code Marketplace package documented as a stable install path in this repository.
+The Homebrew formula lives in [alliecatowo/homebrew-tap](https://github.com/alliecatowo/homebrew-tap)
+and is pushed there by the release workflow (`update-homebrew` job) after each stable tag,
+so `brew install alliecatowo/tap/puml` works from the first release. There is not currently a
+supported Docker image, npm CLI package, or VS Code Marketplace package documented as a
+stable install path in this repository.
 
 ---
 
