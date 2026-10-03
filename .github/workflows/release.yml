@@ -84,7 +84,7 @@ jobs:
             os_family: unix
 
           - name: macos-x86_64
-            runner: macos-13
+            runner: macos-15-intel
             target: x86_64-apple-darwin
             cli_binary: puml
             lsp_binary: puml-lsp
