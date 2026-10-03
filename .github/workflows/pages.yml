@@ -43,7 +43,7 @@ jobs:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
       CARGO_INCREMENTAL: 0
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Rust (stable + wasm32 target)
         uses: dtolnay/rust-toolchain@stable
@@ -56,7 +56,7 @@ jobs:
           cache-on-failure: true
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 

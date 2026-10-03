@@ -59,11 +59,11 @@ export type LanguageServiceSurfaceResult = {
 };
 
 /** Shared output channel for all PUML extension logging. */
-let _outputChannel: vscode.OutputChannel | undefined;
+let _outputChannel: vscode.LogOutputChannel | undefined;
 
-export function getOutputChannel(): vscode.OutputChannel {
+export function getOutputChannel(): vscode.LogOutputChannel {
   if (!_outputChannel) {
-    _outputChannel = vscode.window.createOutputChannel('PUML');
+    _outputChannel = vscode.window.createOutputChannel('PUML', { log: true });
   }
   return _outputChannel;
 }

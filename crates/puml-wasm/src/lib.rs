@@ -193,7 +193,7 @@ fn compile_json_for_frontend(source: &str, frontend: FrontendSelection) -> Strin
                         "format": "svg",
                         "mediaType": "image/svg+xml",
                         "svg": page.content,
-                        "artifact": page.artifact.map(|artifact| artifact_json(artifact)),
+                        "artifact": page.artifact.map(artifact_json),
                     })
                 }).collect::<Vec<_>>(),
                 "model": model_summary,
