@@ -3,7 +3,7 @@
 Use this prompt for the next implementation agent:
 
 ```text
-You are working in `/Users/allie/Develop/puml`.
+You are working in the repository root.
 
 Read these first:
 - `CLAUDE.md`
