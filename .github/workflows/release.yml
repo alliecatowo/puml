@@ -340,7 +340,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$OUT_DIR"
-          wasm-pack build --release --target web --out-dir "$OUT_DIR/puml-wasm"
+          # The wasm entry point is the crates/puml-wasm workspace member (cdylib);
+          # the root package is not a cdylib. --out-dir is relative to that crate.
+          wasm-pack build --release --target web --out-dir "$PWD/$OUT_DIR/puml-wasm" crates/puml-wasm
           tar -czf "$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" -C "$OUT_DIR" puml-wasm
           echo "artifact_path=$OUT_DIR/puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
           echo "artifact_name=puml-wasm-web-${RELEASE_TAG}.tar.gz" >> "$GITHUB_OUTPUT"
