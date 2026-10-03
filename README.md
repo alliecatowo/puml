@@ -5,7 +5,7 @@
 [![main gate](https://github.com/alliecatowo/puml/actions/workflows/main-gate.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/main-gate.yml)
 [![PR gate](https://github.com/alliecatowo/puml/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/pr-gate.yml)
 [![docs site](https://github.com/alliecatowo/puml/actions/workflows/pages.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/pages.yml)
-[![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)](Cargo.toml)
+[![release](https://img.shields.io/github/v/release/alliecatowo/puml?color=0ea5e9)](https://github.com/alliecatowo/puml/releases/latest)
 [![license: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 [![docs](https://img.shields.io/badge/docs-alliecatowo.github.io%2Fpuml-16a34a)](https://alliecatowo.github.io/puml/)
 
@@ -83,8 +83,8 @@ upstream is family-agnostic AST.
 ## Quick start
 
 ```bash
-# 1. Install from source (needs Rust 1.88+; see install options below)
-cargo install --git https://github.com/alliecatowo/puml --bin puml
+# 1. Install (Linux/macOS; or `brew install alliecatowo/tap/puml`; more options below)
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh
 
 # 2. Write a diagram
 cat > hello.puml <<'EOF'
@@ -107,12 +107,32 @@ Open `hello.svg` in any browser or SVG viewer. Done.
 <details>
 <summary><b>Install options</b></summary>
 
-**Right now, puml installs from source only.** No GitHub release, crates.io crate, npm
-package or container image has been published yet. The Homebrew formula
-(`brew install alliecatowo/tap/puml`) is pushed by the release workflow, so it works from the
-first tagged release on.
+### Installer script (Linux and macOS)
 
-### Cargo from git (recommended)
+```bash
+curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh | sh
+```
+
+Downloads the latest [GitHub release](https://github.com/alliecatowo/puml/releases/latest),
+verifies its SHA-256 (and cosign signature when cosign is installed) and installs `puml`.
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew install alliecatowo/tap/puml
+```
+
+### Pre-built binaries
+
+Linux, macOS and Windows archives (CLI and `puml-lsp`) are on the
+[Releases page](https://github.com/alliecatowo/puml/releases/latest).
+
+### VS Code
+
+Install the `alliecatowo.puml-vscode` extension from [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode).
+It needs the `puml` binary on your `PATH`.
+
+### Cargo from git
 
 Requires Rust 1.88 or newer:
 
@@ -131,21 +151,10 @@ cargo build --release
 ./target/release/puml hello.puml
 ```
 
-### Planned channels (not available yet)
+### Not available yet
 
-These are planned, but nothing has been published through them yet:
-
-| Channel | Planned command |
-|---|---|
-| curl installer (verifies SHA-256 and cosign signatures) | `curl -fsSL https://raw.githubusercontent.com/alliecatowo/puml/main/scripts/install.sh \| sh` |
-| Pre-built binaries (Linux, macOS, Windows) | download from [Releases](https://github.com/alliecatowo/puml/releases) |
-| crates.io | `cargo install puml --bin puml` |
-| Homebrew (macOS, Linux; from the first release) | `brew install alliecatowo/tap/puml` |
-| npm | `npx puml-cli hello.puml` |
-| Docker | `docker run --rm -v "$PWD":/work ghcr.io/alliecatowo/puml:latest hello.puml` |
-
-The curl installer and pre-built binaries need a published GitHub release, which doesn't
-exist yet. See the [install guide](docs/install.md) for more detail.
+crates.io (`cargo install puml`), npm and a container image are not published. See the
+[install guide](docs/install.md) for details.
 
 </details>
 
@@ -290,7 +299,7 @@ fixtures, and the roadmap in [`docs/parity-roadmap.md`](docs/parity-roadmap.md).
 <details>
 <summary><b>Project status and roadmap</b></summary>
 
-`puml` is at v0.1.0 — young, ambitious, and developed with significant AI assistance.
+`puml` is pre-1.0 — young, ambitious, and developed with significant AI assistance.
 Baseline rendering across all major diagram families landed in the parity blitz
 (May 2025); advanced feature depth is an ongoing effort.
 

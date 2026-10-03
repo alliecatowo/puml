@@ -4,14 +4,12 @@
 point: it reads `.puml`, `.plantuml`, `.picouml`, Markdown fences, or stdin, then emits
 SVG by default with optional PNG, JPG, WebP, PDF, HTML, and text outputs.
 
-The current package version is `0.1.0` and the crate requires Rust `1.88` or newer when
+The latest release is [v0.2.2](https://github.com/alliecatowo/puml/releases/latest) and the crate requires Rust `1.88` or newer when
 you build from source.
 
-> **Status:** no GitHub release or crates.io package has been published yet, so the curl
-> installer, release-asset downloads and `cargo install puml` below don't work yet. Until
-> they do, install from source:
-> `cargo install --git https://github.com/alliecatowo/puml --bin puml` (or `cargo build --release`
-> from a checkout).
+> **Status:** GitHub releases, the curl installer and Homebrew work. crates.io, npm and
+> container images are not published yet, so `cargo install puml` below does not work
+> yet; use `cargo install --git https://github.com/alliecatowo/puml --bin puml` instead.
 
 ---
 
@@ -128,13 +126,13 @@ cargo install puml --bin puml --force
 | Cargo release | You want the published CLI and already have Rust | `cargo install puml --bin puml` |
 | GitHub HEAD | You need an unreleased fix from `main` | `cargo install --git https://github.com/alliecatowo/puml --bin puml` |
 | Source checkout | You are developing or auditing the project | `cargo build --release --bin puml` |
-| Homebrew | macOS or Linux with Homebrew; available from the first tagged release | `brew install alliecatowo/tap/puml` |
+| Homebrew | macOS or Linux with Homebrew; available now | `brew install alliecatowo/tap/puml` |
 | GitHub release asset | You do not want to compile and prefer manual steps | Download from GitHub Releases |
 | WASM crate | You are embedding rendering in the browser/site build | Build `crates/puml-wasm` from this repo |
 
 The Homebrew formula lives in [alliecatowo/homebrew-tap](https://github.com/alliecatowo/homebrew-tap)
 and is pushed there by the release workflow (`update-homebrew` job) after each stable tag,
-so `brew install alliecatowo/tap/puml` works from the first release. There is not currently a
+so `brew install alliecatowo/tap/puml` tracks each release. There is not currently a
 supported Docker image, npm CLI package, or VS Code Marketplace package documented as a
 stable install path in this repository.
 

@@ -96,42 +96,36 @@ pub(in crate::preproc) fn fetch_url_include(url: &str) -> Result<String, Diagnos
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 fn fetch_http_url_include(url: &str) -> Result<String, Diagnostic> {
-    let response = ureq::builder()
-        .redirects(0)
-        .timeout_connect(URL_INCLUDE_TIMEOUT)
-        .timeout_read(URL_INCLUDE_TIMEOUT)
-        .timeout_write(URL_INCLUDE_TIMEOUT)
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .max_redirects_will_error(false)
+        .http_status_as_error(false)
+        .timeout_global(Some(URL_INCLUDE_TIMEOUT))
         .build()
-        .get(url)
-        .call()
-        .map_err(|e| {
-            Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!("failed to fetch '{}': {e}", url),
-            )
-        })?;
+        .into();
+    let response = agent.get(url).call().map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_URL_FETCH",
+            format!("failed to fetch '{}': {e}", url),
+        )
+    })?;
 
-    if (300..400).contains(&response.status()) {
+    let status = response.status().as_u16();
+    let status_text = response.status().canonical_reason().unwrap_or("");
+    if (300..400).contains(&status) {
         return Err(Diagnostic::error_code(
             "E_INCLUDE_URL_REDIRECT",
             format!(
                 "redirects are not followed for URL include '{}': HTTP {} {}",
-                url,
-                response.status(),
-                response.status_text()
+                url, status, status_text
             ),
         ));
     }
 
-    if response.status() < 200 || response.status() >= 300 {
+    if !(200..300).contains(&status) {
         return Err(Diagnostic::error_code(
             "E_INCLUDE_URL_FETCH",
-            format!(
-                "HTTP {} fetching '{}': {}",
-                response.status(),
-                url,
-                response.status_text()
-            ),
+            format!("HTTP {} fetching '{}': {}", status, url, status_text),
         ));
     }
 
@@ -141,10 +135,12 @@ fn fetch_http_url_include(url: &str) -> Result<String, Diagnostic> {
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 fn read_limited_url_include_body(
     url: &str,
-    response: ureq::Response,
+    response: ureq::http::Response<ureq::Body>,
 ) -> Result<String, Diagnostic> {
     if let Some(length) = response
-        .header("content-length")
+        .headers()
+        .get("content-length")
+        .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<usize>().ok())
     {
         if length > URL_INCLUDE_MAX_BYTES {
@@ -154,6 +150,7 @@ fn read_limited_url_include_body(
 
     let mut bytes = Vec::new();
     let mut reader = response
+        .into_body()
         .into_reader()
         .take((URL_INCLUDE_MAX_BYTES + 1) as u64);
     reader.read_to_end(&mut bytes).map_err(|e| {
