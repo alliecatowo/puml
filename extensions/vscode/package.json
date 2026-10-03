@@ -1,6 +1,6 @@
 {
   "name": "puml-vscode",
-  "displayName": "puml \u2014 Instant PlantUML Sequence Diagrams",
+  "displayName": "puml — Instant PlantUML Sequence Diagrams",
   "description": "VS Code extension for native puml sequence diagrams: live preview, export, diagnostics, and LSP-backed language features.",
   "version": "0.1.0",
   "publisher": "alliecatowo",
@@ -232,5 +232,10 @@
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.2",
+    "serialize-javascript": "^7.0.5",
+    "diff": "^8.0.3"
   }
 }
