@@ -66,6 +66,11 @@ updates:
       - dependencies
       - npm
       - vscode
+    # @types/vscode must stay matched to engines.vscode in package.json:
+    # vsce refuses to package an extension whose types are newer than its
+    # minimum supported VS Code. Bump both together, by hand.
+    ignore:
+      - dependency-name: "@types/vscode"
     commit-message:
       prefix: "vscode"
       include: scope
