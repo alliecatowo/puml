@@ -49,6 +49,34 @@ pub(crate) fn escape_svg_text(input: &str) -> String {
     escape_svg_text_with_decoded(&decode_unicode_escapes(input))
 }
 
+/// Return `Some(url)` only when `url` is safe to emit as a hyperlink target:
+/// `http`, `https`, `mailto`, a `#fragment`, or a scheme-less relative
+/// reference. Everything else (`javascript:`, `data:`, `vbscript:`, `file:`,
+/// ...) yields `None`. ASCII whitespace/control characters are ignored when
+/// detecting the scheme because browsers strip them (`java\tscript:`).
+pub(crate) fn sanitize_href(url: &str) -> Option<&str> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let compact: String = trimmed
+        .chars()
+        .filter(|c| !c.is_ascii_control() && !c.is_whitespace())
+        .collect();
+    let scheme_end = compact.find([':', '/', '?', '#']);
+    match scheme_end {
+        Some(i) if compact.as_bytes()[i] == b':' => {
+            let scheme = compact[..i].to_ascii_lowercase();
+            if matches!(scheme.as_str(), "http" | "https" | "mailto") {
+                Some(trimmed)
+            } else {
+                None
+            }
+        }
+        _ => Some(trimmed),
+    }
+}
+
 pub(crate) fn escape_svg_attr(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for ch in input.chars() {

@@ -8,6 +8,18 @@ mod output;
 mod pipeline;
 mod render;
 
+/// Directory used as the `!include` root for a document path. A bare filename
+/// (`foo.puml`) has an empty parent, which is mapped to `.`.
+pub(crate) fn include_root_for(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    path.parent().map(|p| {
+        if p.as_os_str().is_empty() {
+            std::path::PathBuf::from(".")
+        } else {
+            p.to_path_buf()
+        }
+    })
+}
+
 use crate::cli::{Cli, Command as CliCommand, DiagnosticsFormat, DumpKind};
 use crate::cli_dump::{normalized_model_to_json, normalized_scene_to_json};
 use crate::cli_dump_ast::ast_to_json;
@@ -136,7 +148,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 format!("failed to read fixture '{}': {e}", path.display()),
             )
         })?;
-        let include_root = path.parent().map(|p| p.to_path_buf());
+        let include_root = include_root_for(path);
         let parse_result = parse_for_cli_with_diagnostics(
             &src,
             include_root.clone(),
@@ -174,7 +186,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     let include_root = cli
         .include_root
         .clone()
-        .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
+        .or_else(|| input_path.and_then(include_root_for));
     let from_markdown = should_extract_markdown(cli.from_markdown, input_path);
     let file_frontend_hint = frontend_hint_for_path(input_path);
     let markdown_name_prefix = input_path

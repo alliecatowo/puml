@@ -347,15 +347,19 @@ pub(in crate::preproc) fn eval_int_expr(expr: &str) -> Option<i64> {
     if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['+', '-']) {
         let a = eval_int_expr(lhs)?;
         let b = eval_int_expr(rhs)?;
-        return Some(if op == '+' { a + b } else { a - b });
+        return if op == '+' {
+            a.checked_add(b)
+        } else {
+            a.checked_sub(b)
+        };
     }
     if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['*', '/', '%']) {
         let a = eval_int_expr(lhs)?;
         let b = eval_int_expr(rhs)?;
         return match op {
-            '*' => Some(a * b),
-            '/' if b != 0 => Some(a / b),
-            '%' if b != 0 => Some(a % b),
+            '*' => a.checked_mul(b),
+            '/' if b != 0 => a.checked_div(b),
+            '%' if b != 0 => a.checked_rem(b),
             _ => None,
         };
     }

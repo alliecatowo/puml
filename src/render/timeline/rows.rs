@@ -130,16 +130,23 @@ pub(super) fn write_gantt_task_rows(ctx: &mut GanttRowsRenderContext<'_>) {
         } else {
             ""
         };
-        if let Some(href) = &task.hyperlink {
-            out.push_str(&format!(
-                "<a class=\"gantt-task-link\" xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
-                escape_text(href)
-            ));
-        }
-        let link_attr = task
+        let safe_href = task
             .hyperlink
             .as_deref()
-            .map(|href| format!(" data-gantt-link=\"{}\"", escape_text(href)))
+            .and_then(crate::text_markup::sanitize_href);
+        if let Some(href) = safe_href {
+            out.push_str(&format!(
+                "<a class=\"gantt-task-link\" xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" rel=\"noopener noreferrer\">",
+                crate::text_markup::escape_svg_attr(href)
+            ));
+        }
+        let link_attr = safe_href
+            .map(|href| {
+                format!(
+                    " data-gantt-link=\"{}\"",
+                    crate::text_markup::escape_svg_attr(href)
+                )
+            })
             .unwrap_or_default();
         out.push_str(&format!(
             "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{start}\" data-gantt-workload=\"{wl}\" data-gantt-duration=\"{dur}\" data-gantt-resources=\"{res}\" data-gantt-load=\"{load}\" data-gantt-completion=\"{completion}\"{link_attr} data-gantt-deleted=\"{deleted}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"{deleted_attrs}/>",
@@ -186,7 +193,7 @@ pub(super) fn write_gantt_task_rows(ctx: &mut GanttRowsRenderContext<'_>) {
                 y + bar_height / 2
             ));
         }
-        if task.hyperlink.is_some() {
+        if safe_href.is_some() {
             out.push_str("</a>");
         }
         if !document.hide_resource_names && !task.resources.is_empty() {

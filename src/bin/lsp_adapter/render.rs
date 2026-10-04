@@ -138,6 +138,51 @@ pub fn export_result(
     }
 }
 
+thread_local! {
+    static INCLUDE_ROOT: std::cell::RefCell<Option<std::path::PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Convert a `file://` URI to the directory containing it, for use as the
+/// `!include` root. Returns `None` for non-file URIs (e.g. `untitled:`).
+pub fn include_root_from_uri(uri: &str) -> Option<std::path::PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    // Drop an optional authority (`file://localhost/...`).
+    let path = &rest[rest.find('/')?..];
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+            if let Some(b) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                decoded.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[i]);
+        i += 1;
+    }
+    let mut p = String::from_utf8(decoded).ok()?;
+    // Windows drive paths arrive as `/C:/dir/file`.
+    if p.len() > 2 && p.as_bytes()[0] == b'/' && p.as_bytes()[2] == b':' {
+        p.remove(0);
+    }
+    std::path::Path::new(&p).parent().map(|d| d.to_path_buf())
+}
+
+/// Record the document currently being served so parsing resolves `!include`
+/// relative to its directory.
+pub fn set_include_root_for_uri(uri: &str) {
+    let root = include_root_from_uri(uri);
+    INCLUDE_ROOT.with(|c| *c.borrow_mut() = root);
+}
+
+pub fn current_include_root() -> Option<std::path::PathBuf> {
+    INCLUDE_ROOT.with(|c| c.borrow().clone())
+}
+
 pub fn lsp_parse(src: &str) -> Result<Document, puml::Diagnostic> {
     lsp_parse_with_frontend(src, None)
 }
@@ -150,6 +195,7 @@ pub fn lsp_parse_with_frontend(
         src,
         &ParsePipelineOptions {
             frontend: frontend.unwrap_or(FrontendSelection::Auto),
+            include_root: current_include_root(),
             ..ParsePipelineOptions::default()
         },
     )

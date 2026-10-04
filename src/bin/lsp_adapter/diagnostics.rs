@@ -6,7 +6,14 @@ use serde_json::{json, Value};
 use std::io::{self, Write};
 
 pub fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {
-    let report = diagnostics_with_options(src, &ParsePipelineOptions::default());
+    super::render::set_include_root_for_uri(uri);
+    let report = diagnostics_with_options(
+        src,
+        &ParsePipelineOptions {
+            include_root: super::render::current_include_root(),
+            ..ParsePipelineOptions::default()
+        },
+    );
     let ds = report
         .diagnostics
         .iter()

@@ -115,7 +115,7 @@ pub(super) fn run_lint_subcommand(
     let include_root = context
         .include_root
         .clone()
-        .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
+        .or_else(|| input_path.and_then(crate::cli_run::include_root_for));
     let from_markdown = should_extract_markdown(context.from_markdown, input_path);
     let markdown_name_prefix = input_path
         .and_then(|path| path.file_stem())
@@ -348,7 +348,7 @@ pub(super) fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
         let include_root = cli
             .include_root
             .clone()
-            .or_else(|| path.parent().map(|d| d.to_path_buf()));
+            .or_else(|| crate::cli_run::include_root_for(&path));
         let from_markdown = should_extract_markdown(cli.from_markdown, Some(path.as_path()));
         let markdown_name_prefix = path
             .file_stem()
