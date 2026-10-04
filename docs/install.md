@@ -132,9 +132,9 @@ cargo install puml --bin puml --force
 
 The Homebrew formula lives in [alliecatowo/homebrew-tap](https://github.com/alliecatowo/homebrew-tap)
 and is pushed there by the release workflow (`update-homebrew` job) after each stable tag,
-so `brew install alliecatowo/tap/puml` tracks each release. There is not currently a
-supported Docker image, npm CLI package, or VS Code Marketplace package documented as a
-stable install path in this repository.
+so `brew install alliecatowo/tap/puml` tracks each release. The VS Code extension is
+published to [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode). There is not
+currently a supported Docker image, npm CLI package, or Microsoft VS Code Marketplace listing.
 
 ---
 
