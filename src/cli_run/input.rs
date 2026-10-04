@@ -107,52 +107,53 @@ pub(super) fn split_diagrams(
 
     let mut blocks = Vec::new();
 
-    let has_startuml_marker = raw.lines().any(|line| {
-        let marker = strip_inline_plantuml_comment(line).trim();
-        matches_uml_marker(marker, "@startuml")
-    });
-    if has_startuml_marker {
+    let has_start_marker = raw
+        .lines()
+        .any(|line| start_marker_kind(strip_inline_plantuml_comment(line).trim()).is_some());
+    if has_start_marker {
         let mut current = Vec::new();
-        let mut in_block = false;
-        let mut block_start_line = 0usize;
+        // (kind, 1-based start line) of the block being collected.
+        let mut open: Option<(&'static str, usize)> = None;
         for (line_idx, line) in raw.lines().enumerate() {
             let marker = strip_inline_plantuml_comment(line).trim();
-            if matches_uml_marker(marker, "@startuml") {
-                if in_block {
+            if let Some(kind) = start_marker_kind(marker) {
+                if let Some((open_kind, open_line)) = open {
                     return Err(Diagnostic::error(format!(
-                        "unmatched @startuml/@enduml boundary: found @startuml at line {} before closing previous block started at line {}",
+                        "unmatched @start{open_kind}/@end{open_kind} boundary: found @start{kind} at line {} before closing previous block started at line {open_line}",
                         line_idx + 1,
-                        block_start_line
                     )));
                 }
-                in_block = true;
-                block_start_line = line_idx + 1;
+                open = Some((kind, line_idx + 1));
                 current.clear();
+            } else if open.is_none() {
+                if let Some(kind) = end_marker_kind(marker) {
+                    return Err(Diagnostic::error(format!(
+                        "unmatched @start{kind}/@end{kind} boundary: found @end{kind} at line {} without a preceding @start{kind}",
+                        line_idx + 1
+                    )));
+                }
             }
-            if matches_uml_marker(marker, "@enduml") && !in_block {
-                return Err(Diagnostic::error(format!(
-                    "unmatched @startuml/@enduml boundary: found @enduml at line {} without a preceding @startuml",
-                    line_idx + 1
-                )));
-            }
-            if in_block {
+            if open.is_some() {
                 current.push(line);
             }
-            if in_block && matches_uml_marker(marker, "@enduml") {
-                blocks.push(InputDiagram {
-                    source: current.join("\n").trim().to_string(),
-                    source_span: None,
-                    frontend_hint: file_frontend_hint,
-                    output_name_hint: None,
-                });
-                current.clear();
-                in_block = false;
+            if open.is_some() {
+                // Any end marker closes the block; a start/end kind mismatch is
+                // diagnosed downstream (e.g. E_PICOUML_MARKER_MIXED).
+                if end_marker_kind(marker).is_some() {
+                    blocks.push(InputDiagram {
+                        source: current.join("\n").trim().to_string(),
+                        source_span: None,
+                        frontend_hint: file_frontend_hint,
+                        output_name_hint: None,
+                    });
+                    current.clear();
+                    open = None;
+                }
             }
         }
-        if in_block {
+        if let Some((kind, line)) = open {
             return Err(Diagnostic::error(format!(
-                "unmatched @startuml/@enduml boundary: @startuml at line {} is missing a closing @enduml",
-                block_start_line
+                "unmatched @start{kind}/@end{kind} boundary: @start{kind} at line {line} is missing a closing @end{kind}"
             )));
         }
         if !blocks.is_empty() {
@@ -189,4 +190,44 @@ fn matches_uml_marker(line: &str, marker: &str) -> bool {
     }
     let rest = &line[marker.len()..];
     rest.is_empty() || rest.starts_with(char::is_whitespace)
+}
+
+/// Diagram kinds that can appear as `@start<kind>` ... `@end<kind>` blocks.
+const BLOCK_KINDS: &[&str] = &[
+    "uml",
+    "mindmap",
+    "wbs",
+    "gantt",
+    "json",
+    "yaml",
+    "salt",
+    "ditaa",
+    "regex",
+    "ebnf",
+    "math",
+    "latex",
+    "wire",
+    "sdl",
+    "nwdiag",
+    "files",
+    "chronology",
+    "chen",
+    "chart",
+    "board",
+    "archimate",
+    "picouml",
+];
+
+fn start_marker_kind(marker: &str) -> Option<&'static str> {
+    BLOCK_KINDS
+        .iter()
+        .copied()
+        .find(|kind| matches_uml_marker(marker, &format!("@start{kind}")))
+}
+
+fn end_marker_kind(marker: &str) -> Option<&'static str> {
+    BLOCK_KINDS
+        .iter()
+        .copied()
+        .find(|kind| matches_uml_marker(marker, &format!("@end{kind}")))
 }

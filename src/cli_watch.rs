@@ -3,11 +3,7 @@
 //! Invoked when `--watch` is passed on the CLI. Polls the file's metadata
 //! on a fixed interval and re-invokes the render path on each detected change.
 
-use crate::cli::{Cli, OutputFormat};
-use puml::output::{
-    render_artifact_export_content, render_artifact_output_bytes, RenderArtifactOutputMetadata,
-    RenderedArtifactOutput,
-};
+use crate::cli::Cli;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -81,91 +77,20 @@ pub fn run_watch(cli: &Cli) -> WatchResult {
     }
 }
 
-/// Re-render the file at `path_str` using the output settings from `cli`.
-///
-/// Re-reads the file content on each call so that changes are picked up.
+/// Re-render the file at `path_str` through the same pipeline as a one-shot run
+/// (dialect, compat, style, defines, include root, multi-diagram and multi-page
+/// output), so watch output never diverges from `puml <file>`.
 fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
-    use std::collections::BTreeMap;
-
-    let raw =
-        fs::read_to_string(path_str).map_err(|e| format!("failed to read \'{path_str}\': {e}"))?;
-
-    let inject_vars: BTreeMap<String, String> = cli.defines.iter().cloned().collect();
-    let include_root = cli
-        .input
-        .as_ref()
-        .and_then(|p| crate::cli_run::include_root_for(p));
-
-    let options = puml::ParsePipelineOptions {
-        frontend: puml::FrontendSelection::Auto,
-        compat: puml::CompatMode::Strict,
-        include_root,
-        allow_url_includes: cli.allow_url_includes,
-        inject_vars,
-    };
-
-    let doc = puml::parse_with_pipeline_options(&raw, &options).map_err(|d| d.message.clone())?;
-    let model = puml::normalize_family(doc).map_err(|d| d.message.clone())?;
-
-    let artifacts = puml::render_artifact_pages_from_model(&model);
-    let Some(first_artifact) = artifacts.first() else {
-        return Err("renderer produced no output pages".to_string());
-    };
-
-    let out_bytes = watch_output_bytes(first_artifact, cli.format, cli.dpi)?;
-
-    // Determine output path: explicit --output or derive from input stem.
-    let out_path = match &cli.output {
-        Some(p) => p.clone(),
-        None => {
-            let p = cli.input.as_ref().unwrap();
-            let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("diagram");
-            let ext = cli.format.extension();
-            p.with_file_name(format!("{stem}.{ext}"))
-        }
-    };
-
-    fs::write(&out_path, &out_bytes)
-        .map_err(|e| format!("failed to write \'{}\': {e}", out_path.display()))?;
-
-    Ok(())
-}
-
-/// Convert a render artifact to watch-mode output bytes.
-///
-/// Watch mode keeps its existing supported-format policy, but delegates actual
-/// SVG/HTML/raster conversion to the shared output backend.
-fn watch_output_bytes(
-    artifact: &puml::render::RenderArtifact,
-    format: OutputFormat,
-    dpi: f32,
-) -> Result<Vec<u8>, String> {
-    match format {
-        OutputFormat::Svg
-        | OutputFormat::Html
-        | OutputFormat::Png
-        | OutputFormat::Jpg
-        | OutputFormat::Webp => {
-            let output = RenderedArtifactOutput {
-                name_hint: None,
-                content: render_artifact_export_content(artifact, format),
-                artifact: Some(RenderArtifactOutputMetadata::from_artifact(artifact)),
-            };
-            render_artifact_output_bytes(&output, format, dpi)
-                .map(|output| output.bytes)
-                .map_err(|err| err.message().to_string())
-        }
-
-        OutputFormat::Pdf => Err(
-            "--watch does not yet support --format pdf; use --format svg or --format png"
-                .to_string(),
-        ),
-
-        OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => Err(format!(
-            "--watch does not support text output (--format {}); use svg or png",
-            format.extension()
-        )),
+    let mut once = cli.clone();
+    once.watch = false;
+    once.input = Some(PathBuf::from(path_str));
+    if once.output.is_none() && !once.pipe {
+        // Derive `<stem>.<ext>` next to the input, as watch always has.
+        let p = PathBuf::from(path_str);
+        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("diagram");
+        once.output = Some(p.with_file_name(format!("{stem}.{}", cli.format.extension())));
     }
+    crate::cli_run::run(once).map_err(|(_code, msg)| msg)
 }
 
 /// Return a simple `HH:MM:SS` timestamp string for the current local time.
@@ -226,56 +151,6 @@ mod tests {
     }
 
     #[test]
-    fn watch_output_format_helpers_report_supported_extensions_and_errors() {
-        assert_eq!(OutputFormat::Svg.extension(), "svg");
-        assert_eq!(OutputFormat::Html.extension(), "html");
-        assert_eq!(OutputFormat::Png.extension(), "png");
-        assert_eq!(OutputFormat::Jpg.extension(), "jpg");
-        assert_eq!(OutputFormat::Webp.extension(), "webp");
-        assert_eq!(OutputFormat::Pdf.extension(), "pdf");
-        assert_eq!(OutputFormat::Txt.extension(), "txt");
-        assert_eq!(OutputFormat::Atxt.extension(), "atxt");
-        assert_eq!(OutputFormat::Utxt.extension(), "utxt");
-
-        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>";
-        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
-        assert_eq!(
-            watch_output_bytes(&artifact, OutputFormat::Svg, 96.0).unwrap(),
-            svg.as_bytes()
-        );
-        let html = watch_output_bytes(&artifact, OutputFormat::Html, 96.0).unwrap();
-        assert!(String::from_utf8(html)
-            .unwrap()
-            .starts_with("<!doctype html>"));
-        assert!(watch_output_bytes(&artifact, OutputFormat::Pdf, 96.0)
-            .unwrap_err()
-            .contains("--watch does not yet support --format pdf"));
-        assert!(watch_output_bytes(&artifact, OutputFormat::Txt, 96.0)
-            .unwrap_err()
-            .contains("--watch does not support text output"));
-    }
-
-    #[test]
-    fn watch_raster_output_helpers_encode_supported_image_formats() {
-        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2">
-  <rect width="2" height="2" fill="#ffffff"/>
-  <rect width="1" height="1" fill="#000000"/>
-</svg>"##;
-
-        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
-
-        let png = watch_output_bytes(&artifact, OutputFormat::Png, 96.0).expect("png bytes");
-        assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
-
-        let jpg = watch_output_bytes(&artifact, OutputFormat::Jpg, 96.0).expect("jpg bytes");
-        assert!(jpg.starts_with(&[0xff, 0xd8]));
-
-        let webp = watch_output_bytes(&artifact, OutputFormat::Webp, 96.0).expect("webp bytes");
-        assert!(webp.starts_with(b"RIFF"));
-        assert_eq!(&webp[8..12], b"WEBP");
-    }
-
-    #[test]
     fn render_once_reports_read_errors_without_panicking() {
         let tmp = tempdir().unwrap();
         let missing = tmp.path().join("missing.puml");
@@ -289,16 +164,25 @@ mod tests {
     }
 
     #[test]
-    fn rasterize_rejects_degenerate_svg_dimensions() {
-        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="6">
-  <rect x="0" y="0" width="8" height="6" fill="#fff"/>
-</svg>"##;
+    fn render_once_uses_the_normal_render_path() {
+        // Include root, defines and dialect handling now come from the shared
+        // one-shot pipeline instead of a divergent copy.
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("part.puml"), "Alice -> Bob : included\n").unwrap();
+        let input = tmp.path().join("inc.puml");
+        fs::write(&input, "@startuml\n!include part.puml\n@enduml\n").unwrap();
+        let cli = Cli::try_parse_from(["puml", "--watch", input.to_str().unwrap()]).unwrap();
+        render_once(&cli, input.to_str().unwrap()).expect("include render");
+        let svg = fs::read_to_string(tmp.path().join("inc.svg")).unwrap();
+        assert!(svg.contains("included"));
 
-        let artifact = puml::render::RenderArtifact::svg_only(svg.to_string());
-        let err =
-            watch_output_bytes(&artifact, OutputFormat::Png, 0.0).expect_err("degenerate output");
-
-        assert!(err.contains("failed to rasterize PNG"));
+        let mm = tmp.path().join("flow.mmd");
+        fs::write(&mm, "sequenceDiagram\n  Alice->>Bob: hi\n").unwrap();
+        let cli = Cli::try_parse_from(["puml", "--watch", mm.to_str().unwrap()]).unwrap();
+        render_once(&cli, mm.to_str().unwrap()).expect("mermaid render by extension");
+        assert!(fs::read_to_string(tmp.path().join("flow.svg"))
+            .unwrap()
+            .contains("<svg"));
     }
 
     #[test]
