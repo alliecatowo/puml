@@ -136,8 +136,10 @@ pub(super) fn split_diagrams(
             if open.is_some() {
                 current.push(line);
             }
-            if let Some((open_kind, _)) = open {
-                if matches_uml_marker(marker, &format!("@end{open_kind}")) {
+            if open.is_some() {
+                // Any end marker closes the block; a start/end kind mismatch is
+                // diagnosed downstream (e.g. E_PICOUML_MARKER_MIXED).
+                if end_marker_kind(marker).is_some() {
                     blocks.push(InputDiagram {
                         source: current.join("\n").trim().to_string(),
                         source_span: None,
