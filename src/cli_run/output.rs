@@ -75,6 +75,19 @@ pub(super) fn write_markdown_output_files(
 }
 
 pub(super) fn write_output_files(base: &Path, payloads: &[Vec<u8>]) -> Result<(), (u8, String)> {
+    // `-o -` means stdout, not a file literally named `-`.
+    if base == Path::new("-") {
+        use std::io::Write;
+        let mut stdout = std::io::stdout().lock();
+        for payload in payloads {
+            stdout
+                .write_all(payload)
+                .map_err(|e| (EXIT_IO, format!("failed to write stdout: {e}")))?;
+        }
+        return stdout
+            .flush()
+            .map_err(|e| (EXIT_IO, format!("failed to write stdout: {e}")));
+    }
     if payloads.len() == 1 {
         return write_files_transactionally(vec![(base.to_path_buf(), payloads[0].clone())]);
     }

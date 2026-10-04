@@ -12,6 +12,13 @@ pub(super) struct InputDiagram {
     pub(super) output_name_hint: Option<String>,
 }
 
+fn strip_bom(raw: String) -> String {
+    match raw.strip_prefix('\u{feff}') {
+        Some(rest) => rest.to_string(),
+        None => raw,
+    }
+}
+
 pub(super) fn read_input(
     path: Option<&Path>,
 ) -> Result<(String, String, Option<&Path>), (u8, String)> {
@@ -19,14 +26,14 @@ pub(super) fn read_input(
         Some(p) if p != Path::new("-") => {
             let raw = fs::read_to_string(p)
                 .map_err(|e| (EXIT_IO, format!("failed to read '{}': {e}", p.display())))?;
-            Ok((p.display().to_string(), raw, Some(p)))
+            Ok((p.display().to_string(), strip_bom(raw), Some(p)))
         }
         _ => {
             let mut raw = String::new();
             io::stdin()
                 .read_to_string(&mut raw)
                 .map_err(|e| (EXIT_IO, format!("failed to read stdin: {e}")))?;
-            Ok(("stdin".to_string(), raw, None))
+            Ok(("stdin".to_string(), strip_bom(raw), None))
         }
     }
 }

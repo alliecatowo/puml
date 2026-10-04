@@ -22,6 +22,8 @@ pub fn pos(src: &str, off: usize) -> Value {
     json!({"line":l,"character":c})
 }
 
+const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
+
 pub fn read_msg(r: &mut impl BufRead) -> io::Result<Option<Value>> {
     let mut len = None;
     loop {
@@ -32,17 +34,26 @@ pub fn read_msg(r: &mut impl BufRead) -> io::Result<Option<Value>> {
         if line == "\r\n" {
             break;
         }
-        if let Some(v) = line.strip_prefix("Content-Length:") {
-            len = v.trim().parse::<usize>().ok();
+        if line.len() >= 15 && line.as_bytes()[..15].eq_ignore_ascii_case(b"content-length:") {
+            len = line[15..].trim().parse::<usize>().ok();
         }
     }
+    // A frame without a usable Content-Length is skipped, not fatal.
     let n = match len {
-        Some(v) => v,
-        None => return Ok(None),
+        Some(v) if v <= MAX_FRAME_BYTES => v,
+        Some(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "LSP frame exceeds size limit",
+            ))
+        }
+        None => return Ok(Some(Value::Null)),
     };
     let mut b = vec![0; n];
     std::io::Read::read_exact(r, &mut b)?;
-    Ok(serde_json::from_slice(&b).ok())
+    // Malformed JSON yields a Null message (ignored by the dispatch loop)
+    // rather than ending the session.
+    Ok(Some(serde_json::from_slice(&b).unwrap_or(Value::Null)))
 }
 
 pub fn resp(w: &mut impl Write, id: Value, result: Value) -> io::Result<()> {

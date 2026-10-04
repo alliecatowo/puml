@@ -146,3 +146,69 @@ fn bare_filename_resolves_includes() {
         .assert()
         .success();
 }
+
+#[test]
+fn bom_prefixed_input_is_accepted() {
+    puml()
+        .args(["--check", "-"])
+        .write_stdin("\u{feff}@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn output_dash_writes_to_stdout_not_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = puml()
+        .current_dir(dir.path())
+        .args(["--format", "svg", "-", "-o", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&out.stdout).contains("<svg"));
+    assert!(!dir.path().join("-").exists());
+}
+
+#[test]
+fn lsp_survives_a_malformed_frame() {
+    fn frame(body: &str) -> Vec<u8> {
+        format!("Content-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+    }
+    let mut input = frame(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
+    input.extend(frame("{bad}"));
+    input.extend(b"content-length: 2\r\n\r\n{}".iter());
+    input.extend(frame(r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#));
+    let out = Command::cargo_bin("puml-lsp")
+        .unwrap()
+        .write_stdin(input)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("\"id\":1"));
+    assert!(
+        text.contains("\"id\":2"),
+        "server died after bad frame: {text}"
+    );
+}
+
+#[test]
+fn lsp_resolves_includes_relative_to_the_document() {
+    fn frame(body: &str) -> Vec<u8> {
+        format!("Content-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+    }
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("inc.puml"), "A -> B\n").unwrap();
+    let uri = format!("file://{}/x.puml", dir.path().display());
+    let open = serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"version":1,"text":"@startuml\n!include inc.puml\n@enduml\n"}}}).to_string();
+    let mut input = frame(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
+    input.extend(frame(&open));
+    input.extend(frame(r#"{"jsonrpc":"2.0","method":"exit"}"#));
+    let out = Command::cargo_bin("puml-lsp")
+        .unwrap()
+        .write_stdin(input)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("publishDiagnostics"));
+    assert!(!text.contains("E_INCLUDE_ROOT"), "{text}");
+}

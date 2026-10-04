@@ -74,4 +74,16 @@ call_remote=$(printf '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"n
 expect_contains "$call_remote" '"isError": true' "remote include should fail by default"
 expect_contains "$call_remote" 'E_INCLUDE_URL_DISABLED' "remote include did not use disabled diagnostic"
 
+echo "[mcp-smoke] include_root escaping the workspace is rejected"
+call_root=$(printf '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"puml_check","arguments":{"text":"@startuml\\nA->B\\n@enduml","include_root":"/"}}}\n' | "$MCP_BIN")
+expect_contains "$call_root" 'escapes workspace root' "include_root outside workspace was not rejected"
+
+echo "[mcp-smoke] output_path restricted to artifact extensions"
+call_out=$(printf '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"puml_render_file","arguments":{"text":"@startuml\\nA->B\\n@enduml","output_path":"Cargo.toml"}}}\n' | "$MCP_BIN")
+expect_contains "$call_out" 'output_path must end in' "non-artifact output_path was not rejected"
+
+echo "[mcp-smoke] allow_url_includes=true passes --allow-url-includes"
+printf '{"tool":"puml_check","params":{"text":"@startuml\\nA->B\\n@enduml","allow_url_includes":true}}\n' | PUML_MCP_PUML_BIN="$fake_puml" PUML_MCP_FAKE_ARGS="$fake_args" "$MCP_BIN" >/dev/null
+expect_contains "$(cat "$fake_args")" '--allow-url-includes' "allow_url_includes=true did not enable URL includes"
+
 echo "[mcp-smoke] complete"
