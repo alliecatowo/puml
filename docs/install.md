@@ -128,12 +128,13 @@ cargo install puml --bin puml --force
 | Homebrew | macOS or Linux with Homebrew; available now | `brew install alliecatowo/tap/puml` |
 | GitHub release asset | You do not want to compile and prefer manual steps | Download from GitHub Releases |
 | WASM crate | You are embedding rendering in the browser/site build | Build `crates/puml-wasm` from this repo |
+| VS Code / VSCodium extension | You want preview, lint and export in the editor | Install `alliecatowo.puml-vscode` from [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode) |
 
 The Homebrew formula lives in [alliecatowo/homebrew-tap](https://github.com/alliecatowo/homebrew-tap)
 and is pushed there by the release workflow (`update-homebrew` job) after each stable tag,
-so `brew install alliecatowo/tap/puml` tracks each release. There is not currently a
-supported Docker image, npm CLI package, or VS Code Marketplace package documented as a
-stable install path in this repository.
+so `brew install alliecatowo/tap/puml` tracks each release. The VS Code extension is
+published to [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode). There is not
+currently a supported Docker image, npm CLI package, or Microsoft VS Code Marketplace listing.
 
 ---
 
@@ -313,7 +314,7 @@ npm run package
 code --install-extension puml-*.vsix
 ```
 
-Marketplace publishing is not documented as a stable install channel yet.
+The extension is also published to [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode). The Microsoft VS Code Marketplace listing is not live yet.
 
 ---
 
