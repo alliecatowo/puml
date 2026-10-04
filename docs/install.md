@@ -4,12 +4,11 @@
 point: it reads `.puml`, `.plantuml`, `.picouml`, Markdown fences, or stdin, then emits
 SVG by default with optional PNG, JPG, WebP, PDF, HTML, and text outputs.
 
-The latest release is [v0.2.2](https://github.com/alliecatowo/puml/releases/latest) and the crate requires Rust `1.88` or newer when
+The latest release is [the newest release](https://github.com/alliecatowo/puml/releases/latest) and the crate requires Rust `1.88` or newer when
 you build from source.
 
-> **Status:** GitHub releases, the curl installer and Homebrew work. crates.io, npm and
-> container images are not published yet, so `cargo install puml` below does not work
-> yet; use `cargo install --git https://github.com/alliecatowo/puml --bin puml` instead.
+> **Status:** GitHub releases, the curl installer, Homebrew and crates.io
+> (`cargo install puml --bin puml`) work. npm and container images are not published yet.
 
 ---
 

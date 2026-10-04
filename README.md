@@ -129,17 +129,18 @@ Linux, macOS and Windows archives (CLI and `puml-lsp`) are on the
 
 ### VS Code
 
-Install the `alliecatowo.puml-vscode` extension from [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode).
+The extension is not on a marketplace yet. Build it from [`extensions/vscode`](extensions/vscode)
+(`npm ci && npm run build && npx @vscode/vsce package`) and install the `.vsix`.
 It needs the `puml` binary on your `PATH`.
 
-### Cargo from git
+### Cargo (crates.io)
 
 Requires Rust 1.88 or newer:
 
 ```bash
-cargo install --git https://github.com/alliecatowo/puml --bin puml
+cargo install puml --bin puml
 # optional: the language server
-cargo install --git https://github.com/alliecatowo/puml --bin puml-lsp
+cargo install puml --bin puml-lsp
 ```
 
 ### Build from a checkout
@@ -153,7 +154,7 @@ cargo build --release
 
 ### Not available yet
 
-crates.io (`cargo install puml`), npm and a container image are not published. See the
+npm and a container image are not published. See the
 [install guide](docs/install.md) for details.
 
 </details>

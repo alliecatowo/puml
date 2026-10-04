@@ -292,6 +292,7 @@ jobs:
     needs:
       - create-release
       - build-and-publish
+      - build-wasm
     runs-on: ubuntu-latest
     permissions:
       contents: write

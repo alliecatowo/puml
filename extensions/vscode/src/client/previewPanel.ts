@@ -7,6 +7,7 @@
  * Requests are guarded with a monotonic sequence number so stale responses
  * from a slow render are dropped silently.
  */
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { PumlLspClient } from './lspClient';
 import { renderDocument, RenderResult } from './renderer';
@@ -134,7 +135,7 @@ export class PumlPreviewPanel {
   private async refresh(): Promise<void> {
     const mySeq = ++this.seq;
 
-    this.webviewPanel.title = `PUML Preview: ${this.document.fileName.split('/').pop() ?? 'Untitled'}`;
+    this.webviewPanel.title = `PUML Preview: ${path.basename(this.document.fileName) || 'Untitled'}`;
 
     // Show a loading state while rendering.
     this.webviewPanel.webview.html = loadingHtml();
@@ -188,7 +189,7 @@ function loadingHtml(): string {
 }
 
 function renderWebviewHtml(payload: RenderResult, filePath: string): string {
-  const fileName = filePath.split('/').pop() ?? filePath.split('\\').pop() ?? 'Untitled';
+  const fileName = path.basename(filePath) || 'Untitled';
   const safeSvg =
     payload.svg && payload.svg.trim().length > 0
       ? payload.svg
