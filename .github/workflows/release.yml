@@ -414,6 +414,8 @@ jobs:
   publish-to-cargo:
     name: Publish crate
     runs-on: ubuntu-latest
+    # crates.io trusted publishing is bound to this environment name.
+    environment: crates-io
     needs:
       - publish-release
     permissions:
