@@ -32,7 +32,7 @@ pub(super) fn process_include_url(
         use super::super::includes::{extract_url, fetch_url_include};
 
         let url = extract_url(raw_target);
-        let content = fetch_url_include(url)?;
+        let content = fetch_url_include(url, options, include_stack)?;
         process_lines(
             &content,
             options,

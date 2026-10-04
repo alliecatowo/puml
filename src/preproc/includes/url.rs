@@ -7,6 +7,7 @@ use std::io::Read;
 use sha2::{Digest, Sha256};
 
 use crate::diagnostic::Diagnostic;
+use crate::preproc::ParseOptions;
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use crate::preproc::{URL_INCLUDE_MAX_BYTES, URL_INCLUDE_TIMEOUT};
 
@@ -55,11 +56,32 @@ fn url_cache_path(url: &str) -> Option<std::path::PathBuf> {
 /// Returns the fetched content as a string.
 /// Handles `file://` URLs by reading from the local filesystem directly.
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
-pub(in crate::preproc) fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
-    // Handle file:// URLs by stripping the scheme and reading from the local fs.
+pub(in crate::preproc) fn fetch_url_include(
+    url: &str,
+    options: &ParseOptions,
+    include_stack: &[std::path::PathBuf],
+) -> Result<String, Diagnostic> {
+    // `file://` URLs are local reads, so they get exactly the same include-root
+    // sandbox as plain `!include` paths: the target must canonicalize to a path
+    // inside the include root (absolute paths, `..` and symlinks included).
     if url.to_ascii_lowercase().starts_with("file://") {
         let path_str = &url["file://".len()..];
-        return fs::read_to_string(path_str).map_err(|e| {
+        let resolved = super::paths::resolve_include_path(
+            options,
+            include_stack,
+            std::path::Path::new(path_str),
+        )
+        .map_err(|d| {
+            if d.message.contains("E_INCLUDE_READ") {
+                Diagnostic::error_code(
+                    "E_INCLUDE_URL_FETCH",
+                    format!("failed to read file URL '{}': {}", url, d.message),
+                )
+            } else {
+                d
+            }
+        })?;
+        return fs::read_to_string(&resolved).map_err(|e| {
             Diagnostic::error_code(
                 "E_INCLUDE_URL_FETCH",
                 format!("failed to read file URL '{}': {e}", url),
@@ -185,7 +207,11 @@ fn url_include_too_large(url: &str, bytes: usize) -> Diagnostic {
 
 #[cfg(not(all(not(target_arch = "wasm32"), feature = "url-includes")))]
 #[allow(dead_code)]
-pub(in crate::preproc) fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
+pub(in crate::preproc) fn fetch_url_include(
+    url: &str,
+    _options: &ParseOptions,
+    _include_stack: &[std::path::PathBuf],
+) -> Result<String, Diagnostic> {
     Err(Diagnostic::error_code(
         "E_INCLUDE_URL_UNSUPPORTED",
         format!("URL includes are not supported in this build: {url}"),
