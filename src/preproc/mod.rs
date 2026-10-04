@@ -166,3 +166,30 @@ struct PreprocState {
     // Shared (Rc) so cloned local scopes keep drawing on the same budget.
     expansions: std::rc::Rc<std::cell::Cell<usize>>,
 }
+
+impl PreprocState {
+    /// Count one `process_lines` expansion against the shared budget.
+    fn charge_expansion(&self, out_len: usize) -> Result<(), crate::diagnostic::Diagnostic> {
+        let used = self.expansions.get() + 1;
+        self.expansions.set(used);
+        if used > MAX_PREPROC_TOTAL_EXPANSIONS {
+            return Err(crate::diagnostic::Diagnostic::error_code(
+                "E_PREPROC_EXPANSION_LIMIT",
+                format!(
+                    "preprocessor expansion limit exceeded ({MAX_PREPROC_TOTAL_EXPANSIONS} include/loop/macro expansions)"
+                ),
+            ));
+        }
+        self.check_output_budget(out_len)
+    }
+
+    fn check_output_budget(&self, out_len: usize) -> Result<(), crate::diagnostic::Diagnostic> {
+        if out_len > MAX_PREPROC_OUTPUT_BYTES {
+            return Err(crate::diagnostic::Diagnostic::error_code(
+                "E_PREPROC_OUTPUT_LIMIT",
+                format!("preprocessed output exceeds {MAX_PREPROC_OUTPUT_BYTES} bytes"),
+            ));
+        }
+        Ok(())
+    }
+}

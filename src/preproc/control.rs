@@ -52,26 +52,7 @@ pub(super) fn process_lines(
     mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     check_include_depth(depth)?;
-    let used = state.expansions.get() + 1;
-    state.expansions.set(used);
-    if used > super::MAX_PREPROC_TOTAL_EXPANSIONS {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_EXPANSION_LIMIT",
-            format!(
-                "preprocessor expansion limit exceeded ({} include/loop/macro expansions)",
-                super::MAX_PREPROC_TOTAL_EXPANSIONS
-            ),
-        ));
-    }
-    if out.len() > super::MAX_PREPROC_OUTPUT_BYTES {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_OUTPUT_LIMIT",
-            format!(
-                "preprocessed output exceeds {} bytes",
-                super::MAX_PREPROC_OUTPUT_BYTES
-            ),
-        ));
-    }
+    state.charge_expansion(out.len())?;
 
     let lines = source.lines().collect::<Vec<_>>();
     let spans = line_spans(source);
@@ -79,15 +60,7 @@ pub(super) fn process_lines(
     let mut conditionals = Vec::<ConditionalFrame>::new();
 
     while i < lines.len() {
-        if out.len() > super::MAX_PREPROC_OUTPUT_BYTES {
-            return Err(Diagnostic::error_code(
-                "E_PREPROC_OUTPUT_LIMIT",
-                format!(
-                    "preprocessed output exceeds {} bytes",
-                    super::MAX_PREPROC_OUTPUT_BYTES
-                ),
-            ));
-        }
+        state.check_output_budget(out.len())?;
         let raw_line = lines[i];
         let raw_span = spans.get(i).copied().unwrap_or_else(|| Span::new(0, 0));
         let line = raw_line.trim();
