@@ -4,6 +4,9 @@ use crate::source::Span;
 pub fn extract_markdown_diagrams(source: &str) -> Vec<DiagramInput> {
     let mut out = Vec::new();
     let mut in_fence = false;
+    // A non-diagram fence (e.g. ```markdown) whose body must stay inert, so
+    // nested ```puml samples inside it are not extracted.
+    let mut other_fence: Option<(char, usize)> = None;
     let mut fence_marker = '`';
     let mut fence_len = 0usize;
     let mut fence_frontend = FrontendSelection::Auto;
@@ -16,6 +19,13 @@ pub fn extract_markdown_diagrams(source: &str) -> Vec<DiagramInput> {
 
         let (marker, marker_count, rest) = parse_fence_line(line);
 
+        if let Some((om, olen)) = other_fence {
+            if marker == om && marker_count >= olen && rest.is_empty() {
+                other_fence = None;
+            }
+            continue;
+        }
+
         if !in_fence {
             if marker_count >= 3 {
                 if let Some(frontend) = parse_diagram_fence_frontend(rest) {
@@ -24,6 +34,8 @@ pub fn extract_markdown_diagrams(source: &str) -> Vec<DiagramInput> {
                     fence_len = marker_count;
                     fence_frontend = frontend;
                     content_start = cursor;
+                } else {
+                    other_fence = Some((marker, marker_count));
                 }
             }
             continue;

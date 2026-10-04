@@ -125,7 +125,16 @@ fn decode_numeric_character_reference(s: &str) -> Option<(char, usize)> {
 
     let value = u32::from_str_radix(digits, radix).ok()?;
     let decoded = char::from_u32(value)?;
+    // Only XML 1.0 `Char` code points: others (NUL, other C0 controls, U+FFFE/FFFF)
+    // would make the whole SVG unparseable, so leave the reference as literal text.
+    if !is_xml_char(decoded) {
+        return None;
+    }
     Some((decoded, close + 1))
+}
+
+fn is_xml_char(c: char) -> bool {
+    matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}')
 }
 
 fn decode_codepoint_tag(s: &str) -> Option<(char, usize)> {
@@ -144,6 +153,11 @@ fn decode_codepoint_tag(s: &str) -> Option<(char, usize)> {
 
     let value = u32::from_str_radix(digits, 16).ok()?;
     let decoded = char::from_u32(value)?;
+    // Only XML 1.0 `Char` code points: others (NUL, other C0 controls, U+FFFE/FFFF)
+    // would make the whole SVG unparseable, so leave the reference as literal text.
+    if !is_xml_char(decoded) {
+        return None;
+    }
     Some((decoded, close + 1))
 }
 
