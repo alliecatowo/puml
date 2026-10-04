@@ -175,18 +175,20 @@ jobs:
 
       - name: Setup Rust toolchain
         if: steps.changes.outputs.run_oracle == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
       - name: Cache Rust build artifacts
         if: steps.changes.outputs.run_oracle == 'true'
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: oracle-ubuntu-stable
           cache-on-failure: true
 
       - name: Install cargo-nextest
         if: steps.changes.outputs.run_oracle_smoke == 'true'
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@c6be25d576b61102b3af9c1f35a7f2b3a55b5e3a # v2
+        with:
+          tool: nextest
 
       - name: Build release binary
         if: steps.changes.outputs.run_oracle == 'true'
