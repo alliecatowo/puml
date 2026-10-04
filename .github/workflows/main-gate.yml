@@ -51,21 +51,25 @@ jobs:
           df -h /
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy, llvm-tools-preview
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: main-gate-ubuntu-stable
           cache-on-failure: true
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@c6be25d576b61102b3af9c1f35a7f2b3a55b5e3a # v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@c6be25d576b61102b3af9c1f35a7f2b3a55b5e3a # v2
+        with:
+          tool: nextest
 
       - name: Disk sanity before heavy compile
         run: |

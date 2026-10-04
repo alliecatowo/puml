@@ -88,10 +88,10 @@ jobs:
           docker image prune -af 2>/dev/null || true
           echo "Disk after reclaim:"
           df -h /
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
@@ -153,16 +153,20 @@ jobs:
             echo "::error::Less than 5 GiB available — aborting before SIGBUS"
             exit 2
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           # Dedicated key: instrumented artifacts must not evict stable build cache.
           shared-key: pr-gate-ubuntu-coverage
           cache-on-failure: true
-      - uses: taiki-e/install-action@nextest
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@c6be25d576b61102b3af9c1f35a7f2b3a55b5e3a # v2
+        with:
+          tool: nextest
+      - uses: taiki-e/install-action@c6be25d576b61102b3af9c1f35a7f2b3a55b5e3a # v2
+        with:
+          tool: cargo-llvm-cov
       - name: test + coverage gate
         # Skip the coverage threshold check for bot dependency updaters; their PRs
         # don't change logic and tend to fluctuate coverage by accidental amounts.
@@ -203,8 +207,8 @@ jobs:
       BINARY_LIMIT_BYTES: "16000000"
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
@@ -231,10 +235,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
@@ -252,11 +256,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '20'
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         if: needs.changes.outputs.run_wasm_site_smoke == 'true'
         with:
           shared-key: pr-gate-ubuntu-stable
