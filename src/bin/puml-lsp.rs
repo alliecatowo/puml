@@ -27,6 +27,13 @@ fn main() {
     let mut workspace_config: Value = json!({});
     while let Ok(Some(msg)) = read_msg(&mut r) {
         let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
+        if let Some(uri) = msg
+            .pointer("/params/textDocument/uri")
+            .or_else(|| msg.pointer("/params/uri"))
+            .and_then(Value::as_str)
+        {
+            lsp_adapter::render::set_include_root_for_uri(uri);
+        }
         match method {
             "initialize" => {
                 let _ = resp(

@@ -42,10 +42,54 @@ def _configured_puml_cmd():
     )
 
 
+RUN_TIMEOUT_SECS = float(os.environ.get("PUML_MCP_TIMEOUT", "30"))
+MAX_CAPTURE_BYTES = 32 * 1024 * 1024
+ALLOWED_OUTPUT_EXTS = {".svg", ".png", ".pdf", ".html", ".txt"}
+
+
+def _safe_output_path(path: str) -> Path:
+    """Like _safe_rel, but only for generated-artifact files outside .git."""
+    p = _safe_rel(path)
+    if p.suffix.lower() not in ALLOWED_OUTPUT_EXTS:
+        raise ValueError(
+            "output_path must end in one of: " + ", ".join(sorted(ALLOWED_OUTPUT_EXTS))
+        )
+    rel_parts = p.relative_to(ROOT).parts
+    if any(part == ".git" for part in rel_parts):
+        raise ValueError("output_path must not be inside .git")
+    return p
+
+
+def _include_flags(params):
+    flags = []
+    if params.get("allow_url_includes", False):
+        flags.append("--allow-url-includes")
+    else:
+        flags.append("--no-url-includes")
+    include_root = params.get("include_root")
+    if include_root:
+        # Confine the include root to the workspace.
+        flags += ["--include-root", str(_safe_rel(include_root))]
+    return flags
+
+
 def _run_puml(args, stdin_text=None):
     cmd = _configured_puml_cmd() + args
-    proc = subprocess.run(cmd, input=stdin_text, text=True, capture_output=True, cwd=ROOT)
-    return proc.returncode, proc.stdout, proc.stderr
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=stdin_text,
+            text=True,
+            capture_output=True,
+            cwd=ROOT,
+            timeout=RUN_TIMEOUT_SECS,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, "", f"puml timed out after {RUN_TIMEOUT_SECS:g}s"
+    out, err = proc.stdout, proc.stderr
+    if len(out) > MAX_CAPTURE_BYTES:
+        return 1, "", "puml output exceeded the size cap"
+    return proc.returncode, out, err[:1_000_000]
 
 
 def _validate_one_source(params):
@@ -91,10 +135,7 @@ def puml_check(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
     args = ["--check"]
-    if not params.get("allow_url_includes", False):
-        args += ["--no-url-includes"]
-    if include_root:
-        args += ["--include-root", include_root]
+    args += _include_flags(params)
     if path:
         args += [str(_safe_rel(path))]
         code, _out, err = _run_puml(args)
@@ -108,10 +149,7 @@ def puml_diagnostics(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
     args = ["--check", "--diagnostics", "json"]
-    if not params.get("allow_url_includes", False):
-        args += ["--no-url-includes"]
-    if include_root:
-        args += ["--include-root", include_root]
+    args += _include_flags(params)
     if path:
         args += [str(_safe_rel(path))]
         code, _out, err = _run_puml(args)
@@ -126,10 +164,7 @@ def puml_render_svg(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
     args = []
-    if not params.get("allow_url_includes", False):
-        args += ["--no-url-includes"]
-    if include_root:
-        args += ["--include-root", include_root]
+    args += _include_flags(params)
     if path:
         args += [str(_safe_rel(path))]
         code, out, err = _run_puml(args)
@@ -159,13 +194,10 @@ def puml_render_file(params):
         raise ValueError("output_path is required")
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
-    out_abs = _safe_rel(output_path)
+    out_abs = _safe_output_path(output_path)
     out_abs.parent.mkdir(parents=True, exist_ok=True)
     args = ["-o", str(out_abs)]
-    if not params.get("allow_url_includes", False):
-        args = ["--no-url-includes"] + args
-    if include_root:
-        args = ["--include-root", include_root] + args
+    args = _include_flags(params) + args
     if path:
         args = [str(_safe_rel(path))] + args
         code, _out, err = _run_puml(args)
@@ -190,7 +222,7 @@ def puml_render_png(params):
     import tempfile
 
     if output_path:
-        out_abs = _safe_rel(output_path)
+        out_abs = _safe_output_path(output_path)
         out_abs.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = out_abs
         cleanup = False
@@ -202,10 +234,7 @@ def puml_render_png(params):
 
     try:
         args = ["--format", "png", "--dpi", str(int(dpi)), "-o", str(tmp_path)]
-        if not params.get("allow_url_includes", False):
-            args = ["--no-url-includes"] + args
-        if include_root:
-            args = ["--include-root", include_root] + args
+        args = _include_flags(params) + args
         if path:
             args = [str(_safe_rel(path))] + args
             code, _out, err = _run_puml(args)

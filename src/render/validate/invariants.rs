@@ -52,7 +52,7 @@ pub fn check_labels_inside_viewbox(svg: &mut String, mode: AutoCorrect) -> Vec<I
                 corrected: matches!(mode, AutoCorrect::Apply),
                 message: format!(
                     "[INV-2] label {:?} overflows viewBox by {}px",
-                    &text.snippet[..text.snippet.len().min(20)],
+                    text.snippet.chars().take(20).collect::<String>(),
                     overflow_px
                 ),
             });
@@ -156,7 +156,7 @@ pub fn check_label_edge_clearance(svg: &mut String, mode: AutoCorrect) -> Vec<In
                         corrected: matches!(mode, AutoCorrect::Apply),
                         message: format!(
                             "[INV-3] label {:?} has only {clearance}px clearance from edge stroke (min {}px)",
-                            &text.snippet[..text.snippet.len().min(20)],
+                            text.snippet.chars().take(20).collect::<String>(),
                             MIN_LABEL_CLEARANCE_PX
                         ),
                     });

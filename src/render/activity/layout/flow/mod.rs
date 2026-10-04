@@ -60,6 +60,24 @@ pub(in crate::render::activity) fn compute_layout(
             cx
         };
 
+        // Stray closers/separators with no matching opener (malformed input such
+        // as a lone `else`, `endif`, `fork again` or `end fork`) must not panic:
+        // lay them out as zero-height neutral nodes and move on.
+        let stray = match meta.step_kind.as_str() {
+            "Else" | "EndIf" => if_stack.is_empty(),
+            "ForkAgain" | "EndFork" => fork_stack.is_empty(),
+            _ => false,
+        };
+        if stray {
+            node_layouts.push(NodeLayout {
+                cx,
+                slot_y: current_slot_y,
+                arrow_out_y: current_slot_y,
+                next_slot_y: current_slot_y,
+            });
+            continue;
+        }
+
         match meta.step_kind.as_str() {
             "IfStart" => {
                 let slot_y = current_slot_y;

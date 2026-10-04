@@ -31,7 +31,7 @@ pub fn run_count(args: &CountArgs) -> Result<i32, (i32, String)> {
     let options = ParsePipelineOptions {
         frontend: puml::FrontendSelection::Auto,
         compat: puml::CompatMode::Strict,
-        include_root: args.file.parent().map(|p| p.to_path_buf()),
+        include_root: crate::cli_run::include_root_for(&args.file),
         allow_url_includes: false,
         inject_vars: Default::default(),
     };

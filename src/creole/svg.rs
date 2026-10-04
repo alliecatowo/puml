@@ -1,5 +1,7 @@
 use super::{CreoleLine, CreoleSpan};
-use crate::text_markup::{escape_svg_attr as escape_attr, escape_svg_text as escape_xml};
+use crate::text_markup::{
+    escape_svg_attr as escape_attr, escape_svg_text as escape_xml, sanitize_href,
+};
 
 /// Render a single `CreoleLine` to SVG `<tspan>` elements.
 ///
@@ -61,9 +63,10 @@ fn render_span(out: &mut String, span: &CreoleSpan, default_color: &str) {
         return;
     }
 
-    if let Some(url) = &span.link {
+    let safe_link = span.link.as_deref().and_then(sanitize_href);
+    if let Some(url) = safe_link {
         out.push_str(&format!(
-            "<a xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
+            "<a xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" rel=\"noopener noreferrer\">",
             escape_attr(url)
         ));
         if let Some(tooltip) = &span.link_tooltip {
@@ -89,7 +92,7 @@ fn render_span(out: &mut String, span: &CreoleSpan, default_color: &str) {
         escape_xml(&span.text)
     ));
 
-    if span.link.is_some() {
+    if safe_link.is_some() {
         out.push_str("</a>");
     }
 }

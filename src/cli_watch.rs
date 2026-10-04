@@ -94,7 +94,7 @@ fn render_once(cli: &Cli, path_str: &str) -> Result<(), String> {
     let include_root = cli
         .input
         .as_ref()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        .and_then(|p| crate::cli_run::include_root_for(p));
 
     let options = puml::ParsePipelineOptions {
         frontend: puml::FrontendSelection::Auto,

@@ -52,6 +52,7 @@ pub(super) fn process_lines(
     mappings: &mut Vec<MappedSpan>,
 ) -> Result<(), Diagnostic> {
     check_include_depth(depth)?;
+    state.charge_expansion(out.len())?;
 
     let lines = source.lines().collect::<Vec<_>>();
     let spans = line_spans(source);
@@ -59,6 +60,7 @@ pub(super) fn process_lines(
     let mut conditionals = Vec::<ConditionalFrame>::new();
 
     while i < lines.len() {
+        state.check_output_budget(out.len())?;
         let raw_line = lines[i];
         let raw_span = spans.get(i).copied().unwrap_or_else(|| Span::new(0, 0));
         let line = raw_line.trim();
