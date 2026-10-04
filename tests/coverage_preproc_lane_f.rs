@@ -309,7 +309,13 @@ fn url_include_cache_is_used_before_network_and_file_url_errors_are_stable() {
     assert_eq!(labels, vec!["from-cache"]);
     network.assert_calls(0);
 
-    let file_url = "file:///definitely/not/a/puml-file.puml";
+    let root = tempfile::tempdir().expect("tempdir");
+    let file_url = format!("file://{}/missing.puml", root.path().display());
+    let options = ParseOptions {
+        allow_url_includes: true,
+        include_root: Some(root.path().to_path_buf()),
+        ..Default::default()
+    };
     let err = parse_with_options(
         &format!("@startuml\n!include {file_url}\n@enduml\n"),
         &options,

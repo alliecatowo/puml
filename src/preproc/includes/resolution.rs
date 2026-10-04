@@ -46,7 +46,7 @@ pub(in crate::preproc) fn process_include_directive(
             return Err(url_includes_disabled(directive_name, raw_target));
         }
         let url = extract_url(raw_target);
-        let content = fetch_url_include(url)?;
+        let content = fetch_url_include(url, options, include_stack)?;
         // Preprocess the fetched content recursively (without pushing to include_stack
         // since there's no local path — use the current stack as-is).
         return process_lines(
@@ -181,7 +181,7 @@ pub(in crate::preproc) fn process_include_many_directive(
             return Err(url_includes_disabled("!include_many", raw_target));
         }
         let url = extract_url(raw_target);
-        let content = fetch_url_include(url)?;
+        let content = fetch_url_include(url, options, include_stack)?;
         return process_lines(
             &content,
             options,
@@ -372,7 +372,7 @@ pub(in crate::preproc) fn process_import_directive(
             return Err(url_includes_disabled("!import", raw_target));
         }
         let url = extract_url(raw_target);
-        let content = fetch_url_include(url)?;
+        let content = fetch_url_include(url, ctx.options, ctx.include_stack)?;
         return process_lines(
             &content,
             ctx.options,

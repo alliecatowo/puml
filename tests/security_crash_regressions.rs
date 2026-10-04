@@ -212,3 +212,106 @@ fn lsp_resolves_includes_relative_to_the_document() {
     assert!(text.contains("publishDiagnostics"));
     assert!(!text.contains("E_INCLUDE_ROOT"), "{text}");
 }
+
+fn url_include_cmd(root: &std::path::Path, src: &str) -> std::process::Output {
+    puml()
+        .args(["--allow-url-includes", "--include-root"])
+        .arg(root)
+        .args(["--check", "-"])
+        .write_stdin(src.to_string())
+        .output()
+        .expect("run puml")
+}
+
+#[test]
+fn file_url_includes_respect_include_root() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path().join("root");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("inside.puml"), "A -> B : ok\n").unwrap();
+    let outside = tmp.path().join("outside.puml");
+    fs::write(&outside, "A -> B : leaked\n").unwrap();
+
+    // Absolute file:// path outside the root is rejected.
+    let out = url_include_cmd(
+        &root,
+        &format!(
+            "@startuml\n!include file://{}\n@enduml\n",
+            outside.display()
+        ),
+    );
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("E_INCLUDE_ESCAPE"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // `..` traversal through a file:// URL is rejected too.
+    let out = url_include_cmd(
+        &root,
+        &format!(
+            "@startuml\n!include file://{}/../outside.puml\n@enduml\n",
+            root.display()
+        ),
+    );
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("E_INCLUDE_ESCAPE"));
+
+    // The same read via !includeurl and !include_many is confined as well.
+    for directive in ["!includeurl", "!include_many"] {
+        let out = url_include_cmd(
+            &root,
+            &format!(
+                "@startuml\n{directive} file://{}\n@enduml\n",
+                outside.display()
+            ),
+        );
+        assert!(!out.status.success(), "{directive}");
+    }
+
+    // A file inside the root still works.
+    let out = url_include_cmd(
+        &root,
+        &format!(
+            "@startuml\n!include file://{}\n@enduml\n",
+            root.join("inside.puml").display()
+        ),
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn file_url_include_without_root_is_rejected() {
+    let out = puml()
+        .args(["--allow-url-includes", "--check", "-"])
+        .write_stdin("@startuml\n!include file:///etc/hostname\n@enduml\n".to_string())
+        .output()
+        .expect("run puml");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("E_INCLUDE_ROOT_REQUIRED"));
+}
+
+#[cfg(unix)]
+#[test]
+fn file_url_include_symlink_escape_is_rejected() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path().join("root");
+    fs::create_dir_all(&root).unwrap();
+    let outside = tmp.path().join("outside.puml");
+    fs::write(&outside, "A -> B : leaked\n").unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("link.puml")).unwrap();
+    let out = url_include_cmd(
+        &root,
+        &format!(
+            "@startuml\n!include file://{}\n@enduml\n",
+            root.join("link.puml").display()
+        ),
+    );
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("E_INCLUDE_ESCAPE"));
+}

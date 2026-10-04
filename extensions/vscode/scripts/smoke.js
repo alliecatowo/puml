@@ -86,3 +86,20 @@ for (const cmd of requiredCommands) {
 console.log('[vscode-smoke] build artifact exists and preview is LSP-backed');
 console.log('[vscode-smoke] all command declarations verified');
 console.log('[vscode-smoke] output channel + backoff + binary resolution contracts verified');
+
+// --- CLI fallback include root (regression: !include resolved against the temp dir) ---
+{
+  const { includeRootArgs } = require(path.join(__dirname, '..', 'dist', 'client', 'cliArgs.js'));
+  const assert = require('node:assert/strict');
+  assert.deepEqual(includeRootArgs('file', path.join(path.sep, 'work', 'doc', 'a.puml')), [
+    '--include-root',
+    path.join(path.sep, 'work', 'doc'),
+  ]);
+  assert.deepEqual(includeRootArgs('untitled', 'Untitled-1'), []);
+  assert.deepEqual(includeRootArgs('file', ''), []);
+  const srcRenderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'renderer.ts'), 'utf8');
+  const uses = srcRenderer.split('includeRootArgs(document.uri.scheme').length - 1;
+  if (uses < 3) {
+    throw new Error('renderer.ts: preview, exportSvg and exportPng CLI fallbacks must all pass --include-root');
+  }
+}

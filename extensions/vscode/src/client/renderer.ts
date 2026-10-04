@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { includeRootArgs } from './cliArgs';
 import { ExportResult, PumlLspClient, RenderSvgResult } from './lspClient';
 
 export interface RenderResult {
@@ -48,7 +49,14 @@ export async function renderViaCli(
   fs.writeFileSync(tmp, document.getText(), 'utf8');
 
   try {
-    const svg = await execPuml(cliBin, ['--format', 'svg', tmp, '-o', '-']);
+    const svg = await execPuml(cliBin, [
+      ...includeRootArgs(document.uri.scheme, document.uri.fsPath),
+      '--format',
+      'svg',
+      tmp,
+      '-o',
+      '-',
+    ]);
     return { svg, diagnostics: [] };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -89,7 +97,14 @@ export async function exportSvg(
   const tmp = path.join(os.tmpdir(), `puml-export-${Date.now()}.puml`);
   fs.writeFileSync(tmp, document.getText(), 'utf8');
   try {
-    await execPuml(cliBin, ['--format', 'svg', tmp, '-o', outputPath]);
+    await execPuml(cliBin, [
+      ...includeRootArgs(document.uri.scheme, document.uri.fsPath),
+      '--format',
+      'svg',
+      tmp,
+      '-o',
+      outputPath,
+    ]);
   } finally {
     try {
       fs.unlinkSync(tmp);
@@ -123,7 +138,14 @@ export async function exportPng(
   const tmp = path.join(os.tmpdir(), `puml-export-${Date.now()}.puml`);
   fs.writeFileSync(tmp, document.getText(), 'utf8');
   try {
-    await execPuml(cliBin, ['--format', 'png', tmp, '-o', outputPath]);
+    await execPuml(cliBin, [
+      ...includeRootArgs(document.uri.scheme, document.uri.fsPath),
+      '--format',
+      'png',
+      tmp,
+      '-o',
+      outputPath,
+    ]);
   } finally {
     try {
       fs.unlinkSync(tmp);
