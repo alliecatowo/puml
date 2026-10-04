@@ -129,8 +129,10 @@ Linux, macOS and Windows archives (CLI and `puml-lsp`) are on the
 
 ### VS Code
 
-The extension is not on a marketplace yet. Build it from [`extensions/vscode`](extensions/vscode)
-(`npm ci && npm run build && npx @vscode/vsce package`) and install the `.vsix`.
+Install **puml** (`alliecatowo.puml-vscode`) from [Open VSX](https://open-vsx.org/extension/alliecatowo/puml-vscode)
+in VSCodium, Cursor or any Open VSX editor. For Microsoft VS Code, build it from
+[`extensions/vscode`](extensions/vscode) (`npm ci && npm run build && npx @vscode/vsce package`)
+and install the `.vsix`.
 It needs the `puml` binary on your `PATH`.
 
 ### Cargo (crates.io)
