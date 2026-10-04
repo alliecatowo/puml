@@ -15,7 +15,7 @@ use crate::cli::{
 };
 use glob::glob;
 use puml::diagnostic::{normalized_warnings, offset_to_line_col};
-use puml::{normalize_family, Diagnostic, DiagnosticJson};
+use puml::{Diagnostic, DiagnosticJson};
 use regex::Regex;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -170,7 +170,7 @@ pub(super) fn run_lint_subcommand(
                 let d = map_diagnostic_span(d, source.source_span);
                 diag_entries.push(diagnostic_to_entry(&d, &raw));
             }
-            Ok(doc) => match puml::normalize_family(doc) {
+            Ok(doc) => match super::pipeline::normalize_for_cli(doc, include_root.clone()) {
                 Err(d) => {
                     error_count += 1;
                     let d = map_diagnostic_span(d, source.source_span);
@@ -430,7 +430,7 @@ pub(super) fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 }
             };
 
-            let model = match normalize_family(doc) {
+            let model = match super::pipeline::normalize_for_cli(doc, include_root.clone()) {
                 Ok(model) => model,
                 Err(d) => {
                     acc.errors += 1;

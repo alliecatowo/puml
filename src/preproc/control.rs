@@ -83,7 +83,9 @@ pub(super) fn process_lines(
                 }
                 PreprocessDirective::IfDef { name, negated } => {
                     let cond = if active {
-                        state.defines.contains_key(&name) ^ negated
+                        (state.defines.contains_key(&name)
+                            || state.vars.contains_key(name.trim_start_matches('$')))
+                            ^ negated
                     } else {
                         false
                     };

@@ -316,12 +316,31 @@ struct RasterizedSvg {
     rgba: Vec<u8>,
 }
 
+/// Upper bound on raster output size (pixels). 64 Mpx is ~256 MiB of RGBA and
+/// keeps a hostile or accidental huge diagram/--dpi from exhausting memory.
+#[cfg(feature = "cli")]
+const MAX_RASTER_PIXELS: u64 = 64_000_000;
+
+/// System fonts are loaded once per process (scanning them is slow).
+#[cfg(feature = "cli")]
+fn shared_fontdb() -> std::sync::Arc<resvg::usvg::fontdb::Database> {
+    static DB: std::sync::OnceLock<std::sync::Arc<resvg::usvg::fontdb::Database>> =
+        std::sync::OnceLock::new();
+    DB.get_or_init(|| {
+        let mut db = resvg::usvg::fontdb::Database::new();
+        db.load_system_fonts();
+        db.set_monospace_family("Liberation Mono");
+        std::sync::Arc::new(db)
+    })
+    .clone()
+}
+
 #[cfg(feature = "cli")]
 fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, OutputError> {
-    let mut opt = resvg::usvg::Options::default();
-    let fontdb = opt.fontdb_mut();
-    fontdb.load_system_fonts();
-    fontdb.set_monospace_family("Liberation Mono");
+    let opt = resvg::usvg::Options {
+        fontdb: shared_fontdb(),
+        ..Default::default()
+    };
     let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| {
         OutputError::new(
             OutputErrorKind::Validation,
@@ -337,6 +356,15 @@ fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, OutputError> {
         return Err(OutputError::new(
             OutputErrorKind::Internal,
             "failed to rasterize PNG: computed zero-sized output",
+        ));
+    }
+
+    if u64::from(width) * u64::from(height) > MAX_RASTER_PIXELS {
+        return Err(OutputError::new(
+            OutputErrorKind::Validation,
+            format!(
+                "raster output {width}x{height} exceeds the {MAX_RASTER_PIXELS}-pixel limit; lower --dpi or simplify the diagram"
+            ),
         ));
     }
 

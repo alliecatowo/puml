@@ -31,7 +31,8 @@ pub(in crate::preproc) fn evaluate_preprocess_expr(
     }
 
     if let Some((negated, name)) = parse_defined_call(raw) {
-        let defined = state.defines.contains_key(name) || state.vars.contains_key(name);
+        let defined = state.defines.contains_key(name)
+            || state.vars.contains_key(name.trim_start_matches('$'));
         return Ok(if negated { !defined } else { defined });
     }
 
