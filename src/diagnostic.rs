@@ -2,6 +2,25 @@ use crate::model::NormalizedDocument;
 use crate::source::{DiagnosticSource, Span};
 use serde::Serialize;
 
+// ---------------------------------------------------------------------------
+// Diagnostic code constants — `<style>` cascade validation (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Unrecognised `PName` (property name) in a `<style>` block — likely a typo.
+/// The property is stored verbatim in [`StyleRule::unknown_properties`] and
+/// does not participate in cascade resolution.
+pub const W_STYLE_UNKNOWN_PROPERTY: &str = "W_STYLE_UNKNOWN_PROPERTY";
+
+/// Unrecognised `SName` selector segment in a `<style>` block — falls back to
+/// [`SelectorSegment::Unknown`] and never matches any element, mirroring
+/// upstream's `SName.retrieve()` returning `null`.
+pub const W_STYLE_UNKNOWN_TAG: &str = "W_STYLE_UNKNOWN_TAG";
+
+/// Value parse failure for a recognised `PName` inside a `<style>` block —
+/// e.g. a malformed colour literal or non-numeric dimension.  The property is
+/// dropped from the effective style rather than causing a hard parse failure.
+pub const E_STYLE_BAD_VALUE: &str = "E_STYLE_BAD_VALUE";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

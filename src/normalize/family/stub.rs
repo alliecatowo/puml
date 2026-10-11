@@ -3,9 +3,7 @@ use crate::ast::RawSyntaxCategory;
 use crate::normalize::common::{self, CommonDirectives, LegendTextMode, RawSyntaxContext};
 
 mod salt_cells;
-use self::salt_cells::{
-    collect_salt_ascii_sprite_names, encode_salt_cells, salt_scan_unsupported, StyleParamRecord,
-};
+use self::salt_cells::{collect_salt_ascii_sprite_names, encode_salt_cells, salt_scan_unsupported};
 
 pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let family_kind = document.kind;
@@ -36,7 +34,6 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     };
     let mut style_cascade = crate::theme::GraphStyleCascade::new(graph_family);
     let mut salt_style = crate::theme::SaltStyle::default();
-    let mut style_params: Vec<StyleParamRecord> = Vec::new();
     // Phase B (#1404): accumulate `<style>` block rules into a StyleBuilder.
     let mut style_builder = crate::theme::StyleBuilder::new();
     let mut warnings: Vec<Diagnostic> = Vec::new();
@@ -72,20 +69,6 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     continue;
                 }
                 style_cascade.apply_skinparam(&key, &value, stmt.span, &mut warnings);
-            }
-            StatementKind::StyleParam {
-                selector,
-                property,
-                key,
-                value,
-            } => {
-                style_params.push(StyleParamRecord {
-                    selector,
-                    property,
-                    key,
-                    value,
-                    span: stmt.span,
-                });
             }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection {
@@ -410,10 +393,12 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             // Phase B (#1404): accumulate typed `<style>` block rules into the builder
             // so they can be queried per-element at cascade time.  Only Regular-scheme
             // rules are consumed; Dark rules are stored for future `--scheme dark` flag.
+            // Phase E (#1417): emit W_STYLE_UNKNOWN_TAG / W_STYLE_UNKNOWN_PROPERTY /
+            // E_STYLE_BAD_VALUE diagnostics via push_with_warnings.
             StatementKind::StyleBlock(block) => {
                 for rule in block.rules {
                     if rule.scheme == crate::ast::style::StyleScheme::Regular {
-                        style_builder.push(rule);
+                        style_builder.push_with_warnings(rule, &mut warnings);
                     }
                 }
             }
@@ -559,36 +544,14 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
-    for param in style_params {
-        if family_kind == DiagramKind::Salt {
-            let applied = if let Some(key) = param.key.as_deref() {
-                salt_style.apply_key(key, &param.value)
-            } else {
-                salt_style.apply_property(param.selector.as_deref(), &param.property, &param.value)
-            };
-            if !applied {
-                warnings.push(
-                    Diagnostic::warning(format!(
-                        "[W_STYLE_UNSUPPORTED] unsupported style `{}` in selector `{}`",
-                        param.property,
-                        param.selector.as_deref().unwrap_or("saltDiagram")
-                    ))
-                    .with_span(param.span),
-                );
-            }
-        } else {
-            style_cascade.apply_style_param(
-                param.selector.as_deref(),
-                &param.property,
-                param.key.as_deref(),
-                &param.value,
-                param.span,
-                &mut warnings,
-            );
-        }
-    }
     common::sort_diagnostics_by_message_and_span(&mut warnings);
     let sepia = style_cascade.sepia();
+    // Phase E (#1417): apply StyleBuilder rules to the flat style structs for
+    // families that read from skinparam fields rather than querying StyleBuilder
+    // at render time (salt).  This replaces the former StyleParam compat shim.
+    if !style_builder.is_empty() && family_kind == DiagramKind::Salt {
+        apply_style_builder_to_salt(&mut salt_style, &style_builder);
+    }
     let mut family_style = if family_kind == DiagramKind::Salt {
         crate::model::FamilyStyle::Salt(Box::new(salt_style))
     } else {
@@ -596,12 +559,15 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     };
     // Phase B (#1404): attach the accumulated StyleBuilder to the family style so
     // the cascade resolver can query `<style>` block rules per element at render time.
+    // Phase E (#1417): also apply diagram-level arrow colour from StyleBuilder.
     if !style_builder.is_empty() {
         let boxed = Box::new(style_builder);
         if let crate::model::FamilyStyle::Class(cs) = &mut family_style {
+            // Apply diagram-level arrow colour: usecaseDiagram { arrow { LineColor … } }
+            // or classDiagram { arrow { LineColor … } }.
+            apply_arrow_color_from_style_builder(cs, family_kind, &boxed);
             cs.style_builder = Some(boxed);
         }
-        // Salt / unexpected family: builder is unused.
     }
 
     Ok(FamilyDocument {
@@ -636,4 +602,110 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         edge_routing,
         warnings,
     })
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → SaltStyle bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Query `builder` for `<style>` rules that target Salt widget elements and
+/// apply the resulting colours to the flat `SaltStyle` fields.
+///
+/// This replaces the `StyleParam` compat shim path that previously translated
+/// `saltDiagram { BackgroundColor … }` into `SaltBackgroundColor` skinparam
+/// triples consumed by `SaltStyle::apply_key`.
+fn apply_style_builder_to_salt(
+    salt: &mut crate::theme::SaltStyle,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let color = |query: &StyleQuery, pname: PName| -> Option<String> {
+        builder.resolve(query).color(pname).map(str::to_string)
+    };
+
+    // saltDiagram { BackgroundColor / FontColor / LineColor }
+    let diagram_q = StyleQuery::tags([SName::SaltDiagram]);
+    if let Some(c) = color(&diagram_q, PName::BackgroundColor) {
+        salt.canvas_fill = c;
+    }
+    if let Some(c) = color(&diagram_q, PName::FontColor) {
+        salt.text_color = c;
+    }
+    if let Some(c) = color(&diagram_q, PName::LineColor) {
+        salt.border_color = c;
+    }
+
+    // Salt widget selectors may appear as top-level selectors.
+
+    // button { BackgroundColor / FontColor }
+    let button_q = StyleQuery::tags([SName::Button]);
+    if let Some(c) = color(&button_q, PName::BackgroundColor) {
+        salt.button_fill = c;
+    }
+    if let Some(c) = color(&button_q, PName::FontColor) {
+        salt.button_text_color = c;
+    }
+
+    // input / textfield / textarea { BackgroundColor / FontColor }
+    let input_q = StyleQuery::tags([SName::Input]);
+    if let Some(c) = color(&input_q, PName::BackgroundColor) {
+        salt.input_fill = c;
+    }
+    if let Some(c) = color(&input_q, PName::FontColor) {
+        salt.input_text_color = c;
+    }
+
+    // menu { BackgroundColor }
+    let menu_q = StyleQuery::tags([SName::Menu]);
+    if let Some(c) = color(&menu_q, PName::BackgroundColor) {
+        salt.menu_fill = c;
+    }
+
+    // tab { BackgroundColor }
+    let tab_q = StyleQuery::tags([SName::Tab]);
+    if let Some(c) = color(&tab_q, PName::BackgroundColor) {
+        salt.tab_fill = c;
+    }
+
+    // header { BackgroundColor / FontColor }
+    let header_q = StyleQuery::tags([SName::Header]);
+    if let Some(c) = color(&header_q, PName::BackgroundColor) {
+        salt.header_fill = c;
+    }
+    if let Some(c) = color(&header_q, PName::FontColor) {
+        salt.header_text_color = c;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// StyleBlock → ClassStyle arrow-colour bridge (Phase E, #1417)
+// ---------------------------------------------------------------------------
+
+/// Apply diagram-level arrow colour from `<style>` block rules to `ClassStyle`.
+///
+/// The `arrow { LineColor … }` (or `arrowColor`) selector inside a family
+/// style block sets the default edge/relation colour for that diagram family.
+/// This was previously handled by the compat shim; now it goes through the
+/// StyleBuilder.
+fn apply_arrow_color_from_style_builder(
+    cs: &mut crate::theme::ClassStyle,
+    family_kind: DiagramKind,
+    builder: &crate::theme::StyleBuilder,
+) {
+    use crate::ast::style::{PName, SName};
+    use crate::theme::style_builder::StyleQuery;
+
+    let diagram_sname = match family_kind {
+        DiagramKind::UseCase => SName::UsecaseDiagram,
+        _ => SName::ClassDiagram,
+    };
+
+    // diagram { arrow { LineColor / ArrowColor } } — "arrowcolor" is
+    // now an alias for PName::LineColor in the retrieve function.
+    let arrow_q = StyleQuery::tags([diagram_sname, SName::Arrow]);
+    if let Some(c) = builder.resolve(&arrow_q).color(PName::LineColor) {
+        cs.arrow_color = c.to_string();
+    }
 }
