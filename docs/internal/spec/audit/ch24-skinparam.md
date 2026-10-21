@@ -106,3 +106,53 @@ Status legend: ✅ implemented · 🟡 partial · ❌ not implemented
 | `-language` / `help skinparams` | ❌ |
 
 **Score:** 5 ✅ · 5 🟡 · 5 ❌ out of 15. Basic skinparam plumbing is solid; many family-specific keys, broad style-block selectors, stereotype scoping, and the global `monochrome`/`handwritten` flags are missing.
+
+---
+
+## `<style>` block cascade coverage matrix (Phase E, #1417)
+
+The `<style>` block cascade resolver is fully wired for the following families
+and properties as of Phase E:
+
+### Selector coverage (`SName`)
+
+| Selector | Status | Notes |
+|---|---|---|
+| `classDiagram` / `class` / `interface` / `enum` | ✅ | Phase B (#1414) |
+| `componentDiagram` / `component` | ✅ | Phase B (#1414) |
+| `activityDiagram` / `activity` | ✅ | Phase C (#1415) |
+| `sequenceDiagram` / `participant` / `actor` | ✅ | Phase C (#1415) |
+| All 130+ `SName` variants | ✅ | Parsed + stored; render-side wiring varies per family |
+| Unknown selector names | 🟡 | Parsed as `SelectorSegment::Unknown`; emits `W_STYLE_UNKNOWN_TAG`; never matches |
+
+### Property coverage (`PName`)
+
+| Property | Status | Applies to |
+|---|---|---|
+| `BackgroundColor` | ✅ | Class, component, sequence participant, activity node |
+| `FontColor` | ✅ | Class, component, sequence participant |
+| `LineColor` | ✅ | Class, component |
+| `FontSize` | ✅ | Class, component |
+| `FontName` | ✅ | Class, component |
+| `FontStyle` | ✅ | Class, component |
+| `FontWeight` | ✅ | Phase D (#1416) |
+| `LineThickness` | ✅ | Phase D (#1416) |
+| `LineStyle` | ✅ | Phase D (#1416) |
+| `Padding` | ✅ | Phase D (#1416) |
+| `Margin` | ✅ | Phase D (#1416) |
+| `RoundCorner` | ✅ | Phase D (#1416) |
+| `HorizontalAlignment` | ✅ | Phase D (#1416) |
+| `MaximumWidth` | ✅ | Phase D (#1416) |
+| `MinimumWidth` | ✅ | Phase D (#1416) |
+| `Shadowing` | ✅ | Phase D (#1416) |
+| `HeadColor`, `HyperLinkColor` | 🟡 | Parsed; not yet wired to renderers |
+| `Image`, `ImagePosition`, `ExportedName` | 🟡 | Parsed; deferred |
+| Unknown property names | 🟡 | Stored in `StyleRule::unknown_properties`; emits `W_STYLE_UNKNOWN_PROPERTY` |
+
+### Families not yet on StyleBuilder resolver
+
+| Family | Status | Notes |
+|---|---|---|
+| State | ❌ | StyleBlock parsed but skipped; skinparam continues to work |
+| MindMap / WBS / C4 / Tree | ❌ | StyleBlock parsed but skipped; depth-style DeferredRaw path intact |
+| Timeline, Gantt, EBNF, Regex, etc. | ❌ | Not yet wired |
