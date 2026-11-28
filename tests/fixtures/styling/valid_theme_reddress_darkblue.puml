@@ -1,0 +1,8 @@
+@startuml
+!theme reddress-darkblue
+title Reddress Dark Blue Theme
+participant Alice
+participant Bob
+Alice -> Bob : hello
+Bob --> Alice : hi
+@enduml

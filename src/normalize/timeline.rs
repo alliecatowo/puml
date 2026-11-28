@@ -286,7 +286,6 @@ pub(super) fn normalize_timeline_baseline(
                 );
             }
             StatementKind::SkinParam { .. }
-            | StatementKind::StyleParam { .. }
             | StatementKind::Pragma(_)
             | StatementKind::AllowMixing
             | StatementKind::LegendPos(_)

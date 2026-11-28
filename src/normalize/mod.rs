@@ -190,9 +190,6 @@ fn is_family_page_common_statement(kind: &StatementKind) -> bool {
             | StatementKind::Caption(_)
             | StatementKind::Legend(_)
             | StatementKind::SkinParam { .. }
-            | StatementKind::StyleParam { .. }
-            // Phase A: propagate StyleBlock to family pages alongside the legacy
-            // StyleParam compat triples; family normalizers skip it until Phase B.
             | StatementKind::StyleBlock(_)
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)

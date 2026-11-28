@@ -13,9 +13,9 @@
 //!    on a node that carries the `<<entity>>` stereotype.
 //! 3. **Cascade order** — `skinparam classBackgroundColor #grey` (tier 3) loses
 //!    to `style class { BackgroundColor #blue }` (tier 5).
-//! 4. **Compat shim** — legacy `StyleParam` emission still works for migrated
-//!    families (backward compat: the existing `skinparam`-only path still
-//!    produces correct output when no `<style>` block is present).
+//! 4. **Backward compat** — the existing `skinparam`-only path still produces
+//!    correct output when no `<style>` block is present (the `StyleParam`
+//!    compat shim was removed in Phase E #1417; skinparam continues to work).
 
 /// Parse, normalize, and render a PUML source string to SVG; panics on errors.
 fn render_svg(src: &str) -> String {

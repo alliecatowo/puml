@@ -4,7 +4,8 @@
 //! upstream themes (cyborg, hacker, reddress-*) or from the PlantUML LRG.
 //! The tests assert:
 //! 1. The typed `StyleBlock` AST captures selector chains and properties.
-//! 2. The compat shim still emits legacy `StatementKind::StyleParam` triples.
+//! 2. `parse_style_block_body` still returns `Vec<CompatTriple>` (retained for
+//!    callers; the `StatementKind::StyleParam` compat shim was removed in Phase E #1417).
 //! 3. Round-trip: parse → re-parse equals the original rule count.
 
 use puml::ast::style::{PName, SName, SelectorSegment, StyleScheme};
@@ -322,10 +323,11 @@ root {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Compat shim: legacy StyleParam triples still emitted
+// 8. CompatTriple output from parse_style_block_body
 // ---------------------------------------------------------------------------
-/// Any `<style>` block processed by the new parser MUST still produce legacy
-/// flat triples so existing per-family resolvers continue to work unchanged.
+/// `parse_style_block_body` still returns `Vec<CompatTriple>` items so callers
+/// that inspect them (e.g. tests) continue to work.  The `StatementKind::StyleParam`
+/// compat shim that consumed these triples was removed in Phase E (#1417).
 #[test]
 fn compat_shim_emits_legacy_triples() {
     let src = r#"

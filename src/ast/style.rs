@@ -1,9 +1,9 @@
 //! Typed AST surface for `<style>` blocks (Phase A of #1404).
 //!
 //! This module defines the full style-block AST that the recursive-descent
-//! parser in `src/parser/style_block.rs` produces.  Phase B will consume
-//! these types in the cascade resolver; Phase E will remove the legacy
-//! `StatementKind::StyleParam` flat triples once all families have migrated.
+//! parser in `src/parser/style_block.rs` produces.  The cascade resolver
+//! (Phase B) consumes these types.  The legacy `StatementKind::StyleParam`
+//! flat-triple compat shim was removed in Phase E (#1417).
 
 use std::collections::BTreeMap;
 
@@ -34,6 +34,7 @@ pub enum SName {
     Boundary,
     Box,
     Boxless,
+    Button,
     Business,
     Caption,
     Card,
@@ -85,6 +86,7 @@ pub enum SName {
     Hexagon,
     Highlight,
     Hnote,
+    Input,
     Interface_,
     Json,
     JsonDiagram,
@@ -95,6 +97,7 @@ pub enum SName {
     LifeLine,
     Mainframe,
     Map,
+    Menu,
     Milestone,
     MindmapDiagram,
     Month,
@@ -134,6 +137,7 @@ pub enum SName {
     Stereotype,
     Storage,
     Swimlane,
+    Tab,
     Task,
     Timegrid,
     Timeline,
@@ -142,6 +146,7 @@ pub enum SName {
     Undone,
     Unstarted,
     Usecase,
+    UsecaseDiagram,
     VerticalSeparator,
     Year,
     // Visibility icons
@@ -203,6 +208,7 @@ impl SName {
             "body" => Some(Self::Body),
             "boundary" => Some(Self::Boundary),
             "box" => Some(Self::Box),
+            "button" => Some(Self::Button),
             "boxless" => Some(Self::Boxless),
             "business" => Some(Self::Business),
             "caption" => Some(Self::Caption),
@@ -255,6 +261,7 @@ impl SName {
             "hexagon" => Some(Self::Hexagon),
             "highlight" => Some(Self::Highlight),
             "hnote" => Some(Self::Hnote),
+            "input" | "textfield" | "textarea" => Some(Self::Input),
             "interface" => Some(Self::Interface_),
             "json" => Some(Self::Json),
             "jsondiagram" => Some(Self::JsonDiagram),
@@ -265,6 +272,7 @@ impl SName {
             "lifeline" => Some(Self::LifeLine),
             "mainframe" => Some(Self::Mainframe),
             "map" => Some(Self::Map),
+            "menu" => Some(Self::Menu),
             "milestone" => Some(Self::Milestone),
             "mindmapdiagram" => Some(Self::MindmapDiagram),
             "month" => Some(Self::Month),
@@ -304,6 +312,7 @@ impl SName {
             "stereotype" => Some(Self::Stereotype),
             "storage" => Some(Self::Storage),
             "swimlane" => Some(Self::Swimlane),
+            "tab" => Some(Self::Tab),
             "task" => Some(Self::Task),
             "timegrid" => Some(Self::Timegrid),
             "timeline" => Some(Self::Timeline),
@@ -312,6 +321,7 @@ impl SName {
             "undone" => Some(Self::Undone),
             "unstarted" => Some(Self::Unstarted),
             "usecase" => Some(Self::Usecase),
+            "usecasediagram" => Some(Self::UsecaseDiagram),
             "verticalseparator" => Some(Self::VerticalSeparator),
             "year" => Some(Self::Year),
             "visibilityicon" => Some(Self::VisibilityIcon),
@@ -414,8 +424,9 @@ impl PName {
             "hyperlinkunderlinestyle" => Some(Self::HyperlinkUnderlineStyle),
             "hyperlinkunderlinethickness" => Some(Self::HyperlinkUnderlineThickness),
             "headcolor" => Some(Self::HeadColor),
-            // accept both "linecolor" and "bordercolor" (common alias)
-            "linecolor" | "bordercolor" => Some(Self::LineColor),
+            // accept both "linecolor" and "bordercolor" (common alias);
+            // "arrowcolor" is also an alias used in diagram-family style blocks
+            "linecolor" | "bordercolor" | "arrowcolor" => Some(Self::LineColor),
             "linestyle" => Some(Self::LineStyle),
             "padding" => Some(Self::Padding),
             "margin" => Some(Self::Margin),
@@ -547,9 +558,8 @@ pub struct StyleRule {
 
 /// The typed AST node for a complete `<style> … </style>` block.
 ///
-/// This is the new `StatementKind::StyleBlock` variant.  Alongside it, the
-/// legacy flat `StyleParam` triples continue to be emitted by the compat shim
-/// until Phase E removes them.
+/// This is the canonical `StatementKind::StyleBlock` variant.  The legacy
+/// flat-triple compat shim (`StyleParam`) was removed in Phase E (#1417).
 #[derive(Debug, Clone)]
 pub struct StyleBlock {
     /// All rules produced by the parser, in source order.

@@ -1,0 +1,8 @@
+@startuml
+!theme cyborg
+title Cyborg Theme
+participant Alice
+participant Bob
+Alice -> Bob : hello
+Bob --> Alice : hi
+@enduml

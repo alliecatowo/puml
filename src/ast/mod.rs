@@ -153,15 +153,8 @@ pub enum StatementKind {
         key: String,
         value: String,
     },
-    StyleParam {
-        selector: Option<String>,
-        property: String,
-        key: Option<String>,
-        value: String,
-    },
     /// Rich typed AST for a `<style>` block (Phase A of #1404).
-    /// Emitted alongside legacy `StyleParam` triples (compat shim) until Phase E
-    /// removes the flat triples.
+    /// The legacy `StyleParam` flat-triple compat shim was removed in Phase E (#1417).
     StyleBlock(StyleBlock),
     Theme(String),
     Pragma(String),

@@ -230,18 +230,29 @@ pub fn effective_class_node_style(
     class_style: &ClassStyle,
     node: &FamilyNode,
 ) -> EffectiveClassNodeStyle {
+    use crate::ast::style::SName;
     let stereotype_key = family_node_stereotype_key(node);
     let scoped_style = stereotype_key
         .as_deref()
         .and_then(|key| class_style.stereotype_styles.get(key));
     let inline_style = family_node_inline_style(node);
     let fill_inline = node.fill_color.as_deref();
+    // Select the correct SName tags for the `<style>` block query based on the
+    // node kind — usecase/actor nodes use `usecaseDiagram + usecase/actor`
+    // selectors that match the upstream `<style>` block structure.
+    let (diagram_sname, element_sname) = match node.kind {
+        FamilyNodeKind::UseCase => (SName::UsecaseDiagram, SName::Usecase),
+        FamilyNodeKind::Actor => (SName::UsecaseDiagram, SName::Actor),
+        _ => (SName::ClassDiagram, SName::Class_),
+    };
     shared_class_effective(
         class_style,
         scoped_style,
         &inline_style,
         fill_inline,
         stereotype_key.as_deref(),
+        diagram_sname,
+        element_sname,
     )
 }
 
